@@ -1,0 +1,53 @@
+name: Start-Hub Content Automation
+
+# Cron devre dışı — sadece Actions sekmesinden elle tetikle.
+# Cron'u açmak için aşağıdaki iki satırı yorumdan çıkar:
+#  schedule:
+#    - cron: "0 5 * * *"   # 08:00 TRT (05:00 UTC)
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Çalışma modu"
+        required: false
+        default: "all"
+        type: choice
+        options: [all, generate, publish]
+      dry_run:
+        description: "Dry-run (hiçbir yere yazma)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+permissions:
+  contents: read    # Supabase'e yazıyoruz, repoya commit yok
+
+jobs:
+  automate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Bağımlılıklar
+        run: pip install -r automation/requirements.txt
+
+      - name: İçerik hattını çalıştır
+        working-directory: automation
+        env:
+          GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL:              gemini-2.5-flash
+          DAILY_LIMIT:               "2"
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY:      ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SHEET_NAME:                "Start-Hub Yayın Planı"
+          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+          DRY_RUN:                   ${{ github.event.inputs.dry_run || 'false' }}
+        run: python run.py ${{ github.event.inputs.mode || 'all' }}

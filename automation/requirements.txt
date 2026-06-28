@@ -1,0 +1,9 @@
+# automation/requirements.txt
+# Python 3.11 — GitHub Actions ücretsiz tier
+feedparser==6.0.11
+google-generativeai==0.8.3
+gspread==6.1.4
+google-auth==2.35.0
+python-slugify==8.0.4
+python-dotenv==1.0.1
+supabase==2.10.0

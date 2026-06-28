@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\data.jsx\" \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\data.jsx\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\ui-components.jsx\" \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\ui-components.jsx\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\tweaks-panel.jsx\" \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\tweaks-panel.jsx\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\layout.jsx\"        \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\layout.jsx\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\home-page.jsx\"     \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\home-page.jsx\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\about-labs.jsx\"    \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\about-labs.jsx\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\other-pages.jsx\"   \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\other-pages.jsx\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\detail-pages.jsx\"  \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\detail-pages.jsx\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\app.jsx\"           \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\app.jsx\")",
+      "PowerShell($env:PATH -split ';' | Where-Object { $_ -match 'node|npm' })"
+    ]
+  }
+}
