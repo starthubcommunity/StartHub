@@ -1,12 +1,15 @@
 """
-editorial_calendar.py — Google Sheets "Start-Hub Yayın Planı" ile editöryel takvim.
+editorial_calendar.py — Google Sheets "Start-Hub Yayın Planı" editöryel takvim.
 
-Sayfa sütunları (başlık satırı zorunlu, bu sırayla):
-    id | title_tr | slug | category | tag | planned_date | status | source | source_url | uygunluk | content_json
+Sayfa sütunları (başlık satırı zorunlu):
+    id | title | slug | category | planned_date | status | source_url | content_file | content
 
-status akışı:  draft → approved → published
-Sistem SADECE status == 'approved' satırları yayınlar.
-content_json: tam makale dict'i (JSON string) — publish adımında Supabase'e aktarılır.
+status akışı: draft -> approved -> published
+- draft    : Gemini üretti, editör henüz görmedi
+- approved : Editör onayladı, bir sonraki publish adımında Supabase'e yazar
+- published: Supabase'e yazıldı
+
+content sütunu: üretilen makalenin tam JSON'u — publish adımında buradan okunur.
 """
 import json
 import datetime
@@ -15,10 +18,6 @@ from google.oauth2.service_account import Credentials
 from config import SHEET_NAME, GOOGLE_SHEETS_CREDENTIALS
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-
-COLUMNS = ["id", "title_tr", "slug", "category", "tag",
-           "planned_date", "status", "source", "source_url",
-           "uygunluk", "content_json"]
 
 
 def _client():
@@ -35,48 +34,29 @@ def add_draft(article: dict) -> None:
     """Yeni üretilen makaleyi takvime 'draft' olarak ekler."""
     ws = _sheet()
     rows = ws.get_all_records()
-    next_id = (max([int(r.get("id", 0)) for r in rows if str(r.get("id", "")).isdigit()],
-                   default=0) + 1) if rows else 1
+    next_id = (max([int(r.get("id", 0)) for r in rows], default=0) + 1) if rows else 1
+
+    display_title = article.get("title_tr") or article.get("title", "")
 
     ws.append_row([
         next_id,
-        article.get("title_tr", ""),
-        article.get("slug", ""),
-        article.get("category", "Teknoloji"),
-        article.get("tag", "gundem"),
-        datetime.date.today().isoformat(),
-        "draft",
-        article.get("source", ""),
-        article.get("source_url", ""),
-        article.get("uygunluk_skoru", ""),
-        json.dumps(article, ensure_ascii=False),   # tam veri — publish'te kullanılır
+        display_title,                           # title — okunabilirlik için
+        article["slug"],                         # slug
+        article.get("category", "Teknoloji"),    # category
+        datetime.date.today().isoformat(),       # planned_date
+        "draft",                                 # status
+        article.get("source_url", ""),           # source_url
+        "",                                      # content_file (kullanılmıyor)
+        json.dumps(article, ensure_ascii=False), # content — tam makale JSON
     ])
-    print(f"[takvim] draft eklendi: {article.get('title_tr', article.get('slug'))}")
+    print(f"[takvim] draft eklendi: {display_title}")
 
 
 def get_approved() -> list[dict]:
-    """status == 'approved' olan satırları döndürür; content_json parse edilmiş halde."""
+    """status == 'approved' olan satırları döndürür."""
     ws = _sheet()
-    approved = []
-    for r in ws.get_all_records():
-        if str(r.get("status", "")).strip().lower() != "approved":
-            continue
-        # content_json'dan tam makaleyi geri yükle
-        try:
-            full = json.loads(r.get("content_json") or "{}")
-        except json.JSONDecodeError:
-            full = {}
-        # Sheets'teki alanlar JSON'dan önceliklidir (editör düzenlemiş olabilir)
-        full.update({
-            "slug":     r.get("slug", full.get("slug", "")),
-            "title_tr": r.get("title_tr", full.get("title_tr", "")),
-            "category": r.get("category", full.get("category", "Teknoloji")),
-            "tag":      r.get("tag", full.get("tag", "gundem")),
-            "source":   r.get("source", full.get("source", "")),
-            "source_url": r.get("source_url", full.get("source_url", "")),
-        })
-        approved.append(full)
-    return approved
+    return [r for r in ws.get_all_records()
+            if str(r.get("status", "")).strip().lower() == "approved"]
 
 
 def get_by_slug(slug: str) -> dict | None:
@@ -89,10 +69,7 @@ def get_by_slug(slug: str) -> dict | None:
 
 
 def update_draft(article: dict) -> bool:
-    """
-    Var olan bir taslağın içeriğini yeniden üretilen makaleyle günceller.
-    'regenerate' modunda kullanılır.
-    """
+    """Var olan taslağın içeriğini yeniden üretilen makaleyle günceller."""
     ws = _sheet()
     rows = ws.get_all_records()
     if not rows:
@@ -102,11 +79,9 @@ def update_draft(article: dict) -> bool:
         if r.get("slug") != article["slug"]:
             continue
         updates = {
-            "title_tr":    article.get("title_tr", r.get("title_tr", "")),
-            "category":    article.get("category", r.get("category", "Teknoloji")),
-            "tag":         article.get("tag", r.get("tag", "gundem")),
-            "uygunluk":    article.get("uygunluk_skoru", r.get("uygunluk", "")),
-            "content_json": json.dumps(article, ensure_ascii=False),
+            "title":    article.get("title_tr") or article.get("title", r.get("title", "")),
+            "category": article.get("category", r.get("category", "Teknoloji")),
+            "content":  json.dumps(article, ensure_ascii=False),
         }
         for col_name, val in updates.items():
             if col_name in header:
@@ -121,13 +96,10 @@ def mark_published(slug: str) -> None:
     """İlgili slug satırının status'unu 'published' yapar."""
     ws = _sheet()
     rows = ws.get_all_records()
-    if not rows:
-        return
-    header = list(rows[0].keys())
     for i, r in enumerate(rows, start=2):
         if r.get("slug") == slug:
-            if "status" in header:
-                ws.update_cell(i, header.index("status") + 1, "published")
+            status_col = list(r.keys()).index("status") + 1
+            ws.update_cell(i, status_col, "published")
             print(f"[takvim] published: {slug}")
             return
     print(f"[uyarı] slug takvimde bulunamadı: {slug}")

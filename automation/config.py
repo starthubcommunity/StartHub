@@ -72,8 +72,3 @@ GOOGLE_SHEETS_CREDENTIALS = os.environ.get("GOOGLE_SHEETS_CREDENTIALS", "")
 # Sütunlar: id | title | slug | category | planned_date | status | source_url | content_file
 # status değerleri: draft / approved / published
 
-# ---- GitHub (yayınlama hedefi) ----
-GITHUB_TOKEN = os.environ.get("GH_TOKEN", "")          # repo write izni olan PAT veya GITHUB_TOKEN
-GITHUB_REPO = os.environ.get("GH_REPO", "kullanici/start-hub")  # "owner/repo"
-POSTS_DIR = "posts"                                     # /posts/[slug].json
-INDEX_FILE = "posts/index.json"                         # tüm yazıların listesi

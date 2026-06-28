@@ -1,9 +1,9 @@
 name: Start-Hub Content Automation
 
-# Cron devre dışı — sadece Actions sekmesinden elle tetikle.
-# Cron'u açmak için aşağıdaki iki satırı yorumdan çıkar:
+# Cron zamanlama şimdilik devre dışı.
+# Aktif etmek için aşağıdaki satırların başındaki # işaretini kaldır:
 #  schedule:
-#    - cron: "0 5 * * *"   # 08:00 TRT (05:00 UTC)
+#    - cron: "0 5 * * *"   # 08:00 TRT (UTC+3) = 05:00 UTC
 on:
   workflow_dispatch:
     inputs:
@@ -13,15 +13,9 @@ on:
         default: "all"
         type: choice
         options: [all, generate, publish]
-      dry_run:
-        description: "Dry-run (hiçbir yere yazma)"
-        required: false
-        default: "false"
-        type: choice
-        options: ["false", "true"]
 
 permissions:
-  contents: read    # Supabase'e yazıyoruz, repoya commit yok
+  contents: read   # Supabase'e yazıyoruz, repoya commit gerekmez
 
 jobs:
   automate:
@@ -42,12 +36,11 @@ jobs:
       - name: İçerik hattını çalıştır
         working-directory: automation
         env:
-          GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL:              gemini-2.5-flash
-          DAILY_LIMIT:               "2"
-          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY:      ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SHEET_NAME:                "Start-Hub Yayın Planı"
-          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
-          DRY_RUN:                   ${{ github.event.inputs.dry_run || 'false' }}
+          GEMINI_API_KEY:             ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL:               gemini-2.5-flash
+          DAILY_LIMIT:                "2"
+          SUPABASE_URL:               ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY:       ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SHEET_NAME:                 "Start-Hub Yayın Planı"
+          GOOGLE_SHEETS_CREDENTIALS:  ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
         run: python run.py ${{ github.event.inputs.mode || 'all' }}

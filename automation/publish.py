@@ -1,56 +1,83 @@
 """
-publish.py — Onaylı makaleyi doğrudan Supabase posts tablosuna INSERT eder.
-GitHub yazma mantığı kaldırıldı; site veriyi Supabase'den okur.
+publish.py — Onaylı makaleyi Supabase posts tablosuna INSERT eder.
 
-Supabase sütun eşleşmesi (mapPostToDb ile birebir):
-    slug, title_tr, excerpt_tr, body_tr, tag, category,
-    source, source_url, date, read_time, home_pinned, recommended
+Supabase şeması (mapPostToDb ile birebir eşleşir):
+    slug, tag, author_id, project_id, date, read_time, bg, image_url,
+    source, source_url, title_tr, title_en, excerpt_tr, excerpt_en,
+    body_tr, body_en, home_pinned, recommended
 """
 import datetime
 import math
 from supabase import create_client
 from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 
-
-def _supabase():
-    return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+_supabase_client = None
 
 
-def _read_time(body_tr: list) -> int:
-    """~200 kelime/dk okuma süresi tahmini (body_tr paragraf listesinden)."""
-    word_count = sum(len(p.split()) for p in body_tr)
-    return max(1, math.ceil(word_count / 200))
+def _client():
+    global _supabase_client
+    if _supabase_client is None:
+        _supabase_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    return _supabase_client
 
 
-def publish_article(article: dict) -> bool:
+def _read_time(content: str) -> int:
+    """~200 kelime/dk okuma süresi tahmini."""
+    return max(1, math.ceil(len((content or "").split()) / 200))
+
+
+def _to_paragraphs(text: str) -> list[str]:
+    """Düz metin makaleyi boş satırlara göre paragraf listesine dönüştürür."""
+    if not text:
+        return []
+    paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+    return paras or [text.strip()]
+
+
+def publish_article(article: dict, dry_run: bool = False) -> dict | None:
     """
-    Tek makaleyi Supabase'e yazar. Aynı slug zaten varsa günceller (upsert).
-    Dönüş: başarılıysa True, hata varsa False.
+    Tek makaleyi Supabase posts tablosuna ekler.
+    dry_run=True ise INSERT yapmaz, sadece kaydı loglar.
+    Dönüş: eklenen satır (dry_run'da None).
     """
-    body_tr = article.get("body_tr") or []
-    if isinstance(body_tr, str):
-        body_tr = [p.strip() for p in body_tr.split("\n\n") if p.strip()]
+    slug = article["slug"]
+    content_text = article.get("content", "")
 
-    row = {
-        "slug":        article["slug"],
-        "title_tr":    article.get("title_tr") or article.get("title", ""),
-        "excerpt_tr":  article.get("excerpt_tr") or article.get("summary", ""),
-        "body_tr":     body_tr,
+    # Gemini'den gelen düz metin → body_tr paragraph array
+    body_tr = article.get("body_tr") or _to_paragraphs(content_text)
+
+    record = {
+        "slug":        slug,
         "tag":         article.get("tag", "gundem"),
-        "category":    article.get("category", "Teknoloji"),
-        "source":      article.get("source") or article.get("source_name"),
-        "source_url":  article.get("source_url", ""),
+        "author_id":   article.get("author_id", None),
+        "project_id":  None,
         "date":        article.get("date") or datetime.date.today().isoformat(),
-        "read_time":   article.get("read_time") or _read_time(body_tr),
-        "home_pinned": bool(article.get("home_pinned", False)),
-        "recommended": bool(article.get("recommended", False)),
+        "read_time":   article.get("read_time") or _read_time(content_text),
+        "bg":          article.get("bg", "var(--blue-light)"),
+        "image_url":   article.get("image_url", None),
+        "source":      article.get("source_name", None),
+        "source_url":  article.get("source_url", None),
+        "title_tr":    article.get("title_tr") or article.get("title", ""),
+        "title_en":    article.get("title_en", None),
+        "excerpt_tr":  article.get("excerpt_tr") or article.get("summary", ""),
+        "excerpt_en":  article.get("excerpt_en", None),
+        "body_tr":     body_tr,
+        "body_en":     article.get("body_en", []),
+        "home_pinned": False,
+        "recommended": False,
     }
 
+    if dry_run:
+        import json
+        print(f"[dry-run] Supabase'e yazılacak kayıt ({slug}):")
+        print(json.dumps(record, ensure_ascii=False, indent=2))
+        return None
+
     try:
-        client = _supabase()
-        client.table("posts").upsert(row, on_conflict="slug").execute()
-        print(f"[supabase] yayınlandı: {row['slug']}")
-        return True
+        result = _client().table("posts").insert(record).execute()
+        row = result.data[0] if result.data else {}
+        print(f"[yayın] Supabase posts ← {slug} (id: {row.get('id')})")
+        return row
     except Exception as e:
-        print(f"[hata] Supabase yazma başarısız ({row['slug']}): {e}")
-        return False
+        print(f"[hata] Supabase INSERT başarısız ({slug}): {e}")
+        return None
