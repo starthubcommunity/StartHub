@@ -1,6 +1,7 @@
 // admin-ui.jsx — Shared UI components for admin panel
 import React, { useState as useStateU, useRef as useRefU, useEffect as useEffectU } from 'react';
 import { iconSvgs } from '../ui-components';
+import { supabase } from '../lib/supabase';
 
 // ============================================
 // ADMIN ICON (extends main Icon set)
@@ -226,6 +227,97 @@ function ImageUpload({ value, onChange, size = 80, shape = 'rounded', maxDim = 6
 }
 
 // ============================================
+// POST COVER UPLOAD — center-crop 1200×630, WebP, Supabase Storage
+// ============================================
+function cropToWebP(file, targetW = 1200, targetH = 630) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.max(targetW / img.width, targetH / img.height);
+        const sw = Math.round(img.width * scale);
+        const sh = Math.round(img.height * scale);
+        const ox = Math.round((sw - targetW) / 2);
+        const oy = Math.round((sh - targetH) / 2);
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        canvas.getContext('2d').drawImage(img, -ox, -oy, sw, sh);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob başarısız')), 'image/webp', 0.85);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function PostCoverUpload({ value, onChange, postSlug = '' }) {
+  const inputRef = useRefU(null);
+  const [dragging, setDragging] = useStateU(false);
+  const [uploading, setUploading] = useStateU(false);
+  const [error, setError] = useStateU(null);
+
+  const handleFile = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const blob = await cropToWebP(file);
+      const filename = `${Date.now()}${postSlug ? '-' + postSlug : ''}.webp`;
+      const { error: upErr } = await supabase.storage
+        .from('post-images')
+        .upload(filename, blob, { contentType: 'image/webp', upsert: true });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from('post-images').getPublicUrl(filename);
+      onChange(data.publicUrl);
+    } catch (err) {
+      setError('Yükleme başarısız: ' + (err.message || String(err)));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div
+        className={`adm-img-upload ${dragging ? 'adm-img-upload--drag' : ''}`}
+        style={{ width: 210, height: 110, borderRadius: 'var(--adm-r)', position: 'relative', cursor: uploading ? 'wait' : 'pointer' }}
+        onClick={() => !uploading && inputRef.current?.click()}
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
+      >
+        {value
+          ? <img src={value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+          : (
+            <div className="adm-img-upload__placeholder">
+              <AIcon name="image" size={22} />
+              <span style={{ fontSize: 11, marginTop: 6 }}>1200×630 — Sürükle / seç</span>
+            </div>
+          )
+        }
+        {uploading && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'inherit' }}>
+            <AIcon name="refresh" size={24} />
+          </div>
+        )}
+        <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }}
+          onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} />
+      </div>
+      {error && <span style={{ fontSize: 11, color: 'var(--red)' }}>{error}</span>}
+      {value && !uploading && (
+        <button type="button" className="adm-img-upload__clear" onClick={() => onChange(null)}>
+          <AIcon name="trash" size={12} /> Kaldır
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ============================================
 // TRI TOGGLE — Evet / Hayır / Boş (null)
 // ============================================
 function TriToggle({ value, onChange }) {
@@ -375,6 +467,6 @@ function PeoplePicker({ people, selected = [], onChange, excludeIds = [] }) {
 // Export all
 export {
   AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select,
-  ImageUpload, SearchBar, PageHead, ConfirmDialog, TagInput,
+  ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput,
   TriToggle, Stepper, resizeImage, PeoplePicker,
 };

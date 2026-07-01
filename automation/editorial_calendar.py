@@ -17,11 +17,39 @@ import gspread
 from google.oauth2.service_account import Credentials
 from config import SHEET_NAME, GOOGLE_SHEETS_CREDENTIALS
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
 
 
 def _client():
-    info = json.loads(GOOGLE_SHEETS_CREDENTIALS)
+    if not GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS.startswith("{\"type\":\"service_account\",\"project_id\":\".."):
+        raise ValueError(
+            "GOOGLE_SHEETS_CREDENTIALS ayarlanmamış. "
+            ".env dosyasına servis hesabı JSON'unu ekle."
+        )
+    # Çok satırlı yapıştırma kontrolü — gerçek newline karakteri varsa .env formatı bozuktur
+    if "\n" in GOOGLE_SHEETS_CREDENTIALS and GOOGLE_SHEETS_CREDENTIALS.strip().startswith("{"):
+        raise ValueError(
+            "GOOGLE_SHEETS_CREDENTIALS .env'de birden fazla satıra yayılmış.\n"
+            "Düzeltmek için:\n"
+            "  python -c \"import json,sys; print(json.dumps(json.load(open('service-account.json'))))\"\n"
+            "çıktısını tek satır olarak .env'e şu formatta yaz:\n"
+            "  GOOGLE_SHEETS_CREDENTIALS='{...tüm json tek satırda...}'"
+        )
+    try:
+        info = json.loads(GOOGLE_SHEETS_CREDENTIALS)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"GOOGLE_SHEETS_CREDENTIALS geçerli JSON değil: {e}\n"
+            "En sık neden: .env'de değer birden fazla satıra yayılmış.\n"
+            "Çözüm: değeri tek satıra sıkıştır ve tek tırnak içine al:\n"
+            "  GOOGLE_SHEETS_CREDENTIALS='{\"type\":\"service_account\",...}'"
+        ) from e
+    # Env variable üzerinden geçen private_key'de \n literal olarak gelebilir.
+    if "private_key" in info:
+        info["private_key"] = info["private_key"].replace("\\n", "\n")
     creds = Credentials.from_service_account_info(info, scopes=SCOPES)
     return gspread.authorize(creds)
 

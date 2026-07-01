@@ -10,7 +10,8 @@
       "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\other-pages.jsx\"   \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\other-pages.jsx\")",
       "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\detail-pages.jsx\"  \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\detail-pages.jsx\")",
       "PowerShell(Copy-Item \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\app.jsx\"           \"c:\\\\Users\\\\Kadir\\\\Desktop\\\\Yeni klas�r\\\\src\\\\app.jsx\")",
-      "PowerShell($env:PATH -split ';' | Where-Object { $_ -match 'node|npm' })"
+      "PowerShell($env:PATH -split ';' | Where-Object { $_ -match 'node|npm' })",
+      "Bash(python test_sheets.py)"
     ]
   }
 }

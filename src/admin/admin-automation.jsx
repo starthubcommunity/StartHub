@@ -1,540 +1,943 @@
-// admin-automation.jsx — İçerik Otomasyonu kontrol paneli
-// Pipeline: RSS Tarama → Filtre → Gemini Üretimi → Editöryel Takvim (taslak/onaylı/yayında) → Yayın
-// Bu panel "kontrol yüzeyi"dir. Gerçek RSS çekme + Gemini çağrıları GitHub Actions
-// backend'inde (automation/ klasörü) çalışır. Buradaki ayarlar o backend'i besler.
-import React, { useState as useStateAU, useEffect as useEffectAU, useMemo as useMemoAU } from 'react';
-import { useAdmin, uid } from './admin-store';
-import { AIcon, Modal, Field, Input, Textarea, Select, PageHead, ConfirmDialog, TagInput } from './admin-ui';
+// admin-automation.jsx — Otomasyon Kontrol Merkezi
+// Tab yapısı: Taslaklar | Kaynaklar | Kelimeler | Ton & Ayarlar | Loglar
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { AIcon, Modal, Field, Input, PageHead, TagInput } from './admin-ui';
 import { supabase } from '../lib/supabase';
 
-// ---- Sabit varsayılanlar (spec'ten) ----
-const RSS_SOURCES_DEFAULT = [
-  { name: 'TechCrunch', url: 'https://techcrunch.com/feed', on: true },
-  { name: 'VentureBeat', url: 'https://feeds.feedburner.com/venturebeat/SZYF', on: true },
-  { name: 'The Next Web', url: 'https://thenextweb.com/feed', on: true },
-  { name: 'Webrazzi', url: 'https://webrazzi.com/feed', on: true },
-  { name: 'MIT Technology Review', url: 'https://www.technologyreview.com/feed', on: false },
-];
-
-const KEYWORDS_DEFAULT = ['startup', 'girişim', 'funding', 'AI', 'artificial intelligence', 'yapay zeka', 'tech', 'teknoloji', 'venture'];
-
-const GEMINI_PROMPT_DEFAULT = `Sen Start-Hub için içerik üreten bir editörsün. Start-Hub, Türkiye'deki girişimcilere yönelik bir haber ve analiz platformudur.
-
-Yazı üslubu:
-- Samimi ama profesyonel
-- Türk girişim ekosistemine bağlantı kurarak anlat
-- Teknik terimleri Türkçeyle açıkla
-- Başlık merak uyandırıcı olsun
-- 400-600 kelime
-
-Çıktı formatı (JSON olarak ver):
-{
-  "title": "Türkçe başlık",
-  "slug": "url-uyumlu-baslik",
-  "summary": "2 cümlelik özet",
-  "content": "Tam makale metni (markdown)",
-  "category": "AI/Girişim/Teknoloji/Yatırım",
-  "source_url": "kaynak link",
-  "source_name": "kaynak adı",
-  "tags": ["tag1", "tag2"]
-}`;
+// ── Sabitler ─────────────────────────────────────────────────────────────────
+const GITHUB_REPO     = 'starthubcommunity/StartHub';
+const GITHUB_WORKFLOW = 'content-automation.yml';
+const GEMINI_LIMIT    = 20; // ücretsiz günlük istek limiti
 
 const TONE_LEVELS = [
-  { level: 1, label: 'Resmi Haber',   desc: 'Nesnel, olgusal, abartısız haber dili' },
+  { level: 1, label: 'Resmi Haber',    desc: 'Nesnel, olgusal, abartısız haber dili' },
   { level: 2, label: 'Bilgilendirici', desc: 'Net ve anlaşılır, teknik terimleri açıklar' },
   { level: 3, label: 'Dengeli',        desc: 'Samimi ama profesyonel (varsayılan)' },
   { level: 4, label: 'Sıcak',          desc: 'Topluluk odaklı, ilham verici örnekler' },
   { level: 5, label: 'Coşkulu',        desc: 'Motivasyonel, enerjik, harekete geçirici' },
 ];
 
-const CATEGORIES = ['AI', 'Girişim', 'Teknoloji', 'Yatırım'];
+const ALL_CATEGORIES = ['AI', 'Teknoloji', 'Girişim', 'Yatırım', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık'];
 
-const QUEUE_STATUS = {
-  draft:     { label: 'Taslak',      color: '#B45309', bg: '#FEF6E7' },
-  approved:  { label: 'Onaylı',      color: 'var(--adm-blue)',  bg: 'var(--adm-blue-light)' },
-  published: { label: 'Yayında',     color: 'var(--adm-green)', bg: 'var(--adm-green-light)' },
-  rejected:  { label: 'Reddedildi',  color: 'var(--adm-red)',   bg: 'var(--adm-red-light)' },
-};
-
-// ---- Haber havuzu: backend'in RSS'ten çekip Gemini ile ürettiğini simüle eder ----
-const NEWS_POOL = [
-  {
-    category: 'AI', slug: 'anthropic-yeni-claude-startup-etkisi',
-    title_tr: 'Anthropic yeni nesil Claude modelini duyurdu — startup ekosistemi nasıl etkilenecek?',
-    title_en: 'Anthropic announces next-gen Claude model — how will startups be affected?',
-    excerpt_tr: 'Yeni model, erken aşama girişimler için güçlü otomasyon araçları sunuyor.',
-    excerpt_en: 'The new model offers powerful automation tools for early-stage startups.',
-    body_tr: ['Anthropic, Claude ailesinin en güçlü modelini duyurdu.', 'Yeni model, çok adımlı görevlerde otonom çalışabiliyor.', 'Erken aşama startup ekipleri için ürün geliştirme süresini ciddi biçimde kısaltabilir.'],
-    body_en: ['Anthropic announced the most powerful model in the Claude family.', 'The new model can work autonomously on multi-step tasks.', 'It could significantly shorten product development time for early-stage startup teams.'],
-    source: { name: 'TechCrunch', url: 'https://techcrunch.com/feed' },
-    bg: 'var(--blue-light)',
-  },
-  {
-    category: 'Girişim', slug: 'yc-2026-yazilim-trendleri',
-    title_tr: 'Y Combinator 2026 yazılım trendleri raporunu yayınladı',
-    title_en: 'Y Combinator publishes 2026 software trends report',
-    excerpt_tr: "YC'nin yeni raporu, gelecek yılın en önemli startup trendlerini ortaya koyuyor.",
-    excerpt_en: "YC's new report reveals the most important startup trends for the coming year.",
-    body_tr: ["Y Combinator, portföyündeki 400+ startup'ın verilerini analiz ederek 2026 trendlerini çıkardı.", 'AI-native ürünler, dikey SaaS ve regülasyon-teknik çözümler öne çıkıyor.'],
-    body_en: ['Y Combinator analyzed data from 400+ portfolio startups to identify 2026 trends.', 'AI-native products, vertical SaaS, and reg-tech solutions are leading.'],
-    source: { name: 'VentureBeat', url: 'https://feeds.feedburner.com/venturebeat/SZYF' },
-    bg: 'var(--orange-light)',
-  },
-  {
-    category: 'Yatırım', slug: 'avrupa-startup-yatirimlari-arttı',
-    title_tr: "Avrupa'da startup yatırımları %34 arttı — Türkiye nasıl konumlanıyor?",
-    title_en: 'Startup investments in Europe rise 34% — where does Turkey stand?',
-    excerpt_tr: 'Avrupa risk sermayesi piyasası toparlanırken Türk girişimciler için fırsatlar artıyor.',
-    excerpt_en: 'As the European VC market recovers, opportunities for Turkish entrepreneurs are growing.',
-    body_tr: ["2026'nın ilk çeyreğinde Avrupa'da startup yatırımları bir önceki yıla göre %34 arttı.", 'Türkiye, bölgedeki en hızlı büyüyen ekosistemlerden biri olarak öne çıkıyor.'],
-    body_en: ['In Q1 2026, startup investments in Europe rose 34% year-over-year.', 'Turkey stands out as one of the fastest-growing ecosystems in the region.'],
-    source: { name: 'The Next Web', url: 'https://thenextweb.com/feed' },
-    bg: 'var(--green-light)',
-  },
-  {
-    category: 'Girişim', slug: 'google-for-startups-ai-akseleratör',
-    title_tr: 'Google for Startups yeni AI akseleratör programını açtı',
-    title_en: 'Google for Startups launches new AI accelerator program',
-    excerpt_tr: 'Program, AI odaklı erken aşama girişimlere mentorluk ve kredi desteği sunuyor.',
-    excerpt_en: 'The program offers mentorship and credits to AI-focused early-stage startups.',
-    body_tr: ["Google for Startups, yapay zeka odaklı startup'lar için yeni bir akseleratör programı başlattı.", 'Seçilen ekipler 100.000$ Google Cloud kredisi ve 12 haftalık mentorluk alacak.'],
-    body_en: ['Google for Startups launched a new accelerator program for AI-focused startups.', 'Selected teams will receive $100K in Google Cloud credits and 12 weeks of mentorship.'],
-    source: { name: 'Webrazzi', url: 'https://webrazzi.com/feed' },
-    bg: 'var(--red-light)',
-  },
-  {
-    category: 'Teknoloji', slug: 'notion-ai-otomatik-proje-yonetimi',
-    title_tr: 'Notion, AI ile otomatik proje yönetimi özelliğini duyurdu',
-    title_en: 'Notion announces AI-powered automatic project management',
-    excerpt_tr: "Notion'ın yeni özelliği, startup ekipleri için proje takibini otomatikleştiriyor.",
-    excerpt_en: "Notion's new feature automates project tracking for startup teams.",
-    body_tr: ['Notion, AI destekli otomatik görev oluşturma ve önceliklendirme özelliğini tanıttı.', "Özellikle küçük ekiplerle çalışan startup'lar için zaman tasarrufu vaat ediyor."],
-    body_en: ['Notion introduced AI-powered automatic task creation and prioritization.', 'It promises time savings especially for startups working with small teams.'],
-    source: { name: 'TechCrunch', url: 'https://techcrunch.com/feed' },
-    bg: 'var(--purple-light)',
-  },
-  {
-    category: 'Yatırım', slug: 'microsoft-azure-ai-kredileri-3-kat',
-    title_tr: "Microsoft, startup'lar için Azure AI kredilerini 3 katına çıkardı",
-    title_en: 'Microsoft triples Azure AI credits for startups',
-    excerpt_tr: 'Microsoft for Startups programı, AI geliştirme için bulut kredilerini artırıyor.',
-    excerpt_en: 'Microsoft for Startups program increases cloud credits for AI development.',
-    body_tr: ["Microsoft, startup programındaki Azure AI kredilerini 150.000$'a çıkardı.", 'Hedef, erken aşama girişimlerin AI altyapı maliyetlerini düşürmek.'],
-    body_en: ['Microsoft increased Azure AI credits in its startup program to $150K.', 'The goal is to lower AI infrastructure costs for early-stage ventures.'],
-    source: { name: 'VentureBeat', url: 'https://feeds.feedburner.com/venturebeat/SZYF' },
-    bg: 'var(--blue-light)',
-  },
+const TABS = [
+  { id: 'drafts',   label: 'Taslaklar',   icon: 'layers'   },
+  { id: 'sources',  label: 'Kaynaklar',   icon: 'globe'    },
+  { id: 'keywords', label: 'Kelimeler',   icon: 'search'   },
+  { id: 'settings', label: 'Ton & Ayarlar', icon: 'settings' },
+  { id: 'logs',     label: 'Loglar',      icon: 'list'     },
 ];
 
-// ---- localStorage yardımcıları ----
-const lsGet = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? fallback : v; } catch (e) { return fallback; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-const todayStr = () => new Date().toISOString().slice(0, 10);
-const fmtDate = (d) => { try { return new Date(d + 'T00:00:00').toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }); } catch (e) { return d; } };
+// ── Yardımcılar ───────────────────────────────────────────────────────────────
+const fmtDate = (d) => d
+  ? new Date(d).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })
+  : '—';
 
+const fmtDateTime = (d) => d
+  ? new Date(d).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  : '—';
+
+const getPacificMidnightUTC = () => {
+  // PDT = UTC-7 (yaz saati). Pasifik gece yarısı = 07:00 UTC
+  const PACIFIC_OFFSET_H = 7;
+  const now = new Date();
+  const pacificNow = new Date(now.getTime() - PACIFIC_OFFSET_H * 3600000);
+  pacificNow.setUTCHours(0, 0, 0, 0);
+  return new Date(pacificNow.getTime() + PACIFIC_OFFSET_H * 3600000);
+};
+
+const getNextResetUTC = () => {
+  const midnight = getPacificMidnightUTC();
+  const next = new Date(midnight.getTime() + 24 * 3600000);
+  return next;
+};
+
+// ── Ana Bileşen ───────────────────────────────────────────────────────────────
 function AutomationPage() {
-  const { addItem } = useAdmin();
+  const [activeTab, setActiveTab] = useState('drafts');
+  const [toast, setToast]         = useState(null);
 
-  // Ayarlar
-  const [settings, setSettings] = useStateAU(() => ({ enabled: false, runTime: '08:00', dailyLimit: 2, autoApprove: false, geminiModel: 'gemini-2.0-flash', ...lsGet('sh_auto_settings', {}) }));
-  const [sources, setSources] = useStateAU(() => lsGet('sh_auto_sources', RSS_SOURCES_DEFAULT));
-  const [keywords, setKeywords] = useStateAU(() => lsGet('sh_auto_keywords', KEYWORDS_DEFAULT));
-  const [prompt, setPrompt] = useStateAU(() => lsGet('sh_auto_prompt', GEMINI_PROMPT_DEFAULT));
-  // Editöryel takvim kuyruğu: { [poolIndex]: { status, date } }
-  const [queue, setQueue] = useStateAU(() => {
-    const q = lsGet('sh_auto_queue', null);
-    if (q) return q;
-    // Eski demodan göç: sh_auto_published kadarını "yayında" işaretle
-    const old = parseInt(localStorage.getItem('sh_auto_published') || '0');
-    const seed = {};
-    for (let i = 0; i < old && i < NEWS_POOL.length; i++) seed[i] = { status: 'published', date: todayStr() };
-    return seed;
-  });
-
-  // Ton seviyesi — Supabase site_settings tablosundan okunur/yazılır
-  const [toneLevel, setToneLevel] = useStateAU(3);
-  const [toneSaving, setToneSaving] = useStateAU(false);
-
-  useEffectAU(() => {
-    supabase.from('site_settings').select('tone_level').single()
-      .then(({ data }) => { if (data?.tone_level) setToneLevel(data.tone_level); });
+  const flash = useCallback((msg, kind = 'green') => {
+    setToast({ msg, kind });
+    setTimeout(() => setToast(null), 3800);
   }, []);
 
-  const saveToneLevel = async (level) => {
-    setToneLevel(level);
-    setToneSaving(true);
-    const { error } = await supabase
-      .from('site_settings')
-      .upsert({ id: 1, tone_level: level, updated_at: new Date().toISOString() });
-    setToneSaving(false);
-    if (error) flash('Ton seviyesi kaydedilemedi: ' + error.message, 'orange');
-    else flash(`Ton seviyesi güncellendi: ${TONE_LEVELS[level - 1].label}`);
+  // ── Site ayarları (Supabase site_settings) ───────────────────────────────
+  const [automationEnabled, setAutomationEnabled] = useState(true);
+  const [autoPublish,       setAutoPublish]        = useState(false);
+  const [preferredHour,     setPreferredHour]      = useState(5);
+  const [enabledCategories, setEnabledCategories]  = useState([]);
+  const [toneLevel,         setToneLevel]          = useState(3);
+  const [toneExtra,         setToneExtra]          = useState({}); // {1:"...", 3:"..."}
+  const [toneBanned,        setToneBanned]         = useState([]);
+  const [settingsLoaded,    setSettingsLoaded]     = useState(false);
+  const [savingSettings,    setSavingSettings]     = useState(false);
+
+  const loadSettings = useCallback(async () => {
+    const { data } = await supabase
+      .from('site_settings').select('*').eq('id', 1).single();
+    if (!data) return;
+    setAutomationEnabled(data.automation_enabled ?? true);
+    setAutoPublish(data.auto_publish ?? false);
+    setPreferredHour(data.preferred_run_hour ?? 5);
+    setEnabledCategories(data.enabled_categories || []);
+    setToneLevel(data.tone_level ?? 3);
+    setToneExtra(data.tone_extra_instructions || {});
+    setToneBanned(data.tone_banned_phrases || []);
+    setSettingsLoaded(true);
+  }, []);
+
+  const saveSettings = useCallback(async (updates) => {
+    setSavingSettings(true);
+    const { error } = await supabase.from('site_settings')
+      .upsert({ id: 1, ...updates, updated_at: new Date().toISOString() });
+    setSavingSettings(false);
+    if (error) flash('Kaydedilemedi: ' + error.message, 'orange');
+    else flash('Ayarlar kaydedildi.');
+  }, [flash]);
+
+  // Toggle'lar anında kaydedilir
+  const toggleAutomation = async (val) => {
+    setAutomationEnabled(val);
+    await saveSettings({ automation_enabled: val });
+  };
+  const toggleAutoPublish = async (val) => {
+    setAutoPublish(val);
+    await saveSettings({ auto_publish: val });
   };
 
-  const [running, setRunning] = useStateAU(false);
-  const [regenId, setRegenId] = useStateAU(null);
-  const [toast, setToast] = useStateAU(null);
-  const [preview, setPreview] = useStateAU(null);
-  const [statusFilter, setStatusFilter] = useStateAU('all');
-  const [showPrompt, setShowPrompt] = useStateAU(false);
+  // ── RSS Kaynakları (Supabase automation_sources) ──────────────────────────
+  const [sources,       setSources]      = useState([]);
+  const [srcLoading,    setSrcLoading]   = useState(true);
+  const [sourceModal,   setSourceModal]  = useState(null); // null | {mode:'add'} | {mode:'edit',row}
+  const [infoOpen,      setInfoOpen]     = useState(false);
+  const [srcForm,       setSrcForm]      = useState({ name: '', url: '', weight: 5 });
+  const [srcSaving,     setSrcSaving]    = useState(false);
 
-  useEffectAU(() => lsSet('sh_auto_settings', settings), [settings]);
-  useEffectAU(() => lsSet('sh_auto_sources', sources), [sources]);
-  useEffectAU(() => lsSet('sh_auto_keywords', keywords), [keywords]);
-  useEffectAU(() => lsSet('sh_auto_prompt', prompt), [prompt]);
-  useEffectAU(() => lsSet('sh_auto_queue', queue), [queue]);
+  const loadSources = useCallback(async () => {
+    setSrcLoading(true);
+    const { data } = await supabase
+      .from('automation_sources').select('*').order('id');
+    setSources(data || []);
+    setSrcLoading(false);
+  }, []);
 
-  const flash = (msg, kind = 'green') => { setToast({ msg, kind }); setTimeout(() => setToast(null), 3200); };
-  const setS = (k, v) => setSettings(p => ({ ...p, [k]: v }));
-
-  // Kuyruk türetmeleri
-  const entries = useMemoAU(() => Object.entries(queue).map(([i, v]) => ({ i: +i, ...v, art: NEWS_POOL[+i] })).filter(e => e.art), [queue]);
-  const counts = useMemoAU(() => {
-    const c = { draft: 0, approved: 0, published: 0, rejected: 0 };
-    entries.forEach(e => { c[e.status] = (c[e.status] || 0) + 1; });
-    return c;
-  }, [entries]);
-  const activeSources = sources.filter(s => s.on).length;
-  const untouched = NEWS_POOL.map((_, i) => i).filter(i => !queue[i]);
-
-  const filtered = entries
-    .filter(e => statusFilter === 'all' ? true : e.status === statusFilter)
-    .sort((a, b) => b.i - a.i);
-
-  // ---- Eylemler ----
-  const runPipeline = () => {
-    if (running) return;
-    if (untouched.length === 0) { flash('Havuzda işlenecek yeni kaynak kalmadı.', 'orange'); return; }
-    setRunning(true);
-    // Backend'in sabah çalışmasını simüle eder: tarama → filtre → Gemini → taslak
-    setTimeout(() => {
-      const batch = untouched.slice(0, settings.dailyLimit);
-      const status = settings.autoApprove ? 'approved' : 'draft';
-      setQueue(prev => {
-        const next = { ...prev };
-        batch.forEach(i => { next[i] = { status, date: todayStr() }; });
-        return next;
+  const openAddSource = () => {
+    setSrcForm({ name: '', url: '', weight: 5 });
+    setSourceModal({ mode: 'add' });
+  };
+  const openEditSource = (row) => {
+    setSrcForm({ name: row.name, url: row.url, weight: row.weight });
+    setSourceModal({ mode: 'edit', row });
+  };
+  const saveSource = async () => {
+    if (!srcForm.name.trim() || !srcForm.url.trim()) {
+      flash('Kaynak adı ve URL zorunlu.', 'orange'); return;
+    }
+    setSrcSaving(true);
+    if (sourceModal.mode === 'add') {
+      const { error } = await supabase.from('automation_sources').insert({
+        name: srcForm.name.trim(), url: srcForm.url.trim(),
+        weight: Number(srcForm.weight) || 5, enabled: true,
       });
-      setRunning(false);
-      flash(`${batch.length} haber çekildi ve Gemini ile üretildi → ${settings.autoApprove ? 'otomatik onaylandı' : 'taslak olarak takvime eklendi'}.`);
-    }, 1400);
+      if (error) flash('Eklenemedi: ' + error.message, 'orange');
+      else { flash('Kaynak eklendi.'); setSourceModal(null); loadSources(); }
+    } else {
+      const { error } = await supabase.from('automation_sources')
+        .update({ name: srcForm.name.trim(), url: srcForm.url.trim(), weight: Number(srcForm.weight) || 5 })
+        .eq('id', sourceModal.row.id);
+      if (error) flash('Güncellenemedi: ' + error.message, 'orange');
+      else { flash('Kaynak güncellendi.'); setSourceModal(null); loadSources(); }
+    }
+    setSrcSaving(false);
+  };
+  const toggleSource = async (row) => {
+    await supabase.from('automation_sources').update({ enabled: !row.enabled }).eq('id', row.id);
+    setSources(prev => prev.map(s => s.id === row.id ? { ...s, enabled: !s.enabled } : s));
+  };
+  const deleteSource = async (id) => {
+    if (!confirm('Bu kaynağı silmek istediğine emin misin?')) return;
+    await supabase.from('automation_sources').delete().eq('id', id);
+    setSources(prev => prev.filter(s => s.id !== id));
+    flash('Kaynak silindi.', 'orange');
   };
 
-  const setStatus = (i, status) => setQueue(prev => ({ ...prev, [i]: { ...prev[i], status } }));
+  // ── Anahtar Kelimeler (Supabase automation_keywords) ─────────────────────
+  const [keywords,    setKeywords]   = useState([]);
+  const [kwLoading,   setKwLoading]  = useState(true);
+  const [newKw,       setNewKw]      = useState({ keyword: '', score: 5, group_type: 'medium' });
+  const [kwSaving,    setKwSaving]   = useState(false);
 
-  // Backend'e (automation/run.py regenerate <slug>) yeniden üretim isteği gönderir.
-  // Panel kontrol yüzeyi olduğundan burada çağrı simüle edilir; gerçek istek
-  // GitHub Actions / backend endpoint'ine düşer.
-  const regenerate = (i) => {
-    if (regenId !== null) return;
-    const art = NEWS_POOL[i];
-    setRegenId(i);
-    // POST /api/regenerate { slugs: [art.slug] }  →  backend: run.py regenerate <slug>
-    setTimeout(() => {
-      setQueue(prev => ({ ...prev, [i]: { ...prev[i], status: 'draft', date: todayStr(), regenAt: Date.now() } }));
-      setRegenId(null);
-      flash(`Yeniden üretildi: ${art.title_tr} — Gemini taslağı güncelledi.`);
-    }, 1600);
+  const loadKeywords = useCallback(async () => {
+    setKwLoading(true);
+    const { data } = await supabase
+      .from('automation_keywords').select('*').order('score', { ascending: false });
+    setKeywords(data || []);
+    setKwLoading(false);
+  }, []);
+
+  const addKeyword = async () => {
+    if (!newKw.keyword.trim()) { flash('Kelime boş olamaz.', 'orange'); return; }
+    setKwSaving(true);
+    const { error } = await supabase.from('automation_keywords').insert({
+      keyword: newKw.keyword.trim().toLowerCase(),
+      score: Number(newKw.score) || 5,
+      group_type: newKw.group_type,
+    });
+    setKwSaving(false);
+    if (error) flash('Eklenemedi: ' + error.message, 'orange');
+    else { flash('Kelime eklendi.'); setNewKw({ keyword: '', score: 5, group_type: 'medium' }); loadKeywords(); }
+  };
+  const deleteKeyword = async (id) => {
+    await supabase.from('automation_keywords').delete().eq('id', id);
+    setKeywords(prev => prev.filter(k => k.id !== id));
   };
 
-  const publish = (i) => {
-    const art = NEWS_POOL[i];
-    const newPost = {
-      id: parseInt(uid()), tag: 'gundem', authorId: 'sude', projectId: null,
-      date: todayStr(), readTime: 4, bg: art.bg, cover: null,
-      title_tr: art.title_tr, title_en: art.title_en,
-      excerpt_tr: art.excerpt_tr, excerpt_en: art.excerpt_en,
-      body_tr: art.body_tr, body_en: art.body_en,
-      source: art.source, recommended: false, homePinned: false,
+  // ── Taslaklar (Supabase posts status='draft') ─────────────────────────────
+  const [drafts,      setDrafts]     = useState([]);
+  const [draftsLoad,  setDraftsLoad] = useState(true);
+  const [actingId,    setActingId]   = useState(null);
+  const [preview,     setPreview]    = useState(null);
+
+  const loadDrafts = useCallback(async () => {
+    setDraftsLoad(true);
+    const { data, error } = await supabase
+      .from('posts').select('*').eq('status', 'draft').order('date', { ascending: false });
+    setDraftsLoad(false);
+    if (error) { flash('Taslaklar yüklenemedi: ' + error.message, 'orange'); return; }
+    setDrafts(data || []);
+  }, [flash]);
+
+  const approve = async (draft) => {
+    if (actingId) return;
+    setActingId(draft.id);
+    const { error } = await supabase.from('posts')
+      .update({ status: 'published', published_at: new Date().toISOString() })
+      .eq('id', draft.id);
+    setActingId(null);
+    if (error) { flash('Onaylama başarısız: ' + error.message, 'orange'); return; }
+    setDrafts(prev => prev.filter(d => d.id !== draft.id));
+    flash(`Yayınlandı: ${draft.title_tr}`);
+  };
+  const reject = async (draft) => {
+    if (actingId) return;
+    setActingId(draft.id);
+    const { error } = await supabase.from('posts')
+      .update({ status: 'rejected' }).eq('id', draft.id);
+    setActingId(null);
+    if (error) { flash('Reddetme başarısız: ' + error.message, 'orange'); return; }
+    setDrafts(prev => prev.filter(d => d.id !== draft.id));
+    flash(`Reddedildi: ${draft.title_tr}`, 'orange');
+  };
+
+  // ── Loglar & Seen URLs ────────────────────────────────────────────────────
+  const [runLogs,    setRunLogs]    = useState([]);
+  const [seenCount,  setSeenCount]  = useState(0);
+  const [todayUsage, setTodayUsage] = useState(0);
+  const [logsLoad,   setLogsLoad]   = useState(true);
+
+  const loadLogs = useCallback(async () => {
+    setLogsLoad(true);
+    const [logsRes, seenRes, todayRes] = await Promise.all([
+      supabase.from('automation_logs').select('*').order('run_at', { ascending: false }).limit(10),
+      supabase.from('automation_seen_urls').select('id', { count: 'exact', head: true }),
+      supabase.from('automation_logs')
+        .select('draft_count')
+        .gte('run_at', getPacificMidnightUTC().toISOString()),
+    ]);
+    setRunLogs(logsRes.data || []);
+    setSeenCount(seenRes.count || 0);
+    const usage = (todayRes.data || []).reduce((s, r) => s + (r.draft_count || 0), 0);
+    setTodayUsage(usage);
+    setLogsLoad(false);
+  }, []);
+
+  const clearSeenUrls = async () => {
+    if (!confirm('Tüm görülmüş URL geçmişi silinecek. Devam?')) return;
+    await supabase.from('automation_seen_urls').delete().neq('id', 0);
+    setSeenCount(0);
+    flash('URL geçmişi temizlendi.', 'orange');
+  };
+
+  // ── GitHub Actions tetikleme ──────────────────────────────────────────────
+  const [ghToken,     setGhToken]    = useState(() => sessionStorage.getItem('sh_gh_token') || '');
+  const [triggering,  setTriggering] = useState(false);
+  const [triggerMsg,  setTriggerMsg] = useState(null);
+
+  useEffect(() => { sessionStorage.setItem('sh_gh_token', ghToken); }, [ghToken]);
+
+  const triggerWorkflow = async () => {
+    if (!ghToken.trim()) { flash('Önce GitHub PAT gir.', 'orange'); return; }
+    if (todayUsage >= GEMINI_LIMIT) { flash('Günlük Gemini kotası doldu.', 'orange'); return; }
+    setTriggering(true);
+    setTriggerMsg(null);
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/dispatches`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization:  `token ${ghToken.trim()}`,
+            Accept:         'application/vnd.github+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ref: 'main', inputs: { mode: 'all' } }),
+        }
+      );
+      if (res.status === 204) {
+        setTriggerMsg({ ok: true, text: 'Tetiklendi! GitHub Actions loglarını kontrol et.' });
+        setTimeout(() => setTriggerMsg(null), 8000);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setTriggerMsg({ ok: false, text: `GitHub API hatası ${res.status}: ${d?.message || ''}` });
+      }
+    } catch (e) {
+      setTriggerMsg({ ok: false, text: 'Bağlantı hatası: ' + e.message });
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  // ── Kota geri sayım ───────────────────────────────────────────────────────
+  const [countdown, setCountdown] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      const diff = getNextResetUTC() - new Date();
+      if (diff <= 0) { setCountdown('Sıfırlanıyor…'); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
     };
-    addItem('posts', newPost);
-    setStatus(i, 'published');
-    flash(`Yayınlandı: ${art.title_tr}`);
-  };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
+  // ── Yükle ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    loadSettings();
+    loadSources();
+    loadKeywords();
+    loadDrafts();
+    loadLogs();
+  }, [loadSettings, loadSources, loadKeywords, loadDrafts, loadLogs]);
+
+  // ── Grouped keywords ─────────────────────────────────────────────────────
+  const kwHigh    = keywords.filter(k => k.group_type === 'high');
+  const kwMedium  = keywords.filter(k => k.group_type === 'medium');
+  const kwBlocked = keywords.filter(k => k.group_type === 'blocked');
+
+  const quotaPercent = Math.min(100, (todayUsage / GEMINI_LIMIT) * 100);
+  const quotaColor   = todayUsage >= GEMINI_LIMIT ? 'var(--adm-red)' : todayUsage >= 15 ? 'var(--adm-orange)' : 'var(--adm-green)';
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
-      <PageHead title="İçerik Otomasyonu" desc="RSS tarama → filtre → Gemini üretimi → editöryel takvim → yayın"
+      {/* Başlık + Ana Toggle */}
+      <PageHead
+        title="İçerik Otomasyonu"
+        desc="GitHub Actions pipeline yönetimi — RSS → Gemini → Supabase"
         actions={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="adm-badge" style={{ background: settings.enabled ? 'var(--adm-green-light)' : 'var(--adm-bg-hover)', color: settings.enabled ? 'var(--adm-green)' : 'var(--adm-text-dim)', padding: '5px 12px' }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: settings.enabled ? 'var(--adm-green)' : 'var(--adm-text-dim)' }}></span>
-              {settings.enabled ? `Zamanlı — her gün ${settings.runTime}` : 'Zamanlama kapalı'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 13, color: automationEnabled ? 'var(--adm-green)' : 'var(--adm-red)', fontWeight: 700 }}>
+              {automationEnabled ? 'Otomasyon AÇIK' : 'Otomasyon KAPALI'}
             </span>
-            <button className="adm-btn adm-btn--primary" onClick={runPipeline} disabled={running} style={{ opacity: running ? 0.6 : 1 }}>
-              {running ? <><span className="adm-spinner"></span> Çalışıyor…</> : <><AIcon name="zap" size={16} /> Hattı Çalıştır</>}
-            </button>
+            <label className="adm-switch" style={{ transform: 'scale(1.25)', transformOrigin: 'right' }}>
+              <input type="checkbox" checked={automationEnabled} onChange={e => toggleAutomation(e.target.checked)} />
+              <span style={{ background: automationEnabled ? 'var(--adm-green)' : 'var(--adm-red)' }}></span>
+            </label>
           </div>
-        } />
+        }
+      />
 
-      {/* Backend dürüstlük notu */}
-      <div className="adm-note" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)' }}>
-        <AIcon name="settings" size={15} />
-        <span>Bu panel kontrol yüzeyidir. Gerçek RSS çekme ve Gemini çağrıları <strong>GitHub Actions</strong> backend'inde (automation/ klasörü) çalışır — buradaki ayarlar o hattı besler. “Hattı Çalıştır” bir sabah çalışmasını simüle eder.</span>
-      </div>
-
-      {/* Pipeline stepper */}
-      <div className="adm-card" style={{ marginBottom: 20 }}>
-        <div className="adm-card__body">
-          <div className="adm-auto-flow">
-            {[
-              { ic: 'globe', label: 'Kaynak Tarama', val: `${activeSources} aktif kaynak` },
-              { ic: 'filter', label: 'Filtre', val: `${keywords.length} kelime` },
-              { ic: 'zap', label: 'Gemini Üretimi', val: settings.geminiModel },
-              { ic: 'check', label: 'Onay', val: `${counts.draft} bekliyor` },
-              { ic: 'arrowUpRight', label: 'Yayın', val: `${counts.published} yayında` },
-            ].map((s, idx, arr) => (
-              <React.Fragment key={s.label}>
-                <div className="adm-auto-flow__step">
-                  <div className="adm-auto-flow__icon"><AIcon name={s.ic} size={18} /></div>
-                  <div className="adm-auto-flow__label">{s.label}</div>
-                  <div className="adm-auto-flow__val">{s.val}</div>
-                </div>
-                {idx < arr.length - 1 && <div className="adm-auto-flow__arrow"><AIcon name="chevronRight" size={16} /></div>}
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-      </div>
-
+      {/* Toast */}
       {toast && (
-        <div className="adm-auto-status" style={{ marginBottom: 20, background: toast.kind === 'orange' ? 'var(--adm-orange-light)' : 'var(--adm-green-light)', color: toast.kind === 'orange' ? 'var(--adm-orange)' : 'var(--adm-green)' }}>
+        <div className="adm-auto-status" style={{
+          marginBottom: 16,
+          background: toast.kind === 'orange' ? 'var(--adm-orange-light)' : 'var(--adm-green-light)',
+          color: toast.kind === 'orange' ? 'var(--adm-orange)' : 'var(--adm-green)',
+        }}>
           <AIcon name="check" size={14} /><span>{toast.msg}</span>
         </div>
       )}
 
-      {/* Stat row */}
-      <div className="adm-stats-grid" style={{ marginBottom: 20 }}>
-        {[
-          { v: counts.draft, l: 'Onay bekleyen taslak', ic: 'layers', c: '#B45309', bg: '#FEF6E7' },
-          { v: counts.approved, l: 'Onaylı (yayın sırası)', ic: 'check', c: 'var(--adm-blue)', bg: 'var(--adm-blue-light)' },
-          { v: counts.published, l: 'Yayınlanan', ic: 'arrowUpRight', c: 'var(--adm-green)', bg: 'var(--adm-green-light)' },
-          { v: untouched.length, l: 'Havuzda bekleyen kaynak', ic: 'globe', c: 'var(--adm-purple)', bg: 'var(--adm-purple-light)' },
-        ].map(s => (
-          <div className="adm-stat" key={s.l}>
-            <div className="adm-stat__icon" style={{ background: s.bg, color: s.c }}><AIcon name={s.ic} size={20} /></div>
-            <div className="adm-stat__info"><div className="adm-stat__value">{s.v}</div><div className="adm-stat__label">{s.l}</div></div>
-          </div>
+      {/* Tab çubuğu */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            className={`adm-chip${activeTab === t.id ? ' adm-chip--active' : ''}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13 }}
+            onClick={() => setActiveTab(t.id)}
+          >
+            <AIcon name={t.icon} size={14} />{t.label}
+            {t.id === 'drafts' && drafts.length > 0 && (
+              <span style={{ background: 'var(--adm-blue)', color: '#fff', borderRadius: 99, fontSize: 11, padding: '1px 7px', fontWeight: 700 }}>
+                {drafts.length}
+              </span>
+            )}
+          </button>
         ))}
       </div>
 
-      {/* Editöryel takvim / onay kuyruğu */}
-      <div className="adm-card" style={{ marginBottom: 20 }}>
-        <div className="adm-card__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <h3>Editöryel Takvim</h3>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[['all', 'Tümü'], ['draft', 'Taslak'], ['approved', 'Onaylı'], ['published', 'Yayında'], ['rejected', 'Reddedilen']].map(([k, lbl]) => (
-              <button key={k} className={`adm-chip ${statusFilter === k ? 'adm-chip--active' : ''}`} style={{ padding: '5px 12px', fontSize: 12.5 }} onClick={() => setStatusFilter(k)}>{lbl}</button>
-            ))}
+      {/* ── TAB: TASLAKLAR ─────────────────────────────────────────────── */}
+      {activeTab === 'drafts' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <button className="adm-btn adm-btn--ghost" onClick={loadDrafts} disabled={draftsLoad}>
+              {draftsLoad ? <><span className="adm-spinner"></span> Yükleniyor…</> : <><AIcon name="refresh" size={15} /> Yenile</>}
+            </button>
+          </div>
+          <div className="adm-note" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)', marginBottom: 16 }}>
+            <AIcon name="settings" size={14} />
+            <span>
+              GitHub Actions her saat çalışır, Supabase'deki tercih edilen saatte devreye girer.
+              Üretilen taslaklar burada listelenir — <strong>Onayla</strong> ile yayına girer.
+              {autoPublish && <strong> Otomatik yayın AÇIK — onay gerekmez.</strong>}
+            </span>
+          </div>
+          <div className="adm-card">
+            <div className="adm-card__header"><h3>Onay Bekleyen Taslaklar</h3></div>
+            <div className="adm-card__body" style={{ padding: 0 }}>
+              {draftsLoad ? (
+                <div className="adm-empty"><span className="adm-spinner" style={{ width: 28, height: 28 }}></span></div>
+              ) : drafts.length === 0 ? (
+                <div className="adm-empty">
+                  <AIcon name="check" size={40} style={{ opacity: 0.2 }} />
+                  <p>Onay bekleyen taslak yok.</p>
+                </div>
+              ) : (
+                <div className="adm-table-wrap">
+                  <table className="adm-table">
+                    <thead>
+                      <tr><th>Başlık</th><th>Etiket</th><th>Tarih</th><th>Kaynak</th><th style={{ textAlign: 'right' }}>İşlem</th></tr>
+                    </thead>
+                    <tbody>
+                      {drafts.map(d => (
+                        <tr key={d.id}>
+                          <td style={{ maxWidth: 360 }}>
+                            <div style={{ fontWeight: 600, lineHeight: 1.35 }}>{d.title_tr}</div>
+                            <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>/{d.slug}</div>
+                            {d.excerpt_tr && <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>{d.excerpt_tr.slice(0, 90)}{d.excerpt_tr.length > 90 ? '…' : ''}</div>}
+                          </td>
+                          <td><span className="adm-badge adm-badge--tag">{d.tag || 'gundem'}</span></td>
+                          <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDate(d.date)}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            {d.source ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--adm-text-secondary)' }}>
+                                <AIcon name="globe" size={13} />
+                                {d.source_url ? <a href={d.source_url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>{d.source}</a> : d.source}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td>
+                            <div className="adm-table__actions" style={{ justifyContent: 'flex-end' }}>
+                              <button className="adm-icon-btn" title="Önizle" onClick={() => setPreview(d)}><AIcon name="eye" size={15} /></button>
+                              <button
+                                className="adm-btn adm-btn--primary adm-btn--sm"
+                                onClick={() => approve(d)}
+                                disabled={actingId !== null}
+                                style={{ opacity: actingId !== null && actingId !== d.id ? 0.5 : 1 }}
+                              >
+                                {actingId === d.id ? <><span className="adm-spinner"></span> İşleniyor…</> : <><AIcon name="check" size={14} /> Onayla</>}
+                              </button>
+                              <button className="adm-icon-btn adm-icon-btn--danger" title="Reddet" onClick={() => reject(d)} disabled={actingId !== null}>
+                                <AIcon name="x" size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <div className="adm-card__body" style={{ padding: 0 }}>
-          {filtered.length === 0 ? (
-            <div className="adm-empty">
-              <AIcon name="calendar" size={40} style={{ opacity: 0.25 }} />
-              <p>{entries.length === 0 ? 'Henüz haber işlenmedi. “Hattı Çalıştır” ile başla.' : 'Bu durumda kayıt yok.'}</p>
-            </div>
-          ) : (
-            <div className="adm-table-wrap">
-              <table className="adm-table">
-                <thead>
-                  <tr><th>Başlık</th><th>Kategori</th><th>Tarih</th><th>Kaynak</th><th>Durum</th><th style={{ textAlign: 'right' }}>İşlem</th></tr>
-                </thead>
-                <tbody>
-                  {filtered.map(e => {
-                    const st = QUEUE_STATUS[e.status];
-                    return (
-                      <tr key={e.i}>
-                        <td style={{ maxWidth: 340 }}>
-                          <div style={{ fontWeight: 600, lineHeight: 1.35 }}>{e.art.title_tr}</div>
-                          <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', fontFamily: 'var(--font-body)' }}>/{e.art.slug}.json</div>
-                        </td>
-                        <td><span className="adm-badge adm-badge--tag">{e.art.category}</span></td>
-                        <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDate(e.date)}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--adm-text-secondary)' }}><AIcon name="globe" size={13} /> {e.art.source.name}</span></td>
-                        <td><span className="adm-badge" style={{ background: st.bg, color: st.color }}>{st.label}</span></td>
-                        <td>
-                          <div className="adm-table__actions" style={{ justifyContent: 'flex-end' }}>
-                            <button className="adm-icon-btn" title="Önizle" onClick={() => setPreview(e.i)}><AIcon name="eye" size={15} /></button>
-                            {e.status === 'draft' && <>
-                              <button className="adm-btn adm-btn--ghost adm-btn--sm" title="Gemini ile yeniden üret" onClick={() => regenerate(e.i)} disabled={regenId !== null} style={{ opacity: regenId !== null && regenId !== e.i ? 0.5 : 1 }}>
-                                {regenId === e.i ? <><span className="adm-spinner"></span> Üretiliyor…</> : <><AIcon name="restore" size={14} /> Yeniden Üret</>}
-                              </button>
-                              <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setStatus(e.i, 'approved')}><AIcon name="check" size={14} /> Onayla</button>
-                              <button className="adm-icon-btn adm-icon-btn--danger" title="Reddet" onClick={() => setStatus(e.i, 'rejected')}><AIcon name="x" size={15} /></button>
-                            </>}
-                            {e.status === 'approved' && <>
-                              <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => publish(e.i)}><AIcon name="zap" size={14} /> Yayınla</button>
-                              <button className="adm-icon-btn" title="Taslağa al" onClick={() => setStatus(e.i, 'draft')}><AIcon name="restore" size={15} /></button>
-                            </>}
-                            {(e.status === 'published' || e.status === 'rejected') && (
-                              <button className="adm-icon-btn" title="Geri al" onClick={() => setStatus(e.i, e.status === 'published' ? 'approved' : 'draft')}><AIcon name="restore" size={15} /></button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {counts.approved > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '14px 20px', borderTop: '1px solid var(--adm-border-light)' }}>
-              <button className="adm-btn adm-btn--primary" onClick={() => { entries.filter(e => e.status === 'approved').forEach(e => publish(e.i)); }}>
-                <AIcon name="zap" size={16} /> Onaylananları yayınla ({counts.approved})
+      )}
+
+      {/* ── TAB: KAYNAKLAR ─────────────────────────────────────────────── */}
+      {activeTab === 'sources' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="adm-btn adm-btn--primary" onClick={openAddSource}>
+                <AIcon name="plus" size={15} /> Kaynak Ekle
+              </button>
+              <button className="adm-icon-btn" title="Kaynaklar hakkında bilgi" onClick={() => setInfoOpen(true)}>
+                <AIcon name="info" size={16} />
               </button>
             </div>
-          )}
-        </div>
-      </div>
+            <button className="adm-btn adm-btn--ghost" onClick={loadSources} disabled={srcLoading}>
+              <AIcon name="refresh" size={15} /> Yenile
+            </button>
+          </div>
 
-      <div className="adm-grid-2">
-        {/* Zamanlama & Ayarlar */}
-        <div className="adm-card">
-          <div className="adm-card__header"><h3>Zamanlama & Ayarlar</h3></div>
-          <div className="adm-card__body">
-            <div className="adm-pin-box">
-              <div className="adm-pin-row">
-                <div>
-                  <div className="adm-pin-row__title"><AIcon name="clock" size={14} /> Zamanlı Çalışma</div>
-                  <div className="adm-pin-row__sub">GitHub Actions her gün belirlenen saatte hattı çalıştırır</div>
+          <div className="adm-card">
+            <div className="adm-card__header"><h3>RSS Kaynakları</h3></div>
+            <div className="adm-card__body" style={{ padding: 0 }}>
+              {srcLoading ? (
+                <div className="adm-empty"><span className="adm-spinner" style={{ width: 24, height: 24 }}></span></div>
+              ) : sources.length === 0 ? (
+                <div className="adm-empty">
+                  <AIcon name="globe" size={36} style={{ opacity: 0.2 }} />
+                  <p>Henüz kaynak yok. "Kaynak Ekle" ile başla.</p>
                 </div>
-                <label className="adm-switch"><input type="checkbox" checked={settings.enabled} onChange={e => setS('enabled', e.target.checked)} /><span></span></label>
-              </div>
-              <div className="adm-pin-row">
-                <div>
-                  <div className="adm-pin-row__title"><AIcon name="check" size={14} /> Otomatik Onay</div>
-                  <div className="adm-pin-row__sub">Üretilen taslaklar editör onayı beklemeden “onaylı”ya geçer</div>
+              ) : (
+                <div className="adm-table-wrap">
+                  <table className="adm-table">
+                    <thead>
+                      <tr><th>Kaynak Adı</th><th>Feed URL</th><th>Ağırlık</th><th>Durum</th><th style={{ textAlign: 'right' }}>İşlem</th></tr>
+                    </thead>
+                    <tbody>
+                      {sources.map(s => (
+                        <tr key={s.id} style={{ opacity: s.enabled ? 1 : 0.5 }}>
+                          <td style={{ fontWeight: 600 }}>{s.name}</td>
+                          <td style={{ fontSize: 12, color: 'var(--adm-text-secondary)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>{s.url}</a>
+                          </td>
+                          <td>
+                            <span className="adm-badge" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)', minWidth: 32, justifyContent: 'center' }}>
+                              {s.weight}/10
+                            </span>
+                          </td>
+                          <td>
+                            <label className="adm-switch">
+                              <input type="checkbox" checked={s.enabled} onChange={() => toggleSource(s)} />
+                              <span></span>
+                            </label>
+                          </td>
+                          <td>
+                            <div className="adm-table__actions" style={{ justifyContent: 'flex-end' }}>
+                              <button className="adm-icon-btn" title="Düzenle" onClick={() => openEditSource(s)}><AIcon name="edit" size={15} /></button>
+                              <button className="adm-icon-btn adm-icon-btn--danger" title="Sil" onClick={() => deleteSource(s.id)}><AIcon name="trash" size={15} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <label className="adm-switch"><input type="checkbox" checked={settings.autoApprove} onChange={e => setS('autoApprove', e.target.checked)} /><span></span></label>
-              </div>
+              )}
             </div>
-            <div className="adm-form-grid" style={{ marginTop: 14 }}>
-              <Field label="Çalışma Saati"><Input type="time" value={settings.runTime} onChange={v => setS('runTime', v)} /></Field>
-              <Field label="Günlük Limit" hint="Her çalışmada üretilecek max haber"><Input type="number" value={String(settings.dailyLimit)} onChange={v => setS('dailyLimit', Math.max(1, parseInt(v) || 1))} /></Field>
-            </div>
-            <Field label="Gemini Modeli">
-              <Select value={settings.geminiModel} onChange={v => setS('geminiModel', v)} options={[
-                { value: 'gemini-2.0-flash', label: 'gemini-2.0-flash (hızlı, ücretsiz tier)' },
-                { value: 'gemini-1.5-flash', label: 'gemini-1.5-flash' },
-                { value: 'gemini-1.5-pro', label: 'gemini-1.5-pro' },
-              ]} />
-            </Field>
           </div>
         </div>
+      )}
 
-        {/* RSS Kaynakları */}
-        <div className="adm-card">
-          <div className="adm-card__header"><h3>RSS Kaynakları</h3></div>
-          <div className="adm-card__body" style={{ padding: 0 }}>
-            {sources.map((s, idx) => (
-              <div key={idx} className="adm-pin-row" style={{ borderTop: idx ? '1px solid var(--adm-border-light)' : 'none' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div className="adm-pin-row__title">{s.name}</div>
-                  <div className="adm-pin-row__sub" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.url}</div>
-                </div>
-                <label className="adm-switch"><input type="checkbox" checked={s.on} onChange={e => setSources(prev => prev.map((x, i) => i === idx ? { ...x, on: e.target.checked } : x))} /><span></span></label>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Filtre kelimeleri */}
-      <div className="adm-card" style={{ marginTop: 20 }}>
-        <div className="adm-card__header"><h3>Filtre Kelimeleri</h3></div>
-        <div className="adm-card__body">
-          <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', margin: '0 0 12px' }}>Başlık veya özette bu kelimelerden biri geçen haberler işlenir. Enter ile ekle.</p>
-          <TagInput tags={keywords} onChange={setKeywords} />
-        </div>
-      </div>
-
-      {/* Yazı Tonu */}
-      <div className="adm-card" style={{ marginTop: 20 }}>
-        <div className="adm-card__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3>Yazı Tonu</h3>
-          {toneSaving && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', display: 'flex', alignItems: 'center', gap: 6 }}><span className="adm-spinner"></span> Kaydediliyor…</span>}
-        </div>
-        <div className="adm-card__body">
-          <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', margin: '0 0 16px' }}>
-            Gemini'nin ürettiği haberlerde kullanacağı üslup. Seçim Supabase'e kaydedilir ve otomasyon bir sonraki çalışmasında bu tonu kullanır.
-          </p>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {TONE_LEVELS.map(({ level, label, desc }) => {
-              const active = toneLevel === level;
-              return (
-                <button
-                  key={level}
-                  onClick={() => saveToneLevel(level)}
-                  style={{
-                    flex: '1 1 140px',
-                    padding: '12px 14px',
-                    borderRadius: 10,
-                    border: `2px solid ${active ? 'var(--adm-blue)' : 'var(--adm-border-light)'}`,
-                    background: active ? 'var(--adm-blue-light)' : 'var(--adm-bg)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'border-color 0.15s, background 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                      background: active ? 'var(--adm-blue)' : 'var(--adm-border)',
-                      color: active ? '#fff' : 'var(--adm-text-dim)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 700,
-                    }}>{level}</span>
-                    <span style={{ fontWeight: 700, fontSize: 13, color: active ? 'var(--adm-blue)' : 'var(--adm-text)' }}>{label}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', lineHeight: 1.4 }}>{desc}</div>
+      {/* ── TAB: KELIMELER ─────────────────────────────────────────────── */}
+      {activeTab === 'keywords' && (
+        <div>
+          {/* Kelime ekle formu */}
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header"><h3>Kelime Ekle</h3></div>
+            <div className="adm-card__body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, alignItems: 'end' }}>
+                <Field label="Anahtar Kelime">
+                  <Input value={newKw.keyword} onChange={v => setNewKw(p => ({ ...p, keyword: v }))} placeholder="örn. yapay zeka" onKeyDown={e => e.key === 'Enter' && addKeyword()} />
+                </Field>
+                <Field label="Puan (1-10)">
+                  <Input type="number" value={String(newKw.score)} onChange={v => setNewKw(p => ({ ...p, score: Math.min(10, Math.max(1, parseInt(v) || 5)) }))} style={{ width: 70 }} />
+                </Field>
+                <Field label="Grup">
+                  <select className="adm-select" value={newKw.group_type} onChange={e => setNewKw(p => ({ ...p, group_type: e.target.value }))}>
+                    <option value="high">Yüksek Değer</option>
+                    <option value="medium">Orta Değer</option>
+                    <option value="blocked">Engel Listesi</option>
+                  </select>
+                </Field>
+                <button className="adm-btn adm-btn--primary" onClick={addKeyword} disabled={kwSaving} style={{ marginBottom: 0 }}>
+                  {kwSaving ? <span className="adm-spinner"></span> : <><AIcon name="plus" size={14} /> Ekle</>}
                 </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Gemini sistem promptu */}
-      <div className="adm-card" style={{ marginTop: 20 }}>
-        <div className="adm-card__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => setShowPrompt(p => !p)}>
-          <h3>Gemini Sistem Promptu</h3>
-          <AIcon name="chevronDown" size={16} style={{ transform: showPrompt ? 'rotate(180deg)' : 'none', transition: '0.2s', color: 'var(--adm-text-dim)' }} />
-        </div>
-        {showPrompt && (
-          <div className="adm-card__body">
-            <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', margin: '0 0 12px' }}>Backend her haber için bu promptu Gemini'ye gönderir. JSON çıktı formatını koru.</p>
-            <textarea className="adm-input adm-textarea" style={{ minHeight: 280, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5, lineHeight: 1.6 }} value={prompt} onChange={e => setPrompt(e.target.value)} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-              <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setPrompt(GEMINI_PROMPT_DEFAULT)}><AIcon name="refresh" size={14} /> Varsayılana dön</button>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '8px 0 0' }}>
+                <strong>Yüksek / Orta Değer:</strong> Bu kelimeleri içeren haberler puana göre sıralamada öne geçer. &nbsp;
+                <strong>Engel Listesi:</strong> Bu kelimeleri içeren haberler tamamen elenir.
+              </p>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Önizleme modal */}
-      {preview != null && (() => {
-        const art = NEWS_POOL[preview];
-        return (
-          <Modal open onClose={() => setPreview(null)} title="Taslak Önizleme" wide>
-            <div className="adm-pv-article">
-              <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                <span className="adm-badge adm-badge--tag">{art.category}</span>
-                <span className="adm-badge" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)' }}><AIcon name="globe" size={12} /> {art.source.name}</span>
+          <div className="adm-grid-2" style={{ gap: 16 }}>
+            {/* Yüksek Değer */}
+            <div className="adm-card">
+              <div className="adm-card__header">
+                <h3>Yüksek Değer</h3>
+                <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{kwHigh.length} kelime</span>
               </div>
-              <div className="adm-pv-article__title">{art.title_tr}</div>
-              <div className="adm-pv-article__lead">{art.excerpt_tr}</div>
-              <div className="adm-pv-article__body">
-                {art.body_tr.map((p, i) => <p key={i}>{p}</p>)}
+              <div className="adm-card__body" style={{ padding: 0 }}>
+                {kwHigh.length === 0
+                  ? <div style={{ padding: 16, color: 'var(--adm-text-dim)', fontSize: 13 }}>Henüz kelime yok.</div>
+                  : kwHigh.map(k => <KwRow key={k.id} kw={k} color="var(--adm-green)" bg="var(--adm-green-light)" onDelete={deleteKeyword} />)}
               </div>
-              <div className="adm-pv-article__src">Kaynak: {art.source.name} · /posts/{art.slug}.json</div>
             </div>
-          </Modal>
-        );
-      })()}
+
+            {/* Orta Değer */}
+            <div className="adm-card">
+              <div className="adm-card__header">
+                <h3>Orta Değer</h3>
+                <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{kwMedium.length} kelime</span>
+              </div>
+              <div className="adm-card__body" style={{ padding: 0 }}>
+                {kwMedium.length === 0
+                  ? <div style={{ padding: 16, color: 'var(--adm-text-dim)', fontSize: 13 }}>Henüz kelime yok.</div>
+                  : kwMedium.map(k => <KwRow key={k.id} kw={k} color="var(--adm-blue)" bg="var(--adm-blue-light)" onDelete={deleteKeyword} />)}
+              </div>
+            </div>
+          </div>
+
+          {/* Engel Listesi */}
+          <div className="adm-card" style={{ marginTop: 16 }}>
+            <div className="adm-card__header">
+              <h3>Engel Listesi</h3>
+              <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{kwBlocked.length} kelime — bu kelimeleri içeren haberler tamamen elenir</span>
+            </div>
+            <div className="adm-card__body" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {kwBlocked.length === 0
+                ? <span style={{ color: 'var(--adm-text-dim)', fontSize: 13 }}>Engel kelimesi yok.</span>
+                : kwBlocked.map(k => (
+                  <span key={k.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--adm-red-light)', color: 'var(--adm-red)', borderRadius: 8, padding: '4px 10px', fontSize: 13 }}>
+                    {k.keyword}
+                    <button onClick={() => deleteKeyword(k.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}><AIcon name="x" size={12} /></button>
+                  </span>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: TON & AYARLAR ─────────────────────────────────────────── */}
+      {activeTab === 'settings' && (
+        <div>
+          {/* Yazı Tonu */}
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Yazı Tonu</h3>
+              {savingSettings && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', display: 'flex', gap: 6 }}><span className="adm-spinner"></span> Kaydediliyor…</span>}
+            </div>
+            <div className="adm-card__body">
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+                {TONE_LEVELS.map(({ level, label, desc }) => {
+                  const active = toneLevel === level;
+                  return (
+                    <button key={level} onClick={() => { setToneLevel(level); saveSettings({ tone_level: level }); }}
+                      style={{ flex: '1 1 130px', padding: '10px 12px', borderRadius: 10, border: `2px solid ${active ? 'var(--adm-blue)' : 'var(--adm-border-light)'}`, background: active ? 'var(--adm-blue-light)' : 'var(--adm-bg)', cursor: 'pointer', textAlign: 'left' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ width: 22, height: 22, borderRadius: '50%', background: active ? 'var(--adm-blue)' : 'var(--adm-border)', color: active ? '#fff' : 'var(--adm-text-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{level}</span>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: active ? 'var(--adm-blue)' : 'var(--adm-text)' }}>{label}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', lineHeight: 1.4 }}>{desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <Field label={`Ton ${toneLevel} İçin Ek Talimat`} hint="Opsiyonel — bu seviyeye özgü kurallar">
+                <textarea
+                  className="adm-textarea"
+                  rows={3}
+                  value={toneExtra[String(toneLevel)] || ''}
+                  onChange={e => setToneExtra(prev => ({ ...prev, [String(toneLevel)]: e.target.value }))}
+                  placeholder="örn. Türk girişimcilere somut etki analizi mutlaka eklensin"
+                />
+              </Field>
+
+              <div style={{ marginTop: 16 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Yasaklı İfadeler</label>
+                <p style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '0 0 8px' }}>Gemini bu ifadeleri hiç kullanmaz. Enter ile ekle.</p>
+                <TagInput tags={toneBanned} onChange={setToneBanned} />
+              </div>
+
+              <button
+                className="adm-btn adm-btn--primary"
+                style={{ marginTop: 16 }}
+                onClick={() => saveSettings({ tone_extra_instructions: toneExtra, tone_banned_phrases: toneBanned })}
+                disabled={savingSettings}
+              >
+                <AIcon name="check" size={15} /> Ton Ayarlarını Kaydet
+              </button>
+            </div>
+          </div>
+
+          {/* Otomasyon Ayarları */}
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header"><h3>Otomasyon Ayarları</h3></div>
+            <div className="adm-card__body">
+              {/* Auto-publish toggle */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 16, borderBottom: '1px solid var(--adm-border-light)', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Otomatik Yayın</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', maxWidth: 420 }}>
+                    Açıkken GitHub Actions ürettiği makaleyi direkt yayınlar — admin onayı gerekmez.
+                  </div>
+                  {autoPublish && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--adm-orange)', background: 'var(--adm-orange-light)', borderRadius: 6, padding: '4px 10px', display: 'inline-block' }}>
+                      ⚠ Açıkken AI içeriği editörsüz yayınlanır, kalite kontrolü yapılmaz.
+                    </div>
+                  )}
+                </div>
+                <label className="adm-switch">
+                  <input type="checkbox" checked={autoPublish} onChange={e => toggleAutoPublish(e.target.checked)} />
+                  <span></span>
+                </label>
+              </div>
+
+              {/* Tercih edilen saat */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottom: '1px solid var(--adm-border-light)', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Tercih Edilen Çalışma Saati (UTC)</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
+                    GitHub Actions her saat çalışır; Python bu saati görünce devreye girer.
+                    <br />UTC+3 (TRT) = seçilen saat + 3h
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <select
+                    className="adm-select"
+                    value={preferredHour}
+                    onChange={e => setPreferredHour(Number(e.target.value))}
+                    style={{ width: 120 }}
+                  >
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <option key={h} value={h}>{String(h).padStart(2, '0')}:00 UTC ({String((h + 3) % 24).padStart(2, '0')}:00 TRT)</option>
+                    ))}
+                  </select>
+                  <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => saveSettings({ preferred_run_hour: preferredHour })}>
+                    Kaydet
+                  </button>
+                </div>
+              </div>
+
+              {/* Kategori filtresi */}
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>Kategori Filtresi</div>
+                <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', marginBottom: 12 }}>
+                  Boş bırakılırsa tüm kategoriler kabul edilir. Seçilenlerin dışındaki kategoriler elenir.
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                  {ALL_CATEGORIES.map(cat => {
+                    const on = enabledCategories.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setEnabledCategories(prev => on ? prev.filter(c => c !== cat) : [...prev, cat])}
+                        style={{ padding: '6px 14px', borderRadius: 8, border: `2px solid ${on ? 'var(--adm-blue)' : 'var(--adm-border-light)'}`, background: on ? 'var(--adm-blue-light)' : 'var(--adm-bg)', cursor: 'pointer', fontSize: 13, color: on ? 'var(--adm-blue)' : 'var(--adm-text)', fontWeight: on ? 700 : 400 }}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => saveSettings({ enabled_categories: enabledCategories })}>
+                  <AIcon name="check" size={14} /> Kategori Filtresini Kaydet
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Manuel Tetikleme + Kota */}
+          <div className="adm-card">
+            <div className="adm-card__header"><h3>Manuel Tetikleme</h3></div>
+            <div className="adm-card__body">
+              {/* Kota */}
+              <div style={{ background: 'var(--adm-bg-secondary, #f9fafb)', borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Gemini API Kota (Ücretsiz)</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: quotaColor }}>{todayUsage} / {GEMINI_LIMIT} istek</div>
+                </div>
+                <div style={{ height: 8, background: 'var(--adm-border-light)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: `${quotaPercent}%`, height: '100%', background: quotaColor, borderRadius: 4, transition: 'width 0.3s' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>Sıfırlanma: 10:00 TRT (Pasifik gece yarısı)</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', fontFamily: 'monospace' }}>{countdown}</span>
+                </div>
+              </div>
+
+              <Field label="GitHub Personal Access Token" hint="workflow:read, actions:write kapsamı gerekli — sekme kapanınca silinir">
+                <Input type="password" value={ghToken} onChange={setGhToken} placeholder="ghp_..." />
+              </Field>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className="adm-btn adm-btn--primary"
+                  onClick={triggerWorkflow}
+                  disabled={triggering || !ghToken.trim() || todayUsage >= GEMINI_LIMIT}
+                  style={{ opacity: todayUsage >= GEMINI_LIMIT ? 0.5 : 1 }}
+                >
+                  {triggering
+                    ? <><span className="adm-spinner"></span> Tetikleniyor…</>
+                    : <><AIcon name="zap" size={15} /> Şimdi Çalıştır</>}
+                </button>
+                <a
+                  href={`https://github.com/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="adm-btn adm-btn--ghost"
+                >
+                  <AIcon name="arrowUpRight" size={15} /> GitHub Actions Logları
+                </a>
+              </div>
+
+              {triggerMsg && (
+                <div style={{ marginTop: 10, padding: '8px 14px', borderRadius: 8, fontSize: 13, background: triggerMsg.ok ? 'var(--adm-green-light)' : 'var(--adm-red-light)', color: triggerMsg.ok ? 'var(--adm-green)' : 'var(--adm-red)' }}>
+                  {triggerMsg.text}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: LOGLAR ────────────────────────────────────────────────── */}
+      {activeTab === 'logs' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <button className="adm-btn adm-btn--ghost" onClick={loadLogs} disabled={logsLoad}>
+              {logsLoad ? <><span className="adm-spinner"></span></> : <><AIcon name="refresh" size={15} /> Yenile</>}
+            </button>
+          </div>
+
+          {/* Son çalışmalar */}
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header"><h3>Son Çalışmalar</h3></div>
+            <div className="adm-card__body" style={{ padding: 0 }}>
+              {logsLoad ? (
+                <div className="adm-empty"><span className="adm-spinner" style={{ width: 24, height: 24 }}></span></div>
+              ) : runLogs.length === 0 ? (
+                <div className="adm-empty"><p>Henüz çalışma logu yok.</p></div>
+              ) : (
+                <div className="adm-table-wrap">
+                  <table className="adm-table">
+                    <thead>
+                      <tr><th>Tarih / Saat</th><th>Bulunan</th><th>Elenen</th><th>Üretilen</th><th>Hata</th></tr>
+                    </thead>
+                    <tbody>
+                      {runLogs.map(l => (
+                        <tr key={l.id}>
+                          <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDateTime(l.run_at)}</td>
+                          <td><span className="adm-badge adm-badge--tag">{l.found_count}</span></td>
+                          <td><span className="adm-badge" style={{ background: 'var(--adm-orange-light)', color: 'var(--adm-orange)' }}>{l.filtered_count}</span></td>
+                          <td><span className="adm-badge" style={{ background: 'var(--adm-green-light)', color: 'var(--adm-green)' }}>{l.draft_count}</span></td>
+                          <td style={{ fontSize: 12, color: l.error_text ? 'var(--adm-red)' : 'var(--adm-text-dim)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {l.error_text || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Görülmüş URL'ler */}
+          <div className="adm-card">
+            <div className="adm-card__header"><h3>Tekrar Engeli (Görülmüş URL'ler)</h3></div>
+            <div className="adm-card__body">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--adm-blue)' }}>{seenCount}</div>
+                  <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>URL daha önce işlendi, bir daha getirilmez</div>
+                </div>
+                <button className="adm-btn adm-btn--ghost" onClick={clearSeenUrls} style={{ color: 'var(--adm-red)' }}>
+                  <AIcon name="trash" size={15} /> Geçmişi Temizle
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODALLER ─────────────────────────────────────────────────────── */}
+
+      {/* Kaynak ekle/düzenle */}
+      {sourceModal && (
+        <Modal open onClose={() => setSourceModal(null)} title={sourceModal.mode === 'add' ? 'Kaynak Ekle' : 'Kaynağı Düzenle'}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Field label="Kaynak Adı">
+              <Input value={srcForm.name} onChange={v => setSrcForm(p => ({ ...p, name: v }))} placeholder="örn. TechCrunch" />
+            </Field>
+            <Field label="RSS Feed URL">
+              <Input value={srcForm.url} onChange={v => setSrcForm(p => ({ ...p, url: v }))} placeholder="https://techcrunch.com/feed" />
+            </Field>
+            <Field label="Ağırlık Puanı (1-10)" hint="Yüksek puan → bu kaynaktan gelen haberler öne geçer">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <input type="range" min={1} max={10} value={srcForm.weight}
+                  onChange={e => setSrcForm(p => ({ ...p, weight: Number(e.target.value) }))}
+                  style={{ flex: 1 }} />
+                <span style={{ fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{srcForm.weight}</span>
+              </div>
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8, borderTop: '1px solid var(--adm-border-light)' }}>
+              <button className="adm-btn adm-btn--ghost" onClick={() => setSourceModal(null)}>İptal</button>
+              <button className="adm-btn adm-btn--primary" onClick={saveSource} disabled={srcSaving}>
+                {srcSaving ? <><span className="adm-spinner"></span> Kaydediliyor…</> : <><AIcon name="check" size={15} /> Kaydet</>}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Kaynak bilgi modalı */}
+      {infoOpen && (
+        <Modal open onClose={() => setInfoOpen(false)} title="RSS Kaynakları Hakkında">
+          <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--adm-text)' }}>
+            <p>Bu panel, Python otomasyonunun haber çekeceği RSS kaynaklarını yönetir.</p>
+            <ul style={{ paddingLeft: 18, margin: '12px 0' }}>
+              <li><strong>Feed URL:</strong> Haberlerin çekileceği RSS/Atom adresi. Feed testini tarayıcıda açarak doğrulayabilirsin.</li>
+              <li><strong>Ağırlık Puanı:</strong> 1-10 arası. Puan yükseldikçe bu kaynaktan gelen haberler sıralamada öne geçer; düşük puanlı kaynaklar sadece başka kaynaklarda çok iyi haber yoksa seçilir.</li>
+              <li><strong>Toggle:</strong> Kapalıyken kaynak RSS taramasına dahil edilmez — silinmez, devre dışı kalır.</li>
+            </ul>
+            <p style={{ color: 'var(--adm-text-dim)', fontSize: 12.5 }}>Değişiklikler bir sonraki GitHub Actions çalışmasında geçerli olur.</p>
+          </div>
+        </Modal>
+      )}
+
+      {/* Taslak önizleme */}
+      {preview && (
+        <Modal open onClose={() => setPreview(null)} title="Taslak Önizleme" wide>
+          <div className="adm-pv-article">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+              <span className="adm-badge adm-badge--tag">{preview.tag || 'gundem'}</span>
+              {preview.source && (
+                <span className="adm-badge" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)' }}>
+                  <AIcon name="globe" size={12} /> {preview.source}
+                </span>
+              )}
+            </div>
+            <div className="adm-pv-article__title">{preview.title_tr}</div>
+            <div className="adm-pv-article__lead">{preview.excerpt_tr}</div>
+            <div className="adm-pv-article__body">
+              {(preview.body_tr || []).map((p, i) => <p key={i}>{p}</p>)}
+            </div>
+            <div className="adm-pv-article__src">
+              Kaynak:{' '}
+              {preview.source_url
+                ? <a href={preview.source_url} target="_blank" rel="noopener noreferrer">{preview.source}</a>
+                : preview.source} · /{preview.slug}
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-export { AutomationPage, NEWS_POOL };
+// ── Alt bileşen: Kelime satırı ────────────────────────────────────────────────
+function KwRow({ kw, color, bg, onDelete }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid var(--adm-border-light)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontWeight: 500, fontSize: 13 }}>{kw.keyword}</span>
+        <span style={{ fontSize: 11, background: bg, color, borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>
+          {kw.score} puan
+        </span>
+      </div>
+      <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => onDelete(kw.id)} title="Sil">
+        <AIcon name="trash" size={13} />
+      </button>
+    </div>
+  );
+}
+
+export { AutomationPage };

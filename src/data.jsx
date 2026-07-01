@@ -508,6 +508,7 @@ function PostsProvider({ children }) {
         const { data, error } = await supabase
           .from('posts')
           .select('*')
+          .eq('status', 'published')
           .order('date', { ascending: false });
         if (error) throw error;
         if (!cancelled) {
@@ -530,6 +531,156 @@ function PostsProvider({ children }) {
 }
 
 const usePosts = () => useContext(PostsContext);
+
+// ============================================
+// CONTENT MAP FUNCTIONS — Supabase satırı → JS nesnesi
+// ============================================
+function mapPerson(row) {
+  return {
+    id:         row.id,
+    name:       row.name         || '',
+    role_tr:    row.role_tr      || '',
+    role_en:    row.role_en      || '',
+    type:       row.type         || 'team',
+    tier:       row.tier         ?? null,
+    color:      row.color        || '#2563EB',
+    photo:      row.photo        || null,
+    linkedin:   row.linkedin     || '#',
+    bio_tr:     row.bio_tr       || '',
+    bio_en:     row.bio_en       || '',
+    sort_order: row.sort_order   ?? 99,
+  };
+}
+
+function mapStartup(row) {
+  return {
+    id:               row.id,
+    slug:             row.slug               || '',
+    name:             row.name               || '',
+    color:            row.color              || '#2563EB',
+    stage:            row.stage              || 'idea',
+    tagline_tr:       row.tagline_tr         || '',
+    tagline_en:       row.tagline_en         || '',
+    desc_tr:          row.desc_tr            || '',
+    desc_en:          row.desc_en            || '',
+    about_tr:         row.about_tr           || '',
+    about_en:         row.about_en           || '',
+    problem_tr:       row.problem_tr         || '',
+    problem_en:       row.problem_en         || '',
+    solution_tr:      row.solution_tr        || '',
+    solution_en:      row.solution_en        || '',
+    tags:             row.tags               || [],
+    team:             row.team               || 0,
+    openRoles:        row.open_roles         || 0,
+    score:            row.score              || 0,
+    updates:          row.updates            || 0,
+    website:          row.website            || null,
+    demo:             row.demo               || null,
+    github:           row.github             || null,
+    leadId:           row.lead_id            || null,
+    memberIds:        row.member_ids         || [],
+    mentorId:         row.mentor_id          || null,
+    openRolesList_tr: row.open_roles_list_tr || [],
+    openRolesList_en: row.open_roles_list_en || [],
+    metrics:          row.metrics            || [],
+    trending:         row.trending           || false,
+    featured:         row.featured           || false,
+    isNew:            row.is_new             || false,
+  };
+}
+
+function mapSponsor(row) {
+  return {
+    id:         row.id,
+    name:       row.name       || '',
+    color:      row.color      || '#2563EB',
+    logo:       row.logo       || null,
+    url:        row.url        || '#',
+    desc_tr:    row.desc_tr    || '',
+    desc_en:    row.desc_en    || '',
+    sort_order: row.sort_order ?? 99,
+  };
+}
+
+function mapEvent(row) {
+  return {
+    id:          row.id,
+    title_tr:    row.title_tr    || '',
+    title_en:    row.title_en    || '',
+    desc_tr:     row.desc_tr     || '',
+    desc_en:     row.desc_en     || '',
+    date:        row.date        || '',
+    time:        row.time        || '00:00',
+    location_tr: row.location_tr || '',
+    location_en: row.location_en || '',
+    organizer:   row.organizer   || '',
+    type:        row.type        || 'meetup',
+    link:        row.link        || '#',
+    cover:       row.cover       || null,
+    color:       row.color       || '#2563EB',
+  };
+}
+
+// ============================================
+// CONTENT PROVIDER — people/startups/sponsors/events → Supabase
+// ============================================
+const ContentContext = createContext({
+  people: [], startups: [], sponsors: [], events: [], contentLoading: true,
+});
+
+function ContentProvider({ children }) {
+  const [contentLoading, setContentLoading] = useState(true);
+  const [content, setContent] = useState({ people, startups, sponsors, events });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [
+          { data: pRows,  error: e1 },
+          { data: sRows,  error: e2 },
+          { data: spRows, error: e3 },
+          { data: eRows,  error: e4 },
+        ] = await Promise.all([
+          supabase.from('people').select('*').order('sort_order'),
+          supabase.from('startups').select('*').order('id'),
+          supabase.from('sponsors').select('*').order('sort_order'),
+          supabase.from('events').select('*').order('date'),
+        ]);
+        if (e1 || e2 || e3 || e4) throw (e1 || e2 || e3 || e4);
+        if (cancelled) return;
+
+        const mp  = (pRows  || []).map(mapPerson);
+        const ms  = (sRows  || []).map(mapStartup);
+        const msp = (spRows || []).map(mapSponsor);
+        const me  = (eRows  || []).map(mapEvent);
+
+        // Modül dizilerini yerinde güncelle (getPerson/getProject için)
+        people.length   = 0; mp.forEach(x  => people.push(x));
+        startups.length = 0; ms.forEach(x  => startups.push(x));
+        sponsors.length = 0; msp.forEach(x => sponsors.push(x));
+        events.length   = 0; me.forEach(x  => events.push(x));
+        teamMembers.length = 0; people.filter(p => p.type === 'team').forEach(x   => teamMembers.push(x));
+        mentors.length     = 0; people.filter(p => p.type === 'mentor').forEach(x => mentors.push(x));
+
+        setContent({ people: mp, startups: ms, sponsors: msp, events: me });
+      } catch (err) {
+        console.error('[Content] Supabase yükleme hatası:', err.message);
+      } finally {
+        if (!cancelled) setContentLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  return React.createElement(ContentContext.Provider, { value: { ...content, contentLoading } }, children);
+}
+
+const usePeople   = () => { const { people:   p,  contentLoading } = useContext(ContentContext); return { people:   p,  contentLoading }; };
+const useStartups = () => { const { startups: s,  contentLoading } = useContext(ContentContext); return { startups: s,  contentLoading }; };
+const useSponsors = () => { const { sponsors: sp, contentLoading } = useContext(ContentContext); return { sponsors: sp, contentLoading }; };
+const useEvents   = () => { const { events:   e,  contentLoading } = useContext(ContentContext); return { events:   e,  contentLoading }; };
 
 // ============================================
 // SPONSORS — kayan şerit
@@ -627,16 +778,7 @@ const SH_DEFAULTS = {
   let admin = null;
   try { admin = JSON.parse(localStorage.getItem('sh_admin_data') || 'null'); } catch (e) {}
   if (!admin) return;
-  const repl = (arr, data) => { if (Array.isArray(data)) { arr.length = 0; data.forEach(x => arr.push(x)); } };
-  repl(people,   admin.people);
-  repl(startups, admin.startups);
-  // posts: localStorage'dan değil Supabase'den okunuyor
-  repl(sponsors, admin.sponsors);
-  if (admin.events) repl(events, admin.events);
-  // türetilmiş dizileri yeniden hesapla
-  // NOT: partners === sponsors (aynı referans) — tekrar repl ETME, yoksa boşaltır.
-  repl(teamMembers, people.filter(p => p.type === 'team'));
-  repl(mentors,     people.filter(p => p.type === 'mentor'));
+  // people/startups/sponsors/events → Supabase'den yükleniyor, localStorage atlanıyor
   if (admin.siteStats) siteStats = { ...defaultSiteStats, ...admin.siteStats };
 })();
 
@@ -681,6 +823,8 @@ export {
   translations, people, startups, sponsors, events,
   teamMembers, mentors, partners, siteStats, defaultSiteStats, resolveStat, SH_DEFAULTS,
   getPerson, getProject, getPost, postsForProject,
+  mapPerson, mapStartup, mapSponsor, mapEvent,
   LangContext, useLang, LangProvider,
   PostsContext, PostsProvider, usePosts,
+  ContentContext, ContentProvider, usePeople, useStartups, useSponsors, useEvents,
 };

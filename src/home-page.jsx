@@ -1,6 +1,6 @@
 // home-page.jsx — Homepage: Hero → Yazılar → Lab → Nasıl Çalışır → Sponsorlar
 import React from 'react';
-import { useLang, resolveStat, startups, sponsors, events, getProject, siteStats, usePosts } from './data';
+import { useLang, resolveStat, getProject, siteStats, usePosts, useStartups, useSponsors } from './data';
 import { Reveal, AnimatedCounter, Icon, Button, SectionHeader, PostCard, StartupCard, EventCard, StageBadge, stageMap, SponsorsMarquee, TagChip } from './ui-components';
 import { CTASection } from './layout';
 
@@ -85,6 +85,7 @@ function HeroSection({ navigate }) {
 function HeroVisual({ lang, navigate }) {
   const { t, localized } = useLang();
   const { posts, postsLoading } = usePosts();
+  const { startups } = useStartups();
   const featured = startups.find(s => s.featured) || startups[0];
   const latest = [...posts].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0] || null;
 
@@ -278,6 +279,7 @@ function LatestPosts({ navigate }) {
 // ============================================
 function LabProjects({ navigate }) {
   const { t, localized } = useLang();
+  const { startups } = useStartups();
   const shown = startups.filter(s => s.featured || s.trending).slice(0, 3);
   const goProject = (id) => { navigate('project', id); window.scrollTo({ top: 0 }); };
 
@@ -372,6 +374,7 @@ function JourneySection() {
 // ============================================
 function SponsorsSection() {
   const { t } = useLang();
+  const { sponsors } = useSponsors();
   return (
     <section className="section section--alt" style={{ paddingTop: 64, paddingBottom: 64 }}>
       <div className="container">

@@ -1,7 +1,7 @@
 // admin-pages.jsx — Dashboard, Projects, Posts
-import { useState as useStateP, useEffect as useEffectP, useMemo as useMemoP } from 'react';
+import { useState as useStateP, useEffect as useEffectP, useMemo as useMemoP, useRef as useRefP } from 'react';
 import { useAdmin, uid, COLLECTIONS } from './admin-store';
-import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper, PeoplePicker } from './admin-ui';
+import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper, PeoplePicker } from './admin-ui';
 import { ProjectPreview, PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
 import { people } from '../data';
 
@@ -263,6 +263,13 @@ function ProjectForm({ item, onClose, onSave, people }) {
   );
 }
 
+function toSlug(str) {
+  return (str || '').toLowerCase()
+    .replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ş/g,'s')
+    .replace(/ı/g,'i').replace(/ö/g,'o').replace(/ç/g,'c')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+
 // ============================================
 // POSTS — 2 adımlı (önce içerik, sonra detaylar)
 // ============================================
@@ -291,10 +298,10 @@ function PostsPage() {
     { key: 'date', label: 'Tarih', style: { width: 110 } },
   ];
 
-  const handleSave = (formData) => {
+  const handleSave = async (formData) => {
     const id = editing === 'new' ? parseInt(uid()) : editing.id;
-    if (editing === 'new') addItem('posts', { ...formData, id });
-    else updateItem('posts', id, formData);
+    if (editing === 'new') await addItem('posts', { ...formData, id });
+    else await updateItem('posts', id, formData);
     if (formData.homePinned === true) clearFlagExcept('posts', id, 'homePinned');
     setEditing(null);
   };
@@ -318,12 +325,21 @@ function PostsPage() {
 }
 
 function PostForm({ item, onClose, onSave, people, startups, recCount }) {
-  const blank = { tag: 'blog', authorId: '', projectId: null, date: new Date().toISOString().slice(0,10), readTime: 5, bg: 'var(--blue-light)', cover: null, title_tr: '', title_en: '', excerpt_tr: '', excerpt_en: '', body_tr: [], body_en: [], source: null, recommended: false, homePinned: false };
+  const blank = { slug: '', tag: 'blog', authorId: '', projectId: null, date: new Date().toISOString().slice(0,10), readTime: 5, bg: 'var(--blue-light)', cover: null, title_tr: '', title_en: '', excerpt_tr: '', excerpt_en: '', body_tr: [], body_en: [], source: null, recommended: false, homePinned: false };
   const [f, setF] = useStateP(item ? { ...blank, ...item } : blank);
   const [step, setStep] = useStateP(0);
   const [preview, setPreview] = useStateP(false);
   const [err, setErr] = useStateP('');
-  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  const [saving, setSaving] = useStateP(false);
+  const slugLocked = useRefP(!!item?.slug);
+
+  const set = (k, v) => setF(prev => {
+    const next = { ...prev, [k]: v };
+    if (k === 'title_tr' && !slugLocked.current) next.slug = toSlug(v);
+    return next;
+  });
+  const setSlug = (v) => { slugLocked.current = true; setF(prev => ({ ...prev, slug: v.toLowerCase().replace(/[^a-z0-9-]/g, '-') })); };
+
   const authorName = (people.find(p => p.id === f.authorId) || {}).name;
   const authors = people.filter(p => p.type === 'author' || p.type === 'team' || p.type === 'mentor');
 
@@ -332,9 +348,16 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
     if (!contentValid) { setErr('Başlık, özet ve içerik zorunludur — boş yazı yayınlanamaz.'); return; }
     setErr(''); setStep(1);
   };
-  const submit = () => {
+  const submit = async () => {
     if (!contentValid) { setErr('Başlık, özet ve içerik zorunludur — boş yazı yayınlanamaz.'); setStep(0); return; }
-    onSave(f);
+    if (!f.slug) { setErr('Slug boş olamaz — başlık girilince otomatik oluşur.'); setStep(0); return; }
+    setSaving(true); setErr('');
+    try {
+      await onSave(f);
+    } catch (e) {
+      setErr('Kayıt başarısız: ' + (e.message || 'Bilinmeyen hata'));
+      setSaving(false);
+    }
   };
   // Tavsiye Edilen max 3
   const toggleRec = (v) => {
@@ -353,6 +376,7 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
           <div style={{ marginTop: 18 }}>
             <Field label="Başlık (TR)" required><Input value={f.title_tr} onChange={v => set('title_tr', v)} placeholder="Yazının başlığı" /></Field>
             <Field label="Başlık (EN)"><Input value={f.title_en} onChange={v => set('title_en', v)} /></Field>
+            <Field label="Slug (URL)" hint="Başlıktan otomatik oluşur, düzenleyebilirsin"><Input value={f.slug} onChange={setSlug} placeholder="yazi-basligi-buraya" /></Field>
             <div className="adm-form-grid">
               <Field label="Özet (TR)" required hint="Kartlarda ve giriş bölümünde görünür"><Textarea value={f.excerpt_tr} onChange={v => set('excerpt_tr', v)} /></Field>
               <Field label="Özet (EN)"><Textarea value={f.excerpt_en} onChange={v => set('excerpt_en', v)} /></Field>
@@ -367,7 +391,7 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
             <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
                 <label className="adm-field__label">Kapak Görseli</label>
-                <ImageUpload value={f.cover} onChange={v => set('cover', v)} size={140} shape="rounded" format="jpeg" maxDim={900} label="Sürükle / seç" />
+                <PostCoverUpload value={f.cover} onChange={v => set('cover', v)} postSlug={f.slug || ''} />
               </div>
               <div style={{ flex: 1 }}>
                 <Field label="Kategori"><Select value={f.tag} onChange={v => set('tag', v)} options={[{value:'blog',label:'Blog'},{value:'gundem',label:'Gündem'}]} /></Field>
@@ -420,7 +444,7 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
             : <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose}>İptal</button>}
           {step === 0
             ? <button type="button" className="adm-btn adm-btn--primary" onClick={goNext}>İleri <AIcon name="arrowRight" size={15} /></button>
-            : <button type="button" className="adm-btn adm-btn--primary" onClick={submit}><AIcon name="save" size={16} /> Kaydet</button>}
+            : <button type="button" className="adm-btn adm-btn--primary" onClick={submit} disabled={saving}><AIcon name={saving ? 'refresh' : 'save'} size={16} /> {saving ? 'Kaydediliyor…' : 'Kaydet'}</button>}
         </div>
       </div>
       )}

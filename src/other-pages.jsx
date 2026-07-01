@@ -1,6 +1,6 @@
 // other-pages.jsx — Yazılar (Blog) & Katıl (Join)
 import { useState as useStateOP } from 'react';
-import { useLang, events, getProject, usePosts } from './data';
+import { useLang, getProject, usePosts, useEvents } from './data';
 import { Icon, Button, PostCard, EventCard, Reveal, TagChip } from './ui-components';
 import { CTASection, PageHeader } from './layout';
 import { getRoleDescription } from './detail-pages';
@@ -12,6 +12,7 @@ import { getRoleDescription } from './detail-pages';
 // EVENTS TAB — Etkinlik sekmesi (Yazılar sayfasında)
 // ============================================
 function EventsTab({ lang }) {
+  const { events } = useEvents();
   const evList = (events || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const now = new Date().toISOString().slice(0, 10);
   const upcoming = evList.filter(e => e.date >= now);

@@ -1,6 +1,6 @@
 // about-labs.jsx — About (yönetim ekibi + mentörler + 2 buton) & Lab (proje listesi)
 import React, { useState as useStateAL } from 'react';
-import { useLang, people, startups, postsForProject, teamMembers, mentors } from './data';
+import { useLang, postsForProject, usePeople, useStartups } from './data';
 import { Avatar, Icon, Reveal, Button, SectionHeader, StartupCard, PersonCard, PostCard, StageBadge, stageMap } from './ui-components';
 import { CTASection, PageHeader } from './layout';
 import { getRoleDescription } from './detail-pages';
@@ -28,9 +28,11 @@ function OrgCard({ person, tier }) {
 }
 
 function OrgChart() {
-  const t1 = teamMembers.filter(p => p.tier === 1);
-  const t2 = teamMembers.filter(p => p.tier === 2);
-  const t3 = teamMembers.filter(p => p.tier === 3);
+  const { people } = usePeople();
+  const team = people.filter(p => p.type === 'team');
+  const t1 = team.filter(p => p.tier === 1);
+  const t2 = team.filter(p => p.tier === 2);
+  const t3 = team.filter(p => p.tier === 3);
   return (
     <div className="org">
       <div className="org__tier org__tier--lead">{t1.map(p => <OrgCard key={p.id} person={p} tier={1} />)}</div>
@@ -47,6 +49,8 @@ function OrgChart() {
 // ============================================
 function AboutPage({ navigate }) {
   const { lang, t } = useLang();
+  const { people } = usePeople();
+  const mentors = people.filter(p => p.type === 'mentor');
 
   return (
     <div className="page-transition">
@@ -323,6 +327,7 @@ function OpportunitiesTab({ opportunities, navigate }) {
 // ============================================
 function LabsPage({ navigate }) {
   const { lang, t, localized } = useLang();
+  const { startups } = useStartups();
   const [activeFilter, setActiveFilter] = useStateAL('all');
   const [searchQuery, setSearchQuery] = useStateAL('');
   const [activeTab, setActiveTab] = useStateAL('projects');
