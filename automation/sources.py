@@ -104,6 +104,17 @@ def mark_seen(items: list[dict]) -> None:
         print(f"[uyarı] Supabase seen_urls yazılamadı: {e}")
 
 
+def cleanup_old_seen(days: int = 30) -> None:
+    """30 günden eski seen_url kayıtlarını sil."""
+    cutoff = (datetime.datetime.now(datetime.timezone.utc)
+              - datetime.timedelta(days=days)).isoformat()
+    try:
+        _client().table("automation_seen_urls").delete().lt("seen_at", cutoff).execute()
+        print(f"[bilgi] {days} günden eski seen_url kayıtları temizlendi.")
+    except Exception as e:
+        print(f"[uyarı] seen_url temizliği başarısız: {e}")
+
+
 # ── Puanlama ─────────────────────────────────────────────────────────────────
 
 _LEGACY_SRC_SCORES = {

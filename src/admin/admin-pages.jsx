@@ -325,7 +325,7 @@ function PostsPage() {
 }
 
 function PostForm({ item, onClose, onSave, people, startups, recCount }) {
-  const blank = { slug: '', tag: 'blog', authorId: '', projectId: null, date: new Date().toISOString().slice(0,10), readTime: 5, bg: 'var(--blue-light)', cover: null, title_tr: '', title_en: '', excerpt_tr: '', excerpt_en: '', body_tr: [], body_en: [], source: null, recommended: false, homePinned: false };
+  const blank = { slug: '', tag: 'blog', authorId: '', projectId: null, date: new Date().toISOString().slice(0,10), readTime: 5, bg: 'var(--blue-light)', cover: null, title_tr: '', title_en: '', excerpt_tr: '', excerpt_en: '', body_tr: [], body_en: [], source: null, recommended: false, homePinned: false, status: 'published', publishedAt: new Date().toISOString() };
   const [f, setF] = useStateP(item ? { ...blank, ...item } : blank);
   const [step, setStep] = useStateP(0);
   const [preview, setPreview] = useStateP(false);
@@ -353,9 +353,20 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
     if (!f.slug) { setErr('Slug boş olamaz — başlık girilince otomatik oluşur.'); setStep(0); return; }
     setSaving(true); setErr('');
     try {
-      await onSave(f);
+      const payload = { ...f };
+      if (payload.status === 'published' && !payload.publishedAt) {
+        payload.publishedAt = new Date().toISOString();
+      } else if (payload.status === 'draft') {
+        payload.publishedAt = null;
+      }
+      await onSave(payload);
     } catch (e) {
-      setErr('Kayıt başarısız: ' + (e.message || 'Bilinmeyen hata'));
+      if (e.code === '23505' || (e.message || '').includes('duplicate') || (e.message || '').includes('unique')) {
+        setErr('Bu slug zaten kullanılıyor, değiştirin.');
+        setStep(0);
+      } else {
+        setErr('Kayıt başarısız: ' + (e.message || 'Bilinmeyen hata'));
+      }
       setSaving(false);
     }
   };
@@ -377,6 +388,16 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
             <Field label="Başlık (TR)" required><Input value={f.title_tr} onChange={v => set('title_tr', v)} placeholder="Yazının başlığı" /></Field>
             <Field label="Başlık (EN)"><Input value={f.title_en} onChange={v => set('title_en', v)} /></Field>
             <Field label="Slug (URL)" hint="Başlıktan otomatik oluşur, düzenleyebilirsin"><Input value={f.slug} onChange={setSlug} placeholder="yazi-basligi-buraya" /></Field>
+            <Field label="Durum">
+              <Select
+                value={f.status || 'published'}
+                onChange={v => set('status', v)}
+                options={[
+                  { value: 'published', label: 'Yayınlandı' },
+                  { value: 'draft', label: 'Taslak' },
+                ]}
+              />
+            </Field>
             <div className="adm-form-grid">
               <Field label="Özet (TR)" required hint="Kartlarda ve giriş bölümünde görünür"><Textarea value={f.excerpt_tr} onChange={v => set('excerpt_tr', v)} /></Field>
               <Field label="Özet (EN)"><Textarea value={f.excerpt_en} onChange={v => set('excerpt_en', v)} /></Field>

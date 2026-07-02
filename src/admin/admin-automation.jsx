@@ -229,6 +229,80 @@ function AutomationPage() {
     flash(`Reddedildi: ${draft.title_tr}`, 'orange');
   };
 
+  // ── Taslak düzenleme ─────────────────────────────────────────────────────
+  const [editDraft,  setEditDraft]  = useState(null);
+  const [draftForm,  setDraftForm]  = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+
+  const openEditDraft = (d) => {
+    setDraftForm({
+      title_tr:   d.title_tr   || '',
+      excerpt_tr: d.excerpt_tr || '',
+      body_tr:    Array.isArray(d.body_tr) ? [...d.body_tr] : [],
+      tag:        d.tag        || 'gundem',
+    });
+    setEditDraft(d);
+  };
+  const saveDraftEdit = async () => {
+    if (!draftForm.title_tr.trim()) { flash('Başlık zorunlu.', 'orange'); return; }
+    setEditSaving(true);
+    const { error } = await supabase.from('posts')
+      .update({ title_tr: draftForm.title_tr, excerpt_tr: draftForm.excerpt_tr, body_tr: draftForm.body_tr, tag: draftForm.tag })
+      .eq('id', editDraft.id).eq('status', 'draft');
+    setEditSaving(false);
+    if (error) { flash('Güncelleme başarısız: ' + error.message, 'orange'); return; }
+    flash('Taslak güncellendi.');
+    setEditDraft(null);
+    loadDrafts();
+  };
+  const setBodyParagraph = (i, val) => setDraftForm(p => {
+    const arr = [...p.body_tr];
+    arr[i] = val;
+    return { ...p, body_tr: arr };
+  });
+  const addBodyParagraph  = () => setDraftForm(p => ({ ...p, body_tr: [...p.body_tr, ''] }));
+  const removeBodyParagraph = (i) => setDraftForm(p => ({ ...p, body_tr: p.body_tr.filter((_, idx) => idx !== i) }));
+
+  // ── Toplu işlem ───────────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkActing,  setBulkActing]  = useState(false);
+
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const toggleAll = () => {
+    if (selectedIds.size === drafts.length && drafts.length > 0) setSelectedIds(new Set());
+    else setSelectedIds(new Set(drafts.map(d => d.id)));
+  };
+  const bulkApprove = async () => {
+    if (!selectedIds.size || bulkActing) return;
+    setBulkActing(true);
+    const ids = [...selectedIds];
+    const { error } = await supabase.from('posts')
+      .update({ status: 'published', published_at: new Date().toISOString() })
+      .in('id', ids);
+    setBulkActing(false);
+    if (error) { flash('Toplu onaylama başarısız: ' + error.message, 'orange'); return; }
+    setDrafts(prev => prev.filter(d => !selectedIds.has(d.id)));
+    setSelectedIds(new Set());
+    flash(`${ids.length} taslak yayınlandı.`);
+  };
+  const bulkReject = async () => {
+    if (!selectedIds.size || bulkActing) return;
+    setBulkActing(true);
+    const ids = [...selectedIds];
+    const { error } = await supabase.from('posts')
+      .update({ status: 'rejected' })
+      .in('id', ids);
+    setBulkActing(false);
+    if (error) { flash('Toplu reddetme başarısız: ' + error.message, 'orange'); return; }
+    setDrafts(prev => prev.filter(d => !selectedIds.has(d.id)));
+    setSelectedIds(new Set());
+    flash(`${ids.length} taslak reddedildi.`, 'orange');
+  };
+
   // ── Loglar & Seen URLs ────────────────────────────────────────────────────
   const [runLogs,    setRunLogs]    = useState([]);
   const [seenCount,  setSeenCount]  = useState(0);
@@ -407,50 +481,74 @@ function AutomationPage() {
                   <p>Onay bekleyen taslak yok.</p>
                 </div>
               ) : (
-                <div className="adm-table-wrap">
-                  <table className="adm-table">
-                    <thead>
-                      <tr><th>Başlık</th><th>Etiket</th><th>Tarih</th><th>Kaynak</th><th style={{ textAlign: 'right' }}>İşlem</th></tr>
-                    </thead>
-                    <tbody>
-                      {drafts.map(d => (
-                        <tr key={d.id}>
-                          <td style={{ maxWidth: 360 }}>
-                            <div style={{ fontWeight: 600, lineHeight: 1.35 }}>{d.title_tr}</div>
-                            <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>/{d.slug}</div>
-                            {d.excerpt_tr && <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>{d.excerpt_tr.slice(0, 90)}{d.excerpt_tr.length > 90 ? '…' : ''}</div>}
-                          </td>
-                          <td><span className="adm-badge adm-badge--tag">{d.tag || 'gundem'}</span></td>
-                          <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDate(d.date)}</td>
-                          <td style={{ whiteSpace: 'nowrap' }}>
-                            {d.source ? (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--adm-text-secondary)' }}>
-                                <AIcon name="globe" size={13} />
-                                {d.source_url ? <a href={d.source_url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>{d.source}</a> : d.source}
-                              </span>
-                            ) : '—'}
-                          </td>
-                          <td>
-                            <div className="adm-table__actions" style={{ justifyContent: 'flex-end' }}>
-                              <button className="adm-icon-btn" title="Önizle" onClick={() => setPreview(d)}><AIcon name="eye" size={15} /></button>
-                              <button
-                                className="adm-btn adm-btn--primary adm-btn--sm"
-                                onClick={() => approve(d)}
-                                disabled={actingId !== null}
-                                style={{ opacity: actingId !== null && actingId !== d.id ? 0.5 : 1 }}
-                              >
-                                {actingId === d.id ? <><span className="adm-spinner"></span> İşleniyor…</> : <><AIcon name="check" size={14} /> Onayla</>}
-                              </button>
-                              <button className="adm-icon-btn adm-icon-btn--danger" title="Reddet" onClick={() => reject(d)} disabled={actingId !== null}>
-                                <AIcon name="x" size={15} />
-                              </button>
-                            </div>
-                          </td>
+                <>
+                  {selectedIds.size > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: 'var(--adm-blue-light)', borderBottom: '1px solid var(--adm-border-light)' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--adm-blue)' }}>{selectedIds.size} taslak seçildi</span>
+                      <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={bulkApprove} disabled={bulkActing}>
+                        {bulkActing ? <span className="adm-spinner"></span> : <><AIcon name="check" size={14} /> Seçilenleri Onayla</>}
+                      </button>
+                      <button className="adm-btn adm-btn--sm" onClick={bulkReject} disabled={bulkActing} style={{ background: 'var(--adm-red-light)', color: 'var(--adm-red)', border: 'none' }}>
+                        <AIcon name="x" size={14} /> Seçilenleri Reddet
+                      </button>
+                      <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setSelectedIds(new Set())}>Seçimi Temizle</button>
+                    </div>
+                  )}
+                  <div className="adm-table-wrap">
+                    <table className="adm-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: 36 }}>
+                            <input type="checkbox" checked={selectedIds.size === drafts.length && drafts.length > 0} onChange={toggleAll}
+                              style={{ cursor: 'pointer' }} title="Tümünü seç" />
+                          </th>
+                          <th>Başlık</th><th>Etiket</th><th>Tarih</th><th>Kaynak</th><th style={{ textAlign: 'right' }}>İşlem</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {drafts.map(d => (
+                          <tr key={d.id} style={{ background: selectedIds.has(d.id) ? 'var(--adm-blue-light)' : undefined }}>
+                            <td>
+                              <input type="checkbox" checked={selectedIds.has(d.id)} onChange={() => toggleSelect(d.id)} style={{ cursor: 'pointer' }} />
+                            </td>
+                            <td style={{ maxWidth: 340 }}>
+                              <div style={{ fontWeight: 600, lineHeight: 1.35 }}>{d.title_tr}</div>
+                              <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>/{d.slug}</div>
+                              {d.excerpt_tr && <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>{d.excerpt_tr.slice(0, 90)}{d.excerpt_tr.length > 90 ? '…' : ''}</div>}
+                            </td>
+                            <td><span className="adm-badge adm-badge--tag">{d.tag || 'gundem'}</span></td>
+                            <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDate(d.date)}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
+                              {d.source ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--adm-text-secondary)' }}>
+                                  <AIcon name="globe" size={13} />
+                                  {d.source_url ? <a href={d.source_url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>{d.source}</a> : d.source}
+                                </span>
+                              ) : '—'}
+                            </td>
+                            <td>
+                              <div className="adm-table__actions" style={{ justifyContent: 'flex-end' }}>
+                                <button className="adm-icon-btn" title="Önizle" onClick={() => setPreview(d)}><AIcon name="eye" size={15} /></button>
+                                <button className="adm-icon-btn" title="Düzenle" onClick={() => openEditDraft(d)}><AIcon name="edit" size={15} /></button>
+                                <button
+                                  className="adm-btn adm-btn--primary adm-btn--sm"
+                                  onClick={() => approve(d)}
+                                  disabled={actingId !== null}
+                                  style={{ opacity: actingId !== null && actingId !== d.id ? 0.5 : 1 }}
+                                >
+                                  {actingId === d.id ? <><span className="adm-spinner"></span> İşleniyor…</> : <><AIcon name="check" size={14} /> Onayla</>}
+                                </button>
+                                <button className="adm-icon-btn adm-icon-btn--danger" title="Reddet" onClick={() => reject(d)} disabled={actingId !== null}>
+                                  <AIcon name="x" size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -813,13 +911,13 @@ function AutomationPage() {
                     </thead>
                     <tbody>
                       {runLogs.map(l => (
-                        <tr key={l.id}>
+                        <tr key={l.id} style={l.error_text ? { background: 'var(--adm-red-light)' } : undefined}>
                           <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDateTime(l.run_at)}</td>
                           <td><span className="adm-badge adm-badge--tag">{l.found_count}</span></td>
                           <td><span className="adm-badge" style={{ background: 'var(--adm-orange-light)', color: 'var(--adm-orange)' }}>{l.filtered_count}</span></td>
                           <td><span className="adm-badge" style={{ background: 'var(--adm-green-light)', color: 'var(--adm-green)' }}>{l.draft_count}</span></td>
-                          <td style={{ fontSize: 12, color: l.error_text ? 'var(--adm-red)' : 'var(--adm-text-dim)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {l.error_text || '—'}
+                          <td style={{ fontSize: 12, color: l.error_text ? 'var(--adm-red)' : 'var(--adm-text-dim)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.error_text || ''}>
+                            {l.error_text ? <strong>{l.error_text.slice(0, 80)}{l.error_text.length > 80 ? '…' : ''}</strong> : '—'}
                           </td>
                         </tr>
                       ))}
@@ -915,6 +1013,75 @@ function AutomationPage() {
               {preview.source_url
                 ? <a href={preview.source_url} target="_blank" rel="noopener noreferrer">{preview.source}</a>
                 : preview.source} · /{preview.slug}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Taslak düzenleme */}
+      {editDraft && (
+        <Modal open onClose={() => setEditDraft(null)} title="Taslağı Düzenle" wide>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Field label="Başlık">
+              <Input
+                value={draftForm.title_tr}
+                onChange={e => setDraftForm(p => ({ ...p, title_tr: e.target.value }))}
+                placeholder="Makale başlığı"
+              />
+            </Field>
+            <Field label="Özet">
+              <textarea
+                className="adm-input"
+                rows={3}
+                value={draftForm.excerpt_tr}
+                onChange={e => setDraftForm(p => ({ ...p, excerpt_tr: e.target.value }))}
+                placeholder="Kısa özet"
+                style={{ resize: 'vertical' }}
+              />
+            </Field>
+            <Field label="İçerik (paragraflar)">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {draftForm.body_tr.map((para, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <textarea
+                      className="adm-input"
+                      rows={3}
+                      value={para}
+                      onChange={e => setBodyParagraph(i, e.target.value)}
+                      placeholder={`Paragraf ${i + 1}`}
+                      style={{ flex: 1, resize: 'vertical' }}
+                    />
+                    <button
+                      className="adm-icon-btn adm-icon-btn--danger"
+                      onClick={() => removeBodyParagraph(i)}
+                      title="Paragrafı sil"
+                      style={{ marginTop: 4, flexShrink: 0 }}
+                    >
+                      <AIcon name="x" size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={addBodyParagraph} style={{ alignSelf: 'flex-start' }}>
+                  <AIcon name="plus" size={13} /> Paragraf Ekle
+                </button>
+              </div>
+            </Field>
+            <Field label="Etiket">
+              <select
+                className="adm-input"
+                value={draftForm.tag}
+                onChange={e => setDraftForm(p => ({ ...p, tag: e.target.value }))}
+              >
+                <option value="gundem">Gündem</option>
+                <option value="blog">Blog</option>
+                <option value="etkinlik">Etkinlik</option>
+              </select>
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8, borderTop: '1px solid var(--adm-border-light)' }}>
+              <button className="adm-btn adm-btn--ghost" onClick={() => setEditDraft(null)}>İptal</button>
+              <button className="adm-btn adm-btn--primary" onClick={saveDraftEdit} disabled={editSaving}>
+                {editSaving ? <><span className="adm-spinner"></span> Kaydediliyor…</> : <><AIcon name="check" size={15} /> Kaydet</>}
+              </button>
             </div>
           </div>
         </Modal>

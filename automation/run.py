@@ -201,6 +201,9 @@ def main():
             return
 
     if mode in ("generate", "all"):
+        # 30 günden eski seen_url kayıtlarını temizle
+        sources.cleanup_old_seen(days=30)
+
         found = filtered = drafted = 0
         error_text = None
         try:

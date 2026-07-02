@@ -43,6 +43,8 @@ function mapPostToDb(item) {
     body_en:     item.body_en     || [],
     home_pinned: item.homePinned  || false,
     recommended: item.recommended || false,
+    status:      item.status      || 'published',
+    published_at: item.publishedAt || null,
   };
 }
 function mapPostFromDb(row) {
@@ -65,6 +67,8 @@ function mapPostFromDb(row) {
     body_en:     row.body_en     || [],
     homePinned:  row.home_pinned || false,
     recommended: row.recommended || false,
+    status:      row.status      || 'published',
+    publishedAt: row.published_at || null,
   };
 }
 
