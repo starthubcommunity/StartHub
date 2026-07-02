@@ -333,14 +333,17 @@ function AutomationPage() {
   };
 
   // ── GitHub Actions tetikleme ──────────────────────────────────────────────
-  const [ghToken,     setGhToken]    = useState(() => sessionStorage.getItem('sh_gh_token') || '');
+  const [ghToken,     setGhToken]    = useState(() => localStorage.getItem('sh_gh_token') || '');
   const [triggering,  setTriggering] = useState(false);
   const [triggerMsg,  setTriggerMsg] = useState(null);
+  const [patModal,    setPatModal]   = useState(false);
+  const [patInput,    setPatInput]   = useState('');
 
-  useEffect(() => { sessionStorage.setItem('sh_gh_token', ghToken); }, [ghToken]);
+  useEffect(() => { localStorage.setItem('sh_gh_token', ghToken); }, [ghToken]);
 
-  const triggerWorkflow = async () => {
-    if (!ghToken.trim()) { flash('Önce GitHub PAT gir.', 'orange'); return; }
+  const triggerWorkflow = async (token) => {
+    const tok = (token || ghToken).trim();
+    if (!tok) { setPatModal(true); return; }
     if (todayUsage >= GEMINI_LIMIT) { flash('Günlük Gemini kotası doldu.', 'orange'); return; }
     setTriggering(true);
     setTriggerMsg(null);
@@ -350,7 +353,7 @@ function AutomationPage() {
         {
           method: 'POST',
           headers: {
-            Authorization:  `token ${ghToken.trim()}`,
+            Authorization:  `token ${tok}`,
             Accept:         'application/vnd.github+json',
             'Content-Type': 'application/json',
           },
@@ -358,17 +361,29 @@ function AutomationPage() {
         }
       );
       if (res.status === 204) {
-        setTriggerMsg({ ok: true, text: 'Tetiklendi! GitHub Actions loglarını kontrol et.' });
+        flash('Otomasyon tetiklendi! Birkaç dakika içinde taslaklar oluşur.');
+        setTriggerMsg({ ok: true, text: 'Tetiklendi! GitHub Actions loglarını kontrol edebilirsin.' });
         setTimeout(() => setTriggerMsg(null), 8000);
       } else {
         const d = await res.json().catch(() => ({}));
-        setTriggerMsg({ ok: false, text: `GitHub API hatası ${res.status}: ${d?.message || ''}` });
+        const msg = `GitHub API hatası ${res.status}: ${d?.message || ''}`;
+        setTriggerMsg({ ok: false, text: msg });
+        flash(msg, 'orange');
       }
     } catch (e) {
       setTriggerMsg({ ok: false, text: 'Bağlantı hatası: ' + e.message });
+      flash('Bağlantı hatası: ' + e.message, 'orange');
     } finally {
       setTriggering(false);
     }
+  };
+
+  const confirmPat = () => {
+    if (!patInput.trim()) return;
+    setGhToken(patInput.trim());
+    setPatModal(false);
+    triggerWorkflow(patInput.trim());
+    setPatInput('');
   };
 
   // ── Kota geri sayım ───────────────────────────────────────────────────────
@@ -412,9 +427,21 @@ function AutomationPage() {
         title="İçerik Otomasyonu"
         desc="GitHub Actions pipeline yönetimi — RSS → Gemini → Supabase"
         actions={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              className="adm-btn adm-btn--primary"
+              onClick={() => triggerWorkflow()}
+              disabled={triggering || todayUsage >= GEMINI_LIMIT}
+              title={ghToken ? 'GitHub Actions tetikle' : 'GitHub PAT gerekli'}
+              style={{ opacity: todayUsage >= GEMINI_LIMIT ? 0.5 : 1 }}
+            >
+              {triggering
+                ? <><span className="adm-spinner"></span> Tetikleniyor…</>
+                : <><AIcon name="zap" size={15} /> Şimdi Çalıştır</>}
+            </button>
+            <div style={{ width: 1, height: 24, background: 'var(--adm-border-light)' }} />
             <span style={{ fontSize: 13, color: automationEnabled ? 'var(--adm-green)' : 'var(--adm-red)', fontWeight: 700 }}>
-              {automationEnabled ? 'Otomasyon AÇIK' : 'Otomasyon KAPALI'}
+              {automationEnabled ? 'Otomasyon AÇIK' : 'KAPALI'}
             </span>
             <label className="adm-switch" style={{ transform: 'scale(1.25)', transformOrigin: 'right' }}>
               <input type="checkbox" checked={automationEnabled} onChange={e => toggleAutomation(e.target.checked)} />
@@ -476,9 +503,21 @@ function AutomationPage() {
               {draftsLoad ? (
                 <div className="adm-empty"><span className="adm-spinner" style={{ width: 28, height: 28 }}></span></div>
               ) : drafts.length === 0 ? (
-                <div className="adm-empty">
-                  <AIcon name="check" size={40} style={{ opacity: 0.2 }} />
-                  <p>Onay bekleyen taslak yok.</p>
+                <div className="adm-empty" style={{ padding: '32px 24px', textAlign: 'center' }}>
+                  <AIcon name="layers" size={40} style={{ opacity: 0.15, marginBottom: 12 }} />
+                  <p style={{ marginBottom: 16, color: 'var(--adm-text-dim)' }}>Onay bekleyen taslak yok.</p>
+                  <button
+                    className="adm-btn adm-btn--primary"
+                    onClick={() => triggerWorkflow()}
+                    disabled={triggering || todayUsage >= GEMINI_LIMIT}
+                  >
+                    {triggering
+                      ? <><span className="adm-spinner"></span> Tetikleniyor…</>
+                      : <><AIcon name="zap" size={15} /> Otomasyonu Tetikle</>}
+                  </button>
+                  {todayUsage >= GEMINI_LIMIT && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--adm-orange)' }}>Günlük Gemini kotası doldu, yarın sıfırlanır.</div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -851,8 +890,15 @@ function AutomationPage() {
                 </div>
               </div>
 
-              <Field label="GitHub Personal Access Token" hint="workflow:read, actions:write kapsamı gerekli — sekme kapanınca silinir">
-                <Input type="password" value={ghToken} onChange={setGhToken} placeholder="ghp_..." />
+              <Field label="GitHub Personal Access Token" hint="Actions: Read & write izni gerekli — tarayıcında şifreli saklanır">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Input type="password" value={ghToken} onChange={setGhToken} placeholder="github_pat_... veya ghp_..." />
+                  {ghToken && (
+                    <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => { setGhToken(''); localStorage.removeItem('sh_gh_token'); }} title="Token'ı sil">
+                      <AIcon name="x" size={14} />
+                    </button>
+                  )}
+                </div>
               </Field>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1081,6 +1127,43 @@ function AutomationPage() {
               <button className="adm-btn adm-btn--ghost" onClick={() => setEditDraft(null)}>İptal</button>
               <button className="adm-btn adm-btn--primary" onClick={saveDraftEdit} disabled={editSaving}>
                 {editSaving ? <><span className="adm-spinner"></span> Kaydediliyor…</> : <><AIcon name="check" size={15} /> Kaydet</>}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* GitHub PAT Girişi */}
+      {patModal && (
+        <Modal open onClose={() => { setPatModal(false); setPatInput(''); }} title="GitHub Token Gerekli">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--adm-text)' }}>
+              Otomasyonu panelden tetiklemek için bir <strong>GitHub Personal Access Token</strong> gerekli.
+              <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--adm-blue-light)', borderRadius: 8, fontSize: 13 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Token nasıl alınır?</div>
+                <ol style={{ paddingLeft: 18, margin: 0, lineHeight: 2 }}>
+                  <li>GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens</li>
+                  <li>Repository: <strong>starthubcommunity/StartHub</strong> seç</li>
+                  <li>İzin: <strong>Actions → Read and write</strong></li>
+                  <li>Token'ı kopyalayıp aşağıya yapıştır</li>
+                </ol>
+              </div>
+            </div>
+            <Field label="Personal Access Token">
+              <Input
+                type="password"
+                value={patInput}
+                onChange={v => setPatInput(v)}
+                placeholder="github_pat_... veya ghp_..."
+              />
+            </Field>
+            <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
+              Token tarayıcında şifreli olarak saklanır, sunucuya gönderilmez.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8, borderTop: '1px solid var(--adm-border-light)' }}>
+              <button className="adm-btn adm-btn--ghost" onClick={() => { setPatModal(false); setPatInput(''); }}>İptal</button>
+              <button className="adm-btn adm-btn--primary" onClick={confirmPat} disabled={!patInput.trim()}>
+                <AIcon name="zap" size={15} /> Kaydet & Çalıştır
               </button>
             </div>
           </div>

@@ -36,11 +36,16 @@ jobs:
       - name: İçerik hattını çalıştır
         working-directory: automation
         env:
-          GEMINI_API_KEY:             ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL:               gemini-2.5-flash
-          DAILY_LIMIT:                "2"
-          SUPABASE_URL:               ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY:       ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SHEET_NAME:                 "Start-Hub Yayın Planı"
-          GOOGLE_SHEETS_CREDENTIALS:  ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
-        run: python run.py ${{ github.event.inputs.mode || 'all' }}
+          GEMINI_API_KEY:       ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL:         gemini-2.5-flash
+          DAILY_LIMIT:          "2"
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          MODE="${{ github.event.inputs.mode || 'all' }}"
+          # Manuel tetiklemede saat kontrolünü atla
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python run.py "$MODE" --ignore-hour
+          else
+            python run.py "$MODE"
+          fi

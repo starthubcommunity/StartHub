@@ -189,6 +189,7 @@ def main():
     # 0b. Otomasyon açık mı?
     if not settings["automation_enabled"]:
         print("[bilgi] Otomasyon kapalı (automation_enabled=false). Çıkılıyor.")
+        _log_run(0, 0, 0, "Otomasyon kapalı")
         return
 
     # 0c. Tercih edilen saat kontrolü
@@ -196,8 +197,9 @@ def main():
         current_hour = datetime.datetime.now(datetime.timezone.utc).hour
         preferred    = settings["preferred_run_hour"]
         if current_hour != preferred:
-            print(f"[bilgi] Tercih edilen saat {preferred:02d}:00 UTC, "
-                  f"şu an {current_hour:02d}:00 UTC. Çıkılıyor.")
+            msg = f"Saat eşleşmedi: beklenen {preferred:02d}:00 UTC, şu an {current_hour:02d}:00 UTC"
+            print(f"[bilgi] {msg}. Çıkılıyor.")
+            _log_run(0, 0, 0, msg)
             return
 
     if mode in ("generate", "all"):
