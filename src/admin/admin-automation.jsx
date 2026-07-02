@@ -193,10 +193,13 @@ function AutomationPage() {
   };
 
   // ── Taslaklar (Supabase posts status='draft') ─────────────────────────────
-  const [drafts,      setDrafts]     = useState([]);
-  const [draftsLoad,  setDraftsLoad] = useState(true);
-  const [actingId,    setActingId]   = useState(null);
-  const [preview,     setPreview]    = useState(null);
+  const [draftsView,   setDraftsView]  = useState('pending'); // 'pending' | 'rejected'
+  const [drafts,       setDrafts]      = useState([]);
+  const [draftsLoad,   setDraftsLoad]  = useState(true);
+  const [rejected,     setRejected]    = useState([]);
+  const [rejectedLoad, setRejectedLoad]= useState(false);
+  const [actingId,     setActingId]    = useState(null);
+  const [preview,      setPreview]     = useState(null);
 
   const loadDrafts = useCallback(async () => {
     setDraftsLoad(true);
@@ -205,6 +208,15 @@ function AutomationPage() {
     setDraftsLoad(false);
     if (error) { flash('Taslaklar yüklenemedi: ' + error.message, 'orange'); return; }
     setDrafts(data || []);
+  }, [flash]);
+
+  const loadRejected = useCallback(async () => {
+    setRejectedLoad(true);
+    const { data, error } = await supabase
+      .from('posts').select('*').eq('status', 'rejected').order('date', { ascending: false });
+    setRejectedLoad(false);
+    if (error) { flash('Reddedilenler yüklenemedi: ' + error.message, 'orange'); return; }
+    setRejected(data || []);
   }, [flash]);
 
   const approve = async (draft) => {
@@ -227,6 +239,27 @@ function AutomationPage() {
     if (error) { flash('Reddetme başarısız: ' + error.message, 'orange'); return; }
     setDrafts(prev => prev.filter(d => d.id !== draft.id));
     flash(`Reddedildi: ${draft.title_tr}`, 'orange');
+  };
+  const restore = async (post) => {
+    if (actingId) return;
+    setActingId(post.id);
+    const { error } = await supabase.from('posts')
+      .update({ status: 'draft', published_at: null }).eq('id', post.id);
+    setActingId(null);
+    if (error) { flash('Geri alma başarısız: ' + error.message, 'orange'); return; }
+    setRejected(prev => prev.filter(r => r.id !== post.id));
+    flash(`Taslağa geri alındı: ${post.title_tr}`);
+    loadDrafts();
+  };
+  const deletePermanently = async (post) => {
+    if (!confirm(`"${post.title_tr}" kalıcı olarak silinecek. Emin misin?`)) return;
+    if (actingId) return;
+    setActingId(post.id);
+    const { error } = await supabase.from('posts').delete().eq('id', post.id);
+    setActingId(null);
+    if (error) { flash('Silme başarısız: ' + error.message, 'orange'); return; }
+    setRejected(prev => prev.filter(r => r.id !== post.id));
+    flash('Kalıcı olarak silindi.', 'orange');
   };
 
   // ── Taslak düzenleme ─────────────────────────────────────────────────────
@@ -411,6 +444,10 @@ function AutomationPage() {
     loadLogs();
   }, [loadSettings, loadSources, loadKeywords, loadDrafts, loadLogs]);
 
+  useEffect(() => {
+    if (draftsView === 'rejected') loadRejected();
+  }, [draftsView, loadRejected]);
+
   // ── Grouped keywords ─────────────────────────────────────────────────────
   const kwHigh    = keywords.filter(k => k.group_type === 'high');
   const kwMedium  = keywords.filter(k => k.group_type === 'medium');
@@ -477,6 +514,11 @@ function AutomationPage() {
                 {drafts.length}
               </span>
             )}
+            {t.id === 'drafts' && rejected.length > 0 && (
+              <span style={{ background: 'var(--adm-red)', color: '#fff', borderRadius: 99, fontSize: 11, padding: '1px 7px', fontWeight: 700 }}>
+                {rejected.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -484,11 +526,41 @@ function AutomationPage() {
       {/* ── TAB: TASLAKLAR ─────────────────────────────────────────────── */}
       {activeTab === 'drafts' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-            <button className="adm-btn adm-btn--ghost" onClick={loadDrafts} disabled={draftsLoad}>
-              {draftsLoad ? <><span className="adm-spinner"></span> Yükleniyor…</> : <><AIcon name="refresh" size={15} /> Yenile</>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            {/* Görünüm toggle */}
+            <div style={{ display: 'flex', background: 'var(--adm-bg-secondary, #f3f4f6)', borderRadius: 8, padding: 3, gap: 2 }}>
+              <button
+                onClick={() => setDraftsView('pending')}
+                style={{ padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  background: draftsView === 'pending' ? '#fff' : 'transparent',
+                  color: draftsView === 'pending' ? 'var(--adm-blue)' : 'var(--adm-text-dim)',
+                  boxShadow: draftsView === 'pending' ? '0 1px 4px rgba(0,0,0,.10)' : 'none' }}
+              >
+                Bekleyenler {drafts.length > 0 && <span style={{ background: 'var(--adm-blue)', color: '#fff', borderRadius: 99, fontSize: 10, padding: '1px 6px', marginLeft: 4 }}>{drafts.length}</span>}
+              </button>
+              <button
+                onClick={() => setDraftsView('rejected')}
+                style={{ padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  background: draftsView === 'rejected' ? '#fff' : 'transparent',
+                  color: draftsView === 'rejected' ? 'var(--adm-red)' : 'var(--adm-text-dim)',
+                  boxShadow: draftsView === 'rejected' ? '0 1px 4px rgba(0,0,0,.10)' : 'none' }}
+              >
+                Reddedilenler {rejected.length > 0 && <span style={{ background: 'var(--adm-red)', color: '#fff', borderRadius: 99, fontSize: 10, padding: '1px 6px', marginLeft: 4 }}>{rejected.length}</span>}
+              </button>
+            </div>
+            <button
+              className="adm-btn adm-btn--ghost"
+              onClick={draftsView === 'pending' ? loadDrafts : loadRejected}
+              disabled={draftsView === 'pending' ? draftsLoad : rejectedLoad}
+            >
+              {(draftsView === 'pending' ? draftsLoad : rejectedLoad)
+                ? <><span className="adm-spinner"></span> Yükleniyor…</>
+                : <><AIcon name="refresh" size={15} /> Yenile</>}
             </button>
           </div>
+
+          {/* Bekleyenler */}
+          {draftsView === 'pending' && <>
           <div className="adm-note" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)', marginBottom: 16 }}>
             <AIcon name="settings" size={14} />
             <span>
@@ -591,6 +663,80 @@ function AutomationPage() {
               )}
             </div>
           </div>
+          </>}
+
+          {/* Reddedilenler */}
+          {draftsView === 'rejected' && (
+            <div className="adm-card">
+              <div className="adm-card__header">
+                <h3>Reddedilen Taslaklar</h3>
+                <span style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', fontWeight: 400 }}>
+                  Geri Al → taslağa döner · Sil → kalıcı olarak kaldırılır
+                </span>
+              </div>
+              <div className="adm-card__body" style={{ padding: 0 }}>
+                {rejectedLoad ? (
+                  <div className="adm-empty"><span className="adm-spinner" style={{ width: 28, height: 28 }}></span></div>
+                ) : rejected.length === 0 ? (
+                  <div className="adm-empty">
+                    <AIcon name="check" size={40} style={{ opacity: 0.15 }} />
+                    <p style={{ color: 'var(--adm-text-dim)' }}>Reddedilen taslak yok.</p>
+                  </div>
+                ) : (
+                  <div className="adm-table-wrap">
+                    <table className="adm-table">
+                      <thead>
+                        <tr><th>Başlık</th><th>Etiket</th><th>Tarih</th><th>Kaynak</th><th style={{ textAlign: 'right' }}>İşlem</th></tr>
+                      </thead>
+                      <tbody>
+                        {rejected.map(r => (
+                          <tr key={r.id} style={{ opacity: actingId === r.id ? 0.5 : 1 }}>
+                            <td style={{ maxWidth: 340 }}>
+                              <div style={{ fontWeight: 600, lineHeight: 1.35 }}>{r.title_tr}</div>
+                              <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>/{r.slug}</div>
+                              {r.excerpt_tr && <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>{r.excerpt_tr.slice(0, 90)}{r.excerpt_tr.length > 90 ? '…' : ''}</div>}
+                            </td>
+                            <td><span className="adm-badge adm-badge--tag">{r.tag || 'gundem'}</span></td>
+                            <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDate(r.date)}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
+                              {r.source ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--adm-text-secondary)' }}>
+                                  <AIcon name="globe" size={13} />
+                                  {r.source_url ? <a href={r.source_url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>{r.source}</a> : r.source}
+                                </span>
+                              ) : '—'}
+                            </td>
+                            <td>
+                              <div className="adm-table__actions" style={{ justifyContent: 'flex-end' }}>
+                                <button className="adm-icon-btn" title="Önizle" onClick={() => setPreview(r)}><AIcon name="eye" size={15} /></button>
+                                <button
+                                  className="adm-btn adm-btn--sm"
+                                  onClick={() => restore(r)}
+                                  disabled={actingId !== null}
+                                  style={{ background: 'var(--adm-green-light)', color: 'var(--adm-green)', border: 'none' }}
+                                  title="Taslağa geri al"
+                                >
+                                  {actingId === r.id ? <span className="adm-spinner"></span> : <><AIcon name="refresh" size={14} /> Geri Al</>}
+                                </button>
+                                <button
+                                  className="adm-icon-btn adm-icon-btn--danger"
+                                  title="Kalıcı sil"
+                                  onClick={() => deletePermanently(r)}
+                                  disabled={actingId !== null}
+                                >
+                                  <AIcon name="trash" size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

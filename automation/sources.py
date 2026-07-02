@@ -94,7 +94,9 @@ def _load_seen() -> set[str]:
 
 def mark_seen(items: list[dict]) -> None:
     """İşlenen URL'leri automation_seen_urls'e kaydet."""
-    rows = [{"url": _norm(it.get("link", ""))} for it in items if it.get("link")]
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    rows = [{"url": _norm(it.get("link", "")), "seen_at": now}
+            for it in items if it.get("link")]
     if not rows:
         return
     try:
