@@ -501,31 +501,36 @@ function PostsProvider({ children }) {
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsError, setPostsError] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const { data, error } = await supabase
-          .from('posts')
-          .select('*')
-          .eq('status', 'published')
-          .order('date', { ascending: false });
-        if (error) throw error;
-        if (!cancelled) {
-          const mapped = (data || []).map(mapPost);
-          postsCache = mapped;
-          setPosts(mapped);
-        }
-      } catch (err) {
-        console.error('[Posts] Supabase yükleme hatası:', err.message);
-        if (!cancelled) setPostsError(err.message);
-      } finally {
-        if (!cancelled) setPostsLoading(false);
-      }
+  const load = useCallback(async (opts = {}) => {
+    const { silent = false } = opts;
+    if (!silent) setPostsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('status', 'published')
+        .order('date', { ascending: false });
+      if (error) throw error;
+      const mapped = (data || []).map(mapPost);
+      postsCache = mapped;
+      setPosts(mapped);
+      setPostsError(null);
+    } catch (err) {
+      console.error('[Posts] Supabase yükleme hatası:', err.message);
+      setPostsError(err.message);
+    } finally {
+      if (!silent) setPostsLoading(false);
     }
-    load();
-    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Kullanıcı başka tab'dan (ör. admin) döndüğünde sessizce yenile
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') load({ silent: true }); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [load]);
 
   return React.createElement(PostsContext.Provider, { value: { posts, postsLoading, postsError } }, children);
 }
