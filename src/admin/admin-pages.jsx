@@ -296,6 +296,12 @@ function PostsPage() {
     { key: 'tag', label: 'Kategori', style: { width: 100 }, render: (r) => <span className="adm-badge adm-badge--tag">{(PV_TAG[r.tag] || {}).label || r.tag}</span> },
     { key: 'authorId', label: 'Yazar', style: { width: 120 }, render: (r) => { const p = data.people.find(pp => pp.id === r.authorId); return p ? p.name : '—'; } },
     { key: 'date', label: 'Tarih', style: { width: 110 } },
+    { key: 'status', label: 'Durum', style: { width: 110 }, render: (r) => {
+      const s = r.status || 'published';
+      const cfg = { published: { label: 'Yayında', color: 'var(--adm-green)', bg: 'var(--adm-green-light)' }, draft: { label: 'Taslak', color: 'var(--adm-text-dim)', bg: 'var(--adm-border-light)' }, rejected: { label: 'Reddedildi', color: 'var(--adm-red)', bg: 'var(--adm-red-light)' } };
+      const { label, color, bg } = cfg[s] || cfg.published;
+      return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 99, background: bg, color }}>{label}</span>;
+    }},
   ];
 
   const handleSave = async (formData) => {
@@ -356,7 +362,7 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
       const payload = { ...f };
       if (payload.status === 'published' && !payload.publishedAt) {
         payload.publishedAt = new Date().toISOString();
-      } else if (payload.status === 'draft') {
+      } else if (payload.status === 'draft' || payload.status === 'rejected') {
         payload.publishedAt = null;
       }
       await onSave(payload);
@@ -394,10 +400,17 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
                 onChange={v => set('status', v)}
                 options={[
                   { value: 'published', label: 'Yayınlandı' },
-                  { value: 'draft', label: 'Taslak' },
+                  { value: 'draft',     label: 'Taslak' },
+                  { value: 'rejected',  label: 'Reddedildi' },
                 ]}
               />
             </Field>
+            {f.status === 'rejected' && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--adm-orange-light, #fff7ed)', border: '1px solid var(--adm-orange, #f97316)', borderRadius: 8, marginBottom: 8, fontSize: 13, color: 'var(--adm-orange, #c2410c)' }}>
+                <AIcon name="alertTriangle" size={16} style={{ marginTop: 1, flexShrink: 0 }} />
+                <span>Bu yazı <strong>reddedildi</strong> — sitede görünmüyor. Yeniden yayınlamak için durumu "Yayınlandı"ya çevir ya da <strong>Otomasyon → Taslaklar → Reddedilenler</strong> sekmesindeki "Geri Al" akışını kullan.</span>
+              </div>
+            )}
             <div className="adm-form-grid">
               <Field label="Özet (TR)" required hint="Kartlarda ve giriş bölümünde görünür"><Textarea value={f.excerpt_tr} onChange={v => set('excerpt_tr', v)} /></Field>
               <Field label="Özet (EN)"><Textarea value={f.excerpt_en} onChange={v => set('excerpt_en', v)} /></Field>
