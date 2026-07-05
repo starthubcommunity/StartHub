@@ -821,7 +821,7 @@ function useSiteSettings() {
   const [settings, setSettings] = useState(() => ({ ...settingsCache }));
   useEffect(() => {
     if (settingsLoaded) { setSettings({ ...settingsCache }); return; }
-    supabase.from('site_settings').select('key, value').then(({ data }) => {
+    supabase.from('sh_site_settings').select('key, value').then(({ data }) => {
       if (data?.length) {
         settingsLoaded = true;
         data.forEach(row => { settingsCache[row.key] = row.value; });

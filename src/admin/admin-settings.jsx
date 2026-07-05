@@ -4,13 +4,13 @@ import { supabase } from '../lib/supabase';
 import { AIcon } from './admin-ui';
 
 // SQL (Supabase SQL Editor'da bir kez çalıştır):
-// CREATE TABLE IF NOT EXISTS site_settings (
+// CREATE TABLE IF NOT EXISTS sh_site_settings (
 //   key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW()
 // );
-// INSERT INTO site_settings(key,value) VALUES('company_linkedin','https://www.linkedin.com/company/111725833/') ON CONFLICT DO NOTHING;
-// ALTER TABLE site_settings ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "public read" ON site_settings FOR SELECT USING (true);
-// CREATE POLICY "auth write" ON site_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+// INSERT INTO sh_site_settings(key,value) VALUES('company_linkedin','https://www.linkedin.com/company/111725833/') ON CONFLICT DO NOTHING;
+// ALTER TABLE sh_site_settings ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "public read" ON sh_site_settings FOR SELECT USING (true);
+// CREATE POLICY "auth write" ON sh_site_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 function SettingsPage() {
   const [linkedin, setLinkedin] = useState('');
@@ -20,7 +20,7 @@ function SettingsPage() {
   const [loaded,   setLoaded]   = useState(false);
 
   useEffect(() => {
-    supabase.from('site_settings').select('key, value').then(({ data, error: e }) => {
+    supabase.from('sh_site_settings').select('key, value').then(({ data, error: e }) => {
       if (e) { setError('site_settings tablosu bulunamadı. Lütfen SQL\'i çalıştırın.'); }
       else {
         const map = {};
@@ -33,7 +33,7 @@ function SettingsPage() {
 
   const handleSave = async () => {
     setSaving(true); setError(''); setSaved(false);
-    const { error: e } = await supabase.from('site_settings').upsert({ key: 'company_linkedin', value: linkedin.trim() });
+    const { error: e } = await supabase.from('sh_site_settings').upsert({ key: 'company_linkedin', value: linkedin.trim() });
     if (e) setError(e.message);
     else setSaved(true);
     setSaving(false);
@@ -88,17 +88,17 @@ function SettingsPage() {
         <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, color: 'var(--adm-text)', marginBottom: 10 }}>
           <AIcon name="code" size={14} style={{ marginRight: 6 }} />Supabase SQL (bir kez çalıştır)
         </div>
-        <pre style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', background: 'var(--adm-bg)', borderRadius: 8, padding: 14, overflowX: 'auto', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{`CREATE TABLE IF NOT EXISTS site_settings (
+        <pre style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', background: 'var(--adm-bg)', borderRadius: 8, padding: 14, overflowX: 'auto', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{`CREATE TABLE IF NOT EXISTS sh_site_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-INSERT INTO site_settings(key, value)
+INSERT INTO sh_site_settings(key, value)
 VALUES('company_linkedin', 'https://www.linkedin.com/company/111725833/')
 ON CONFLICT DO NOTHING;
-ALTER TABLE site_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "public read" ON site_settings FOR SELECT USING (true);
-CREATE POLICY "auth write" ON site_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);`}</pre>
+ALTER TABLE sh_site_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public read" ON sh_site_settings FOR SELECT USING (true);
+CREATE POLICY "auth write" ON sh_site_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);`}</pre>
       </div>
     </div>
   );
