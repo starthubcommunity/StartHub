@@ -9,7 +9,7 @@ html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-fo
 body { font-family: 'DM Sans', system-ui, sans-serif; color: var(--text-primary); background: var(--bg-primary); line-height: 1.6; overflow-x: hidden; }
 img { max-width: 100%; display: block; }
 a { text-decoration: none; color: inherit; }
-button { border: none; background: none; cursor: pointer; font-family: inherit; line-height: inherit; }
+button { border: none; background: none; cursor: pointer; font-family: inherit; line-height: inherit; text-align: left; }
 input, select, textarea { font-family: inherit; }
 ul, ol { list-style: none; }
 

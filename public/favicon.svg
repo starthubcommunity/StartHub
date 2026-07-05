@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32" width="32" height="32">
-  <defs>
-    <clipPath id="favicon-clip">
-      <rect width="32" height="32" rx="6"/>
-    </clipPath>
-  </defs>
-  <image xlink:href="/logo-mark.png" width="32" height="32"
-    preserveAspectRatio="xMidYMid slice" clip-path="url(#favicon-clip)"/>
-</svg>
