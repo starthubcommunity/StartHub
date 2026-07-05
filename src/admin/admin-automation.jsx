@@ -1,7 +1,7 @@
 // admin-automation.jsx — Otomasyon Kontrol Merkezi
 // Tab yapısı: Taslaklar | Kaynaklar | Kelimeler | Ton & Ayarlar | Loglar
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AIcon, Modal, Field, Input, PageHead, TagInput } from './admin-ui';
+import { AIcon, Modal, Field, Input, Textarea, PageHead, TagInput } from './admin-ui';
 import { supabase } from '../lib/supabase';
 
 // ── Sabitler ─────────────────────────────────────────────────────────────────
@@ -72,6 +72,9 @@ function AutomationPage() {
   const [settingsLoaded,    setSettingsLoaded]     = useState(false);
   const [savingSettings,    setSavingSettings]     = useState(false);
   // Site genel ayarları
+  const [siteName,            setSiteName]            = useState('Start-Hub');
+  const [siteTaglineTr,       setSiteTaglineTr]       = useState('');
+  const [siteTaglineEn,       setSiteTaglineEn]       = useState('');
   const [siteLinkedin,        setSiteLinkedin]        = useState('https://www.linkedin.com/company/111725833/');
   const [contactEmail,        setContactEmail]        = useState('iletisim@starthub-community.com');
   const [twitterUrl,          setTwitterUrl]          = useState('');
@@ -92,6 +95,9 @@ function AutomationPage() {
     setToneLevel(data.tone_level ?? 3);
     setToneExtra(data.tone_extra_instructions || {});
     setToneBanned(data.tone_banned_phrases || []);
+    if (data.site_name)          setSiteName(data.site_name);
+    if (data.site_tagline_tr != null) setSiteTaglineTr(data.site_tagline_tr);
+    if (data.site_tagline_en != null) setSiteTaglineEn(data.site_tagline_en);
     if (data.company_linkedin)   setSiteLinkedin(data.company_linkedin);
     if (data.contact_email)      setContactEmail(data.contact_email);
     if (data.twitter_url != null) setTwitterUrl(data.twitter_url);
@@ -914,19 +920,32 @@ function AutomationPage() {
               {savingSiteSettings && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', display: 'flex', gap: 6 }}><span className="adm-spinner"></span> Kaydediliyor…</span>}
             </div>
             <div className="adm-card__body">
-              {/* Sosyal medya */}
+              {/* Site kimliği */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-                <Field label="Şirket LinkedIn URL">
-                  <Input value={siteLinkedin} onChange={e => setSiteLinkedin(e.target.value)} placeholder="https://www.linkedin.com/company/..." />
+                <Field label="Site Adı">
+                  <Input value={siteName} onChange={setSiteName} placeholder="Start-Hub" />
                 </Field>
                 <Field label="İletişim E-postası">
-                  <Input value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="iletisim@..." />
+                  <Input type="email" value={contactEmail} onChange={setContactEmail} placeholder="iletisim@..." />
+                </Field>
+                <Field label="Slogan (TR)">
+                  <Input value={siteTaglineTr} onChange={setSiteTaglineTr} placeholder="Fikirlerden girişimlere." />
+                </Field>
+                <Field label="Slogan (EN)">
+                  <Input value={siteTaglineEn} onChange={setSiteTaglineEn} placeholder="From ideas to startups." />
+                </Field>
+              </div>
+
+              {/* Sosyal medya */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16, borderTop: '1px solid var(--adm-border-light)', paddingTop: 16 }}>
+                <Field label="Şirket LinkedIn URL">
+                  <Input value={siteLinkedin} onChange={setSiteLinkedin} placeholder="https://www.linkedin.com/company/..." />
                 </Field>
                 <Field label="Twitter / X URL">
-                  <Input value={twitterUrl} onChange={e => setTwitterUrl(e.target.value)} placeholder="https://x.com/..." />
+                  <Input value={twitterUrl} onChange={setTwitterUrl} placeholder="https://x.com/..." />
                 </Field>
                 <Field label="Instagram URL">
-                  <Input value={instagramUrl} onChange={e => setInstagramUrl(e.target.value)} placeholder="https://instagram.com/..." />
+                  <Input value={instagramUrl} onChange={setInstagramUrl} placeholder="https://instagram.com/..." />
                 </Field>
               </div>
 
@@ -943,7 +962,7 @@ function AutomationPage() {
                   </label>
                 </div>
                 <Field label="Duyuru Metni">
-                  <Input value={announcementText} onChange={e => setAnnouncementText(e.target.value)} placeholder="ör. Aylık buluşmamız 12 Temmuz Cumartesi 15:00'te!" />
+                  <Textarea value={announcementText} onChange={setAnnouncementText} rows={2} placeholder="ör. Aylık buluşmamız 12 Temmuz Cumartesi 15:00'te!" />
                 </Field>
               </div>
 
@@ -973,6 +992,9 @@ function AutomationPage() {
                   setSavingSiteSettings(true);
                   const { error } = await supabase.from('site_settings').upsert({
                     id: 1,
+                    site_name:           siteName,
+                    site_tagline_tr:     siteTaglineTr,
+                    site_tagline_en:     siteTaglineEn,
                     company_linkedin:    siteLinkedin,
                     contact_email:       contactEmail,
                     twitter_url:         twitterUrl,
