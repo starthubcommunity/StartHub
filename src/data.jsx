@@ -486,8 +486,10 @@ let postsCache = [];
   },
 ]; */
 
-const postsForProject = (projectId) => postsCache.filter(p => p.projectId === projectId);
-const getPost = (id) => postsCache.find(p => p.id === id || p.id === Number(id));
+const postsForProject  = (projectId) => postsCache.filter(p => p.projectId === projectId);
+const getPost          = (id)   => postsCache.find(p => p.id === id || p.id === Number(id));
+const getPostBySlug    = (slug) => postsCache.find(p => p.slug === slug);
+const getPostSlug      = (id)   => postsCache.find(p => p.id === id || p.id === Number(id))?.slug || null;
 
 const PostsContext = createContext({ posts: [], postsLoading: true, postsError: null });
 
@@ -822,7 +824,7 @@ function LangProvider({ children, lang, setLang }) {
 export {
   translations, people, startups, sponsors, events,
   teamMembers, mentors, partners, siteStats, defaultSiteStats, resolveStat, SH_DEFAULTS,
-  getPerson, getProject, getPost, postsForProject,
+  getPerson, getProject, getPost, getPostBySlug, getPostSlug, postsForProject,
   mapPerson, mapStartup, mapSponsor, mapEvent,
   LangContext, useLang, LangProvider,
   PostsContext, PostsProvider, usePosts,

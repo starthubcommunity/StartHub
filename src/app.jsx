@@ -1,6 +1,6 @@
 // app.jsx — Main App with routing, tweaks, and state management
-import { useState as useStateApp, useEffect as useEffectApp, useCallback as useCallbackApp } from 'react';
-import { LangProvider } from './data';
+import { useState as useStateApp, useEffect as useEffectApp, useCallback as useCallbackApp, useRef as useRefApp } from 'react';
+import { LangProvider, usePosts, getPostBySlug, getPostSlug } from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor } from './tweaks-panel';
 import { Navbar, Footer } from './layout';
 import { HomePage } from './home-page';
@@ -14,24 +14,103 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accentColor": "#DC2626"
 }/*EDITMODE-END*/;
 
+// ─── Hash routing helpers ──────────────────────────────────────────────────
+const SIMPLE_PAGES = ['about', 'labs', 'blog', 'join'];
+
+function parseHash() {
+  const raw = window.location.hash.replace(/^#\/?/, '');
+  if (!raw) return { page: 'home', param: null };
+  const slash = raw.indexOf('/');
+  const seg   = slash === -1 ? raw : raw.slice(0, slash);
+  const param = slash === -1 ? null : (raw.slice(slash + 1) || null);
+  if (!seg || seg === 'home')             return { page: 'home',    param: null };
+  if (SIMPLE_PAGES.includes(seg))         return { page: seg,       param: null };
+  if (seg === 'post'    && param)         return { page: 'post',    param };
+  if (seg === 'project' && param)         return { page: 'project', param };
+  return { page: 'home', param: null };
+}
+
+function hashFor(page, id) {
+  if (!page || page === 'home') return '#/';
+  if (page === 'post' && id != null) {
+    const slug = getPostSlug(id);
+    return slug ? `#/post/${slug}` : `#/post/${id}`;
+  }
+  if (page === 'project' && id != null) return `#/project/${id}`;
+  return `#/${page}`;
+}
+
+// ─── Initial state from sessionStorage → hash fallback ────────────────────
+function initFromStorage() {
+  const saved = sessionStorage.getItem('sh_page');
+  const savedId = sessionStorage.getItem('sh_id');
+  if (saved) {
+    const id = savedId ? (isNaN(+savedId) ? savedId : +savedId) : null;
+    return { page: saved, id, pendingSlug: null };
+  }
+  const { page, param } = parseHash();
+  if (page === 'post') return { page: 'home', id: null, pendingSlug: param };
+  if (page === 'project') {
+    const id = Number(param) || param;
+    return { page, id, pendingSlug: null };
+  }
+  return { page, id: null, pendingSlug: null };
+}
+
 function App() {
+  const { posts } = usePosts();
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [currentPage, setCurrentPage] = useStateApp(() => {
-    const saved = sessionStorage.getItem('sh_page');
-    return saved || 'home';
-  });
-  const [selectedId, setSelectedId] = useStateApp(() => {
-    const s = sessionStorage.getItem('sh_id');
-    return s ? (isNaN(+s) ? s : +s) : null;
-  });
+
+  const init = initFromStorage;
+  const [currentPage, setCurrentPage] = useStateApp(() => init().page);
+  const [selectedId,  setSelectedId]  = useStateApp(() => init().id);
+  const [pendingSlug, setPendingSlug] = useStateApp(() => init().pendingSlug);
   const [lang, setLangState] = useStateApp(tweaks.language || 'tr');
 
-  // Sync language with tweaks
-  useEffectApp(() => {
-    setLangState(tweaks.language);
-  }, [tweaks.language]);
+  // Track ONE programmatic hash change so hashchange listener skips it
+  const skipHash = useRefApp(null);
 
-  // Save current page + selection
+  // Resolve pending slug once posts are loaded
+  useEffectApp(() => {
+    if (!pendingSlug || !posts.length) return;
+    const post = posts.find(p => p.slug === pendingSlug);
+    if (post) {
+      setCurrentPage('post');
+      setSelectedId(post.id);
+      setPendingSlug(null);
+    }
+  }, [posts, pendingSlug]);
+
+  // hashchange → browser back/forward navigation
+  useEffectApp(() => {
+    const onHashChange = () => {
+      // If this is a hash we just set programmatically, skip once and clear
+      if (skipHash.current !== null && window.location.hash === skipHash.current) {
+        skipHash.current = null;
+        return;
+      }
+      skipHash.current = null;
+      const { page, param } = parseHash();
+      if (page === 'post' && param) {
+        const post = posts.find(p => p.slug === param);
+        if (post) { setCurrentPage('post'); setSelectedId(post.id); }
+        else { setPendingSlug(param); setCurrentPage('home'); setSelectedId(null); }
+      } else if (page === 'project' && param) {
+        setCurrentPage('project');
+        setSelectedId(Number(param) || param);
+      } else {
+        setCurrentPage(page);
+        setSelectedId(null);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [posts]);
+
+  // Sync language with tweaks
+  useEffectApp(() => { setLangState(tweaks.language); }, [tweaks.language]);
+
+  // Save current page + selection to sessionStorage, update hash
   useEffectApp(() => {
     sessionStorage.setItem('sh_page', currentPage);
     if (selectedId != null) sessionStorage.setItem('sh_id', String(selectedId));
@@ -46,19 +125,9 @@ function App() {
   // Set accent color
   useEffectApp(() => {
     document.documentElement.style.setProperty('--accent', tweaks.accentColor);
-    // Compute hover color (darken)
-    const hoverColors = {
-      '#DC2626': '#B91C1C',
-      '#2563EB': '#1D4ED8',
-      '#7C3AED': '#6D28D9',
-    };
+    const hoverColors = { '#DC2626': '#B91C1C', '#2563EB': '#1D4ED8', '#7C3AED': '#6D28D9' };
     document.documentElement.style.setProperty('--accent-hover', hoverColors[tweaks.accentColor] || tweaks.accentColor);
-    // Compute light color
-    const lightColors = {
-      '#DC2626': '#FEF2F2',
-      '#2563EB': '#EFF6FF',
-      '#7C3AED': '#F5F3FF',
-    };
+    const lightColors = { '#DC2626': '#FEF2F2', '#2563EB': '#EFF6FF', '#7C3AED': '#F5F3FF' };
     document.documentElement.style.setProperty('--accent-light', lightColors[tweaks.accentColor] || '#FEF2F2');
   }, [tweaks.accentColor]);
 
@@ -70,17 +139,27 @@ function App() {
   const navigate = useCallbackApp((page, id = null) => {
     setCurrentPage(page);
     setSelectedId(id);
+    // Update hash (track it so hashchange listener ignores)
+    const newHash = hashFor(page, id);
+    if (window.location.hash !== newHash) {
+      skipHash.current = newHash;
+      window.location.hash = newHash;
+    }
   }, []);
 
   const renderPage = () => {
+    if (pendingSlug) {
+      // Waiting for posts to load to resolve slug → show loading briefly
+      return null;
+    }
     switch (currentPage) {
-      case 'about': return <AboutPage navigate={navigate} />;
-      case 'labs': return <LabsPage navigate={navigate} />;
-      case 'blog': return <BlogPage navigate={navigate} />;
-      case 'join': return <JoinPage navigate={navigate} projectId={selectedId} />;
+      case 'about':   return <AboutPage navigate={navigate} />;
+      case 'labs':    return <LabsPage navigate={navigate} />;
+      case 'blog':    return <BlogPage navigate={navigate} />;
+      case 'join':    return <JoinPage navigate={navigate} projectId={selectedId} />;
       case 'project': return <ProjectDetailPage projectId={selectedId} navigate={navigate} />;
-      case 'post': return <PostDetailPage postId={selectedId} navigate={navigate} />;
-      default: return <HomePage navigate={navigate} />;
+      case 'post':    return <PostDetailPage postId={selectedId} navigate={navigate} />;
+      default:        return <HomePage navigate={navigate} />;
     }
   };
 

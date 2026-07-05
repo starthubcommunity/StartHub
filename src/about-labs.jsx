@@ -164,19 +164,20 @@ function AboutPage({ navigate }) {
         </div>
       </section>
 
-      {/* Mentörler */}
-      <section className="section">
-        <div className="container">
-          <Reveal>
-            <SectionHeader label={t('about.mentorsTitle')} title={t('about.mentorsDesc')} center />
-          </Reveal>
-          <div className="grid grid-4" style={{ maxWidth: 1000, margin: '0 auto' }}>
-            {mentors.map((m, i) => (
-              <Reveal key={m.id} delay={i * 60}><PersonCard person={m} roleField="role" /></Reveal>
-            ))}
+      {mentors.length > 0 && (
+        <section className="section">
+          <div className="container">
+            <Reveal>
+              <SectionHeader label={t('about.mentorsTitle')} title={t('about.mentorsDesc')} center />
+            </Reveal>
+            <div className="grid grid-4" style={{ maxWidth: 1000, margin: '0 auto' }}>
+              {mentors.map((m, i) => (
+                <Reveal key={m.id} delay={i * 60}><PersonCard person={m} roleField="role" /></Reveal>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Nasıl Çalışır — aşağıda */}
       <section className="section section--alt" style={{ paddingTop: 8 }}>
