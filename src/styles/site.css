@@ -250,7 +250,7 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 
 /* Cards container */
 .hero__cards {
-  position: relative; width: 100%; min-height: 480px; height: 480px;
+  position: relative; width: 100%; min-height: 560px; height: 560px;
 }
 
 /* ═══ BASE CARD ═══ */
@@ -274,13 +274,14 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 }
 .hero__sc:hover .hero__sc-arrow { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-/* ═══ 1. FEATURED CARD — top-left ═══ */
+/* ═══ 1. FEATURED CARD — top-left (y≈11–186px) ═══ */
 .hero__sc--feat {
   top: 2%; left: 2%; width: 47%;
   z-index: 5; transform: rotate(-1deg);
   background: linear-gradient(160deg, #FFFFFF 0%, #FAF8FF 100%);
 }
 .hero__sc--feat:hover { transform: rotate(-1deg) translateY(-5px); }
+
 /* Faint purple glow behind featured */
 .hero__sc--feat::after {
   content: ''; position: absolute; inset: -8% -6% -12% -6%; z-index: -1;
@@ -314,7 +315,7 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 }
 .hero__feat-foot span { display: flex; align-items: center; gap: 5px; }
 
-/* ═══ 2. GROWTH CARD — top-right ═══ */
+/* ═══ 2. GROWTH CARD — top-right (y≈11–181px) ═══ */
 .hero__sc--stats {
   top: 2%; right: 2%; width: 44%;
   z-index: 4; transform: rotate(1.5deg);
@@ -331,23 +332,25 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
   filter: blur(24px); border-radius: 50%;
 }
 
-/* ═══ 3. NEWS CARD — lower-left ═══ */
+/* ═══ 3. NEWS CARD — lower-left (bottom≈28px → y≈387–532px) ═══ */
 .hero__sc--post {
   bottom: 5%; left: 2%; width: 47%;
   z-index: 2; transform: rotate(-1.5deg);
 }
 .hero__sc--post:hover { transform: rotate(-1.5deg) translateY(-5px); }
 
+
 /* Blue dot grid decoration */
 .hero__dot-grid { display: none; }
 
-/* ═══ 4. JOB CARD — middle-right (below stats) ═══ */
+/* ═══ 4. JOB CARD — middle-right (35%=196px → y≈196–326px) ═══ */
 .hero__sc--open {
-  top: 34%; right: 2%; width: 44%;
+  top: 35%; right: 2%; width: 44%;
   z-index: 3; transform: rotate(1deg);
   background: linear-gradient(160deg, #FFFFFF 0%, #F1FAF5 100%);
 }
 .hero__sc--open:hover { transform: rotate(1deg) translateY(-5px); }
+
 .hero__sc--open::after {
   content: ''; position: absolute; inset: -6% -6% -10% -6%; z-index: -1;
   background: radial-gradient(ellipse at 50% 50%, rgba(16,185,129,0.12), transparent 70%);
@@ -377,10 +380,10 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 }
 .hero__av--more { background: var(--bg-tertiary) !important; color: var(--text-secondary); margin-left: -9px; font-size: 9.5px; font-weight: 600; }
 
-/* ═══ 5. MOTTO CARD — lower-right (below open) ═══ */
+/* ═══ 5. MOTTO CARD — lower-right (62%=347px → y≈347–432px) ═══ */
 .hero__motto {
   position: absolute;
-  top: 64%; right: 2%; width: 40%;
+  top: 62%; right: 2%; width: 40%;
   z-index: 2; transform: rotate(2deg);
   background: var(--card-bg);
   border: 1px solid var(--border-light);
