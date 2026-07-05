@@ -48,10 +48,13 @@ Kesinlikle yapma:
 
 Çıktı formatı (SADECE geçerli JSON ver, başka metin ekleme):
 {
-  "slug": "url-uyumlu-kisa-baslik",
+  "slug": "url-compatible-short-title-in-english",
   "title_tr": "Türkçe makale başlığı",
+  "title_en": "English article title",
   "excerpt_tr": "2 cümlelik Türkçe özet",
-  "body_tr": ["Birinci paragraf.", "İkinci paragraf.", "Üçüncü paragraf.", "Dördüncü paragraf."],
+  "excerpt_en": "2-sentence English summary",
+  "body_tr": ["Birinci Türkçe paragraf.", "İkinci Türkçe paragraf.", "Üçüncü Türkçe paragraf.", "Dördüncü Türkçe paragraf."],
+  "body_en": ["First English paragraph.", "Second English paragraph.", "Third English paragraph.", "Fourth English paragraph."],
   "category": "AI/Girişim/Teknoloji/Yatırım",
   "tag": "gundem veya blog",
   "source": "kaynak yayın adı",
@@ -59,7 +62,8 @@ Kesinlikle yapma:
   "uygunluk_skoru": <1-10 arası tam sayı; Start-Hub okuyucusu girişimci için ne kadar önemli>
 }
 
-body_tr bir dizi olmalı: her eleman ayrı bir düz metin paragrafı. Markdown kullanma."""
+body_tr ve body_en birer dizi olmalı: her eleman ayrı bir düz metin paragrafı. Markdown kullanma.
+Slug İngilizce, kısa ve URL uyumlu olmalı (Türkçe karakter veya büyük harf içermemeli)."""
 
 # ---- Supabase (site_settings tablosu için) ----
 SUPABASE_URL         = os.environ.get("SUPABASE_URL", "")

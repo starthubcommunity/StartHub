@@ -125,14 +125,11 @@ function Footer({ navigate }) {
 
           <div>
             <h4 className="footer__col-title">{t('footer.connect')}</h4>
-            <a className="footer__link" href="#" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a className="footer__link" href="https://linkedin.com/company/starthub-community" target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Icon name="linkedin" size={14} /> LinkedIn
             </a>
-            <a className="footer__link" href="#" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="github" size={14} /> GitHub
-            </a>
-            <a className="footer__link" href="#" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="mail" size={14} /> hello@starthub.co
+            <a className="footer__link" href="mailto:iletisim@starthub-community.com" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="mail" size={14} /> iletisim@starthub-community.com
             </a>
           </div>
         </div>
@@ -140,9 +137,8 @@ function Footer({ navigate }) {
         <div className="footer__bottom">
           <span>{t('footer.rights')}</span>
           <div className="footer__socials">
-            <a href="#"><Icon name="linkedin" size={18} /></a>
-            <a href="#"><Icon name="github" size={18} /></a>
-            <a href="#"><Icon name="mail" size={18} /></a>
+            <a href="https://linkedin.com/company/starthub-community" target="_blank" rel="noreferrer"><Icon name="linkedin" size={18} /></a>
+            <a href="mailto:iletisim@starthub-community.com"><Icon name="mail" size={18} /></a>
           </div>
         </div>
       </div>

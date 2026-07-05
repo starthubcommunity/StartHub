@@ -240,7 +240,7 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 .hero__live {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 14px; font-weight: 800; color: var(--text-primary);
-  letter-spacing: 0.06em; text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 .hero__live-dot {
   width: 9px; height: 9px; border-radius: 50%;

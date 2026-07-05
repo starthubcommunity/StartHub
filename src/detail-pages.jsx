@@ -1,5 +1,5 @@
 // detail-pages.jsx — Project detail & Post detail pages
-import React from 'react';
+import React, { useState } from 'react';
 import { useLang, getProject, getPost, postsForProject, getPerson, people, startups, usePosts } from './data';
 import { Icon, Button, Reveal, Avatar, PostCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
 import { CTASection } from './layout';
@@ -236,6 +236,7 @@ function ProjectDetailPage({ projectId, navigate }) {
 function PostDetailPage({ postId, navigate }) {
   const { lang, t, localized } = useLang();
   const { posts } = usePosts();
+  const [shareCopied, setShareCopied] = useState(false);
   const post = getPost(postId);
   if (!post) return null;
   const author = getPerson(post.authorId);
@@ -273,7 +274,7 @@ function PostDetailPage({ postId, navigate }) {
             <figure className="article__cover" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>
               {post.cover
                 ? <img src={post.cover} alt={localized(post, 'title')} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span className="post-card__cover-ph">görsel / cover</span>}
+                : <span className="post-card__cover-ph">{lang === 'tr' ? 'görsel / cover' : 'cover image'}</span>}
             </figure>
 
             {/* Giriş */}
@@ -300,8 +301,28 @@ function PostDetailPage({ postId, navigate }) {
             <footer className="article__footer">
               <div className="article__share">
                 <span className="article__share-l">{t('post.share')}</span>
-                <a className="article__share-btn" href="#" onClick={e => e.preventDefault()}><Icon name="linkedin" size={16} /></a>
-                <a className="article__share-btn" href="#" onClick={e => e.preventDefault()}><Icon name="externalLink" size={16} /></a>
+                <button className="article__share-btn" title={shareCopied ? (lang === 'tr' ? 'Kopyalandı!' : 'Copied!') : (lang === 'tr' ? 'Linki Kopyala' : 'Copy Link')}
+                  style={{ border: 'none', cursor: 'pointer', background: shareCopied ? 'var(--green-light)' : undefined, color: shareCopied ? 'var(--green)' : undefined }}
+                  onClick={async () => {
+                    const url = window.location.href;
+                    const title = localized(post, 'title');
+                    if (navigator.share) {
+                      try { await navigator.share({ title, url }); } catch {}
+                    } else {
+                      try {
+                        await navigator.clipboard.writeText(url);
+                        setShareCopied(true);
+                        setTimeout(() => setShareCopied(false), 2000);
+                      } catch {}
+                    }
+                  }}>
+                  <Icon name={shareCopied ? 'check' : 'externalLink'} size={16} />
+                </button>
+                <a className="article__share-btn"
+                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`}
+                  target="_blank" rel="noreferrer" title="LinkedIn'de Paylaş">
+                  <Icon name="linkedin" size={16} />
+                </a>
               </div>
 
               {post.tag === 'gundem' && post.source && (

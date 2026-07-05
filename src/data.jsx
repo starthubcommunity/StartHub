@@ -102,7 +102,7 @@ const translations = {
       openPositions: 'Açık Pozisyonlar', noOpenPositions: 'Şu an açık pozisyon yok',
       links: 'Bağlantılar', website: 'Web Sitesi', demo: 'Demo', metrics: 'Öne Çıkan Metrikler',
       relatedPosts: 'Bu Projeden Yazılar', backToLab: "Tüm Projeler", joinThis: 'Bu Projeye Katıl',
-      opportunities: 'Opportunities', opportunitiesDesc: 'Tüm projelerdeki açık pozisyonları keşfet ve başvur.',
+      opportunities: 'Fırsatlar', opportunitiesDesc: 'Tüm projelerdeki açık pozisyonları keşfet ve başvur.',
       opportunitiesCount: 'açık pozisyon',
     },
     blog: {
@@ -278,11 +278,6 @@ const people = [
   { id: 'sude',  name: 'Sude Çelik',     role_tr: 'İçerik Lideri',          role_en: 'Content Lead',             type: 'team', tier: 3, color: '#0891B2', photo: null, linkedin: '#', bio_tr: 'Yazıların editörlüğünü ve Gündem akışını yönetiyor.', bio_en: 'Edits posts and curates the World feed.' },
   { id: 'deniz', name: 'Deniz Aydın',    role_tr: 'Topluluk Lideri',        role_en: 'Community Lead',           type: 'team', tier: 3, color: '#D97706', photo: null, linkedin: '#', bio_tr: 'Üyeler, etkinlikler ve topluluk deneyiminden sorumlu.', bio_en: 'Owns members, events and community experience.' },
   { id: 'kerem', name: 'Kerem Şahin',    role_tr: 'Tasarım Lideri',         role_en: 'Design Lead',              type: 'team', tier: 3, color: '#DB2777', photo: null, linkedin: '#', bio_tr: 'Ürün ve marka tasarımından sorumlu.', bio_en: 'Owns product and brand design.' },
-  // Mentörler
-  { id: 'ayse',  name: 'Dr. Ayşe Yıldız', role_tr: 'Mentör · Melek Yatırımcı', role_en: 'Mentor · Angel Investor', type: 'mentor', color: '#BE123C', photo: null, linkedin: '#', bio_tr: 'İki çıkış yapmış girişimci, erken aşama yatırımcı.', bio_en: 'Two-time founder with exits, early-stage investor.' },
-  { id: 'burak', name: 'Burak Kara',      role_tr: 'Mentör · Ex-CTO',        role_en: 'Mentor · Ex-CTO',         type: 'mentor', color: '#1D4ED8', photo: null, linkedin: '#', bio_tr: 'SaaS ölçeklendirme ve teknik mimari uzmanı.', bio_en: 'SaaS scaling and technical architecture expert.' },
-  { id: 'mehmet',name: 'Prof. Mehmet Ak', role_tr: 'Mentör · Akademi',       role_en: 'Mentor · Academia',       type: 'mentor', color: '#15803D', photo: null, linkedin: '#', bio_tr: 'İnovasyon ve teknoloji transferi üzerine akademisyen.', bio_en: 'Academic in innovation and tech transfer.' },
-  { id: 'selin', name: 'Selin Demir',     role_tr: 'Mentör · Growth',        role_en: 'Mentor · Growth',         type: 'mentor', color: '#6D28D9', photo: null, linkedin: '#', bio_tr: 'Scale-up büyüme ve pazarlama lideri.', bio_en: 'Scale-up growth and marketing lead.' },
 ];
 
 const getPerson = (id) => people.find(p => p.id === id);

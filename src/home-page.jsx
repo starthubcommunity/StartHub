@@ -112,7 +112,7 @@ function HeroVisual({ lang, navigate }) {
         <span className="hero__live">
           <svg width="18" height="14" viewBox="0 0 18 14" fill="none" style={{ opacity: 0.35 }}><path d="M2 7h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="4 3" /><path d="M12 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span className="hero__live-dot"></span>
-          {lang === 'tr' ? 'Canlı Ekosistem' : 'Live Ecosystem'}
+          {lang === 'tr' ? 'CANLI EKOSİSTEM' : 'LIVE ECOSYSTEM'}
         </span>
         <span className="hero__vhead-meta">{lang === 'tr' ? 'Bugün' : 'Today'}</span>
       </div>

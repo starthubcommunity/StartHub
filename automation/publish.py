@@ -35,9 +35,15 @@ def _client():
     return _supabase_client
 
 
-def _read_time(content: str) -> int:
+def _read_time(content: str, body_tr: list = None) -> int:
     """~200 kelime/dk okuma süresi tahmini."""
-    return max(1, math.ceil(len((content or "").split()) / 200))
+    if content:
+        word_count = len(content.split())
+    elif body_tr:
+        word_count = len(' '.join(body_tr).split())
+    else:
+        word_count = 0
+    return max(1, math.ceil(word_count / 200))
 
 
 def _to_paragraphs(text: str) -> list[str]:
@@ -68,7 +74,7 @@ def publish_article(article: dict, dry_run: bool = False,
         "author_id":     article.get("author_id", None),
         "project_id":    None,
         "date":          article.get("date") or datetime.date.today().isoformat(),
-        "read_time":     article.get("read_time") or _read_time(content_text),
+        "read_time":     article.get("read_time") or _read_time(content_text, body_tr),
         "bg":            CATEGORY_BG.get(article.get("category", ""), "var(--blue-light)"),
         "image_url":     None,
         "source":        article.get("source", article.get("source_name", None)),
@@ -123,8 +129,12 @@ def update_article(slug: str, article: dict, dry_run: bool = False) -> dict | No
     body_tr = article.get("body_tr") or _to_paragraphs(content_text)
     updates = {
         "title_tr":   article.get("title_tr") or article.get("title", ""),
+        "title_en":   article.get("title_en", None),
         "excerpt_tr": article.get("excerpt_tr") or article.get("summary", ""),
+        "excerpt_en": article.get("excerpt_en", None),
         "body_tr":    body_tr,
+        "body_en":    article.get("body_en", []),
+        "read_time":  article.get("read_time") or _read_time(content_text, body_tr),
         "bg":         CATEGORY_BG.get(article.get("category", ""), "var(--blue-light)"),
         "source":     article.get("source", None),
         "source_url": article.get("source_url", None),

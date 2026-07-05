@@ -34,23 +34,26 @@ function AnimatedCounter({ value, suffix = '', duration = 1600 }) {
   const [display, setDisplay] = useStateUI(0);
   const started = useRefUI(false);
   useEffectUI(() => {
+    started.current = false;
     const el = ref.current;
     if (!el) return;
+    let cancelled = false;
     const obs = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting && !started.current) {
         started.current = true;
         const start = performance.now();
         const tick = (now) => {
+          if (cancelled) return;
           const p = Math.min((now - start) / duration, 1);
           const eased = 1 - Math.pow(1 - p, 3);
-          setDisplay(Math.round(eased * value));
+          setDisplay(Math.max(0, Math.round(eased * value)));
           if (p < 1) requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       }
     }, { threshold: 0.5 });
     obs.observe(el);
-    return () => obs.disconnect();
+    return () => { obs.disconnect(); cancelled = true; };
   }, [value, duration]);
   return <span ref={ref}>{display}{suffix}</span>;
 }
@@ -347,18 +350,21 @@ function TagChip({ tag, size }) {
 // ============================================
 function AuthorByline({ author, date, readTime, compact }) {
   const { t, localized } = useLang();
-  if (!author) return null;
+  if (!author && !date && !readTime) return null;
+  const metaParts = [
+    author ? localized(author, 'role') : null,
+    date || null,
+    readTime ? `${readTime} ${t('sections.minRead')}` : null,
+  ].filter(Boolean);
   return (
     <div className={`byline ${compact ? 'byline--compact' : ''}`}>
-      <Avatar person={author} size={compact ? 30 : 38} />
+      {author && <Avatar person={author} size={compact ? 30 : 38} />}
       <div className="byline__txt">
-        <div className="byline__name">{author.name}</div>
+        {author && <div className="byline__name">{author.name}</div>}
         <div className="byline__sub">
-          {localized(author, 'role')}
-          {date && <span className="byline__dot">·</span>}
-          {date && <span>{date}</span>}
-          {readTime && <span className="byline__dot">·</span>}
-          {readTime && <span>{readTime} {t('sections.minRead')}</span>}
+          {metaParts.map((p, i) => (
+            <span key={i}>{i > 0 && <span className="byline__dot">·</span>}{p}</span>
+          ))}
         </div>
       </div>
     </div>
@@ -369,14 +375,14 @@ function AuthorByline({ author, date, readTime, compact }) {
 // POST CARD — kapak + etiket + başlık + byline
 // ============================================
 function PostCard({ post, onClick, feature, pinned }) {
-  const { t, localized } = useLang();
+  const { t, lang, localized } = useLang();
   const author = getPerson(post.authorId);
   return (
     <div className={`card post-card ${feature ? 'post-card--feature' : ''}`} onClick={onClick}>
       <div className="post-card__cover" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>
         {post.cover
           ? <img src={post.cover} alt={localized(post, 'title')} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <span className="post-card__cover-ph">görsel / cover</span>}
+          : <span className="post-card__cover-ph">{lang === 'tr' ? 'görsel / cover' : 'cover image'}</span>}
         {pinned && (
           <span className="post-card__pin"><Icon name="star" size={12} /> Tavsiye Edilen</span>
         )}
@@ -399,19 +405,23 @@ function PostCard({ post, onClick, feature, pinned }) {
 // ============================================
 function SponsorsMarquee({ items }) {
   const loop = [...items, ...items];
+  const inner = (s) => (
+    <>
+      {s.logo
+        ? <span className="marquee__logo"><img src={s.logo} alt={s.name} /></span>
+        : <span className="marquee__icon" style={{ background: s.color + '18', color: s.color }}>
+            {s.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
+          </span>}
+      <span>{s.name}</span>
+    </>
+  );
   return (
     <div className="marquee">
       <div className="marquee__track">
-        {loop.map((s, i) => (
-          <div className="marquee__item" key={i}>
-            {s.logo
-              ? <span className="marquee__logo"><img src={s.logo} alt={s.name} /></span>
-              : <span className="marquee__icon" style={{ background: s.color + '18', color: s.color }}>
-                  {s.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
-                </span>}
-            <span>{s.name}</span>
-          </div>
-        ))}
+        {loop.map((s, i) => s.url
+          ? <a className="marquee__item" key={i} href={s.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>{inner(s)}</a>
+          : <div className="marquee__item" key={i}>{inner(s)}</div>
+        )}
       </div>
     </div>
   );

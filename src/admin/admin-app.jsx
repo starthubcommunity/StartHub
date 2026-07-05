@@ -7,6 +7,7 @@ import { DashboardPage, ProjectsPage } from './admin-pages';
 import { ContentPage } from './admin-pages3';
 import { AutomationPage } from './admin-automation';
 import { PeoplePage, SponsorsPage, TrashPage } from './admin-pages2';
+import { ApplicationsPage } from './admin-applications';
 import { supabase } from '../lib/supabase';
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────
@@ -112,13 +113,14 @@ function AdminApp() {
   const shortName = email.split('@')[0];
 
   const nav = [
-    { id: 'dashboard',  label: 'Dashboard',       icon: 'dashboard' },
-    { id: 'projects',   label: 'Projeler',         icon: 'rocket' },
-    { id: 'posts',      label: 'Yazılar',          icon: 'layers' },
-    { id: 'automation', label: 'Otomasyon',        icon: 'zap' },
-    { id: 'people',     label: 'Ekip & Mentörler', icon: 'users' },
-    { id: 'sponsors',   label: 'Destekçiler',      icon: 'handshake' },
-    { id: 'trash',      label: 'Son Silinenler',   icon: 'trash', badge: trash.length },
+    { id: 'dashboard',     label: 'Dashboard',       icon: 'dashboard' },
+    { id: 'projects',      label: 'Projeler',         icon: 'rocket' },
+    { id: 'posts',         label: 'Yazılar',          icon: 'layers' },
+    { id: 'automation',    label: 'Otomasyon',        icon: 'zap' },
+    { id: 'people',        label: 'Ekip & Mentörler', icon: 'users' },
+    { id: 'sponsors',      label: 'Destekçiler',      icon: 'handshake' },
+    { id: 'applications',  label: 'Başvurular',       icon: 'penEdit' },
+    { id: 'trash',         label: 'Son Silinenler',   icon: 'trash', badge: trash.length },
   ];
 
   const renderPage = () => {
@@ -127,8 +129,9 @@ function AdminApp() {
       case 'posts':      return <ContentPage />;
       case 'automation': return <AutomationPage />;
       case 'people':     return <PeoplePage />;
-      case 'sponsors':   return <SponsorsPage />;
-      case 'trash':      return <TrashPage />;
+      case 'sponsors':      return <SponsorsPage />;
+      case 'applications':  return <ApplicationsPage />;
+      case 'trash':         return <TrashPage />;
       default:           return <DashboardPage />;
     }
   };

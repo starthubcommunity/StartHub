@@ -136,6 +136,12 @@ def generate_article(item: dict, tone_settings: dict | None = None) -> dict | No
     elif not isinstance(body, list):
         data["body_tr"] = []
 
+    body_en = data.get("body_en")
+    if isinstance(body_en, str):
+        data["body_en"] = [p.strip() for p in body_en.split("\n\n") if p.strip()]
+    elif not isinstance(body_en, list):
+        data["body_en"] = []
+
     uygunluk = int(data.get("uygunluk_skoru", 10))
     if uygunluk < 7:
         print(f"[bilgi] düşük uygunluk ({uygunluk}/10), atlandı: {data.get('title_tr', item['title'])}")

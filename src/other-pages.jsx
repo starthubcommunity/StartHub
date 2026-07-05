@@ -1,6 +1,7 @@
 // other-pages.jsx — Yazılar (Blog) & Katıl (Join)
 import { useState as useStateOP } from 'react';
 import { useLang, getProject, usePosts, useEvents } from './data';
+import { supabase } from './lib/supabase';
 import { Icon, Button, PostCard, EventCard, Reveal, TagChip } from './ui-components';
 import { CTASection, PageHeader } from './layout';
 import { getRoleDescription } from './detail-pages';
@@ -183,19 +184,47 @@ function BlogPage({ navigate }) {
 function JoinPage({ navigate, projectId }) {
   const { lang, t, localized } = useLang();
   const [submitted, setSubmitted] = useStateOP(false);
+  const [submitting, setSubmitting] = useStateOP(false);
+  const [submitError, setSubmitError] = useStateOP('');
 
   // Resolve project context (if navigated from a project page)
   const project = projectId ? getProject(projectId) : null;
   const savedRole = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_role') : null;
 
   const [formData, setFormData] = useStateOP({
-    name: '', email: '', university: '', department: '', role: '', 
-    intent: project ? 'project' : '', 
+    name: '', email: '', university: '', department: '', role: '',
+    intent: project ? 'project' : '',
     bio: '', linkedin: '', portfolio: '', skills: ''
   });
 
   const handleChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
-  const handleSubmit = (e) => { e.preventDefault(); setSubmitted(true); };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const { error } = await supabase.from('applications').insert({
+        name:         formData.name,
+        email:        formData.email,
+        university:   formData.university || null,
+        department:   formData.department || null,
+        role:         formData.role || null,
+        intent:       formData.intent || null,
+        bio:          formData.bio || null,
+        skills:       formData.skills || null,
+        linkedin:     formData.linkedin || null,
+        portfolio:    formData.portfolio || null,
+        project_id:   project?.id || null,
+        project_name: project?.name || null,
+      });
+      if (error) throw error;
+      setSubmitted(true);
+    } catch {
+      setSubmitError(lang === 'tr' ? 'Bir hata oluştu, lütfen tekrar dene.' : 'Something went wrong, please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const clearProject = () => { 
     sessionStorage.removeItem('sh_join_role'); 
     navigate('join'); 
@@ -367,8 +396,15 @@ function JoinPage({ navigate, projectId }) {
                 <input className="form-input" placeholder="github.com/..." value={formData.portfolio} onChange={e => handleChange('portfolio', e.target.value)} />
               </div>
             </div>
+            {submitError && (
+              <div style={{ padding: '10px 14px', background: 'var(--red-light, #FEF2F2)', border: '1px solid #FECACA', borderRadius: 8, fontSize: 14, color: 'var(--red, #DC2626)', marginBottom: 12 }}>
+                {submitError}
+              </div>
+            )}
             <div style={{ paddingTop: 12 }}>
-              <Button variant="primary" size="lg" iconRight="arrowRight" style={{ width: '100%' }}>{t('join.submit')}</Button>
+              <Button variant="primary" size="lg" iconRight="arrowRight" style={{ width: '100%', opacity: submitting ? 0.7 : 1, pointerEvents: submitting ? 'none' : undefined }}>
+                {submitting ? (lang === 'tr' ? 'Gönderiliyor…' : 'Sending…') : t('join.submit')}
+              </Button>
             </div>
           </form>
         </div>
