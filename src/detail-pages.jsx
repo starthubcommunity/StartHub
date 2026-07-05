@@ -318,11 +318,29 @@ function PostDetailPage({ postId, navigate }) {
                   }}>
                   <Icon name={shareCopied ? 'check' : 'externalLink'} size={16} />
                 </button>
-                <a className="article__share-btn"
-                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`}
-                  target="_blank" rel="noreferrer" title="LinkedIn'de Paylaş">
+                <button className="article__share-btn"
+                  title="LinkedIn'de Paylaş"
+                  onClick={() => {
+                    const shareUrl = `https://starthub-community.com/post/${post.slug || post.id}`;
+                    window.open(
+                      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
+                      '_blank', 'noopener,noreferrer,width=600,height=600'
+                    );
+                  }}>
                   <Icon name="linkedin" size={16} />
-                </a>
+                </button>
+                <button className="article__share-btn"
+                  title="X (Twitter)'da Paylaş"
+                  onClick={() => {
+                    const shareUrl = `https://starthub-community.com/post/${post.slug || post.id}`;
+                    const text = localized(post, 'title');
+                    window.open(
+                      `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`,
+                      '_blank', 'noopener,noreferrer,width=600,height=500'
+                    );
+                  }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.745l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                </button>
               </div>
 
               {post.tag === 'gundem' && post.source && (

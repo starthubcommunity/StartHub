@@ -122,10 +122,13 @@ const translations = {
       role: 'İlgi Alanı',
       roles: { dev: 'Yazılım Geliştirme', design: 'UI/UX Tasarım', marketing: 'Pazarlama & Growth', business: 'İş Geliştirme', content: 'İçerik & Yazı', other: 'Diğer' },
       intent: 'Ne için katılmak istiyorsun?',
-      intents: { hub: 'Bir bölümde görev almak', project: 'Bir projenin ekibine katılmak', both: 'İkisi de' },
+      intents: { hub: 'Bir bölümde görev almak', project: 'Bir projenin ekibine katılmak', both: 'İkisi de', mentor: 'Mentör Olmak İstiyorum', sponsor: 'Destekçi / Sponsor Olmak İstiyorum' },
       bio: 'Kısa Bio', bioPlaceholder: 'Kendini kısaca tanıt, ilgi alanların ve deneyimlerin...',
       linkedin: 'LinkedIn Profili', portfolio: 'Portfolyo / GitHub',
       skills: 'Yetenekler', skillsPlaceholder: 'React, Flutter, Figma, Growth Hacking...',
+      company: 'Şirket / Kurum Adı', expertise: 'Uzmanlık Alanı',
+      mentorNote: 'Nasıl Katkı Sağlamak İstiyorsun?',
+      mentorNotePlaceholder: 'Deneyimlerinizi, uzmanlık alanlarınızı ve katkı sağlamak istediğiniz konuları kısaca açıklayın... (max 300 karakter)',
       submit: 'Başvuruyu Gönder',
       successTitle: 'Başvurun Alındı!', successDesc: 'En kısa sürede seninle iletişime geçeceğiz.',
     },
@@ -243,10 +246,13 @@ const translations = {
       role: 'Interest Area',
       roles: { dev: 'Software Development', design: 'UI/UX Design', marketing: 'Marketing & Growth', business: 'Business Development', content: 'Content & Writing', other: 'Other' },
       intent: 'Why do you want to join?',
-      intents: { hub: 'Take a role in a department', project: 'Join a project team', both: 'Both' },
+      intents: { hub: 'Take a role in a department', project: 'Join a project team', both: 'Both', mentor: 'I want to become a Mentor', sponsor: 'I want to become a Supporter / Sponsor' },
       bio: 'Short Bio', bioPlaceholder: 'Tell us about yourself, your interests and experience...',
       linkedin: 'LinkedIn Profile', portfolio: 'Portfolio / GitHub',
       skills: 'Skills', skillsPlaceholder: 'React, Flutter, Figma, Growth Hacking...',
+      company: 'Company / Organization', expertise: 'Area of Expertise',
+      mentorNote: 'How do you want to contribute?',
+      mentorNotePlaceholder: 'Briefly describe your experience, expertise and what you\'d like to contribute... (max 300 chars)',
       submit: 'Submit Application',
       successTitle: 'Application Received!', successDesc: "We'll get back to you shortly.",
     },
@@ -798,6 +804,35 @@ const resolveStat = (key) => {
 };
 
 // ============================================
+// SITE SETTINGS — Supabase site_settings tablosu
+// SQL: CREATE TABLE site_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+//      INSERT INTO site_settings VALUES('company_linkedin','https://www.linkedin.com/company/111725833/') ON CONFLICT DO NOTHING;
+//      ALTER TABLE site_settings ENABLE ROW LEVEL SECURITY;
+//      CREATE POLICY "public read" ON site_settings FOR SELECT USING (true);
+//      CREATE POLICY "auth write" ON site_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+// ============================================
+const SETTINGS_DEFAULTS = {
+  company_linkedin: 'https://www.linkedin.com/company/111725833/',
+};
+let settingsCache = { ...SETTINGS_DEFAULTS };
+let settingsLoaded = false;
+
+function useSiteSettings() {
+  const [settings, setSettings] = useState(() => ({ ...settingsCache }));
+  useEffect(() => {
+    if (settingsLoaded) { setSettings({ ...settingsCache }); return; }
+    supabase.from('site_settings').select('key, value').then(({ data }) => {
+      if (data?.length) {
+        settingsLoaded = true;
+        data.forEach(row => { settingsCache[row.key] = row.value; });
+        setSettings({ ...settingsCache });
+      }
+    });
+  }, []);
+  return settings;
+}
+
+// ============================================
 // LANGUAGE CONTEXT
 // ============================================
 const LangContext = createContext({ lang: 'tr', t: (k) => k, setLang: () => {} });
@@ -829,4 +864,5 @@ export {
   LangContext, useLang, LangProvider,
   PostsContext, PostsProvider, usePosts,
   ContentContext, ContentProvider, usePeople, useStartups, useSponsors, useEvents,
+  useSiteSettings, settingsCache, SETTINGS_DEFAULTS,
 };

@@ -8,6 +8,7 @@ import { ContentPage } from './admin-pages3';
 import { AutomationPage } from './admin-automation';
 import { PeoplePage, SponsorsPage, TrashPage } from './admin-pages2';
 import { ApplicationsPage } from './admin-applications';
+import { SettingsPage } from './admin-settings';
 import { supabase } from '../lib/supabase';
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────
@@ -120,6 +121,7 @@ function AdminApp() {
     { id: 'people',        label: 'Ekip & Mentörler', icon: 'users' },
     { id: 'sponsors',      label: 'Destekçiler',      icon: 'handshake' },
     { id: 'applications',  label: 'Başvurular',       icon: 'penEdit' },
+    { id: 'settings',      label: 'Site Ayarları',    icon: 'settings' },
     { id: 'trash',         label: 'Son Silinenler',   icon: 'trash', badge: trash.length },
   ];
 
@@ -131,6 +133,7 @@ function AdminApp() {
       case 'people':     return <PeoplePage />;
       case 'sponsors':      return <SponsorsPage />;
       case 'applications':  return <ApplicationsPage />;
+      case 'settings':      return <SettingsPage />;
       case 'trash':         return <TrashPage />;
       default:           return <DashboardPage />;
     }

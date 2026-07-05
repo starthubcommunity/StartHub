@@ -194,7 +194,8 @@ function JoinPage({ navigate, projectId }) {
   const [formData, setFormData] = useStateOP({
     name: '', email: '', university: '', department: '', role: '',
     intent: project ? 'project' : '',
-    bio: '', linkedin: '', portfolio: '', skills: ''
+    bio: '', linkedin: '', portfolio: '', skills: '',
+    company: '', expertise: '', mentorNote: '',
   });
 
   const handleChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
@@ -203,14 +204,15 @@ function JoinPage({ navigate, projectId }) {
     setSubmitting(true);
     setSubmitError('');
     try {
+      const isMentorSponsor = ['mentor', 'sponsor'].includes(formData.intent);
       const { error } = await supabase.from('applications').insert({
         name:         formData.name,
         email:        formData.email,
-        university:   formData.university || null,
-        department:   formData.department || null,
+        university:   isMentorSponsor ? (formData.company || null) : (formData.university || null),
+        department:   isMentorSponsor ? (formData.expertise || null) : (formData.department || null),
         role:         formData.role || null,
         intent:       formData.intent || null,
-        bio:          formData.bio || null,
+        bio:          isMentorSponsor ? (formData.mentorNote || null) : (formData.bio || null),
         skills:       formData.skills || null,
         linkedin:     formData.linkedin || null,
         portfolio:    formData.portfolio || null,
@@ -327,23 +329,68 @@ function JoinPage({ navigate, projectId }) {
     );
   })() : null;
 
+  const isMentorSponsor = ['mentor', 'sponsor'].includes(formData.intent);
+  const formRef = useStateOP(null)[0];
+  const ctaScrollToForm = (intent) => {
+    handleChange('intent', intent);
+    setTimeout(() => {
+      const el = document.getElementById('join-form-intent');
+      if (el) { const y = el.getBoundingClientRect().top + window.scrollY - 120; window.scrollTo({ top: y, behavior: 'smooth' }); }
+    }, 50);
+  };
+
   return (
     <div className="page-transition">
-      <PageHeader label={t('join.label')} title={project 
-        ? (lang === 'tr' ? `${project.name} Ekibine Katıl` : `Join ${project.name} Team`) 
-        : t('join.title')} 
+      <PageHeader label={t('join.label')} title={project
+        ? (lang === 'tr' ? `${project.name} Ekibine Katıl` : `Join ${project.name} Team`)
+        : t('join.title')}
         desc={project
-          ? (lang === 'tr' 
+          ? (lang === 'tr'
               ? `${project.name} projesine başvurunu bu form ile gönderebilirsin.`
               : `Submit your application to join the ${project.name} project through this form.`)
           : t('join.desc')} />
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container" style={{ maxWidth: 640 }}>
+
+          {/* Mentor / Sponsor CTA kartları */}
+          {!project && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 32 }}>
+              <div style={{ padding: '20px 18px', borderRadius: 16, border: '1.5px solid var(--border)', background: 'var(--card-bg)', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s' }}
+                onClick={() => ctaScrollToForm('mentor')}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(220,38,38,0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}>
+                <div style={{ fontSize: 28, marginBottom: 10 }}>🎓</div>
+                <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
+                  {lang === 'tr' ? 'Mentör Ol' : 'Become a Mentor'}
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                  {lang === 'tr'
+                    ? 'Deneyimini paylaş, ekiplere rehberlik et.'
+                    : 'Share your experience and guide our teams.'}
+                </p>
+              </div>
+              <div style={{ padding: '20px 18px', borderRadius: 16, border: '1.5px solid var(--border)', background: 'var(--card-bg)', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s' }}
+                onClick={() => ctaScrollToForm('sponsor')}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(220,38,38,0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}>
+                <div style={{ fontSize: 28, marginBottom: 10 }}>🤝</div>
+                <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
+                  {lang === 'tr' ? 'Destekçi / Sponsor Ol' : 'Become a Supporter'}
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                  {lang === 'tr'
+                    ? 'Ekosisteme katkı sağla, topluluğumuzu destekle.'
+                    : 'Contribute to the ecosystem and support our community.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {projectContextCard}
           {roleDescCard}
           <form onSubmit={handleSubmit}>
             {!project && (
-              <div className="form-group">
+              <div className="form-group" id="join-form-intent">
                 <label className="form-label">{t('join.intent')}</label>
                 <select className="form-input form-select" value={formData.intent} onChange={e => handleChange('intent', e.target.value)}>
                   <option value="">—</option>
@@ -351,6 +398,32 @@ function JoinPage({ navigate, projectId }) {
                 </select>
               </div>
             )}
+
+            {/* Mentor / Sponsor extra fields */}
+            {isMentorSponsor && (
+              <>
+                <div className="grid grid-2">
+                  <div className="form-group">
+                    <label className="form-label">{t('join.company')}</label>
+                    <input className="form-input" value={formData.company} onChange={e => handleChange('company', e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{t('join.expertise')}</label>
+                    <input className="form-input" placeholder={lang === 'tr' ? 'ör. Fintech, Ürün Yönetimi' : 'e.g. Fintech, Product Management'} value={formData.expertise} onChange={e => handleChange('expertise', e.target.value)} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{t('join.mentorNote')}</label>
+                  <textarea className="form-input" maxLength={300} placeholder={t('join.mentorNotePlaceholder')} value={formData.mentorNote} onChange={e => handleChange('mentorNote', e.target.value)} style={{ minHeight: 100 }} />
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'right', marginTop: 4 }}>{formData.mentorNote.length}/300</div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{t('join.linkedin')}</label>
+                  <input className="form-input" placeholder="linkedin.com/in/..." value={formData.linkedin} onChange={e => handleChange('linkedin', e.target.value)} />
+                </div>
+              </>
+            )}
+
             <div className="grid grid-2">
               <div className="form-group">
                 <label className="form-label">{t('join.name')}</label>
@@ -361,41 +434,45 @@ function JoinPage({ navigate, projectId }) {
                 <input type="email" className="form-input" required value={formData.email} onChange={e => handleChange('email', e.target.value)} />
               </div>
             </div>
-            <div className="grid grid-2">
-              <div className="form-group">
-                <label className="form-label">{t('join.university')}</label>
-                <input className="form-input" value={formData.university} onChange={e => handleChange('university', e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">{t('join.department')}</label>
-                <input className="form-input" value={formData.department} onChange={e => handleChange('department', e.target.value)} />
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">{t('join.role')}</label>
-              <select className="form-input form-select" value={formData.role} onChange={e => handleChange('role', e.target.value)}>
-                <option value="">—</option>
-                {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">{t('join.bio')}</label>
-              <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={formData.bio} onChange={e => handleChange('bio', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">{t('join.skills')}</label>
-              <input className="form-input" placeholder={t('join.skillsPlaceholder')} value={formData.skills} onChange={e => handleChange('skills', e.target.value)} />
-            </div>
-            <div className="grid grid-2">
-              <div className="form-group">
-                <label className="form-label">{t('join.linkedin')}</label>
-                <input className="form-input" placeholder="linkedin.com/in/..." value={formData.linkedin} onChange={e => handleChange('linkedin', e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">{t('join.portfolio')}</label>
-                <input className="form-input" placeholder="github.com/..." value={formData.portfolio} onChange={e => handleChange('portfolio', e.target.value)} />
-              </div>
-            </div>
+            {!isMentorSponsor && (
+              <>
+                <div className="grid grid-2">
+                  <div className="form-group">
+                    <label className="form-label">{t('join.university')}</label>
+                    <input className="form-input" value={formData.university} onChange={e => handleChange('university', e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{t('join.department')}</label>
+                    <input className="form-input" value={formData.department} onChange={e => handleChange('department', e.target.value)} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{t('join.role')}</label>
+                  <select className="form-input form-select" value={formData.role} onChange={e => handleChange('role', e.target.value)}>
+                    <option value="">—</option>
+                    {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{t('join.bio')}</label>
+                  <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={formData.bio} onChange={e => handleChange('bio', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{t('join.skills')}</label>
+                  <input className="form-input" placeholder={t('join.skillsPlaceholder')} value={formData.skills} onChange={e => handleChange('skills', e.target.value)} />
+                </div>
+                <div className="grid grid-2">
+                  <div className="form-group">
+                    <label className="form-label">{t('join.linkedin')}</label>
+                    <input className="form-input" placeholder="linkedin.com/in/..." value={formData.linkedin} onChange={e => handleChange('linkedin', e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{t('join.portfolio')}</label>
+                    <input className="form-input" placeholder="github.com/..." value={formData.portfolio} onChange={e => handleChange('portfolio', e.target.value)} />
+                  </div>
+                </div>
+              </>
+            )}
             {submitError && (
               <div style={{ padding: '10px 14px', background: 'var(--red-light, #FEF2F2)', border: '1px solid #FECACA', borderRadius: 8, fontSize: 14, color: 'var(--red, #DC2626)', marginBottom: 12 }}>
                 {submitError}

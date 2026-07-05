@@ -1,6 +1,6 @@
 // app.jsx — Main App with routing, tweaks, and state management
 import { useState as useStateApp, useEffect as useEffectApp, useCallback as useCallbackApp, useRef as useRefApp } from 'react';
-import { LangProvider, usePosts, getPostBySlug, getPostSlug } from './data';
+import { LangProvider, usePosts, getPostBySlug, getPostSlug, getPost } from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor } from './tweaks-panel';
 import { Navbar, Footer } from './layout';
 import { HomePage } from './home-page';
@@ -116,6 +116,22 @@ function App() {
     if (selectedId != null) sessionStorage.setItem('sh_id', String(selectedId));
     else sessionStorage.removeItem('sh_id');
   }, [currentPage, selectedId]);
+
+  // Dynamic document.title
+  useEffectApp(() => {
+    const post = (currentPage === 'post' && selectedId) ? getPost(selectedId) : null;
+    const postTitle = post ? (lang === 'tr' ? post.title_tr : post.title_en) || post.title_tr : null;
+    const titles = {
+      home:    'Start-Hub — Türkiye Girişim Ekosistemi',
+      about:   'Hakkımızda | Start-Hub',
+      labs:    'Start-Hub Labs | Projeler ve Ekipler',
+      blog:    'Yazılar | Start-Hub',
+      join:    'Topluluğa Katıl | Start-Hub',
+      post:    postTitle ? `${postTitle} | Start-Hub` : 'Start-Hub',
+      project: 'Lab | Start-Hub',
+    };
+    document.title = titles[currentPage] || 'Start-Hub';
+  }, [currentPage, selectedId, lang]);
 
   // Set direction data attribute
   useEffectApp(() => {
