@@ -117,113 +117,114 @@ function HeroVisual({ lang, navigate }) {
         <span className="hero__vhead-meta">{lang === 'tr' ? 'Bugün' : 'Today'}</span>
       </div>
 
-      {/* Cards container */}
+      {/* Cards container — two independent flow columns, never overlap regardless of content height */}
       <div className="hero__cards">
 
-        {/* ═══ FAINT CONNECTOR LINES — suggest the ecosystem flow ═══ */}
-        <svg className="hero__flow-svg" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
-          <path d="M53,24 C58,21 61,21 64,23" className="hero__flow-dash" vectorEffect="non-scaling-stroke" />
-          <path d="M80,46 C82,52 80,56 76,60" className="hero__flow-dash" vectorEffect="non-scaling-stroke" />
-          <path d="M22,56 C20,62 18,66 16,70" className="hero__flow-dash" vectorEffect="non-scaling-stroke" />
-        </svg>
-
         {/* Subtle live activity dot near growth card */}
-        <div className="hero__activity-dot" style={{ top: '6%', left: '60%' }}></div>
+        <div className="hero__activity-dot"></div>
 
-        {/* ═══ 1. FEATURED CARD ═══ */}
-        <div className="hero__sc hero__sc--feat" onClick={() => { navigate('project', featured.id); window.scrollTo({ top: 0 }); }}>
-          <span className="hero__feat-badge">{lang === 'tr' ? 'Öne Çıkan' : 'Featured'}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <div className="hero__feat-logo" style={{ background: featured.color }}>
-              {featured.logo ? <img src={featured.logo} alt={featured.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : featured.name[0]}
-            </div>
-            <div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em' }}>{featured.name}</div>
-              <StageBadge stage={featured.stage} />
-            </div>
-          </div>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>{localized(featured, 'tagline') || localized(featured, 'desc')}</p>
-          <div className="hero__feat-foot">
-            <span><Icon name="users" size={14} /> {featured.team} {lang === 'tr' ? 'kişi' : 'people'}</span>
-            {featured.openRoles > 0 && <span><Icon name="briefcase" size={14} /> {featured.openRoles} {lang === 'tr' ? 'açık görev' : 'open'}</span>}
-            <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
-          </div>
-        </div>
+        {/* ═══ LEFT COLUMN ═══ */}
+        <div className="hero__cards-col hero__cards-col--left">
 
-        {/* ═══ 2. STATS CARD ═══ */}
-        <div className="hero__sc hero__sc--stats">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <svg width="32" height="24" viewBox="0 0 32 24" fill="none"><path d="M2 20L12 10L18 16L30 4" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M22 4H30V12" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <div className="hero__strip-v">+22%</div>
-          </div>
-          <div className="hero__strip-l" style={{ marginTop: 2 }}>{lang === 'tr' ? 'aylık büyüme' : 'MoM growth'}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-            <div className="hero__avatars">
-              {['#DC2626', '#2563EB', '#7C3AED'].map((c, i) => (
-                <span key={i} className="hero__av" style={{ background: c, marginLeft: i ? -10 : 0 }}>{['A', 'M', 'Z'][i]}</span>
-              ))}
-              <span className="hero__av hero__av--more">+3</span>
-            </div>
-            <div className="hero__strip-l">{lang === 'tr' ? 'yeni üye' : 'new members'}</div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-            <span className="hero__sc-arrow" style={{ width: 26, height: 26, transform: 'rotate(-45deg)' }}><Icon name="arrowRight" size={10} /></span>
-          </div>
-        </div>
-
-        {/* ═══ 3. POST/NEWS CARD ═══ */}
-        {latest ? (
-          <div className="hero__sc hero__sc--post" onClick={() => { navigate('post', latest.id); window.scrollTo({ top: 0 }); }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <div className="hero__post-cover" style={{ background: '#DBEAFE' }}>
-                <Icon name="globe" size={18} style={{ color: '#3B82F6' }} />
+          {/* ═══ 1. FEATURED CARD ═══ */}
+          <div className="hero__sc hero__sc--feat" onClick={() => { navigate('project', featured.id); window.scrollTo({ top: 0 }); }}>
+            <span className="hero__feat-badge">{lang === 'tr' ? 'Öne Çıkan' : 'Featured'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div className="hero__feat-logo" style={{ background: featured.color }}>
+                {featured.logo ? <img src={featured.logo} alt={featured.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : featured.name[0]}
               </div>
-              <TagChip tag={latest.tag} />
+              <div>
+                <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em' }}>{featured.name}</div>
+                <StageBadge stage={featured.stage} />
+              </div>
             </div>
-            <div className="hero__post-title">{localized(latest, 'title')}</div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-              <span className="hero__sc-arrow"><Icon name="arrowRight" size={12} /></span>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>{localized(featured, 'tagline') || localized(featured, 'desc')}</p>
+            <div className="hero__feat-foot">
+              <span><Icon name="users" size={14} /> {featured.team} {lang === 'tr' ? 'kişi' : 'people'}</span>
+              {featured.openRoles > 0 && <span><Icon name="briefcase" size={14} /> {featured.openRoles} {lang === 'tr' ? 'açık görev' : 'open'}</span>}
+              <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
             </div>
           </div>
-        ) : !postsLoading && (
-          <div className="hero__sc hero__sc--post" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-            {lang === 'tr' ? 'Henüz yazı yok' : 'No posts yet'}
-          </div>
-        )}
 
-        {/* ═══ 4. OPEN POSITION CARD — overlaps post card ═══ */}
-        {rotating && (
-          <div className="hero__sc hero__sc--open" onClick={() => { sessionStorage.setItem('sh_join_role', rotating.role); navigate('join', rotating.project.id); window.scrollTo({ top: 0 }); }}>
-            <div style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(6px)', transition: 'opacity 0.45s ease, transform 0.45s ease' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <span className="hero__open-icon"><Icon name="briefcase" size={16} /></span>
-                <div>
-                  <div className="hero__open-role">{rotating.role}</div>
-                  <div className="hero__open-meta">
-                    <span className="hero__open-dot" style={{ background: rotating.project.color }}></span>
-                    {rotating.project.name} · <span style={{ color: 'var(--green)', fontWeight: 700 }}>{lang === 'tr' ? 'açık pozisyon' : 'open role'}</span>
+          {/* ═══ 3. POST/NEWS CARD ═══ */}
+          {latest ? (
+            <div className="hero__sc hero__sc--post" onClick={() => { navigate('post', latest.id); window.scrollTo({ top: 0 }); }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div className="hero__post-cover" style={{ background: '#DBEAFE' }}>
+                  <Icon name="globe" size={18} style={{ color: '#3B82F6' }} />
+                </div>
+                <TagChip tag={latest.tag} />
+              </div>
+              <div className="hero__post-title">{localized(latest, 'title')}</div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                <span className="hero__sc-arrow"><Icon name="arrowRight" size={12} /></span>
+              </div>
+            </div>
+          ) : !postsLoading && (
+            <div className="hero__sc hero__sc--post" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
+              {lang === 'tr' ? 'Henüz yazı yok' : 'No posts yet'}
+            </div>
+          )}
+        </div>
+
+        {/* ═══ RIGHT COLUMN ═══ */}
+        <div className="hero__cards-col hero__cards-col--right">
+
+          {/* ═══ 2. STATS CARD ═══ */}
+          <div className="hero__sc hero__sc--stats">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <svg width="32" height="24" viewBox="0 0 32 24" fill="none"><path d="M2 20L12 10L18 16L30 4" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M22 4H30V12" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <div className="hero__strip-v">+22%</div>
+            </div>
+            <div className="hero__strip-l" style={{ marginTop: 2 }}>{lang === 'tr' ? 'aylık büyüme' : 'MoM growth'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+              <div className="hero__avatars">
+                {['#DC2626', '#2563EB', '#7C3AED'].map((c, i) => (
+                  <span key={i} className="hero__av" style={{ background: c, marginLeft: i ? -10 : 0 }}>{['A', 'M', 'Z'][i]}</span>
+                ))}
+                <span className="hero__av hero__av--more">+3</span>
+              </div>
+              <div className="hero__strip-l">{lang === 'tr' ? 'yeni üye' : 'new members'}</div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+              <span className="hero__sc-arrow" style={{ width: 26, height: 26, transform: 'rotate(-45deg)' }}><Icon name="arrowRight" size={10} /></span>
+            </div>
+          </div>
+
+          {/* ═══ 4. OPEN POSITION CARD ═══ */}
+          {rotating && (
+            <div className="hero__sc hero__sc--open" onClick={() => { sessionStorage.setItem('sh_join_role', rotating.role); navigate('join', rotating.project.id); window.scrollTo({ top: 0 }); }}>
+              <div style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(6px)', transition: 'opacity 0.45s ease, transform 0.45s ease' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <span className="hero__open-icon"><Icon name="briefcase" size={16} /></span>
+                  <div>
+                    <div className="hero__open-role">{rotating.role}</div>
+                    <div className="hero__open-meta">
+                      <span className="hero__open-dot" style={{ background: rotating.project.color }}></span>
+                      {rotating.project.name} · <span style={{ color: 'var(--green)', fontWeight: 700 }}>{lang === 'tr' ? 'açık pozisyon' : 'open role'}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="hero__open-foot">
-                <div className="hero__avatars">
-                  {(rotating.project.teamMembers || []).slice(0, 4).map((m, i) => (
-                    <span key={i} className="hero__av" style={{ background: m.color || rotating.project.color, marginLeft: i ? -10 : 0 }}>{m.avatar || m.name?.[0] || '?'}</span>
-                  ))}
-                  {rotating.project.team > 4 && <span className="hero__av hero__av--more">+{rotating.project.team - 4}</span>}
+                <div className="hero__open-foot">
+                  <div className="hero__avatars">
+                    {(rotating.project.teamMembers || []).slice(0, 4).map((m, i) => (
+                      <span key={i} className="hero__av" style={{ background: m.color || rotating.project.color, marginLeft: i ? -10 : 0 }}>{m.avatar || m.name?.[0] || '?'}</span>
+                    ))}
+                    {rotating.project.team > 4 && <span className="hero__av hero__av--more">+{rotating.project.team - 4}</span>}
+                  </div>
+                  <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
                 </div>
-                <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ═══ 5. MOTTO CARD ═══ */}
-        <div className="hero__motto">
-          <div className="hero__motto-text">
-            {lang === 'tr'
-              ? 'Fikirlerinizi projelere, projelerinizi etkiye dönüştürüyoruz.'
-              : 'Turning ideas into projects, projects into impact.'}
+          {/* ═══ 5. MOTTO CARD ═══ */}
+          <div className="hero__motto">
+            <div className="hero__motto-text">
+              {lang === 'tr'
+                ? 'Fikirlerinizi projelere, projelerinizi etkiye dönüştürüyoruz.'
+                : 'Turning ideas into projects, projects into impact.'}
+            </div>
           </div>
         </div>
       </div>
