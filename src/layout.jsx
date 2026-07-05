@@ -19,10 +19,10 @@ function Navbar({ currentPage, navigate }) {
   }, []);
 
   const navItems = [
-    { key: 'home', label: t('nav.home') },
+    { key: 'home',  label: t('nav.home') },
+    { key: 'blog',  label: t('nav.blog') },
+    { key: 'labs',  label: t('nav.labs') },
     { key: 'about', label: t('nav.about') },
-    { key: 'labs', label: t('nav.labs') },
-    { key: 'blog', label: t('nav.blog') },
   ];
 
   const handleNav = (key) => {
@@ -89,7 +89,17 @@ function Navbar({ currentPage, navigate }) {
 // FOOTER
 // ============================================
 function Footer({ navigate }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const [emailCopied, setEmailCopied] = useState(false);
+  const copyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText('iletisim@starthub-community.com');
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+    } catch {
+      window.location.href = 'mailto:iletisim@starthub-community.com';
+    }
+  };
 
   const handleNav = (key) => {
     navigate(key);
@@ -125,20 +135,20 @@ function Footer({ navigate }) {
 
           <div>
             <h4 className="footer__col-title">{t('footer.connect')}</h4>
-            <a className="footer__link" href="https://linkedin.com/company/starthub-community" target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a className="footer__link" href="https://www.linkedin.com/company/111725833/" target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Icon name="linkedin" size={14} /> LinkedIn
             </a>
-            <a className="footer__link" href="mailto:iletisim@starthub-community.com" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="mail" size={14} /> iletisim@starthub-community.com
-            </a>
+            <button className="footer__link" onClick={copyEmail} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: emailCopied ? 'var(--green)' : undefined, fontFamily: 'var(--font-body)' }}>
+              <Icon name="mail" size={14} /> {emailCopied ? (lang === 'tr' ? 'Kopyalandı!' : 'Copied!') : 'iletisim@starthub-community.com'}
+            </button>
           </div>
         </div>
 
         <div className="footer__bottom">
           <span>{t('footer.rights')}</span>
           <div className="footer__socials">
-            <a href="https://linkedin.com/company/starthub-community" target="_blank" rel="noreferrer"><Icon name="linkedin" size={18} /></a>
-            <a href="mailto:iletisim@starthub-community.com"><Icon name="mail" size={18} /></a>
+            <a href="https://www.linkedin.com/company/111725833/" target="_blank" rel="noreferrer"><Icon name="linkedin" size={18} /></a>
+            <button onClick={copyEmail} title={emailCopied ? 'Kopyalandı!' : 'E-postayı kopyala'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: emailCopied ? 'var(--green)' : 'inherit', display: 'flex', alignItems: 'center', padding: 0 }}><Icon name="mail" size={18} /></button>
           </div>
         </div>
       </div>

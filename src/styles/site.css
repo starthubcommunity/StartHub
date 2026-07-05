@@ -427,7 +427,7 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 .hero__strip-v { font-family: var(--font-heading); font-weight: 700; font-size: 24px; color: var(--green); line-height: 1; }
 .hero__strip-l { font-size: 12px; color: var(--text-tertiary); }
 
-@media (max-width: 900px) { .hero__grid { grid-template-columns: 1fr; } .hero__visual { display: none; } .hero__content { max-width: 640px; } }
+@media (max-width: 1100px) { .hero__grid { grid-template-columns: 1fr; } .hero__visual { display: none; } .hero__content { max-width: 640px; } }
 
 /* Startup Score bar */
 .score-bar { height: 4px; border-radius: 999px; background: var(--bg-tertiary); overflow: hidden; flex: 1; }

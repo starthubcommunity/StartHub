@@ -318,11 +318,15 @@ function PostDetailPage({ postId, navigate }) {
                   }}>
                   <Icon name={shareCopied ? 'check' : 'externalLink'} size={16} />
                 </button>
-                <a className="article__share-btn"
-                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`}
-                  target="_blank" rel="noreferrer" title="LinkedIn'de Paylaş">
+                <button className="article__share-btn"
+                  title="LinkedIn'de Paylaş"
+                  style={{ border: 'none', cursor: 'pointer' }}
+                  onClick={() => window.open(
+                    `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + window.location.pathname)}`,
+                    '_blank', 'noopener,noreferrer,width=600,height=600'
+                  )}>
                   <Icon name="linkedin" size={16} />
-                </a>
+                </button>
               </div>
 
               {post.tag === 'gundem' && post.source && (
