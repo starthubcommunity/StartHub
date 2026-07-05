@@ -67,10 +67,19 @@ function AutomationPage() {
   const [preferredHour,     setPreferredHour]      = useState(5);
   const [enabledCategories, setEnabledCategories]  = useState([]);
   const [toneLevel,         setToneLevel]          = useState(3);
-  const [toneExtra,         setToneExtra]          = useState({}); // {1:"...", 3:"..."}
+  const [toneExtra,         setToneExtra]          = useState({});
   const [toneBanned,        setToneBanned]         = useState([]);
   const [settingsLoaded,    setSettingsLoaded]     = useState(false);
   const [savingSettings,    setSavingSettings]     = useState(false);
+  // Site genel ayarları
+  const [siteLinkedin,        setSiteLinkedin]        = useState('https://www.linkedin.com/company/111725833/');
+  const [contactEmail,        setContactEmail]        = useState('iletisim@starthub-community.com');
+  const [twitterUrl,          setTwitterUrl]          = useState('');
+  const [instagramUrl,        setInstagramUrl]        = useState('');
+  const [announcementText,    setAnnouncementText]    = useState('');
+  const [announcementActive,  setAnnouncementActive]  = useState(false);
+  const [maintenanceMode,     setMaintenanceMode]     = useState(false);
+  const [savingSiteSettings,  setSavingSiteSettings]  = useState(false);
 
   const loadSettings = useCallback(async () => {
     const { data } = await supabase
@@ -83,6 +92,13 @@ function AutomationPage() {
     setToneLevel(data.tone_level ?? 3);
     setToneExtra(data.tone_extra_instructions || {});
     setToneBanned(data.tone_banned_phrases || []);
+    if (data.company_linkedin)   setSiteLinkedin(data.company_linkedin);
+    if (data.contact_email)      setContactEmail(data.contact_email);
+    if (data.twitter_url != null) setTwitterUrl(data.twitter_url);
+    if (data.instagram_url != null) setInstagramUrl(data.instagram_url);
+    if (data.announcement_text != null) setAnnouncementText(data.announcement_text);
+    setAnnouncementActive(data.announcement_active ?? false);
+    setMaintenanceMode(data.maintenance_mode ?? false);
     setSettingsLoaded(true);
   }, []);
 
@@ -891,6 +907,90 @@ function AutomationPage() {
       {/* ── TAB: TON & AYARLAR ─────────────────────────────────────────── */}
       {activeTab === 'settings' && (
         <div>
+          {/* ── Site Genel Ayarları ─────────────────────────────────────── */}
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Site Genel Ayarları</h3>
+              {savingSiteSettings && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', display: 'flex', gap: 6 }}><span className="adm-spinner"></span> Kaydediliyor…</span>}
+            </div>
+            <div className="adm-card__body">
+              {/* Sosyal medya */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                <Field label="Şirket LinkedIn URL">
+                  <Input value={siteLinkedin} onChange={e => setSiteLinkedin(e.target.value)} placeholder="https://www.linkedin.com/company/..." />
+                </Field>
+                <Field label="İletişim E-postası">
+                  <Input value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="iletisim@..." />
+                </Field>
+                <Field label="Twitter / X URL">
+                  <Input value={twitterUrl} onChange={e => setTwitterUrl(e.target.value)} placeholder="https://x.com/..." />
+                </Field>
+                <Field label="Instagram URL">
+                  <Input value={instagramUrl} onChange={e => setInstagramUrl(e.target.value)} placeholder="https://instagram.com/..." />
+                </Field>
+              </div>
+
+              {/* Duyuru banner */}
+              <div style={{ borderTop: '1px solid var(--adm-border-light)', paddingTop: 16, marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>Duyuru Bandı</div>
+                    <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Açıkken tüm site sayfalarının üstünde gösterilir.</div>
+                  </div>
+                  <label className="adm-switch">
+                    <input type="checkbox" checked={announcementActive} onChange={e => setAnnouncementActive(e.target.checked)} />
+                    <span></span>
+                  </label>
+                </div>
+                <Field label="Duyuru Metni">
+                  <Input value={announcementText} onChange={e => setAnnouncementText(e.target.value)} placeholder="ör. Aylık buluşmamız 12 Temmuz Cumartesi 15:00'te!" />
+                </Field>
+              </div>
+
+              {/* Bakım modu */}
+              <div style={{ borderTop: '1px solid var(--adm-border-light)', paddingTop: 16, marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>Bakım Modu</div>
+                    <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Açıkken ziyaretçilere "Bakımdayız" sayfası gösterilir. Admin paneli etkilenmez.</div>
+                    {maintenanceMode && (
+                      <div style={{ marginTop: 6, fontSize: 12, color: '#DC2626', background: '#FEF2F2', borderRadius: 6, padding: '4px 10px', display: 'inline-block' }}>
+                        ⚠ Site şu an bakım modunda — ziyaretçiler sayfayı göremez!
+                      </div>
+                    )}
+                  </div>
+                  <label className="adm-switch">
+                    <input type="checkbox" checked={maintenanceMode} onChange={e => setMaintenanceMode(e.target.checked)} />
+                    <span></span>
+                  </label>
+                </div>
+              </div>
+
+              <button
+                className="adm-btn adm-btn--primary"
+                disabled={savingSiteSettings}
+                onClick={async () => {
+                  setSavingSiteSettings(true);
+                  const { error } = await supabase.from('site_settings').upsert({
+                    id: 1,
+                    company_linkedin:    siteLinkedin,
+                    contact_email:       contactEmail,
+                    twitter_url:         twitterUrl,
+                    instagram_url:       instagramUrl,
+                    announcement_text:   announcementText,
+                    announcement_active: announcementActive,
+                    maintenance_mode:    maintenanceMode,
+                    updated_at:          new Date().toISOString(),
+                  });
+                  setSavingSiteSettings(false);
+                  if (error) flash('Kaydedilemedi: ' + error.message, 'orange');
+                  else flash('Site ayarları kaydedildi.');
+                }}>
+                <AIcon name="check" size={15} /> Site Ayarlarını Kaydet
+              </button>
+            </div>
+          </div>
+
           {/* Yazı Tonu */}
           <div className="adm-card" style={{ marginBottom: 20 }}>
             <div className="adm-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

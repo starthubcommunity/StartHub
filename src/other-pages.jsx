@@ -182,54 +182,115 @@ function BlogPage({ navigate }) {
 // KATIL (JOIN)
 // ============================================
 function JoinPage({ navigate, projectId }) {
-  const { lang, t, localized } = useLang();
+  const { lang, t } = useLang();
   const [submitted, setSubmitted] = useStateOP(false);
   const [submitting, setSubmitting] = useStateOP(false);
   const [submitError, setSubmitError] = useStateOP('');
 
-  // Resolve project context (if navigated from a project page)
   const project = projectId ? getProject(projectId) : null;
   const savedRole = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_role') : null;
 
-  const [formData, setFormData] = useStateOP({
+  const initialType = (() => {
+    if (project) return 'community';
+    if (typeof sessionStorage !== 'undefined') {
+      const s = sessionStorage.getItem('sh_join_type');
+      if (s === 'community' || s === 'mentor' || s === 'sponsor') return s;
+    }
+    return null;
+  })();
+
+  const [joinType, setJoinType] = useStateOP(initialType);
+
+  const [communityForm, setCommunityForm] = useStateOP({
     name: '', email: '', university: '', department: '', role: '',
-    intent: project ? 'project' : '',
+    intent: project ? 'project' : 'community',
     bio: '', linkedin: '', portfolio: '', skills: '',
-    company: '', expertise: '', mentorNote: '',
+  });
+  const [mentorForm, setMentorForm] = useStateOP({
+    name: '', email: '', expertise: '', experience_years: '',
+    current_company: '', hours_per_week: '', linkedin: '', mentor_note: '',
+  });
+  const [sponsorForm, setSponsorForm] = useStateOP({
+    contact_name: '', email: '', company: '', website: '',
+    collab_types: [], sponsor_message: '',
   });
 
-  const handleChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+  const handleC = (f, v) => setCommunityForm(p => ({ ...p, [f]: v }));
+  const handleM = (f, v) => setMentorForm(p => ({ ...p, [f]: v }));
+  const handleS = (f, v) => setSponsorForm(p => ({ ...p, [f]: v }));
+  const toggleCollab = (type) => setSponsorForm(p => ({
+    ...p,
+    collab_types: p.collab_types.includes(type)
+      ? p.collab_types.filter(x => x !== type)
+      : [...p.collab_types, type],
+  }));
+
+  const selectType = (type) => {
+    setJoinType(type);
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('sh_join_type', type);
+    setTimeout(() => {
+      const el = document.getElementById('join-form-section');
+      if (el) { const y = el.getBoundingClientRect().top + window.scrollY - 100; window.scrollTo({ top: y, behavior: 'smooth' }); }
+    }, 60);
+  };
+
+  const clearProject = () => {
+    sessionStorage.removeItem('sh_join_role');
+    sessionStorage.removeItem('sh_join_type');
+    navigate('join');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setSubmitError('');
     try {
-      const isMentorSponsor = ['mentor', 'sponsor'].includes(formData.intent);
-      const { error } = await supabase.from('applications').insert({
-        name:         formData.name,
-        email:        formData.email,
-        university:   isMentorSponsor ? (formData.company || null) : (formData.university || null),
-        department:   isMentorSponsor ? (formData.expertise || null) : (formData.department || null),
-        role:         formData.role || null,
-        intent:       formData.intent || null,
-        bio:          isMentorSponsor ? (formData.mentorNote || null) : (formData.bio || null),
-        skills:       formData.skills || null,
-        linkedin:     formData.linkedin || null,
-        portfolio:    formData.portfolio || null,
-        project_id:   project?.id || null,
-        project_name: project?.name || null,
-      });
+      const activeType = project ? 'community' : joinType;
+      let insertData = {};
+      if (activeType === 'mentor') {
+        insertData = {
+          name: mentorForm.name, email: mentorForm.email,
+          department: mentorForm.expertise || null,
+          university: mentorForm.current_company || null,
+          skills: mentorForm.experience_years || null,
+          bio: mentorForm.mentor_note || null,
+          linkedin: mentorForm.linkedin || null,
+          intent: 'mentor_application',
+          role: mentorForm.hours_per_week ? `${mentorForm.hours_per_week}h/week` : null,
+        };
+      } else if (activeType === 'sponsor') {
+        insertData = {
+          name: sponsorForm.contact_name, email: sponsorForm.email,
+          university: sponsorForm.company || null,
+          linkedin: sponsorForm.website || null,
+          bio: sponsorForm.sponsor_message || null,
+          skills: sponsorForm.collab_types.join(', ') || null,
+          intent: 'sponsor_application',
+        };
+      } else {
+        insertData = {
+          name: communityForm.name, email: communityForm.email,
+          university: communityForm.university || null,
+          department: communityForm.department || null,
+          role: communityForm.role || null,
+          intent: communityForm.intent || 'community',
+          bio: communityForm.bio || null,
+          skills: communityForm.skills || null,
+          linkedin: communityForm.linkedin || null,
+          portfolio: communityForm.portfolio || null,
+          project_id: project?.id || null,
+          project_name: project?.name || null,
+        };
+      }
+      const { error } = await supabase.from('applications').insert(insertData);
       if (error) throw error;
       setSubmitted(true);
+      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('sh_join_type');
     } catch {
       setSubmitError(lang === 'tr' ? 'Bir hata oluştu, lütfen tekrar dene.' : 'Something went wrong, please try again.');
     } finally {
       setSubmitting(false);
     }
-  };
-  const clearProject = () => { 
-    sessionStorage.removeItem('sh_join_role'); 
-    navigate('join'); 
   };
 
   if (submitted) {
@@ -249,241 +310,285 @@ function JoinPage({ navigate, projectId }) {
     );
   }
 
-  /* --- Project context badge --- */
   const projectContextCard = project ? (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 14,
-      padding: '14px 16px',
-      background: `color-mix(in srgb, ${project.color} 6%, var(--card-bg))`,
-      border: `1.5px solid color-mix(in srgb, ${project.color} 22%, var(--border))`,
-      borderRadius: 'var(--r-lg)',
-      marginBottom: 28,
-    }}>
-      {/* Project logo */}
-      <div style={{
-        width: 42, height: 42, borderRadius: 'var(--r-md)', flexShrink: 0,
-        background: project.color, color: '#fff',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17,
-      }}>{project.name[0]}</div>
-      {/* Info */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: `color-mix(in srgb, ${project.color} 6%, var(--card-bg))`, border: `1.5px solid color-mix(in srgb, ${project.color} 22%, var(--border))`, borderRadius: 'var(--r-lg)', marginBottom: 28 }}>
+      <div style={{ width: 42, height: 42, borderRadius: 'var(--r-md)', flexShrink: 0, background: project.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17 }}>{project.name[0]}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ 
-          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-        }}>
-          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
-            {project.name}
-          </span>
-          <span style={{
-            fontSize: 11.5, fontWeight: 600, letterSpacing: '0.03em',
-            color: project.color,
-            background: `color-mix(in srgb, ${project.color} 12%, transparent)`,
-            padding: '2px 8px', borderRadius: 'var(--r-full)',
-          }}>
-            {lang === 'tr' ? 'Proje Başvurusu' : 'Project Application'}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{project.name}</span>
+          <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.03em', color: project.color, background: `color-mix(in srgb, ${project.color} 12%, transparent)`, padding: '2px 8px', borderRadius: 'var(--r-full)' }}>{lang === 'tr' ? 'Proje Başvurusu' : 'Project Application'}</span>
         </div>
         {savedRole && (
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Icon name="briefcase" size={13} />
-            <span>{savedRole}</span>
+            <Icon name="briefcase" size={13} /><span>{savedRole}</span>
           </div>
         )}
       </div>
-      {/* Remove button */}
-      <button onClick={clearProject} title={lang === 'tr' ? 'Proje seçimini kaldır' : 'Remove project'} style={{
-        width: 30, height: 30, borderRadius: 'var(--r-sm)', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'transparent', border: 'none', cursor: 'pointer',
-        color: 'var(--text-tertiary)', transition: 'all 0.2s',
-      }} onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-tertiary)'; }}>
+      <button onClick={clearProject} title={lang === 'tr' ? 'Proje seçimini kaldır' : 'Remove project'} style={{ width: 30, height: 30, borderRadius: 'var(--r-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
         <Icon name="x" size={16} />
       </button>
     </div>
   ) : null;
 
-  /* --- Role description card (görev tanımı) --- */
   const roleDescCard = (project && savedRole) ? (() => {
     const desc = getRoleDescription(savedRole, lang);
     if (!desc) return null;
     return (
-      <div style={{
-        padding: '18px 20px',
-        background: 'var(--bg-secondary)',
-        borderRadius: 'var(--r-lg)',
-        marginBottom: 28,
-        borderLeft: `3px solid ${project.color}`,
-      }}>
+      <div style={{ padding: '18px 20px', background: 'var(--bg-secondary)', borderRadius: 'var(--r-lg)', marginBottom: 28, borderLeft: `3px solid ${project.color}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <Icon name="briefcase" size={15} style={{ color: project.color }} />
-          <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)' }}>
-            {lang === 'tr' ? 'Görev Tanımı' : 'Role Description'}
-          </span>
+          <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)' }}>{lang === 'tr' ? 'Görev Tanımı' : 'Role Description'}</span>
         </div>
-        <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16, marginBottom: 6, color: 'var(--text-primary)' }}>
-          {savedRole}
-        </div>
+        <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16, marginBottom: 6, color: 'var(--text-primary)' }}>{savedRole}</div>
         <p style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)', margin: 0 }}>{desc}</p>
       </div>
     );
   })() : null;
 
-  const isMentorSponsor = ['mentor', 'sponsor'].includes(formData.intent);
-  const formRef = useStateOP(null)[0];
-  const ctaScrollToForm = (intent) => {
-    handleChange('intent', intent);
-    setTimeout(() => {
-      const el = document.getElementById('join-form-intent');
-      if (el) { const y = el.getBoundingClientRect().top + window.scrollY - 120; window.scrollTo({ top: y, behavior: 'smooth' }); }
-    }, 50);
-  };
+  const typeCards = [
+    { key: 'community', emoji: '🚀', title: lang === 'tr' ? 'Topluluğa Katıl' : 'Join the Community', desc: lang === 'tr' ? 'Öğrenci, mezun ya da genç profesyonel olarak ekosisteme dahil ol.' : 'Join as a student, graduate, or young professional.' },
+    { key: 'mentor',    emoji: '🎓', title: lang === 'tr' ? 'Mentör Ol' : 'Become a Mentor',       desc: lang === 'tr' ? 'Deneyimini paylaş, ekiplere ve girişimcilere rehberlik et.' : 'Share your expertise and guide teams and founders.' },
+    { key: 'sponsor',   emoji: '🤝', title: lang === 'tr' ? 'Destekçi / Sponsor Ol' : 'Become a Supporter', desc: lang === 'tr' ? 'Finansal, mentorluk ya da etkinlik desteğiyle katkı sağla.' : 'Support via funding, mentorship, or events.' },
+  ];
+
+  const collabOptions = lang === 'tr'
+    ? ['Finansal Destek', 'Mentorluk', 'Etkinlik Sponsorluğu', 'Staj İmkanı', 'Diğer']
+    : ['Financial Support', 'Mentorship', 'Event Sponsorship', 'Internship', 'Other'];
+
+  const submitBtn = (
+    <div style={{ paddingTop: 12 }}>
+      <Button variant="primary" size="lg" iconRight="arrowRight" style={{ width: '100%', opacity: submitting ? 0.7 : 1, pointerEvents: submitting ? 'none' : undefined }}>
+        {submitting ? (lang === 'tr' ? 'Gönderiliyor…' : 'Sending…') : t('join.submit')}
+      </Button>
+    </div>
+  );
+
+  const errorBanner = submitError ? (
+    <div style={{ padding: '10px 14px', background: 'var(--red-light, #FEF2F2)', border: '1px solid #FECACA', borderRadius: 8, fontSize: 14, color: 'var(--red, #DC2626)', marginBottom: 12 }}>{submitError}</div>
+  ) : null;
 
   return (
     <div className="page-transition">
-      <PageHeader label={t('join.label')} title={project
-        ? (lang === 'tr' ? `${project.name} Ekibine Katıl` : `Join ${project.name} Team`)
-        : t('join.title')}
+      <PageHeader
+        label={t('join.label')}
+        title={project ? (lang === 'tr' ? `${project.name} Ekibine Katıl` : `Join ${project.name} Team`) : t('join.title')}
         desc={project
-          ? (lang === 'tr'
-              ? `${project.name} projesine başvurunu bu form ile gönderebilirsin.`
-              : `Submit your application to join the ${project.name} project through this form.`)
+          ? (lang === 'tr' ? `${project.name} projesine başvurunu bu form ile gönderebilirsin.` : `Submit your application to join the ${project.name} project.`)
           : t('join.desc')} />
-      <section className="section" style={{ paddingTop: 0 }}>
-        <div className="container" style={{ maxWidth: 640 }}>
 
-          {/* Mentor / Sponsor CTA kartları */}
+      <section className="section" style={{ paddingTop: 0 }}>
+        <div className="container" style={{ maxWidth: 680 }}>
+
+          {/* 3-card type selector — only when not project context */}
           {!project && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 32 }}>
-              <div style={{ padding: '20px 18px', borderRadius: 16, border: '1.5px solid var(--border)', background: 'var(--card-bg)', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s' }}
-                onClick={() => ctaScrollToForm('mentor')}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(220,38,38,0.1)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}>
-                <div style={{ fontSize: 28, marginBottom: 10 }}>🎓</div>
-                <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
-                  {lang === 'tr' ? 'Mentör Ol' : 'Become a Mentor'}
-                </div>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  {lang === 'tr'
-                    ? 'Deneyimini paylaş, ekiplere rehberlik et.'
-                    : 'Share your experience and guide our teams.'}
-                </p>
-              </div>
-              <div style={{ padding: '20px 18px', borderRadius: 16, border: '1.5px solid var(--border)', background: 'var(--card-bg)', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s' }}
-                onClick={() => ctaScrollToForm('sponsor')}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(220,38,38,0.1)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}>
-                <div style={{ fontSize: 28, marginBottom: 10 }}>🤝</div>
-                <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
-                  {lang === 'tr' ? 'Destekçi / Sponsor Ol' : 'Become a Supporter'}
-                </div>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  {lang === 'tr'
-                    ? 'Ekosisteme katkı sağla, topluluğumuzu destekle.'
-                    : 'Contribute to the ecosystem and support our community.'}
-                </p>
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 36 }}>
+              {typeCards.map(card => {
+                const active = joinType === card.key;
+                return (
+                  <div
+                    key={card.key}
+                    onClick={() => selectType(card.key)}
+                    style={{
+                      padding: '22px 18px', borderRadius: 16, cursor: 'pointer',
+                      border: active ? '2px solid var(--accent)' : '1.5px solid var(--border)',
+                      background: active ? 'color-mix(in srgb, var(--accent) 5%, var(--card-bg))' : 'var(--card-bg)',
+                      boxShadow: active ? '0 4px 20px rgba(220,38,38,0.12)' : 'none',
+                      transition: 'border-color 0.18s, box-shadow 0.18s, background 0.18s',
+                    }}
+                    onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(220,38,38,0.08)'; } }}
+                    onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; } }}
+                  >
+                    <div style={{ fontSize: 30, marginBottom: 10 }}>{card.emoji}</div>
+                    <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, marginBottom: 6, color: active ? 'var(--accent)' : 'var(--text-primary)', lineHeight: 1.3 }}>{card.title}</div>
+                    <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>{card.desc}</p>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {projectContextCard}
           {roleDescCard}
-          <form onSubmit={handleSubmit}>
-            {!project && (
-              <div className="form-group" id="join-form-intent">
-                <label className="form-label">{t('join.intent')}</label>
-                <select className="form-input form-select" value={formData.intent} onChange={e => handleChange('intent', e.target.value)}>
-                  <option value="">—</option>
-                  {Object.entries(t('join.intents')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </div>
-            )}
 
-            {/* Mentor / Sponsor extra fields */}
-            {isMentorSponsor && (
-              <>
-                <div className="grid grid-2">
-                  <div className="form-group">
-                    <label className="form-label">{t('join.company')}</label>
-                    <input className="form-input" value={formData.company} onChange={e => handleChange('company', e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{t('join.expertise')}</label>
-                    <input className="form-input" placeholder={lang === 'tr' ? 'ör. Fintech, Ürün Yönetimi' : 'e.g. Fintech, Product Management'} value={formData.expertise} onChange={e => handleChange('expertise', e.target.value)} />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('join.mentorNote')}</label>
-                  <textarea className="form-input" maxLength={300} placeholder={t('join.mentorNotePlaceholder')} value={formData.mentorNote} onChange={e => handleChange('mentorNote', e.target.value)} style={{ minHeight: 100 }} />
-                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'right', marginTop: 4 }}>{formData.mentorNote.length}/300</div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('join.linkedin')}</label>
-                  <input className="form-input" placeholder="linkedin.com/in/..." value={formData.linkedin} onChange={e => handleChange('linkedin', e.target.value)} />
-                </div>
-              </>
-            )}
+          {/* Forms — appear after type selection */}
+          {(joinType || project) && (
+            <div id="join-form-section">
 
-            <div className="grid grid-2">
-              <div className="form-group">
-                <label className="form-label">{t('join.name')}</label>
-                <input className="form-input" required value={formData.name} onChange={e => handleChange('name', e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">{t('join.email')}</label>
-                <input type="email" className="form-input" required value={formData.email} onChange={e => handleChange('email', e.target.value)} />
-              </div>
+              {/* COMMUNITY FORM */}
+              {(joinType === 'community' || project) && (
+                <form onSubmit={handleSubmit}>
+                  <div className="grid grid-2">
+                    <div className="form-group">
+                      <label className="form-label">{t('join.name')}</label>
+                      <input className="form-input" required value={communityForm.name} onChange={e => handleC('name', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('join.email')}</label>
+                      <input type="email" className="form-input" required value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-2">
+                    <div className="form-group">
+                      <label className="form-label">{t('join.university')}</label>
+                      <input className="form-input" value={communityForm.university} onChange={e => handleC('university', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('join.department')}</label>
+                      <input className="form-input" value={communityForm.department} onChange={e => handleC('department', e.target.value)} />
+                    </div>
+                  </div>
+                  {!project && (
+                    <div className="form-group">
+                      <label className="form-label">{t('join.intent')}</label>
+                      <select className="form-input form-select" value={communityForm.intent} onChange={e => handleC('intent', e.target.value)}>
+                        <option value="community">{lang === 'tr' ? 'Topluluğa Katılmak İstiyorum' : 'Join the community'}</option>
+                        {Object.entries(t('join.intents')).filter(([k]) => !['mentor','sponsor'].includes(k)).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div className="form-group">
+                    <label className="form-label">{t('join.role')}</label>
+                    <select className="form-input form-select" value={communityForm.role} onChange={e => handleC('role', e.target.value)}>
+                      <option value="">—</option>
+                      {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{t('join.bio')}</label>
+                    <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={communityForm.bio} onChange={e => handleC('bio', e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{t('join.skills')}</label>
+                    <input className="form-input" placeholder={t('join.skillsPlaceholder')} value={communityForm.skills} onChange={e => handleC('skills', e.target.value)} />
+                  </div>
+                  <div className="grid grid-2">
+                    <div className="form-group">
+                      <label className="form-label">{t('join.linkedin')}</label>
+                      <input className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('join.portfolio')}</label>
+                      <input className="form-input" placeholder="github.com/..." value={communityForm.portfolio} onChange={e => handleC('portfolio', e.target.value)} />
+                    </div>
+                  </div>
+                  {errorBanner}
+                  {submitBtn}
+                </form>
+              )}
+
+              {/* MENTOR FORM */}
+              {joinType === 'mentor' && (
+                <form onSubmit={handleSubmit}>
+                  <div className="grid grid-2">
+                    <div className="form-group">
+                      <label className="form-label">{t('join.name')}</label>
+                      <input className="form-input" required value={mentorForm.name} onChange={e => handleM('name', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('join.email')}</label>
+                      <input type="email" className="form-input" required value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{lang === 'tr' ? 'Uzmanlık Alanı' : 'Area of Expertise'}</label>
+                    <input className="form-input" placeholder={lang === 'tr' ? 'ör. Fintech, Ürün Yönetimi, Pazarlama' : 'e.g. Fintech, Product Management, Marketing'} value={mentorForm.expertise} onChange={e => handleM('expertise', e.target.value)} />
+                  </div>
+                  <div className="grid grid-2">
+                    <div className="form-group">
+                      <label className="form-label">{lang === 'tr' ? 'Deneyim Yılı' : 'Years of Experience'}</label>
+                      <select className="form-input form-select" value={mentorForm.experience_years} onChange={e => handleM('experience_years', e.target.value)}>
+                        <option value="">—</option>
+                        <option value="1-3">1–3 {lang === 'tr' ? 'yıl' : 'years'}</option>
+                        <option value="3-5">3–5 {lang === 'tr' ? 'yıl' : 'years'}</option>
+                        <option value="5-10">5–10 {lang === 'tr' ? 'yıl' : 'years'}</option>
+                        <option value="10+">10+ {lang === 'tr' ? 'yıl' : 'years'}</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{lang === 'tr' ? 'Haftalık Uygun Saat' : 'Hours per Week'}</label>
+                      <select className="form-input form-select" value={mentorForm.hours_per_week} onChange={e => handleM('hours_per_week', e.target.value)}>
+                        <option value="">—</option>
+                        <option value="1-2">1–2 {lang === 'tr' ? 'saat' : 'hours'}</option>
+                        <option value="2-4">2–4 {lang === 'tr' ? 'saat' : 'hours'}</option>
+                        <option value="4+">4+ {lang === 'tr' ? 'saat' : 'hours'}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{lang === 'tr' ? 'Mevcut Şirket / Kurum' : 'Current Company / Organization'}</label>
+                    <input className="form-input" value={mentorForm.current_company} onChange={e => handleM('current_company', e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">LinkedIn</label>
+                    <input className="form-input" placeholder="linkedin.com/in/..." value={mentorForm.linkedin} onChange={e => handleM('linkedin', e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{lang === 'tr' ? 'Neden mentör olmak istiyorsunuz?' : 'Why do you want to mentor?'}</label>
+                    <textarea className="form-input" maxLength={400} placeholder={lang === 'tr' ? 'Kısaca açıklayın…' : 'Briefly explain…'} value={mentorForm.mentor_note} onChange={e => handleM('mentor_note', e.target.value)} style={{ minHeight: 110 }} />
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'right', marginTop: 4 }}>{mentorForm.mentor_note.length}/400</div>
+                  </div>
+                  {errorBanner}
+                  {submitBtn}
+                </form>
+              )}
+
+              {/* SPONSOR FORM */}
+              {joinType === 'sponsor' && (
+                <form onSubmit={handleSubmit}>
+                  <div className="grid grid-2">
+                    <div className="form-group">
+                      <label className="form-label">{lang === 'tr' ? 'İletişim Kişisi' : 'Contact Name'}</label>
+                      <input className="form-input" required value={sponsorForm.contact_name} onChange={e => handleS('contact_name', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('join.email')}</label>
+                      <input type="email" className="form-input" required value={sponsorForm.email} onChange={e => handleS('email', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-2">
+                    <div className="form-group">
+                      <label className="form-label">{lang === 'tr' ? 'Şirket / Kurum Adı' : 'Company / Organization'}</label>
+                      <input className="form-input" value={sponsorForm.company} onChange={e => handleS('company', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{lang === 'tr' ? 'Web Sitesi' : 'Website'}</label>
+                      <input className="form-input" placeholder="https://..." value={sponsorForm.website} onChange={e => handleS('website', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ marginBottom: 10 }}>{lang === 'tr' ? 'İşbirliği Türü' : 'Collaboration Type'}</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {collabOptions.map(opt => {
+                        const checked = sponsorForm.collab_types.includes(opt);
+                        return (
+                          <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 14, color: 'var(--text-primary)', padding: '7px 14px', borderRadius: 8, border: checked ? '1.5px solid var(--accent)' : '1.5px solid var(--border)', background: checked ? 'color-mix(in srgb, var(--accent) 8%, var(--card-bg))' : 'var(--card-bg)', transition: 'all 0.15s', userSelect: 'none' }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleCollab(opt)} style={{ accentColor: 'var(--accent)', width: 15, height: 15 }} />
+                            {opt}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{lang === 'tr' ? 'Mesajınız (opsiyonel)' : 'Message (optional)'}</label>
+                    <textarea className="form-input" maxLength={500} placeholder={lang === 'tr' ? 'Nasıl katkı sağlamak istediğinizi anlatın…' : "Tell us how you'd like to contribute…"} value={sponsorForm.sponsor_message} onChange={e => handleS('sponsor_message', e.target.value)} style={{ minHeight: 110 }} />
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'right', marginTop: 4 }}>{sponsorForm.sponsor_message.length}/500</div>
+                  </div>
+                  {errorBanner}
+                  {submitBtn}
+                </form>
+              )}
+
             </div>
-            {!isMentorSponsor && (
-              <>
-                <div className="grid grid-2">
-                  <div className="form-group">
-                    <label className="form-label">{t('join.university')}</label>
-                    <input className="form-input" value={formData.university} onChange={e => handleChange('university', e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{t('join.department')}</label>
-                    <input className="form-input" value={formData.department} onChange={e => handleChange('department', e.target.value)} />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('join.role')}</label>
-                  <select className="form-input form-select" value={formData.role} onChange={e => handleChange('role', e.target.value)}>
-                    <option value="">—</option>
-                    {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('join.bio')}</label>
-                  <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={formData.bio} onChange={e => handleChange('bio', e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('join.skills')}</label>
-                  <input className="form-input" placeholder={t('join.skillsPlaceholder')} value={formData.skills} onChange={e => handleChange('skills', e.target.value)} />
-                </div>
-                <div className="grid grid-2">
-                  <div className="form-group">
-                    <label className="form-label">{t('join.linkedin')}</label>
-                    <input className="form-input" placeholder="linkedin.com/in/..." value={formData.linkedin} onChange={e => handleChange('linkedin', e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{t('join.portfolio')}</label>
-                    <input className="form-input" placeholder="github.com/..." value={formData.portfolio} onChange={e => handleChange('portfolio', e.target.value)} />
-                  </div>
-                </div>
-              </>
-            )}
-            {submitError && (
-              <div style={{ padding: '10px 14px', background: 'var(--red-light, #FEF2F2)', border: '1px solid #FECACA', borderRadius: 8, fontSize: 14, color: 'var(--red, #DC2626)', marginBottom: 12 }}>
-                {submitError}
-              </div>
-            )}
-            <div style={{ paddingTop: 12 }}>
-              <Button variant="primary" size="lg" iconRight="arrowRight" style={{ width: '100%', opacity: submitting ? 0.7 : 1, pointerEvents: submitting ? 'none' : undefined }}>
-                {submitting ? (lang === 'tr' ? 'Gönderiliyor…' : 'Sending…') : t('join.submit')}
-              </Button>
+          )}
+
+          {/* Prompt to select a type when none selected */}
+          {!joinType && !project && (
+            <div style={{ textAlign: 'center', padding: '24px 0 48px', color: 'var(--text-tertiary)', fontSize: 15 }}>
+              {lang === 'tr' ? '↑ Katılım türünü seç' : '↑ Choose how you want to join'}
             </div>
-          </form>
+          )}
+
         </div>
       </section>
     </div>

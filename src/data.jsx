@@ -812,7 +812,11 @@ const resolveStat = (key) => {
 //      CREATE POLICY "auth write" ON site_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 // ============================================
 const SETTINGS_DEFAULTS = {
-  company_linkedin: 'https://www.linkedin.com/company/111725833/',
+  company_linkedin:    'https://www.linkedin.com/company/111725833/',
+  contact_email:       'iletisim@starthub-community.com',
+  announcement_active: false,
+  announcement_text:   '',
+  maintenance_mode:    false,
 };
 let settingsCache = { ...SETTINGS_DEFAULTS };
 let settingsLoaded = false;
@@ -821,13 +825,20 @@ function useSiteSettings() {
   const [settings, setSettings] = useState(() => ({ ...settingsCache }));
   useEffect(() => {
     if (settingsLoaded) { setSettings({ ...settingsCache }); return; }
-    supabase.from('sh_site_settings').select('key, value').then(({ data }) => {
-      if (data?.length) {
-        settingsLoaded = true;
-        data.forEach(row => { settingsCache[row.key] = row.value; });
-        setSettings({ ...settingsCache });
-      }
-    });
+    supabase.from('site_settings')
+      .select('company_linkedin, contact_email, announcement_text, announcement_active, maintenance_mode')
+      .eq('id', 1).single()
+      .then(({ data }) => {
+        if (data) {
+          settingsLoaded = true;
+          if (data.company_linkedin)  settingsCache.company_linkedin    = data.company_linkedin;
+          if (data.contact_email)     settingsCache.contact_email       = data.contact_email;
+          settingsCache.announcement_active = data.announcement_active ?? false;
+          settingsCache.announcement_text   = data.announcement_text   ?? '';
+          settingsCache.maintenance_mode    = data.maintenance_mode    ?? false;
+          setSettings({ ...settingsCache });
+        }
+      });
   }, []);
   return settings;
 }

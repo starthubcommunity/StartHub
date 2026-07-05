@@ -1,6 +1,6 @@
 // app.jsx — Main App with routing, tweaks, and state management
 import { useState as useStateApp, useEffect as useEffectApp, useCallback as useCallbackApp, useRef as useRefApp } from 'react';
-import { LangProvider, usePosts, getPostBySlug, getPostSlug, getPost } from './data';
+import { LangProvider, usePosts, getPostBySlug, getPostSlug, getPost, useSiteSettings } from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor } from './tweaks-panel';
 import { Navbar, Footer } from './layout';
 import { HomePage } from './home-page';
@@ -181,6 +181,37 @@ function App() {
 
   return (
     <LangProvider lang={lang} setLang={setLang}>
+      <AppShell lang={lang} currentPage={currentPage} selectedId={selectedId} navigate={navigate} renderPage={renderPage} />
+    </LangProvider>
+  );
+}
+
+function AppShell({ lang, currentPage, selectedId, navigate, renderPage }) {
+  const settings = useSiteSettings();
+
+  if (settings.maintenance_mode) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, textAlign: 'center', padding: 32 }}>
+        <div style={{ fontSize: 48 }}>🔧</div>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28, fontWeight: 800 }}>
+          {lang === 'tr' ? 'Site Bakımda' : 'Site Under Maintenance'}
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', maxWidth: 400 }}>
+          {lang === 'tr'
+            ? 'Sitemiz şu an bakım çalışması nedeniyle geçici olarak kapalıdır. Kısa süre içinde geri döneceğiz.'
+            : 'Our site is temporarily down for maintenance. We\'ll be back shortly.'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {settings.announcement_active && settings.announcement_text && (
+        <div style={{ background: '#DC2626', color: '#fff', textAlign: 'center', padding: '10px 16px', fontSize: 14, fontWeight: 500, position: 'relative', zIndex: 200 }}>
+          {settings.announcement_text}
+        </div>
+      )}
       <Navbar currentPage={currentPage} navigate={navigate} />
       <main key={currentPage + ':' + selectedId}>
         {renderPage()}
@@ -209,7 +240,7 @@ function App() {
           onChange={(v) => setTweak('language', v)}
         />
       </TweaksPanel>
-    </LangProvider>
+    </>
   );
 }
 
