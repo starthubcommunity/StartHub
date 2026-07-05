@@ -138,21 +138,21 @@ function Footer({ navigate }) {
               <h4 className="footer__col-title">{t('footer.company')}</h4>
               <a className="footer__link" onClick={() => handleNav('about')} style={{ cursor: 'pointer' }}>{t('nav.about')}</a>
               <a className="footer__link" onClick={() => handleNav('home')} style={{ cursor: 'pointer' }}>{t('nav.home')}</a>
-              <button className="footer__link" onClick={() => setPrivacyOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)', textAlign: 'left' }}>
+              <button className="footer__link" onClick={() => setPrivacyOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', textAlign: 'left' }}>
                 {lang === 'tr' ? 'Gizlilik Politikası' : 'Privacy Policy'}
               </button>
-              <button className="footer__link" onClick={() => setTermsOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)', textAlign: 'left' }}>
+              <button className="footer__link" onClick={() => setTermsOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', textAlign: 'left' }}>
                 {lang === 'tr' ? 'Kullanım Koşulları' : 'Terms of Use'}
               </button>
             </div>
 
             <div>
               <h4 className="footer__col-title">{t('footer.connect')}</h4>
-              <a className="footer__link" href={linkedinUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <a className="footer__link" href={linkedinUrl} target="_blank" rel="noopener noreferrer">
                 <Icon name="linkedin" size={14} /> LinkedIn
               </a>
               <button className="footer__link" onClick={copyEmail}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)', color: emailCopied ? 'var(--green)' : undefined }}>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', color: emailCopied ? 'var(--green)' : undefined }}>
                 <Icon name="mail" size={14} />
                 {emailCopied
                   ? (lang === 'tr' ? 'Kopyalandı!' : 'Copied!')
