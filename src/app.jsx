@@ -181,12 +181,12 @@ function App() {
 
   return (
     <LangProvider lang={lang} setLang={setLang}>
-      <AppShell lang={lang} currentPage={currentPage} selectedId={selectedId} navigate={navigate} renderPage={renderPage} />
+      <AppShell lang={lang} currentPage={currentPage} selectedId={selectedId} navigate={navigate} renderPage={renderPage} tweaks={tweaks} setTweak={setTweak} />
     </LangProvider>
   );
 }
 
-function AppShell({ lang, currentPage, selectedId, navigate, renderPage }) {
+function AppShell({ lang, currentPage, selectedId, navigate, renderPage, tweaks, setTweak }) {
   const settings = useSiteSettings();
 
   if (settings.maintenance_mode) {
