@@ -1,7 +1,7 @@
 // admin-automation.jsx — Otomasyon Kontrol Merkezi
 // Tab yapısı: Taslaklar | Kaynaklar | Kelimeler | Ton & Ayarlar | Loglar
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AIcon, Modal, Field, Input, Textarea, PageHead, TagInput } from './admin-ui';
+import { AIcon, Modal, Field, Input, PageHead, TagInput } from './admin-ui';
 import { supabase } from '../lib/supabase';
 
 // ── Sabitler ─────────────────────────────────────────────────────────────────
@@ -71,18 +71,6 @@ function AutomationPage() {
   const [toneBanned,        setToneBanned]         = useState([]);
   const [settingsLoaded,    setSettingsLoaded]     = useState(false);
   const [savingSettings,    setSavingSettings]     = useState(false);
-  // Site genel ayarları
-  const [siteName,            setSiteName]            = useState('Start-Hub');
-  const [siteTaglineTr,       setSiteTaglineTr]       = useState('');
-  const [siteTaglineEn,       setSiteTaglineEn]       = useState('');
-  const [siteLinkedin,        setSiteLinkedin]        = useState('https://www.linkedin.com/company/111725833/');
-  const [contactEmail,        setContactEmail]        = useState('iletisim@starthub-community.com');
-  const [twitterUrl,          setTwitterUrl]          = useState('');
-  const [instagramUrl,        setInstagramUrl]        = useState('');
-  const [announcementText,    setAnnouncementText]    = useState('');
-  const [announcementActive,  setAnnouncementActive]  = useState(false);
-  const [maintenanceMode,     setMaintenanceMode]     = useState(false);
-  const [savingSiteSettings,  setSavingSiteSettings]  = useState(false);
 
   const loadSettings = useCallback(async () => {
     const { data } = await supabase
@@ -95,16 +83,6 @@ function AutomationPage() {
     setToneLevel(data.tone_level ?? 3);
     setToneExtra(data.tone_extra_instructions || {});
     setToneBanned(data.tone_banned_phrases || []);
-    if (data.site_name)          setSiteName(data.site_name);
-    if (data.site_tagline_tr != null) setSiteTaglineTr(data.site_tagline_tr);
-    if (data.site_tagline_en != null) setSiteTaglineEn(data.site_tagline_en);
-    if (data.company_linkedin)   setSiteLinkedin(data.company_linkedin);
-    if (data.contact_email)      setContactEmail(data.contact_email);
-    if (data.twitter_url != null) setTwitterUrl(data.twitter_url);
-    if (data.instagram_url != null) setInstagramUrl(data.instagram_url);
-    if (data.announcement_text != null) setAnnouncementText(data.announcement_text);
-    setAnnouncementActive(data.announcement_active ?? false);
-    setMaintenanceMode(data.maintenance_mode ?? false);
     setSettingsLoaded(true);
   }, []);
 
@@ -913,106 +891,6 @@ function AutomationPage() {
       {/* ── TAB: TON & AYARLAR ─────────────────────────────────────────── */}
       {activeTab === 'settings' && (
         <div>
-          {/* ── Site Genel Ayarları ─────────────────────────────────────── */}
-          <div className="adm-card" style={{ marginBottom: 20 }}>
-            <div className="adm-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>Site Genel Ayarları</h3>
-              {savingSiteSettings && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', display: 'flex', gap: 6 }}><span className="adm-spinner"></span> Kaydediliyor…</span>}
-            </div>
-            <div className="adm-card__body">
-              {/* Site kimliği */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-                <Field label="Site Adı">
-                  <Input value={siteName} onChange={setSiteName} placeholder="Start-Hub" />
-                </Field>
-                <Field label="İletişim E-postası">
-                  <Input type="email" value={contactEmail} onChange={setContactEmail} placeholder="iletisim@..." />
-                </Field>
-                <Field label="Slogan (TR)">
-                  <Input value={siteTaglineTr} onChange={setSiteTaglineTr} placeholder="Fikirlerden girişimlere." />
-                </Field>
-                <Field label="Slogan (EN)">
-                  <Input value={siteTaglineEn} onChange={setSiteTaglineEn} placeholder="From ideas to startups." />
-                </Field>
-              </div>
-
-              {/* Sosyal medya */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16, borderTop: '1px solid var(--adm-border-light)', paddingTop: 16 }}>
-                <Field label="Şirket LinkedIn URL">
-                  <Input value={siteLinkedin} onChange={setSiteLinkedin} placeholder="https://www.linkedin.com/company/..." />
-                </Field>
-                <Field label="Twitter / X URL">
-                  <Input value={twitterUrl} onChange={setTwitterUrl} placeholder="https://x.com/..." />
-                </Field>
-                <Field label="Instagram URL">
-                  <Input value={instagramUrl} onChange={setInstagramUrl} placeholder="https://instagram.com/..." />
-                </Field>
-              </div>
-
-              {/* Duyuru banner */}
-              <div style={{ borderTop: '1px solid var(--adm-border-light)', paddingTop: 16, marginBottom: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>Duyuru Bandı</div>
-                    <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Açıkken tüm site sayfalarının üstünde gösterilir.</div>
-                  </div>
-                  <label className="adm-switch">
-                    <input type="checkbox" checked={announcementActive} onChange={e => setAnnouncementActive(e.target.checked)} />
-                    <span></span>
-                  </label>
-                </div>
-                <Field label="Duyuru Metni">
-                  <Textarea value={announcementText} onChange={setAnnouncementText} rows={2} placeholder="ör. Aylık buluşmamız 12 Temmuz Cumartesi 15:00'te!" />
-                </Field>
-              </div>
-
-              {/* Bakım modu */}
-              <div style={{ borderTop: '1px solid var(--adm-border-light)', paddingTop: 16, marginBottom: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>Bakım Modu</div>
-                    <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Açıkken ziyaretçilere "Bakımdayız" sayfası gösterilir. Admin paneli etkilenmez.</div>
-                    {maintenanceMode && (
-                      <div style={{ marginTop: 6, fontSize: 12, color: '#DC2626', background: '#FEF2F2', borderRadius: 6, padding: '4px 10px', display: 'inline-block' }}>
-                        ⚠ Site şu an bakım modunda — ziyaretçiler sayfayı göremez!
-                      </div>
-                    )}
-                  </div>
-                  <label className="adm-switch">
-                    <input type="checkbox" checked={maintenanceMode} onChange={e => setMaintenanceMode(e.target.checked)} />
-                    <span></span>
-                  </label>
-                </div>
-              </div>
-
-              <button
-                className="adm-btn adm-btn--primary"
-                disabled={savingSiteSettings}
-                onClick={async () => {
-                  setSavingSiteSettings(true);
-                  const { error } = await supabase.from('site_settings').upsert({
-                    id: 1,
-                    site_name:           siteName,
-                    site_tagline_tr:     siteTaglineTr,
-                    site_tagline_en:     siteTaglineEn,
-                    company_linkedin:    siteLinkedin,
-                    contact_email:       contactEmail,
-                    twitter_url:         twitterUrl,
-                    instagram_url:       instagramUrl,
-                    announcement_text:   announcementText,
-                    announcement_active: announcementActive,
-                    maintenance_mode:    maintenanceMode,
-                    updated_at:          new Date().toISOString(),
-                  });
-                  setSavingSiteSettings(false);
-                  if (error) flash('Kaydedilemedi: ' + error.message, 'orange');
-                  else flash('Site ayarları kaydedildi.');
-                }}>
-                <AIcon name="check" size={15} /> Site Ayarlarını Kaydet
-              </button>
-            </div>
-          </div>
-
           {/* Yazı Tonu */}
           <div className="adm-card" style={{ marginBottom: 20 }}>
             <div className="adm-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
