@@ -6,6 +6,7 @@ import { AIcon } from './admin-ui';
 import { DashboardPage, ProjectsPage } from './admin-pages';
 import { ContentPage } from './admin-pages3';
 import { AutomationPage } from './admin-automation';
+import { AnalyticsPage } from './admin-analytics';
 import { PeoplePage, SponsorsPage, TrashPage } from './admin-pages2';
 import { ApplicationsPage } from './admin-applications';
 import { SettingsPage } from './admin-settings';
@@ -117,6 +118,7 @@ function AdminApp() {
     { id: 'dashboard',     label: 'Dashboard',       icon: 'dashboard' },
     { id: 'projects',      label: 'Projeler',         icon: 'rocket' },
     { id: 'posts',         label: 'Yazılar',          icon: 'layers' },
+    { id: 'analytics',     label: 'Analitik',         icon: 'trendingUp' },
     { id: 'automation',    label: 'Otomasyon',        icon: 'zap' },
     { id: 'people',        label: 'Ekip & Mentörler', icon: 'users' },
     { id: 'sponsors',      label: 'Destekçiler',      icon: 'handshake' },
@@ -129,6 +131,7 @@ function AdminApp() {
     switch (page) {
       case 'projects':   return <ProjectsPage />;
       case 'posts':      return <ContentPage />;
+      case 'analytics':  return <AnalyticsPage />;
       case 'automation': return <AutomationPage />;
       case 'people':     return <PeoplePage />;
       case 'sponsors':      return <SponsorsPage />;

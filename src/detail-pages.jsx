@@ -1,8 +1,9 @@
 // detail-pages.jsx — Project detail & Post detail pages
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLang, getProject, getPost, postsForProject, getPerson, people, startups, usePosts } from './data';
 import { Icon, Button, Reveal, Avatar, PostCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
 import { CTASection } from './layout';
+import { trackPostView } from './lib/post-analytics';
 
 // Pozisyon bazlı kısa görev tanımları (rol adındaki anahtar kelimeye göre eşleşir)
 const ROLE_DESCRIPTIONS = {
@@ -238,6 +239,10 @@ function PostDetailPage({ postId, navigate }) {
   const { posts } = usePosts();
   const [shareCopied, setShareCopied] = useState(false);
   const post = getPost(postId);
+  useEffect(() => {
+    if (!post) return;
+    return trackPostView(post.slug || String(post.id), lang);
+  }, [post?.id, lang]);
   if (!post) return null;
   const author = getPerson(post.authorId);
   const project = post.projectId ? getProject(post.projectId) : null;
