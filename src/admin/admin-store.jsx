@@ -407,10 +407,6 @@ function AdminProvider({ children }) {
     setData(prev => ({ ...prev, siteStats: { ...prev.siteStats, [key]: { ...prev.siteStats[key], ...patch } } }));
   }, []);
 
-  const resetAll = useCallbackS(() => {
-    setData(prev => ({ ...prev, siteStats: clone(defaultStats) }));
-  }, []);
-
   const counts = {
     members:     data.people.length,
     teamCount:   data.people.filter(p => p.type === 'team').length,
@@ -442,7 +438,7 @@ function AdminProvider({ children }) {
       addItem, updateItem, deleteItem,
       clearFlagExcept, countFlag,
       restoreItem, purgeItem, emptyTrash,
-      setStat, statValue, resetAll,
+      setStat, statValue,
       COLLECTIONS,
     }
   }, children);

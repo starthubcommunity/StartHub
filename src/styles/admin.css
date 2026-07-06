@@ -660,9 +660,18 @@ body {
 /* Automation page */
 .adm-auto-status {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 14px; margin-top: 4px;
+  padding: 12px 18px;
   background: var(--adm-blue-light); color: var(--adm-blue);
   border-radius: var(--adm-r-sm); font-size: 13px; font-weight: 500;
+  /* Sabit (fixed) konum: uzun sekmelerde aşağı kaydırılmış olsa bile
+     kaydetme geri bildirimi ekran dışında kalmasın. */
+  position: fixed; top: 20px; right: 20px; z-index: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  animation: adm-toast-in 0.25s ease;
+}
+@keyframes adm-toast-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .adm-manual-pub {
   display: flex; align-items: center; justify-content: space-between; gap: 20px;

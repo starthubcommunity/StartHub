@@ -374,13 +374,27 @@ function AutomationPage() {
   const [triggerMsg,  setTriggerMsg] = useState(null);
   const [patModal,    setPatModal]   = useState(false);
   const [patInput,    setPatInput]   = useState('');
+  // Tetikleme sonrası bekleme süresi (sn) — üretim arka planda dakikalarca
+  // sürdüğü için buton bu süre boyunca kilitli kalır, aynı çalışma tekrar
+  // tetiklenemez.
+  const TRIGGER_COOLDOWN = 180;
+  const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => { localStorage.setItem('sh_gh_token', ghToken); }, [ghToken]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown(c => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [cooldown > 0]);
+
+  const cooldownLabel = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   const triggerWorkflow = async (token) => {
     const tok = (token || ghToken).trim();
     if (!tok) { setPatModal(true); return; }
     if (todayUsage >= GEMINI_LIMIT) { flash('Günlük Gemini kotası doldu.', 'orange'); return; }
+    if (cooldown > 0) return;
     setTriggering(true);
     setTriggerMsg(null);
     try {
@@ -400,6 +414,7 @@ function AutomationPage() {
         flash('Otomasyon tetiklendi! Birkaç dakika içinde taslaklar oluşur.');
         setTriggerMsg({ ok: true, text: 'Tetiklendi! GitHub Actions loglarını kontrol edebilirsin.' });
         setTimeout(() => setTriggerMsg(null), 8000);
+        setCooldown(TRIGGER_COOLDOWN);
       } else {
         const d = await res.json().catch(() => ({}));
         const msg = `GitHub API hatası ${res.status}: ${d?.message || ''}`;
@@ -471,12 +486,14 @@ function AutomationPage() {
             <button
               className="adm-btn adm-btn--primary"
               onClick={() => triggerWorkflow()}
-              disabled={triggering || todayUsage >= GEMINI_LIMIT}
-              title={ghToken ? 'GitHub Actions tetikle' : 'GitHub PAT gerekli'}
-              style={{ opacity: todayUsage >= GEMINI_LIMIT ? 0.5 : 1 }}
+              disabled={triggering || cooldown > 0 || todayUsage >= GEMINI_LIMIT}
+              title={cooldown > 0 ? 'Önceki çalışma sürüyor olabilir, kısa süre sonra tekrar dene' : ghToken ? 'GitHub Actions tetikle' : 'GitHub PAT gerekli'}
+              style={{ opacity: (todayUsage >= GEMINI_LIMIT || cooldown > 0) ? 0.5 : 1 }}
             >
               {triggering
                 ? <><span className="adm-spinner"></span> Tetikleniyor…</>
+                : cooldown > 0
+                ? <><AIcon name="clock" size={15} /> Bekle ({cooldownLabel(cooldown)})</>
                 : <><AIcon name="zap" size={15} /> Şimdi Çalıştır</>}
             </button>
             <div style={{ width: 1, height: 24, background: 'var(--adm-border-light)' }} />
@@ -494,7 +511,6 @@ function AutomationPage() {
       {/* Toast */}
       {toast && (
         <div className="adm-auto-status" style={{
-          marginBottom: 16,
           background: toast.kind === 'orange' ? 'var(--adm-orange-light)' : 'var(--adm-green-light)',
           color: toast.kind === 'orange' ? 'var(--adm-orange)' : 'var(--adm-green)',
         }}>
@@ -584,14 +600,19 @@ function AutomationPage() {
                   <button
                     className="adm-btn adm-btn--primary"
                     onClick={() => triggerWorkflow()}
-                    disabled={triggering || todayUsage >= GEMINI_LIMIT}
+                    disabled={triggering || cooldown > 0 || todayUsage >= GEMINI_LIMIT}
                   >
                     {triggering
                       ? <><span className="adm-spinner"></span> Tetikleniyor…</>
+                      : cooldown > 0
+                      ? <><AIcon name="clock" size={15} /> Bekle ({cooldownLabel(cooldown)})</>
                       : <><AIcon name="zap" size={15} /> Otomasyonu Tetikle</>}
                   </button>
                   {todayUsage >= GEMINI_LIMIT && (
                     <div style={{ marginTop: 8, fontSize: 12, color: 'var(--adm-orange)' }}>Günlük Gemini kotası doldu, yarın sıfırlanır.</div>
+                  )}
+                  {cooldown > 0 && todayUsage < GEMINI_LIMIT && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--adm-text-dim)' }}>Önceki çalışma birkaç dakika sürebilir, bu yüzden buton geçici olarak kilitli.</div>
                   )}
                 </div>
               ) : (
@@ -1062,12 +1083,14 @@ function AutomationPage() {
               <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
                   className="adm-btn adm-btn--primary"
-                  onClick={triggerWorkflow}
-                  disabled={triggering || !ghToken.trim() || todayUsage >= GEMINI_LIMIT}
-                  style={{ opacity: todayUsage >= GEMINI_LIMIT ? 0.5 : 1 }}
+                  onClick={() => triggerWorkflow()}
+                  disabled={triggering || cooldown > 0 || !ghToken.trim() || todayUsage >= GEMINI_LIMIT}
+                  style={{ opacity: (todayUsage >= GEMINI_LIMIT || cooldown > 0) ? 0.5 : 1 }}
                 >
                   {triggering
                     ? <><span className="adm-spinner"></span> Tetikleniyor…</>
+                    : cooldown > 0
+                    ? <><AIcon name="clock" size={15} /> Bekle ({cooldownLabel(cooldown)})</>
                     : <><AIcon name="zap" size={15} /> Şimdi Çalıştır</>}
                 </button>
                 <a

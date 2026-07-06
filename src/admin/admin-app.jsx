@@ -85,7 +85,7 @@ function AdminApp() {
   const [session, setSession]         = useStateA(null);
   const [authLoading, setAuthLoading] = useStateA(true);
   const [page, setPage]               = useStateA(() => sessionStorage.getItem('sh_adm_page') || 'dashboard');
-  const { resetAll, trash, saveError } = useAdmin();
+  const { trash, saveError } = useAdmin();
 
   // Tüm hook'lar koşulsuz — early return'lardan önce
   useEffectA(() => {
@@ -163,10 +163,6 @@ function AdminApp() {
         </nav>
 
         <div className="adm-sidebar__footer">
-          <button className="adm-sidebar__link" onClick={resetAll} title="Tüm değişiklikleri sıfırla">
-            <AIcon name="refresh" size={18} />
-            <span>Sıfırla</span>
-          </button>
           <a className="adm-sidebar__link" href="/">
             <AIcon name="eye" size={18} />
             <span>Siteyi Görüntüle</span>
