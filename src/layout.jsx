@@ -20,8 +20,8 @@ function Navbar({ currentPage, navigate }) {
 
   const navItems = [
     { key: 'home',  label: t('nav.home') },
-    { key: 'labs',  label: t('nav.labs') },
     { key: 'blog',  label: t('nav.blog') },
+    { key: 'labs',  label: t('nav.labs') },
     { key: 'about', label: t('nav.about') },
   ];
 
