@@ -89,6 +89,7 @@ def publish_article(article: dict, dry_run: bool = False,
         "recommended":   False,
         "status":        "published" if auto_publish else "draft",
         "published_at":  now_iso if auto_publish else None,
+        "generated_at":  now_iso,
     }
 
     if dry_run:

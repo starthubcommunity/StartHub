@@ -4,7 +4,7 @@ run.py — Orkestratör. GitHub Actions cron (her saat) / workflow_dispatch ile 
 Başlangıç kontrolleri (sırayla):
   0a. Supabase'den ayarları oku
   0b. automation_enabled=False → sessizce çık
-  0c. Şu anki UTC saati preferred_run_hour değilse çık (--ignore-hour ile atlanır)
+  0c. Şu anki UTC saati preferred_run_hours listesinde yoksa çık (--ignore-hour ile atlanır)
 
 Akış:
   1. RSS tara + filtre + tekrar koruması       (sources.fetch_filtered)
@@ -19,10 +19,21 @@ Akış:
 Modlar : all | generate | regenerate <slug...>
 Bayraklar:
   --dry-run      → hiçbir yere yazılmaz
-  --ignore-hour  → preferred_run_hour kontrolünü atla
+  --ignore-hour  → preferred_run_hours kontrolünü atla
 """
 import sys
 import datetime
+
+# Windows konsolu genelde UTF-8 değildir (cp1252) ve kod tabanındaki ok/kutu
+# çizim karakterleri (←, ═, vb.) print() sırasında UnicodeEncodeError fırlatabilir.
+# Bu, gerçek işlem (ör. Supabase INSERT) başarılı olsa bile "başarısız" gibi
+# raporlanmasına yol açar — bu yüzden stdout/stderr'i baştan UTF-8'e sabitliyoruz.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from config import DAILY_LIMIT, SUPABASE_URL, SUPABASE_SERVICE_KEY
 from supabase import create_client
 import sources
@@ -48,26 +59,32 @@ def _read_settings() -> dict:
     defaults = {
         "automation_enabled":      True,
         "auto_publish":            False,
-        "preferred_run_hour":      5,
+        "preferred_run_hours":     [5],
         "enabled_categories":      [],
         "tone_level":              3,
         "tone_extra_instructions": {},
         "tone_banned_phrases":     [],
     }
     try:
+        # select("*") kullanılır: tek tek kolon adı listelemek, ileride eklenecek/eksik
+        # bir kolon yüzünden (PostgREST tüm sorguyu reddeder) TÜM ayarların sessizce
+        # varsayılana düşmesine yol açabiliyor. "*" bu riski tamamen ortadan kaldırır.
         row = (_client()
                .table("site_settings")
-               .select("automation_enabled, auto_publish, preferred_run_hour, "
-                       "enabled_categories, tone_level, tone_extra_instructions, "
-                       "tone_banned_phrases")
+               .select("*")
                .eq("id", 1)
                .single()
                .execute()
                .data or {})
+        raw_hours = row.get("preferred_run_hours")
+        if isinstance(raw_hours, list) and raw_hours:
+            preferred_hours = sorted({int(h) for h in raw_hours})
+        else:
+            preferred_hours = [int(row.get("preferred_run_hour", 5))]
         return {
             "automation_enabled":      bool(row.get("automation_enabled", True)),
             "auto_publish":            bool(row.get("auto_publish", False)),
-            "preferred_run_hour":      int(row.get("preferred_run_hour", 5)),
+            "preferred_run_hours":     preferred_hours,
             "enabled_categories":      row.get("enabled_categories") or [],
             "tone_level":              int(row.get("tone_level", 3)),
             "tone_extra_instructions": row.get("tone_extra_instructions") or {},
@@ -192,12 +209,13 @@ def main():
         _log_run(0, 0, 0, "Otomasyon kapalı")
         return
 
-    # 0c. Tercih edilen saat kontrolü
+    # 0c. Tercih edilen saat(ler) kontrolü
     if not DRY_RUN and not IGNORE_HOUR:
         current_hour = datetime.datetime.now(datetime.timezone.utc).hour
-        preferred    = settings["preferred_run_hour"]
-        if current_hour != preferred:
-            msg = f"Saat eşleşmedi: beklenen {preferred:02d}:00 UTC, şu an {current_hour:02d}:00 UTC"
+        preferred    = settings["preferred_run_hours"]
+        if current_hour not in preferred:
+            preferred_str = ", ".join(f"{h:02d}:00" for h in preferred)
+            msg = f"Saat eşleşmedi: beklenen saatler [{preferred_str}] UTC, şu an {current_hour:02d}:00 UTC"
             print(f"[bilgi] {msg}. Çıkılıyor.")
             _log_run(0, 0, 0, msg)
             return

@@ -64,7 +64,7 @@ function AutomationPage() {
   // ── Site ayarları (Supabase site_settings) ───────────────────────────────
   const [automationEnabled, setAutomationEnabled] = useState(true);
   const [autoPublish,       setAutoPublish]        = useState(false);
-  const [preferredHour,     setPreferredHour]      = useState(5);
+  const [preferredHours,    setPreferredHours]     = useState([5]);
   const [enabledCategories, setEnabledCategories]  = useState([]);
   const [toneLevel,         setToneLevel]          = useState(3);
   const [toneExtra,         setToneExtra]          = useState({});
@@ -78,7 +78,10 @@ function AutomationPage() {
     if (!data) return;
     setAutomationEnabled(data.automation_enabled ?? true);
     setAutoPublish(data.auto_publish ?? false);
-    setPreferredHour(data.preferred_run_hour ?? 5);
+    const hoursArr = Array.isArray(data.preferred_run_hours) && data.preferred_run_hours.length
+      ? [...new Set(data.preferred_run_hours.map(Number))].sort((a, b) => a - b)
+      : [Number(data.preferred_run_hour ?? 5)];
+    setPreferredHours(hoursArr);
     setEnabledCategories(data.enabled_categories || []);
     setToneLevel(data.tone_level ?? 3);
     setToneExtra(data.tone_extra_instructions || {});
@@ -564,7 +567,7 @@ function AutomationPage() {
           <div className="adm-note" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)', marginBottom: 16 }}>
             <AIcon name="settings" size={14} />
             <span>
-              GitHub Actions her saat çalışır, Supabase'deki tercih edilen saatte devreye girer.
+              GitHub Actions her saat çalışır, Supabase'deki tercih edilen saatlerden birinde devreye girer.
               Üretilen taslaklar burada listelenir — <strong>Onayla</strong> ile yayına girer.
               {autoPublish && <strong> Otomatik yayın AÇIK — onay gerekmez.</strong>}
             </span>
@@ -613,7 +616,7 @@ function AutomationPage() {
                             <input type="checkbox" checked={selectedIds.size === drafts.length && drafts.length > 0} onChange={toggleAll}
                               style={{ cursor: 'pointer' }} title="Tümünü seç" />
                           </th>
-                          <th>Başlık</th><th>Etiket</th><th>Tarih</th><th>Kaynak</th><th style={{ textAlign: 'right' }}>İşlem</th>
+                          <th>Başlık</th><th>Etiket</th><th>Üretildi</th><th>Kaynak</th><th style={{ textAlign: 'right' }}>İşlem</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -628,7 +631,7 @@ function AutomationPage() {
                               {d.excerpt_tr && <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>{d.excerpt_tr.slice(0, 90)}{d.excerpt_tr.length > 90 ? '…' : ''}</div>}
                             </td>
                             <td><span className="adm-badge adm-badge--tag">{d.tag || 'gundem'}</span></td>
-                            <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDate(d.date)}</td>
+                            <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{d.generated_at ? fmtDateTime(d.generated_at) : fmtDate(d.date)}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>
                               {d.source ? (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--adm-text-secondary)' }}>
@@ -686,7 +689,7 @@ function AutomationPage() {
                   <div className="adm-table-wrap">
                     <table className="adm-table">
                       <thead>
-                        <tr><th>Başlık</th><th>Etiket</th><th>Tarih</th><th>Kaynak</th><th style={{ textAlign: 'right' }}>İşlem</th></tr>
+                        <tr><th>Başlık</th><th>Etiket</th><th>Üretildi</th><th>Kaynak</th><th style={{ textAlign: 'right' }}>İşlem</th></tr>
                       </thead>
                       <tbody>
                         {rejected.map(r => (
@@ -697,7 +700,7 @@ function AutomationPage() {
                               {r.excerpt_tr && <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>{r.excerpt_tr.slice(0, 90)}{r.excerpt_tr.length > 90 ? '…' : ''}</div>}
                             </td>
                             <td><span className="adm-badge adm-badge--tag">{r.tag || 'gundem'}</span></td>
-                            <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{fmtDate(r.date)}</td>
+                            <td style={{ whiteSpace: 'nowrap', color: 'var(--adm-text-secondary)' }}>{r.generated_at ? fmtDateTime(r.generated_at) : fmtDate(r.date)}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>
                               {r.source ? (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--adm-text-secondary)' }}>
@@ -964,27 +967,36 @@ function AutomationPage() {
                 </label>
               </div>
 
-              {/* Tercih edilen saat */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottom: '1px solid var(--adm-border-light)', marginBottom: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Tercih Edilen Çalışma Saati (UTC)</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
-                    GitHub Actions her saat çalışır; Python bu saati görünce devreye girer.
-                    <br />UTC+3 (TRT) = seçilen saat + 3h
-                  </div>
+              {/* Tercih edilen saat(ler) */}
+              <div style={{ paddingBottom: 16, borderBottom: '1px solid var(--adm-border-light)', marginBottom: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Tercih Edilen Çalışma Saatleri (UTC)</div>
+                <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', marginBottom: 12 }}>
+                  GitHub Actions her saat çalışır; Python seçtiğiniz saatlerden birini görünce devreye girer.
+                  Birden fazla saat seçerek üretimi güne yayabilirsiniz — her seçili saatte ayrı bir üretim turu çalışır (günlük kota her turda ayrı ayrı uygulanır).
+                  <br />UTC+3 (TRT) = seçilen saat + 3s
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <select
-                    className="adm-select"
-                    value={preferredHour}
-                    onChange={e => setPreferredHour(Number(e.target.value))}
-                    style={{ width: 120 }}
-                  >
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <option key={h} value={h}>{String(h).padStart(2, '0')}:00 UTC ({String((h + 3) % 24).padStart(2, '0')}:00 TRT)</option>
-                    ))}
-                  </select>
-                  <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => saveSettings({ preferred_run_hour: preferredHour })}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {Array.from({ length: 24 }, (_, h) => {
+                    const on = preferredHours.includes(h);
+                    return (
+                      <button
+                        key={h}
+                        onClick={() => setPreferredHours(prev => on ? prev.filter(x => x !== h) : [...prev, h].sort((a, b) => a - b))}
+                        title={`${String((h + 3) % 24).padStart(2, '0')}:00 TRT`}
+                        style={{ padding: '6px 10px', borderRadius: 8, border: `2px solid ${on ? 'var(--adm-blue)' : 'var(--adm-border-light)'}`, background: on ? 'var(--adm-blue-light)' : 'var(--adm-bg)', cursor: 'pointer', fontSize: 12.5, fontWeight: on ? 700 : 400, color: on ? 'var(--adm-blue)' : 'var(--adm-text)' }}
+                      >
+                        {String(h).padStart(2, '0')}:00
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
+                    {preferredHours.length === 0
+                      ? 'Hiç saat seçilmedi — otomasyon hiç çalışmaz.'
+                      : `Seçili: ${preferredHours.map(h => `${String(h).padStart(2, '0')}:00`).join(', ')} UTC (TRT: ${preferredHours.map(h => String((h + 3) % 24).padStart(2, '0') + ':00').join(', ')})`}
+                  </span>
+                  <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => saveSettings({ preferred_run_hours: preferredHours })} style={{ flexShrink: 0 }}>
                     Kaydet
                   </button>
                 </div>
