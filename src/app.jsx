@@ -186,6 +186,52 @@ function App() {
   );
 }
 
+// Duyuru bandı — sabit üstte durur, navbar'ı ve sayfa içeriğini gerçek
+// yüksekliği kadar aşağı iter (--announce-h), kapatılabilir (oturum bazlı,
+// aynı metin bir daha gösterilmez ama yeni bir duyuru her zaman görünür).
+function AnnouncementBar({ lang, active, text }) {
+  const STORAGE_KEY = 'sh_announce_dismissed';
+  const [dismissedText, setDismissedText] = useStateApp(() => {
+    try { return sessionStorage.getItem(STORAGE_KEY) || ''; } catch { return ''; }
+  });
+  const ref = useRefApp(null);
+  const visible = active && !!text && text !== dismissedText;
+
+  useEffectApp(() => {
+    const setH = () => {
+      document.documentElement.style.setProperty('--announce-h', visible && ref.current ? `${ref.current.offsetHeight}px` : '0px');
+    };
+    setH();
+    window.addEventListener('resize', setH);
+    return () => window.removeEventListener('resize', setH);
+  }, [visible, text]);
+
+  useEffectApp(() => () => { document.documentElement.style.setProperty('--announce-h', '0px'); }, []);
+
+  if (!visible) return null;
+
+  const dismiss = () => {
+    try { sessionStorage.setItem(STORAGE_KEY, text); } catch {}
+    setDismissedText(text);
+  };
+
+  return (
+    <div className="announce-bar" ref={ref}>
+      <div className="container announce-bar__inner">
+        <span className="announce-bar__icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+          </svg>
+        </span>
+        <span className="announce-bar__text">{text}</span>
+        <button className="announce-bar__close" onClick={dismiss} aria-label={lang === 'tr' ? 'Kapat' : 'Dismiss'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppShell({ lang, currentPage, selectedId, navigate, renderPage, tweaks, setTweak }) {
   const settings = useSiteSettings();
 
@@ -207,11 +253,7 @@ function AppShell({ lang, currentPage, selectedId, navigate, renderPage, tweaks,
 
   return (
     <>
-      {settings.announcement_active && settings.announcement_text && (
-        <div style={{ background: '#DC2626', color: '#fff', textAlign: 'center', padding: '10px 16px', fontSize: 14, fontWeight: 500, position: 'relative', zIndex: 200 }}>
-          {settings.announcement_text}
-        </div>
-      )}
+      <AnnouncementBar lang={lang} active={settings.announcement_active} text={settings.announcement_text} />
       <Navbar currentPage={currentPage} navigate={navigate} />
       <main key={currentPage + ':' + selectedId}>
         {renderPage()}
