@@ -218,10 +218,9 @@ function AnnouncementBar({ lang, active, text }) {
   return (
     <div className="announce-bar" ref={ref}>
       <div className="container announce-bar__inner">
-        <span className="announce-bar__icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
-          </svg>
+        <span className="announce-bar__badge">
+          <span className="announce-bar__dot" />
+          {lang === 'tr' ? 'Duyuru' : 'News'}
         </span>
         <span className="announce-bar__text">{text}</span>
         <button className="announce-bar__close" onClick={dismiss} aria-label={lang === 'tr' ? 'Kapat' : 'Dismiss'}>
