@@ -3,6 +3,23 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { AIcon, Field, Input, Textarea } from './admin-ui';
 
+const FIELD_LABEL_GROUPS = [
+  { title: 'Topluluk Formu', fields: [
+    ['c_name', 'Ad Soyad'], ['c_email', 'E-posta'], ['c_university', 'Üniversite'],
+    ['c_department', 'Bölüm'], ['c_role', 'İlgi Alanı'], ['c_bio', 'Kısa Tanıtım'],
+    ['c_skills', 'Yetenekler'], ['c_linkedin', 'LinkedIn'], ['c_portfolio', 'Portfolyo / GitHub'],
+  ] },
+  { title: 'Mentör Formu', fields: [
+    ['m_name', 'Ad Soyad'], ['m_email', 'E-posta'], ['m_expertise', 'Uzmanlık Alanı'],
+    ['m_experience', 'Deneyim Yılı'], ['m_hours', 'Haftalık Uygun Saat'], ['m_company', 'Mevcut Şirket / Kurum'],
+    ['m_linkedin', 'LinkedIn'], ['m_note', 'Neden mentör olmak istiyorsunuz?'],
+  ] },
+  { title: 'Destekçi Formu', fields: [
+    ['s_contact', 'İletişim Kişisi'], ['s_email', 'E-posta'], ['s_company', 'Şirket / Kurum Adı'],
+    ['s_website', 'Web Sitesi'], ['s_collab', 'İşbirliği Türü'], ['s_message', 'Mesajınız'],
+  ] },
+];
+
 function SettingsPage() {
   const [siteName,           setSiteName]           = useState('Start-Hub');
   const [siteTaglineTr,      setSiteTaglineTr]      = useState('');
@@ -35,6 +52,8 @@ function SettingsPage() {
   const [joinSaving, setJoinSaving] = useState(false);
   const [joinSaved,  setJoinSaved]  = useState(false);
   const [joinError,  setJoinError]  = useState('');
+  const [fieldLabels, setFieldLabels] = useState({});
+  const setFieldLabel = (key, value) => setFieldLabels(prev => ({ ...prev, [key]: value }));
 
   useEffect(() => {
     supabase.from('site_settings').select('*').eq('id', 1).single().then(({ data }) => {
@@ -64,6 +83,7 @@ function SettingsPage() {
         if (data.mentor_card_desc_tr != null)     setMentorDescTr(data.mentor_card_desc_tr);
         if (data.sponsor_card_title_tr != null)   setSponsorTitleTr(data.sponsor_card_title_tr);
         if (data.sponsor_card_desc_tr != null)    setSponsorDescTr(data.sponsor_card_desc_tr);
+        if (data.field_labels && typeof data.field_labels === 'object') setFieldLabels(data.field_labels);
       }
       setJoinLoaded(true);
     });
@@ -83,6 +103,7 @@ function SettingsPage() {
       mentor_card_desc_tr:     mentorDescTr,
       sponsor_card_title_tr:   sponsorTitleTr,
       sponsor_card_desc_tr:    sponsorDescTr,
+      field_labels: fieldLabels,
       updated_at: new Date().toISOString(),
     });
     if (e) setJoinError(e.message);
@@ -240,6 +261,27 @@ function SettingsPage() {
                 <Field label="Mentör — Açıklama"><Textarea value={mentorDescTr} onChange={setMentorDescTr} rows={2} placeholder="Deneyimini paylaş..." /></Field>
                 <Field label="Destekçi — Açıklama"><Textarea value={sponsorDescTr} onChange={setSponsorDescTr} rows={2} placeholder="Startup ekosistemine katkı sağla." /></Field>
               </div>
+            </div>
+          </div>
+
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header"><h3>Form Soru Etiketleri</h3></div>
+            <div className="adm-card__body">
+              <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginBottom: 16 }}>
+                Formlardaki alan başlıklarını değiştir — boş bırakılırsa varsayılan metin kullanılır.
+              </div>
+              {FIELD_LABEL_GROUPS.map(group => (
+                <div key={group.title} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--adm-text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>{group.title}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {group.fields.map(([key, defaultLabel]) => (
+                      <Field key={key} label={defaultLabel}>
+                        <Input value={fieldLabels[key] || ''} onChange={v => setFieldLabel(key, v)} placeholder={defaultLabel} />
+                      </Field>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

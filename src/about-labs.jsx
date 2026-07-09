@@ -21,7 +21,7 @@ function OrgCard({ person, tier }) {
         {tier === 1 && <Icon name="star" size={12} />}
         {localized(person, 'role')}
       </div>
-      {bio && <p className={`org-card__bio ${tier === 1 ? 'org-card__bio--lead' : 'org-card__bio--hover'}`}>{bio}</p>}
+      {bio && tier === 1 && <p className="org-card__bio org-card__bio--lead">{bio}</p>}
       {person.linkedin && (
         <a className="org-card__li" href={person.linkedin} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}><Icon name="linkedin" size={16} /></a>
       )}

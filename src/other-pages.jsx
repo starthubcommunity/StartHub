@@ -187,6 +187,7 @@ function JoinPage({ navigate, projectId }) {
   const [submittedType, setSubmittedType] = useStateOP('community');
   const [submitting, setSubmitting] = useStateOP(false);
   const [submitError, setSubmitError] = useStateOP('');
+  const [invalidFields, setInvalidFields] = useStateOP(new Set());
 
   // Panelden düzenlenebilir katılım formu metinleri — yüklenene kadar / boşsa
   // sabit çeviriler (t()) kullanılır, hiçbir zaman boş görünmez.
@@ -197,6 +198,7 @@ function JoinPage({ navigate, projectId }) {
       .catch(() => {});
   }, []);
   const fs = (key, fallback) => (formSettings && formSettings[key]) || fallback;
+  const fl = (key, fallback) => (formSettings?.field_labels && formSettings.field_labels[key]) || fallback;
 
   const project = projectId ? getProject(projectId) : null;
   const savedRole = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_role') : null;
@@ -226,9 +228,10 @@ function JoinPage({ navigate, projectId }) {
     collab_types: [], sponsor_message: '',
   });
 
-  const handleC = (f, v) => setCommunityForm(p => ({ ...p, [f]: v }));
-  const handleM = (f, v) => setMentorForm(p => ({ ...p, [f]: v }));
-  const handleS = (f, v) => setSponsorForm(p => ({ ...p, [f]: v }));
+  const clearInvalid = (f) => setInvalidFields(prev => { if (!prev.has(f)) return prev; const next = new Set(prev); next.delete(f); return next; });
+  const handleC = (f, v) => { setCommunityForm(p => ({ ...p, [f]: v })); clearInvalid(f); };
+  const handleM = (f, v) => { setMentorForm(p => ({ ...p, [f]: v })); clearInvalid(f); };
+  const handleS = (f, v) => { setSponsorForm(p => ({ ...p, [f]: v })); clearInvalid(f); };
   const toggleCollab = (type) => setSponsorForm(p => ({
     ...p,
     collab_types: p.collab_types.includes(type)
@@ -251,12 +254,44 @@ function JoinPage({ navigate, projectId }) {
     navigate('join');
   };
 
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  const validate = (activeType) => {
+    const missing = [];
+    const check = (ok, field, label) => { if (!ok) missing.push([field, label]); };
+    if (activeType === 'mentor') {
+      check(mentorForm.name.trim(), 'name', lang === 'tr' ? 'Ad Soyad' : 'Full Name');
+      check(mentorForm.email.trim(), 'email', lang === 'tr' ? 'E-posta' : 'Email');
+    } else if (activeType === 'sponsor') {
+      check(sponsorForm.contact_name.trim(), 'contact_name', lang === 'tr' ? 'İletişim Kişisi' : 'Contact Name');
+      check(sponsorForm.email.trim(), 'email', lang === 'tr' ? 'E-posta' : 'Email');
+    } else {
+      check(communityForm.name.trim(), 'name', lang === 'tr' ? 'Ad Soyad' : 'Full Name');
+      check(communityForm.email.trim(), 'email', lang === 'tr' ? 'E-posta' : 'Email');
+    }
+    if (missing.length) {
+      setInvalidFields(new Set(missing.map(([f]) => f)));
+      return lang === 'tr'
+        ? `Lütfen zorunlu alanları doldurun: ${missing.map(([, l]) => l).join(', ')}.`
+        : `Please fill in the required fields: ${missing.map(([, l]) => l).join(', ')}.`;
+    }
+    const email = activeType === 'sponsor' ? sponsorForm.email : activeType === 'mentor' ? mentorForm.email : communityForm.email;
+    if (!EMAIL_RE.test(email.trim())) {
+      setInvalidFields(new Set(['email']));
+      return lang === 'tr' ? 'Lütfen geçerli bir e-posta adresi girin.' : 'Please enter a valid email address.';
+    }
+    setInvalidFields(new Set());
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const activeType = project ? 'community' : joinType;
+    const validationMsg = validate(activeType);
+    if (validationMsg) { setSubmitError(validationMsg); return; }
     setSubmitting(true);
     setSubmitError('');
     try {
-      const activeType = project ? 'community' : joinType;
       let insertData = {};
       if (activeType === 'mentor') {
         insertData = {
@@ -454,24 +489,24 @@ function JoinPage({ navigate, projectId }) {
 
               {/* COMMUNITY FORM */}
               {(joinType === 'community' || project) && (
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} noValidate>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{t('join.name')}</label>
-                      <input className="form-input" required value={communityForm.name} onChange={e => handleC('name', e.target.value)} />
+                      <label className="form-label">{fl('c_name', t('join.name'))}</label>
+                      <input className={`form-input${invalidFields.has('name') ? ' form-input--invalid' : ''}`} value={communityForm.name} onChange={e => handleC('name', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{t('join.email')}</label>
-                      <input type="email" className="form-input" required value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
+                      <label className="form-label">{fl('c_email', t('join.email'))}</label>
+                      <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
                     </div>
                   </div>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{t('join.university')}</label>
+                      <label className="form-label">{fl('c_university', t('join.university'))}</label>
                       <input className="form-input" value={communityForm.university} onChange={e => handleC('university', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{t('join.department')}</label>
+                      <label className="form-label">{fl('c_department', t('join.department'))}</label>
                       <input className="form-input" value={communityForm.department} onChange={e => handleC('department', e.target.value)} />
                     </div>
                   </div>
@@ -485,27 +520,27 @@ function JoinPage({ navigate, projectId }) {
                     </div>
                   )}
                   <div className="form-group">
-                    <label className="form-label">{t('join.role')}</label>
+                    <label className="form-label">{fl('c_role', t('join.role'))}</label>
                     <select className="form-input form-select" value={communityForm.role} onChange={e => handleC('role', e.target.value)}>
                       <option value="">—</option>
                       {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">{t('join.bio')}</label>
+                    <label className="form-label">{fl('c_bio', t('join.bio'))}</label>
                     <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={communityForm.bio} onChange={e => handleC('bio', e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">{t('join.skills')}</label>
+                    <label className="form-label">{fl('c_skills', t('join.skills'))}</label>
                     <input className="form-input" placeholder={t('join.skillsPlaceholder')} value={communityForm.skills} onChange={e => handleC('skills', e.target.value)} />
                   </div>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{t('join.linkedin')}</label>
+                      <label className="form-label">{fl('c_linkedin', t('join.linkedin'))}</label>
                       <input className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{t('join.portfolio')}</label>
+                      <label className="form-label">{fl('c_portfolio', t('join.portfolio'))}</label>
                       <input className="form-input" placeholder="github.com/..." value={communityForm.portfolio} onChange={e => handleC('portfolio', e.target.value)} />
                     </div>
                   </div>
@@ -516,24 +551,24 @@ function JoinPage({ navigate, projectId }) {
 
               {/* MENTOR FORM */}
               {joinType === 'mentor' && (
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} noValidate>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{t('join.name')}</label>
-                      <input className="form-input" required value={mentorForm.name} onChange={e => handleM('name', e.target.value)} />
+                      <label className="form-label">{fl('m_name', t('join.name'))}</label>
+                      <input className={`form-input${invalidFields.has('name') ? ' form-input--invalid' : ''}`} value={mentorForm.name} onChange={e => handleM('name', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{t('join.email')}</label>
-                      <input type="email" className="form-input" required value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
+                      <label className="form-label">{fl('m_email', t('join.email'))}</label>
+                      <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
                     </div>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">{lang === 'tr' ? 'Uzmanlık Alanı' : 'Area of Expertise'}</label>
+                    <label className="form-label">{fl('m_expertise', lang === 'tr' ? 'Uzmanlık Alanı' : 'Area of Expertise')}</label>
                     <input className="form-input" placeholder={lang === 'tr' ? 'ör. Fintech, Ürün Yönetimi, Pazarlama' : 'e.g. Fintech, Product Management, Marketing'} value={mentorForm.expertise} onChange={e => handleM('expertise', e.target.value)} />
                   </div>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{lang === 'tr' ? 'Deneyim Yılı' : 'Years of Experience'}</label>
+                      <label className="form-label">{fl('m_experience', lang === 'tr' ? 'Deneyim Yılı' : 'Years of Experience')}</label>
                       <select className="form-input form-select" value={mentorForm.experience_years} onChange={e => handleM('experience_years', e.target.value)}>
                         <option value="">—</option>
                         <option value="1-3">1–3 {lang === 'tr' ? 'yıl' : 'years'}</option>
@@ -543,7 +578,7 @@ function JoinPage({ navigate, projectId }) {
                       </select>
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{lang === 'tr' ? 'Haftalık Uygun Saat' : 'Hours per Week'}</label>
+                      <label className="form-label">{fl('m_hours', lang === 'tr' ? 'Haftalık Uygun Saat' : 'Hours per Week')}</label>
                       <select className="form-input form-select" value={mentorForm.hours_per_week} onChange={e => handleM('hours_per_week', e.target.value)}>
                         <option value="">—</option>
                         <option value="1-2">1–2 {lang === 'tr' ? 'saat' : 'hours'}</option>
@@ -553,15 +588,15 @@ function JoinPage({ navigate, projectId }) {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">{lang === 'tr' ? 'Mevcut Şirket / Kurum' : 'Current Company / Organization'}</label>
+                    <label className="form-label">{fl('m_company', lang === 'tr' ? 'Mevcut Şirket / Kurum' : 'Current Company / Organization')}</label>
                     <input className="form-input" value={mentorForm.current_company} onChange={e => handleM('current_company', e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">LinkedIn</label>
+                    <label className="form-label">{fl('m_linkedin', 'LinkedIn')}</label>
                     <input className="form-input" placeholder="linkedin.com/in/..." value={mentorForm.linkedin} onChange={e => handleM('linkedin', e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">{lang === 'tr' ? 'Neden mentör olmak istiyorsunuz?' : 'Why do you want to mentor?'}</label>
+                    <label className="form-label">{fl('m_note', lang === 'tr' ? 'Neden mentör olmak istiyorsunuz?' : 'Why do you want to mentor?')}</label>
                     <textarea className="form-input" maxLength={400} placeholder={lang === 'tr' ? 'Kısaca açıklayın…' : 'Briefly explain…'} value={mentorForm.mentor_note} onChange={e => handleM('mentor_note', e.target.value)} style={{ minHeight: 110 }} />
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'right', marginTop: 4 }}>{mentorForm.mentor_note.length}/400</div>
                   </div>
@@ -572,29 +607,29 @@ function JoinPage({ navigate, projectId }) {
 
               {/* SPONSOR FORM */}
               {joinType === 'sponsor' && (
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} noValidate>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{lang === 'tr' ? 'İletişim Kişisi' : 'Contact Name'}</label>
-                      <input className="form-input" required value={sponsorForm.contact_name} onChange={e => handleS('contact_name', e.target.value)} />
+                      <label className="form-label">{fl('s_contact', lang === 'tr' ? 'İletişim Kişisi' : 'Contact Name')}</label>
+                      <input className={`form-input${invalidFields.has('contact_name') ? ' form-input--invalid' : ''}`} value={sponsorForm.contact_name} onChange={e => handleS('contact_name', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{t('join.email')}</label>
-                      <input type="email" className="form-input" required value={sponsorForm.email} onChange={e => handleS('email', e.target.value)} />
+                      <label className="form-label">{fl('s_email', t('join.email'))}</label>
+                      <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={sponsorForm.email} onChange={e => handleS('email', e.target.value)} />
                     </div>
                   </div>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{lang === 'tr' ? 'Şirket / Kurum Adı' : 'Company / Organization'}</label>
+                      <label className="form-label">{fl('s_company', lang === 'tr' ? 'Şirket / Kurum Adı' : 'Company / Organization')}</label>
                       <input className="form-input" value={sponsorForm.company} onChange={e => handleS('company', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{lang === 'tr' ? 'Web Sitesi' : 'Website'}</label>
+                      <label className="form-label">{fl('s_website', lang === 'tr' ? 'Web Sitesi' : 'Website')}</label>
                       <input className="form-input" placeholder="https://..." value={sponsorForm.website} onChange={e => handleS('website', e.target.value)} />
                     </div>
                   </div>
                   <div className="form-group">
-                    <label className="form-label" style={{ marginBottom: 10 }}>{lang === 'tr' ? 'İşbirliği Türü' : 'Collaboration Type'}</label>
+                    <label className="form-label" style={{ marginBottom: 10 }}>{fl('s_collab', lang === 'tr' ? 'İşbirliği Türü' : 'Collaboration Type')}</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                       {collabOptions.map(opt => {
                         const checked = sponsorForm.collab_types.includes(opt);
@@ -608,7 +643,7 @@ function JoinPage({ navigate, projectId }) {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">{lang === 'tr' ? 'Mesajınız (opsiyonel)' : 'Message (optional)'}</label>
+                    <label className="form-label">{fl('s_message', lang === 'tr' ? 'Mesajınız (opsiyonel)' : 'Message (optional)')}</label>
                     <textarea className="form-input" maxLength={500} placeholder={lang === 'tr' ? 'Nasıl katkı sağlamak istediğinizi anlatın…' : "Tell us how you'd like to contribute…"} value={sponsorForm.sponsor_message} onChange={e => handleS('sponsor_message', e.target.value)} style={{ minHeight: 110 }} />
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'right', marginTop: 4 }}>{sponsorForm.sponsor_message.length}/500</div>
                   </div>
