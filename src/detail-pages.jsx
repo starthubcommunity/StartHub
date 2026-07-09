@@ -63,7 +63,12 @@ function ProjectDetailPage({ projectId, navigate }) {
 
   const lead = getPerson(p.leadId);
   const mentor = getPerson(p.mentorId);
-  const members = (p.memberIds || []).map(getPerson).filter(Boolean);
+  const explicitMembers = (p.memberIds || []).map(getPerson).filter(Boolean);
+  const linkedIds = new Set([p.leadId, p.mentorId, ...explicitMembers.map(m => m.id)]);
+  // Panelden "Proje Üyesi" olarak bu projeye bağlanan kişiler — memberIds'de
+  // olmasalar bile burada listelenir, tekrar etmemesi için filtrelenir.
+  const projectMembers = people.filter(pp => pp.type === 'project_member' && pp.projectId === p.id && !linkedIds.has(pp.id));
+  const members = [...explicitMembers, ...projectMembers];
   const related = postsForProject(p.id);
   const openList = localized(p, 'openRolesList') || [];
 

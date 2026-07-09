@@ -557,6 +557,7 @@ function mapPerson(row) {
     bio_tr:     row.bio_tr       || '',
     bio_en:     row.bio_en       || '',
     sort_order: row.sort_order   ?? 99,
+    projectId:  row.project_id   ?? null,
   };
 }
 

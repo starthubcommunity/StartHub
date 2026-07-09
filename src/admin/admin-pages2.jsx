@@ -6,7 +6,7 @@ import { AIcon, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, S
 // ============================================
 // PEOPLE — ekip / mentör / yazar
 // ============================================
-const PERSON_TYPES = { team: 'Ekip', mentor: 'Mentör', author: 'Yazar' };
+const PERSON_TYPES = { team: 'Ekip', project_member: 'Proje Üyesi', mentor: 'Mentör', author: 'Yazar' };
 
 function PeoplePage() {
   const { data, addItem, updateItem, deleteItem } = useAdmin();
@@ -37,7 +37,7 @@ function PeoplePage() {
         <div className="adm-card__header" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <SearchBar value={search} onChange={setSearch} placeholder="İsim ara..." />
           <div style={{ display: 'flex', gap: 6 }}>
-            {['all', 'team', 'mentor', 'author'].map(ff => (
+            {['all', 'team', 'project_member', 'mentor', 'author'].map(ff => (
               <button key={ff} className={`adm-chip ${filter === ff ? 'adm-chip--active' : ''}`} onClick={() => setFilter(ff)}>
                 {ff === 'all' ? 'Tümü' : PERSON_TYPES[ff]}
               </button>
@@ -54,9 +54,14 @@ function PeoplePage() {
                 <div className="adm-person-card__info">
                   <div className="adm-person-card__name">{p.name}</div>
                   <div className="adm-person-card__role">{p.role_tr}</div>
-                  <span className={`adm-badge adm-badge--${p.type === 'mentor' ? 'mentor' : p.type === 'author' ? 'tag' : 'team'}`}>
+                  <span className={`adm-badge adm-badge--${p.type === 'mentor' ? 'mentor' : p.type === 'author' ? 'tag' : p.type === 'project_member' ? 'building' : 'team'}`}>
                     {PERSON_TYPES[p.type] || p.type}{p.type === 'team' && p.tier ? ` · T${p.tier}` : ''}
                   </span>
+                  {p.type === 'project_member' && p.projectId && (
+                    <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginTop: 4 }}>
+                      {data.startups.find(s => s.id === p.projectId)?.name || `#${p.projectId}`}
+                    </div>
+                  )}
                 </div>
                 <div className="adm-person-card__actions">
                   <button className="adm-icon-btn" onClick={() => setEditing(p)}><AIcon name="edit" size={14} /></button>
@@ -75,7 +80,8 @@ function PeoplePage() {
 }
 
 function PersonForm({ item, onClose, onSave }) {
-  const blank = { id: uid(), name: '', role_tr: '', role_en: '', type: 'team', tier: 3, color: '#2563EB', photo: null, linkedin: '', bio_tr: '', bio_en: '' };
+  const { data } = useAdmin();
+  const blank = { id: uid(), name: '', role_tr: '', role_en: '', type: 'team', tier: 3, color: '#2563EB', photo: null, linkedin: '', bio_tr: '', bio_en: '', projectId: null };
   const [f, setF] = useStateP2(item ? { ...blank, ...item } : blank);
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
 
@@ -96,10 +102,21 @@ function PersonForm({ item, onClose, onSave }) {
           <Field label="ID"><Input value={f.id} onChange={v => set('id', v)} placeholder="can" /></Field>
           <Field label="Tür"><Select value={f.type} onChange={v => set('type', v)} options={Object.entries(PERSON_TYPES).map(([value, label]) => ({ value, label }))} /></Field>
           {f.type === 'team' && <Field label="Tier"><Select value={String(f.tier || 3)} onChange={v => set('tier', parseInt(v))} options={[{value:'1',label:'1 - Kurucu'},{value:'2',label:'2 - Lider'},{value:'3',label:'3 - Takım Lideri'}]} /></Field>}
+          {f.type === 'project_member' && (
+            <Field label="Bağlı Proje" required>
+              <Select value={f.projectId ? String(f.projectId) : ''} onChange={v => set('projectId', v ? parseInt(v) : null)}
+                options={data.startups.map(s => ({ value: String(s.id), label: s.name }))} placeholder="Proje seç…" />
+            </Field>
+          )}
         </div>
         {f.type === 'author' && (
           <div className="adm-note">
             <AIcon name="edit" size={14} /> Yazar olarak işaretlendi — yazı eklerken yazar listesinde görünür.
+          </div>
+        )}
+        {f.type === 'project_member' && (
+          <div className="adm-note">
+            <AIcon name="rocket" size={14} /> Proje üyesi olarak işaretlendi — Hakkımızda'daki yönetim ekibinde görünmez, sadece bağlı olduğu projenin detay sayfasında listelenir.
           </div>
         )}
         <div className="adm-form-grid">

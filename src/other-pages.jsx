@@ -1,5 +1,5 @@
 // other-pages.jsx — Yazılar (Blog) & Katıl (Join)
-import { useState as useStateOP } from 'react';
+import { useState as useStateOP, useEffect as useEffectOP } from 'react';
 import { useLang, getProject, usePosts, useEvents } from './data';
 import { supabase } from './lib/supabase';
 import { Icon, Button, PostCard, EventCard, Reveal, TagChip } from './ui-components';
@@ -184,8 +184,19 @@ function BlogPage({ navigate }) {
 function JoinPage({ navigate, projectId }) {
   const { lang, t } = useLang();
   const [submitted, setSubmitted] = useStateOP(false);
+  const [submittedType, setSubmittedType] = useStateOP('community');
   const [submitting, setSubmitting] = useStateOP(false);
   const [submitError, setSubmitError] = useStateOP('');
+
+  // Panelden düzenlenebilir katılım formu metinleri — yüklenene kadar / boşsa
+  // sabit çeviriler (t()) kullanılır, hiçbir zaman boş görünmez.
+  const [formSettings, setFormSettings] = useStateOP(null);
+  useEffectOP(() => {
+    supabase.from('join_form_settings').select('*').eq('id', 1).single()
+      .then(({ data }) => { if (data) setFormSettings(data); })
+      .catch(() => {});
+  }, []);
+  const fs = (key, fallback) => (formSettings && formSettings[key]) || fallback;
 
   const project = projectId ? getProject(projectId) : null;
   const savedRole = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_role') : null;
@@ -250,21 +261,21 @@ function JoinPage({ navigate, projectId }) {
       if (activeType === 'mentor') {
         insertData = {
           name: mentorForm.name, email: mentorForm.email,
-          department: mentorForm.expertise || null,
-          university: mentorForm.current_company || null,
-          skills: mentorForm.experience_years || null,
+          expertise: mentorForm.expertise || null,
+          experience_years: mentorForm.experience_years || null,
+          company: mentorForm.current_company || null,
+          weekly_hours: mentorForm.hours_per_week || null,
+          linkedin_url: mentorForm.linkedin || null,
           bio: mentorForm.mentor_note || null,
-          linkedin: mentorForm.linkedin || null,
           intent: 'mentor_application',
-          role: mentorForm.hours_per_week ? `${mentorForm.hours_per_week}h/week` : null,
         };
       } else if (activeType === 'sponsor') {
         insertData = {
           name: sponsorForm.contact_name, email: sponsorForm.email,
-          university: sponsorForm.company || null,
-          linkedin: sponsorForm.website || null,
-          bio: sponsorForm.sponsor_message || null,
-          skills: sponsorForm.collab_types.join(', ') || null,
+          company_name: sponsorForm.company || null,
+          website: sponsorForm.website || null,
+          collaboration_types: sponsorForm.collab_types.length ? sponsorForm.collab_types : null,
+          sponsor_message: sponsorForm.sponsor_message || null,
           intent: 'sponsor_application',
         };
       } else {
@@ -284,16 +295,35 @@ function JoinPage({ navigate, projectId }) {
       }
       const { error } = await supabase.from('applications').insert(insertData);
       if (error) throw error;
+      setSubmittedType(activeType);
       setSubmitted(true);
       if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('sh_join_type');
-    } catch {
-      setSubmitError(lang === 'tr' ? 'Bir hata oluştu, lütfen tekrar dene.' : 'Something went wrong, please try again.');
+    } catch (err) {
+      console.error('Form gönderim hatası:', err);
+      setSubmitError(lang === 'tr'
+        ? 'Bir hata oluştu: ' + (err?.message || 'Lütfen tekrar dene.')
+        : 'An error occurred: ' + (err?.message || 'Please try again.'));
     } finally {
       setSubmitting(false);
     }
   };
 
   if (submitted) {
+    const successCopy = {
+      mentor: {
+        title: lang === 'tr' ? 'Mentörlük başvurun alındı!' : 'Your mentor application is in!',
+        desc: lang === 'tr' ? 'İlgin için teşekkürler. Başvurunu inceleyip uygun ekiplerle eşleştiğinde seninle e-posta üzerinden iletişime geçeceğiz.' : 'Thanks for your interest. We\'ll review your application and reach out by email once we find a good match.',
+      },
+      sponsor: {
+        title: lang === 'tr' ? 'Destekçi başvurun alındı!' : 'Your sponsor application is in!',
+        desc: lang === 'tr' ? 'İlginiz için teşekkür ederiz. Ekibimiz en kısa sürede sizinle iletişime geçip iş birliği detaylarını konuşacak.' : 'Thank you for your interest. Our team will reach out shortly to discuss collaboration details.',
+      },
+      community: {
+        title: t('join.successTitle'),
+        desc: t('join.successDesc'),
+      },
+    };
+    const copy = successCopy[submittedType] || successCopy.community;
     return (
       <div className="page-transition">
         <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 'var(--nav-h)' }}>
@@ -301,8 +331,8 @@ function JoinPage({ navigate, projectId }) {
             <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
               <Icon name="check" size={40} style={{ color: 'var(--green)' }} />
             </div>
-            <h2 className="text-h2" style={{ marginBottom: 12 }}>{t('join.successTitle')}</h2>
-            <p style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 32 }}>{t('join.successDesc')}</p>
+            <h2 className="text-h2" style={{ marginBottom: 12 }}>{copy.title}</h2>
+            <p style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 32 }}>{copy.desc}</p>
             <Button variant="primary" onClick={() => { navigate('home'); window.scrollTo({ top: 0 }); }}>{t('nav.home')}</Button>
           </div>
         </div>
@@ -346,9 +376,15 @@ function JoinPage({ navigate, projectId }) {
   })() : null;
 
   const typeCards = [
-    { key: 'community', emoji: '🚀', title: lang === 'tr' ? 'Topluluğa Katıl' : 'Join the Community', desc: lang === 'tr' ? 'Öğrenci, mezun ya da genç profesyonel olarak ekosisteme dahil ol.' : 'Join as a student, graduate, or young professional.' },
-    { key: 'mentor',    emoji: '🎓', title: lang === 'tr' ? 'Mentör Ol' : 'Become a Mentor',       desc: lang === 'tr' ? 'Deneyimini paylaş, ekiplere ve girişimcilere rehberlik et.' : 'Share your expertise and guide teams and founders.' },
-    { key: 'sponsor',   emoji: '🤝', title: lang === 'tr' ? 'Destekçi / Sponsor Ol' : 'Become a Supporter', desc: lang === 'tr' ? 'Finansal, mentorluk ya da etkinlik desteğiyle katkı sağla.' : 'Support via funding, mentorship, or events.' },
+    { key: 'community', emoji: '🚀',
+      title: lang === 'tr' ? fs('community_card_title_tr', 'Topluluğa Katıl') : 'Join the Community',
+      desc:  lang === 'tr' ? fs('community_card_desc_tr', 'Öğrenci, mezun ya da genç profesyonel olarak ekosisteme dahil ol.') : 'Join as a student, graduate, or young professional.' },
+    { key: 'mentor', emoji: '🎓',
+      title: lang === 'tr' ? fs('mentor_card_title_tr', 'Mentör Ol') : 'Become a Mentor',
+      desc:  lang === 'tr' ? fs('mentor_card_desc_tr', 'Deneyimini paylaş, ekiplere ve girişimcilere rehberlik et.') : 'Share your expertise and guide teams and founders.' },
+    { key: 'sponsor', emoji: '🤝',
+      title: lang === 'tr' ? fs('sponsor_card_title_tr', 'Destekçi / Sponsor Ol') : 'Become a Supporter',
+      desc:  lang === 'tr' ? fs('sponsor_card_desc_tr', 'Finansal, mentorluk ya da etkinlik desteğiyle katkı sağla.') : 'Support via funding, mentorship, or events.' },
   ];
 
   const collabOptions = lang === 'tr'
@@ -371,10 +407,12 @@ function JoinPage({ navigate, projectId }) {
     <div className="page-transition">
       <PageHeader
         label={t('join.label')}
-        title={project ? (lang === 'tr' ? `${project.name} Ekibine Katıl` : `Join ${project.name} Team`) : t('join.title')}
+        title={project
+          ? (lang === 'tr' ? `${project.name} Ekibine Katıl` : `Join ${project.name} Team`)
+          : (lang === 'tr' ? fs('hero_title_tr', t('join.title')) : fs('hero_title_en', t('join.title')))}
         desc={project
           ? (lang === 'tr' ? `${project.name} projesine başvurunu bu form ile gönderebilirsin.` : `Submit your application to join the ${project.name} project.`)
-          : t('join.desc')} />
+          : (lang === 'tr' ? fs('hero_desc_tr', t('join.desc')) : fs('hero_desc_en', t('join.desc')))} />
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container" style={{ maxWidth: 680 }}>

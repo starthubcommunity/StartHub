@@ -857,21 +857,26 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 
 /* Org chart (Hakkımızda) */
 .org { display: flex; flex-direction: column; align-items: center; }
-.org__tier { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+.org__tier { display: flex; gap: 18px; justify-content: center; align-items: flex-start; flex-wrap: wrap; width: 100%; }
 .org__tier--lead { gap: 28px; }
-.org__link { width: 2px; height: 30px; background: var(--border); }
+.org__link { width: 2px; height: 30px; background: linear-gradient(to bottom, var(--border), color-mix(in srgb, var(--accent) 35%, var(--border))); }
 .org-card { position: relative; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 22px 26px; text-align: center; display: flex; flex-direction: column; align-items: center; min-width: 200px; box-shadow: var(--shadow-sm); transition: transform 0.25s ease, box-shadow 0.25s ease; }
 .org-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
 .org-card--t1 { min-width: 244px; border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); background: linear-gradient(165deg, var(--red-light), var(--card-bg) 55%); }
-.org-card--t3 { min-width: 178px; padding: 18px 20px; }
+.org-card--t2 { border-color: color-mix(in srgb, var(--blue) 22%, var(--border)); background: linear-gradient(165deg, var(--blue-light), var(--card-bg) 55%); }
+.org-card--t3 { min-width: 178px; padding: 18px 20px; background: linear-gradient(165deg, var(--bg-secondary), var(--card-bg) 55%); }
 .org-card__name { font-family: var(--font-heading); font-weight: 700; font-size: 17px; margin-top: 12px; letter-spacing: -0.01em; }
 .org-card--t1 .org-card__name { font-size: 20px; }
 .org-card--t3 .org-card__name { font-size: 15px; margin-top: 10px; }
 .org-card__role { display: inline-flex; align-items: center; gap: 5px; margin-top: 9px; font-size: 12.5px; font-weight: 700; padding: 5px 13px; border-radius: var(--r-full); }
 .org-card--t3 .org-card__role { font-size: 11.5px; padding: 4px 10px; }
+.org-card__bio { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 0; }
+.org-card__bio--lead { margin-top: 8px; max-width: 210px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.org-card__bio--hover { max-width: 190px; max-height: 0; opacity: 0; margin-top: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.25s ease, margin-top 0.3s ease; }
+.org-card:hover .org-card__bio--hover { max-height: 70px; opacity: 1; margin-top: 8px; }
 .org-card__li { margin-top: 13px; color: var(--text-tertiary); transition: color 0.2s; display: flex; }
 .org-card__li:hover { color: var(--accent); }
-@media (max-width: 560px) { .org-card, .org-card--t1, .org-card--t3 { min-width: 0; width: 100%; max-width: 320px; } .org__tier { width: 100%; } }
+@media (max-width: 560px) { .org-card, .org-card--t1, .org-card--t3 { min-width: 0; width: 100%; max-width: 320px; } .org__tier { width: 100%; } .org-card__bio--hover { max-height: none; opacity: 1; margin-top: 8px; } }
 .open-role { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--card-bg); cursor: pointer; transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
 .open-role:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--border-light); }
 .open-role__icon { width: 52px; height: 52px; border-radius: var(--r-lg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px dashed color-mix(in srgb, currentColor 45%, transparent); }

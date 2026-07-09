@@ -86,6 +86,7 @@ function mapPersonToDb(item) {
     bio_tr:     item.bio_tr     || '',
     bio_en:     item.bio_en     || '',
     sort_order: item.sort_order ?? 99,
+    project_id: item.type === 'project_member' ? (item.projectId ?? null) : null,
   };
   if (item.id) db.id = item.id;
   return db;
@@ -103,6 +104,7 @@ function mapPersonFromDb(row) {
     linkedin:   row.linkedin     || '#',
     bio_tr:     row.bio_tr       || '',
     bio_en:     row.bio_en       || '',
+    projectId:  row.project_id   ?? null,
     sort_order: row.sort_order   ?? 99,
   };
 }

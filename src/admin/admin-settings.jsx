@@ -20,6 +20,22 @@ function SettingsPage() {
   const [saved,   setSaved]   = useState(false);
   const [error,   setError]   = useState('');
 
+  // Katılım formu (join_form_settings tablosu — ayrı kayıt)
+  const [heroTitleTr,  setHeroTitleTr]  = useState('');
+  const [heroTitleEn,  setHeroTitleEn]  = useState('');
+  const [heroDescTr,   setHeroDescTr]   = useState('');
+  const [heroDescEn,   setHeroDescEn]   = useState('');
+  const [communityTitleTr, setCommunityTitleTr] = useState('');
+  const [communityDescTr,  setCommunityDescTr]  = useState('');
+  const [mentorTitleTr,    setMentorTitleTr]    = useState('');
+  const [mentorDescTr,     setMentorDescTr]     = useState('');
+  const [sponsorTitleTr,   setSponsorTitleTr]   = useState('');
+  const [sponsorDescTr,    setSponsorDescTr]    = useState('');
+  const [joinLoaded, setJoinLoaded] = useState(false);
+  const [joinSaving, setJoinSaving] = useState(false);
+  const [joinSaved,  setJoinSaved]  = useState(false);
+  const [joinError,  setJoinError]  = useState('');
+
   useEffect(() => {
     supabase.from('site_settings').select('*').eq('id', 1).single().then(({ data }) => {
       if (data) {
@@ -36,7 +52,43 @@ function SettingsPage() {
       }
       setLoaded(true);
     });
+    supabase.from('join_form_settings').select('*').eq('id', 1).single().then(({ data }) => {
+      if (data) {
+        if (data.hero_title_tr != null) setHeroTitleTr(data.hero_title_tr);
+        if (data.hero_title_en != null) setHeroTitleEn(data.hero_title_en);
+        if (data.hero_desc_tr != null)  setHeroDescTr(data.hero_desc_tr);
+        if (data.hero_desc_en != null)  setHeroDescEn(data.hero_desc_en);
+        if (data.community_card_title_tr != null) setCommunityTitleTr(data.community_card_title_tr);
+        if (data.community_card_desc_tr != null)  setCommunityDescTr(data.community_card_desc_tr);
+        if (data.mentor_card_title_tr != null)    setMentorTitleTr(data.mentor_card_title_tr);
+        if (data.mentor_card_desc_tr != null)     setMentorDescTr(data.mentor_card_desc_tr);
+        if (data.sponsor_card_title_tr != null)   setSponsorTitleTr(data.sponsor_card_title_tr);
+        if (data.sponsor_card_desc_tr != null)    setSponsorDescTr(data.sponsor_card_desc_tr);
+      }
+      setJoinLoaded(true);
+    });
   }, []);
+
+  const handleJoinSave = async () => {
+    setJoinSaving(true); setJoinError(''); setJoinSaved(false);
+    const { error: e } = await supabase.from('join_form_settings').upsert({
+      id: 1,
+      hero_title_tr: heroTitleTr,
+      hero_title_en: heroTitleEn,
+      hero_desc_tr:  heroDescTr,
+      hero_desc_en:  heroDescEn,
+      community_card_title_tr: communityTitleTr,
+      community_card_desc_tr:  communityDescTr,
+      mentor_card_title_tr:    mentorTitleTr,
+      mentor_card_desc_tr:     mentorDescTr,
+      sponsor_card_title_tr:   sponsorTitleTr,
+      sponsor_card_desc_tr:    sponsorDescTr,
+      updated_at: new Date().toISOString(),
+    });
+    if (e) setJoinError(e.message);
+    else { setJoinSaved(true); setTimeout(() => setJoinSaved(false), 3000); }
+    setJoinSaving(false);
+  };
 
   const handleSave = async () => {
     setSaving(true); setError(''); setSaved(false);
@@ -157,6 +209,55 @@ function SettingsPage() {
         <AIcon name={saved ? 'check' : 'save'} size={15} />
         {saving ? 'Kaydediliyor…' : saved ? 'Kaydedildi!' : 'Tüm Ayarları Kaydet'}
       </button>
+
+      <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 18, color: 'var(--adm-text)', margin: '36px 0 4px', letterSpacing: '-0.01em' }}>Katılım Formu</div>
+      <div style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 16 }}>Katıl sayfasındaki başlık, açıklama ve 3 kartın metinleri — boş bırakılan alanlar varsayılan metni kullanır.</div>
+
+      {!joinLoaded ? (
+        <div style={{ padding: 20, color: 'var(--adm-text-dim)', fontSize: 14 }}>Yükleniyor…</div>
+      ) : (
+        <>
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header"><h3>Sayfa Başlığı</h3></div>
+            <div className="adm-card__body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <Field label="Başlık (TR)"><Input value={heroTitleTr} onChange={setHeroTitleTr} placeholder="Start-Hub'a Katıl" /></Field>
+                <Field label="Başlık (EN)"><Input value={heroTitleEn} onChange={setHeroTitleEn} placeholder="Join Start-Hub" /></Field>
+                <Field label="Açıklama (TR)"><Textarea value={heroDescTr} onChange={setHeroDescTr} rows={2} placeholder="Türkiye girişim ekosistemine katıl." /></Field>
+                <Field label="Açıklama (EN)"><Textarea value={heroDescEn} onChange={setHeroDescEn} rows={2} placeholder="Join Turkey's startup ecosystem." /></Field>
+              </div>
+            </div>
+          </div>
+
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header"><h3>3 Kart Metinleri</h3></div>
+            <div className="adm-card__body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+                <Field label="Topluluk — Başlık"><Input value={communityTitleTr} onChange={setCommunityTitleTr} placeholder="Topluluğa Katıl" /></Field>
+                <Field label="Mentör — Başlık"><Input value={mentorTitleTr} onChange={setMentorTitleTr} placeholder="Mentör Ol" /></Field>
+                <Field label="Destekçi — Başlık"><Input value={sponsorTitleTr} onChange={setSponsorTitleTr} placeholder="Destekçi Ol" /></Field>
+                <Field label="Topluluk — Açıklama"><Textarea value={communityDescTr} onChange={setCommunityDescTr} rows={2} placeholder="Öğrenci, geliştirici..." /></Field>
+                <Field label="Mentör — Açıklama"><Textarea value={mentorDescTr} onChange={setMentorDescTr} rows={2} placeholder="Deneyimini paylaş..." /></Field>
+                <Field label="Destekçi — Açıklama"><Textarea value={sponsorDescTr} onChange={setSponsorDescTr} rows={2} placeholder="Startup ekosistemine katkı sağla." /></Field>
+              </div>
+            </div>
+          </div>
+
+          {joinError && (
+            <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 13px', marginBottom: 16 }}>
+              Kaydedilemedi: {joinError}
+            </div>
+          )}
+
+          <button
+            onClick={handleJoinSave}
+            disabled={joinSaving}
+            className="adm-btn adm-btn--primary">
+            <AIcon name={joinSaved ? 'check' : 'save'} size={15} />
+            {joinSaving ? 'Kaydediliyor…' : joinSaved ? 'Kaydedildi!' : 'Katılım Formunu Kaydet'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
