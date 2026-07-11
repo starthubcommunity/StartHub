@@ -165,6 +165,13 @@ function ProjectForm({ item, onClose, onSave, people }) {
   const [preview, setPreview] = useStateP(false);
   const [err, setErr] = useStateP('');
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  const setMetric = (i, key, v) => setF(prev => {
+    const metrics = [...(prev.metrics || [])];
+    metrics[i] = { ...metrics[i], [key]: v };
+    return { ...prev, metrics };
+  });
+  const addMetric = () => setF(prev => ({ ...prev, metrics: [...(prev.metrics || []), { label_tr: '', label_en: '', value: '' }] }));
+  const removeMetric = (i) => setF(prev => ({ ...prev, metrics: (prev.metrics || []).filter((_, idx) => idx !== i) }));
 
   const stageOpts = Object.entries(PV_STAGE).map(([value, v]) => ({ value, label: v.label }));
   const peopleList = people || [];
@@ -240,6 +247,23 @@ function ProjectForm({ item, onClose, onSave, people }) {
           <Field label="Website"><Input value={f.website} onChange={v => set('website', v)} placeholder="https://" /></Field>
           <Field label="Demo"><Input value={f.demo} onChange={v => set('demo', v)} placeholder="https://" /></Field>
           <Field label="GitHub"><Input value={f.github} onChange={v => set('github', v)} placeholder="https://" /></Field>
+        </div>
+
+        {/* Metrikler editörü */}
+        <div className="adm-team-edit">
+          <div className="adm-field__label" style={{ marginBottom: 4, fontSize: 13 }}>Proje Metrikleri</div>
+          <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginBottom: 10 }}>Proje detay sayfasındaki "Metrikler" kartında gösterilir (ör. Kullanıcı: 8.4K, Aylık Büyüme: %22).</div>
+          {(f.metrics || []).map((m, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 110px 32px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+              <Input value={m.label_tr || ''} onChange={v => setMetric(i, 'label_tr', v)} placeholder="Etiket (TR) — ör. Kullanıcı" />
+              <Input value={m.label_en || ''} onChange={v => setMetric(i, 'label_en', v)} placeholder="Etiket (EN) — ör. Users" />
+              <Input value={m.value || ''} onChange={v => setMetric(i, 'value', v)} placeholder="Değer — 8.4K" />
+              <button type="button" className="adm-icon-btn adm-icon-btn--danger" onClick={() => removeMetric(i)} title="Sil"><AIcon name="x" size={14} /></button>
+            </div>
+          ))}
+          <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" onClick={addMetric}>
+            <AIcon name="plus" size={14} /> Metrik Ekle
+          </button>
         </div>
         <div className="adm-form-grid adm-form-grid--3">
           <Field label="Öne Çıkan" hint="Hero'da gösterilir · en fazla 1"><TriToggle value={f.featured} onChange={v => set('featured', v)} /></Field>
