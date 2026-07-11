@@ -830,6 +830,7 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 
 /* Overview + stats sidebar */
 .pd-overview { display: grid; grid-template-columns: 1.7fr 1fr; gap: 32px; align-items: start; }
+.pd-overview--full { grid-template-columns: 1fr; }
 @media (max-width: 820px) { .pd-overview { grid-template-columns: 1fr; gap: 24px; } }
 .pd-block-label { font-family: var(--font-heading); font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 14px; }
 .pd-lead { font-size: 19px; line-height: 1.7; color: var(--text-primary); }

@@ -136,7 +136,7 @@ function ProjectDetailPage({ projectId, navigate }) {
       {/* Genel Bakış + metrikler (yan panel) */}
       <section className="section" style={{ paddingTop: 44 }}>
         <div className="container">
-          <div className="pd-overview">
+          <div className={`pd-overview${p.metrics && p.metrics.length > 0 ? '' : ' pd-overview--full'}`}>
             <Reveal className="pd-overview__main">
               <h3 className="pd-block-label">{t('labs.overview')}</h3>
               <p className="pd-lead text-pretty">{localized(p, 'about') || localized(p, 'desc')}</p>
