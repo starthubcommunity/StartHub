@@ -129,8 +129,11 @@ function ProjectsPage() {
       </div>
     )},
     { key: 'stage', label: 'Aşama', render: (r) => <span className={`adm-badge adm-badge--${r.stage}`}>{(PV_STAGE[r.stage] || {}).label || r.stage}</span> },
-    { key: 'team', label: 'Ekip', style: { width: 70 }, render: (r) =>
-      (r.leadId ? 1 : 0) + (r.memberIds || []).length + data.people.filter(p => p.type === 'project_member' && p.projectId === r.id).length },
+    { key: 'team', label: 'Ekip', style: { width: 70 }, render: (r) => new Set([
+      ...(r.leadId ? [r.leadId] : []),
+      ...(r.memberIds || []),
+      ...data.people.filter(p => p.type === 'project_member' && p.projectId === r.id).map(p => p.id),
+    ]).size },
     { key: 'openRoles', label: 'Açık Rol', style: { width: 90 }, render: (r) => (r.openRolesList_tr || []).length },
   ];
 
@@ -185,7 +188,15 @@ function ProjectForm({ item, onClose, onSave, people }) {
   // Bu projeye eklenebilecek, tur "Proje Uyesi" olan ama henuz bu projeye
   // bagli olmayan kisiler (baska projeye bagli olabilir ya da bos olabilir).
   const availableProjectMembers = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId !== f.id) : [];
-  const autoTeamCount = (f.leadId ? 1 : 0) + (f.memberIds || []).length + projectMembersOfThis.length;
+  // Set kullanmamizin sebebi: lider AYNI ZAMANDA proje uyesi olabilir
+  // (bkz. PersonForm'daki "Bu projenin ekip lideri" checkbox'i). Bu durumda
+  // toplama ayri ayri eklersek ayni kisi iki kez sayilir (4 kisi 6 gorunur).
+  const autoTeamIds = new Set([
+    ...(f.leadId ? [f.leadId] : []),
+    ...(f.memberIds || []),
+    ...projectMembersOfThis.map(p => p.id),
+  ]);
+  const autoTeamCount = autoTeamIds.size;
   const [memberBusy, setMemberBusy] = useStateP(null);
   const linkProjectMember = async (personId) => {
     const person = peopleList.find(p => p.id === personId);
@@ -271,13 +282,29 @@ function ProjectForm({ item, onClose, onSave, people }) {
             <Field label="Ekip Lideri"><Select value={f.leadId} onChange={v => set('leadId', v)} placeholder="Seç..." options={peopleList.map(p => ({ value: p.id, label: p.name }))} /></Field>
             <Field label="Mentör"><Select value={f.mentorId} onChange={v => set('mentorId', v)} placeholder="Yok" options={mentorList.map(p => ({ value: p.id, label: p.name }))} /></Field>
           </div>
-          <Field label="Ekip Üyeleri" hint="Yalnızca Ekip & Mentörler'de türü 'Proje Üyesi' olan kişiler eklenebilir. Bir kişiye tıklamak onu anında projeden çıkarır.">
-            {!f.id ? (
+          {!f.id ? (
+            <Field label="Ekip Üyeleri">
               <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>Önce projeyi kaydet, sonra ekip üyesi ekleyebilirsin.</div>
-            ) : (
-              <>
-                {projectMembersOfThis.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+            </Field>
+          ) : (
+            <>
+              <Field label="Ekip Üyesi Ekle" hint="Yalnızca Ekip & Mentörler'de türü 'Proje Üyesi' olan kişiler listelenir">
+                {availableProjectMembers.length > 0 ? (
+                  <Select value="" onChange={v => v && linkProjectMember(v)} placeholder={memberBusy ? 'İşleniyor…' : 'Proje üyesi ekle…'}
+                    options={availableProjectMembers.map(p => ({ value: p.id, label: p.name }))} />
+                ) : (
+                  <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
+                    {projectMembersOfThis.length === 0
+                      ? 'Henüz eklenebilecek proje üyesi yok — Ekip & Mentörler sayfasından tür "Proje Üyesi" olan bir kişi oluştur.'
+                      : 'Eklenebilecek başka proje üyesi yok.'}
+                  </div>
+                )}
+              </Field>
+              <Field label="Bu Projeye Bağlı Proje Üyeleri" hint="Bir kişiye tıklamak onu anında projeden çıkarır">
+                {projectMembersOfThis.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Henüz proje üyesi eklenmemiş.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {projectMembersOfThis.map(p => (
                       <button key={p.id} type="button" onClick={() => unlinkProjectMember(p)} disabled={memberBusy === p.id}
                         title="Çıkarmak için tıkla"
@@ -292,19 +319,9 @@ function ProjectForm({ item, onClose, onSave, people }) {
                     ))}
                   </div>
                 )}
-                {availableProjectMembers.length > 0 ? (
-                  <Select value="" onChange={v => v && linkProjectMember(v)} placeholder={memberBusy ? 'İşleniyor…' : 'Proje üyesi ekle…'}
-                    options={availableProjectMembers.map(p => ({ value: p.id, label: p.name }))} />
-                ) : (
-                  <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
-                    {projectMembersOfThis.length === 0
-                      ? 'Henüz eklenebilecek proje üyesi yok — Ekip & Mentörler sayfasından tür "Proje Üyesi" olan bir kişi oluştur.'
-                      : 'Eklenebilecek başka proje üyesi yok.'}
-                  </div>
-                )}
-              </>
-            )}
-          </Field>
+              </Field>
+            </>
+          )}
         </div>
 
         <div className="adm-form-grid adm-form-grid--3">
