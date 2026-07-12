@@ -59,7 +59,21 @@ function getRoleDescription(roleName, lang) {
 function ProjectDetailPage({ projectId, navigate }) {
   const { lang, t, localized } = useLang();
   const p = getProject(projectId);
-  if (!p) return null;
+  if (!p) {
+    return (
+      <div className="page-transition" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 32, gap: 16 }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 800 }}>
+          {lang === 'tr' ? 'Proje bulunamadı' : 'Project not found'}
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', maxWidth: 380 }}>
+          {lang === 'tr' ? 'Bu proje kaldırılmış veya henüz yayınlanmamış olabilir.' : 'This project may have been removed or is not yet published.'}
+        </p>
+        <Button variant="primary" onClick={() => { navigate('labs'); window.scrollTo({ top: 0 }); }}>
+          {lang === 'tr' ? "Lab'a Dön" : 'Back to Lab'}
+        </Button>
+      </div>
+    );
+  }
 
   const lead = getPerson(p.leadId);
   const mentor = getPerson(p.mentorId);
@@ -177,7 +191,7 @@ function ProjectDetailPage({ projectId, navigate }) {
         <div className="container">
           <SectionHeader label={t('labs.team')} title={lang === 'tr' ? 'Bu projeyi inşa eden ekip' : 'The team building this project'} />
           <div className="grid grid-2" style={{ gap: 16 }}>
-            <Reveal><TeamRow person={lead} tag={t('labs.teamLead')} kind="lead" /></Reveal>
+            {lead && <Reveal><TeamRow person={lead} tag={t('labs.teamLead')} kind="lead" /></Reveal>}
             {mentor && <Reveal delay={60}><TeamRow person={mentor} tag={t('labs.mentor')} kind="mentor" /></Reveal>}
             {members.map((m, i) => (
               <Reveal key={m.id} delay={120 + i * 60}><TeamRow person={m} tag={t('labs.developers')} kind="dev" /></Reveal>
