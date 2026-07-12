@@ -184,6 +184,16 @@ function SectionHeader({ label, title, desc, center, children, className = '' })
 // ============================================
 function StartupCard({ startup, onClick }) {
   const { t, localized } = useLang();
+  const { people } = usePeople();
+  // Kayıtlı startup.team alanı yalnızca proje formundan "Kaydet" yapılınca
+  // güncellenir; panelden proje üyesi eklendiğinde/çıkarıldığında bu alan
+  // hemen güncellenmez. Bu yüzden burada lider + üyeler + proje üyelerinden
+  // canlı (Set ile tekrarsız) hesaplanıyor.
+  const teamCount = new Set([
+    ...(startup.leadId ? [startup.leadId] : []),
+    ...(startup.memberIds || []),
+    ...people.filter(p => p.type === 'project_member' && p.projectId === startup.id).map(p => p.id),
+  ]).size || startup.team;
   return (
     <div className="card startup-card" onClick={onClick}>
       <div className="card__inner">
@@ -207,7 +217,7 @@ function StartupCard({ startup, onClick }) {
         <div className="startup-card__meta">
           <div className="startup-card__meta-item">
             <Icon name="users" size={14} />
-            <span>{startup.team} {t('sections.teamSize')}</span>
+            <span>{teamCount} {t('sections.teamSize')}</span>
           </div>
           {startup.openRoles > 0 && (
             <div className="startup-card__meta-item" style={{ color: 'var(--green)', marginLeft: 'auto' }}>

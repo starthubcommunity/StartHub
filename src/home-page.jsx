@@ -1,8 +1,19 @@
 // home-page.jsx — Homepage: Hero → Yazılar → Lab → Nasıl Çalışır → Sponsorlar
 import React from 'react';
-import { useLang, resolveStat, siteStats, usePosts, useStartups, useSponsors } from './data';
+import { useLang, resolveStat, siteStats, usePosts, useStartups, useSponsors, usePeople } from './data';
 import { Reveal, AnimatedCounter, Icon, Button, SectionHeader, PostCard, StartupCard, EventCard, StageBadge, stageMap, SponsorsMarquee, TagChip } from './ui-components';
 import { CTASection } from './layout';
+
+// Kayıtlı startup.team alanı yalnızca proje formundan "Kaydet" yapılınca
+// güncellenir; panelden proje üyesi eklendiğinde/çıkarıldığında bu alan hemen
+// güncellenmez. Bu yüzden lider + üyeler + proje üyelerinden canlı hesaplanır.
+function liveTeamCount(project, people) {
+  return new Set([
+    ...(project.leadId ? [project.leadId] : []),
+    ...(project.memberIds || []),
+    ...people.filter(p => p.type === 'project_member' && p.projectId === project.id).map(p => p.id),
+  ]).size || project.team;
+}
 
 function HomePage({ navigate }) {
   return (
@@ -86,6 +97,7 @@ function HeroVisual({ lang, navigate }) {
   const { t, localized } = useLang();
   const { posts, postsLoading } = usePosts();
   const { startups } = useStartups();
+  const { people } = usePeople();
   const featured = startups.find(s => s.featured) || startups[0];
   const latest = [...posts].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0] || null;
 
@@ -140,7 +152,7 @@ function HeroVisual({ lang, navigate }) {
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>{localized(featured, 'tagline') || localized(featured, 'desc')}</p>
             <div className="hero__feat-foot">
-              <span><Icon name="users" size={14} /> {featured.team} {lang === 'tr' ? 'kişi' : 'people'}</span>
+              <span><Icon name="users" size={14} /> {liveTeamCount(featured, people)} {lang === 'tr' ? 'kişi' : 'people'}</span>
               {featured.openRoles > 0 && <span><Icon name="briefcase" size={14} /> {featured.openRoles} {lang === 'tr' ? 'açık görev' : 'open'}</span>}
               <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
             </div>
@@ -210,7 +222,7 @@ function HeroVisual({ lang, navigate }) {
                     {(rotating.project.teamMembers || []).slice(0, 4).map((m, i) => (
                       <span key={i} className="hero__av" style={{ background: m.color || rotating.project.color, marginLeft: i ? -10 : 0 }}>{m.avatar || m.name?.[0] || '?'}</span>
                     ))}
-                    {rotating.project.team > 4 && <span className="hero__av hero__av--more">+{rotating.project.team - 4}</span>}
+                    {liveTeamCount(rotating.project, people) > 4 && <span className="hero__av hero__av--more">+{liveTeamCount(rotating.project, people) - 4}</span>}
                   </div>
                   <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
                 </div>
@@ -281,6 +293,7 @@ function LatestPosts({ navigate }) {
 function LabProjects({ navigate }) {
   const { t, localized } = useLang();
   const { startups } = useStartups();
+  const { people } = usePeople();
   const shown = startups.filter(s => s.featured || s.trending).slice(0, 3);
   const goProject = (id) => { navigate('project', id); window.scrollTo({ top: 0 }); };
 
@@ -318,7 +331,7 @@ function LabProjects({ navigate }) {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--border-light)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 13, color: 'var(--text-tertiary)' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="users" size={14} /> {s.team}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="users" size={14} /> {liveTeamCount(s, people)}</span>
                       {s.openRoles > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--green)' }}><Icon name="briefcase" size={14} /> {s.openRoles} {t('sections.openRoles')}</span>}
                     </div>
                     <Icon name="arrowRight" size={16} style={{ color: 'var(--text-tertiary)' }} />

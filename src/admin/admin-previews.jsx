@@ -11,7 +11,7 @@ const PV_STAGE = {
 };
 
 // ---- PROJECT PREVIEW (site kartı + detay görünümü) ----
-function ProjectPreview({ f }) {
+function ProjectPreview({ f, teamCount }) {
   const st = PV_STAGE[f.stage] || PV_STAGE.idea;
   return (
     <div className="adm-pv">
@@ -35,7 +35,7 @@ function ProjectPreview({ f }) {
           {(f.tags || []).map((t, i) => <span key={i} className="adm-pv-tag">{t}</span>)}
         </div>
         <div className="adm-pv-meta">
-          <span>👥 {(f.leadId ? 1 : 0) + (f.memberIds || []).length || f.team || 0} kişi</span>
+          <span>👥 {teamCount ?? ((f.leadId ? 1 : 0) + (f.memberIds || []).length || f.team || 0)} kişi</span>
           {f.openRoles > 0 && <span style={{ color: '#16A34A' }}>💼 {f.openRoles} açık pozisyon</span>}
         </div>
       </div>

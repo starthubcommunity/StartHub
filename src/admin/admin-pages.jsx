@@ -240,7 +240,7 @@ function ProjectForm({ item, onClose, onSave, people }) {
   return (
     <Modal open onClose={onClose} title={item ? `${item.name} Düzenle` : 'Yeni Proje'} wide
       headerExtra={<PreviewToggle on={preview} onClick={() => setPreview(p => !p)} />}>
-      {preview ? <ProjectPreview f={f} /> : (
+      {preview ? <ProjectPreview f={f} teamCount={autoTeamCount} /> : (
       <form onSubmit={e => { e.preventDefault(); submit(); }} className="adm-form">
         <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
