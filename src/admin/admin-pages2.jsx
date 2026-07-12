@@ -22,9 +22,9 @@ function PeoplePage() {
     return list;
   }, [data.people, search, filter]);
 
-  const handleSave = (formData) => {
-    if (editing === 'new') addItem('people', formData);
-    else updateItem('people', editing.id, formData);
+  const handleSave = async (formData) => {
+    if (editing === 'new') await addItem('people', formData);
+    else await updateItem('people', editing.id, formData);
     setEditing(null);
   };
 
@@ -84,10 +84,20 @@ function PersonForm({ item, onClose, onSave }) {
   const blank = { id: uid(), name: '', role_tr: '', role_en: '', type: 'team', tier: 3, color: '#2563EB', photo: null, linkedin: '', bio_tr: '', bio_en: '', projectId: null };
   const [f, setF] = useStateP2(item ? { ...blank, ...item } : blank);
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  const [saving, setSaving] = useStateP2(false);
+  const [err, setErr] = useStateP2('');
+
+  const submit = async () => {
+    if (f.type === 'project_member' && !f.projectId) { setErr('Proje üyesi için bir proje seçmelisin.'); return; }
+    setErr(''); setSaving(true);
+    try { await onSave(f); }
+    catch (e) { setErr(e?.message || 'Kaydedilemedi — lütfen tekrar dene.'); }
+    finally { setSaving(false); }
+  };
 
   return (
     <Modal open onClose={onClose} title={item ? `${item.name} Düzenle` : 'Yeni Kişi'}>
-      <form onSubmit={e => { e.preventDefault(); onSave(f); }} className="adm-form">
+      <form onSubmit={e => { e.preventDefault(); submit(); }} className="adm-form">
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
             <label className="adm-field__label">Profil Fotoğrafı</label>
@@ -129,8 +139,11 @@ function PersonForm({ item, onClose, onSave }) {
         </div>
         <Field label="LinkedIn"><Input value={f.linkedin} onChange={v => set('linkedin', v)} placeholder="https://linkedin.com/in/..." /></Field>
         <div className="adm-form__footer">
-          <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose}>İptal</button>
-          <button type="submit" className="adm-btn adm-btn--primary"><AIcon name="save" size={16} /> Kaydet</button>
+          {err && <span className="adm-form__err">{err}</span>}
+          <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose} disabled={saving}>İptal</button>
+          <button type="submit" className="adm-btn adm-btn--primary" disabled={saving}>
+            <AIcon name="save" size={16} /> {saving ? 'Kaydediliyor…' : 'Kaydet'}
+          </button>
         </div>
       </form>
     </Modal>
@@ -145,9 +158,9 @@ function SponsorsPage() {
   const [editing, setEditing] = useStateP2(null);
   const [deleting, setDeleting] = useStateP2(null);
 
-  const handleSave = (formData) => {
-    if (editing === 'new') addItem('sponsors', formData);
-    else updateItem('sponsors', editing.name, formData);
+  const handleSave = async (formData) => {
+    if (editing === 'new') await addItem('sponsors', formData);
+    else await updateItem('sponsors', editing.name, formData);
     setEditing(null);
   };
 
@@ -192,8 +205,16 @@ function SponsorFormInner({ item, onClose, onSave }) {
   const blank = { name: '', color: '#2563EB', logo: null, desc_tr: '', desc_en: '', url: '' };
   const [f, setF] = useStateP2(item ? { ...blank, ...item } : blank);
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  const [saving, setSaving] = useStateP2(false);
+  const [err, setErr] = useStateP2('');
+  const submit = async () => {
+    setErr(''); setSaving(true);
+    try { await onSave(f); }
+    catch (e) { setErr(e?.message || 'Kaydedilemedi — lütfen tekrar dene.'); }
+    finally { setSaving(false); }
+  };
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave(f); }} className="adm-form">
+    <form onSubmit={e => { e.preventDefault(); submit(); }} className="adm-form">
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
           <label className="adm-field__label">Logo</label>
@@ -208,8 +229,11 @@ function SponsorFormInner({ item, onClose, onSave }) {
       <Field label="Açıklama (EN)"><Textarea value={f.desc_en} onChange={v => set('desc_en', v)} /></Field>
       <Field label="Website"><Input value={f.url} onChange={v => set('url', v)} placeholder="https://" /></Field>
       <div className="adm-form__footer">
-        <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose}>İptal</button>
-        <button type="submit" className="adm-btn adm-btn--primary"><AIcon name="save" size={16} /> Kaydet</button>
+        {err && <span className="adm-form__err">{err}</span>}
+        <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose} disabled={saving}>İptal</button>
+        <button type="submit" className="adm-btn adm-btn--primary" disabled={saving}>
+          <AIcon name="save" size={16} /> {saving ? 'Kaydediliyor…' : 'Kaydet'}
+        </button>
       </div>
     </form>
   );
