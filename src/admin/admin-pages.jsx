@@ -1,7 +1,7 @@
 // admin-pages.jsx — Dashboard, Projects, Posts
 import { useState as useStateP, useEffect as useEffectP, useMemo as useMemoP, useRef as useRefP } from 'react';
 import { useAdmin, uid, COLLECTIONS } from './admin-store';
-import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper, PeoplePicker } from './admin-ui';
+import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper } from './admin-ui';
 import { ProjectPreview, PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
 import { people } from '../data';
 
@@ -129,8 +129,9 @@ function ProjectsPage() {
       </div>
     )},
     { key: 'stage', label: 'Aşama', render: (r) => <span className={`adm-badge adm-badge--${r.stage}`}>{(PV_STAGE[r.stage] || {}).label || r.stage}</span> },
-    { key: 'team', label: 'Ekip', style: { width: 70 } },
-    { key: 'openRoles', label: 'Açık Rol', style: { width: 90 } },
+    { key: 'team', label: 'Ekip', style: { width: 70 }, render: (r) =>
+      (r.leadId ? 1 : 0) + (r.memberIds || []).length + data.people.filter(p => p.type === 'project_member' && p.projectId === r.id).length },
+    { key: 'openRoles', label: 'Açık Rol', style: { width: 90 }, render: (r) => (r.openRolesList_tr || []).length },
   ];
 
   const handleSave = async (formData) => {
@@ -160,6 +161,7 @@ function ProjectsPage() {
 }
 
 function ProjectForm({ item, onClose, onSave, people }) {
+  const { updateItem: updatePersonLink } = useAdmin();
   const blank = { name: '', slug: '', color: '#2563EB', stage: 'idea', logo: null, tagline_tr: '', tagline_en: '', desc_tr: '', desc_en: '', about_tr: '', about_en: '', problem_tr: '', problem_en: '', solution_tr: '', solution_en: '', tags: [], team: 1, openRoles: 0, website: '', demo: '', github: '', openRolesList_tr: [], openRolesList_en: [], featured: null, trending: null, isNew: null, leadId: '', memberIds: [], mentorId: '', metrics: [] };
   const [f, setF] = useStateP(item ? { ...blank, ...item } : blank);
   const [preview, setPreview] = useStateP(false);
@@ -180,7 +182,25 @@ function ProjectForm({ item, onClose, onSave, people }) {
   // olsalar bile) — ekip sayısına dahil edilmeleri için. Yeni (henüz id'si olmayan)
   // projelerde hiçbir proje üyesi bağlı olamayacağından bu her zaman 0'dır.
   const projectMembersOfThis = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId === f.id) : [];
+  // Bu projeye eklenebilecek, tur "Proje Uyesi" olan ama henuz bu projeye
+  // bagli olmayan kisiler (baska projeye bagli olabilir ya da bos olabilir).
+  const availableProjectMembers = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId !== f.id) : [];
   const autoTeamCount = (f.leadId ? 1 : 0) + (f.memberIds || []).length + projectMembersOfThis.length;
+  const [memberBusy, setMemberBusy] = useStateP(null);
+  const linkProjectMember = async (personId) => {
+    const person = peopleList.find(p => p.id === personId);
+    if (!person || !f.id) return;
+    setMemberBusy(personId);
+    try { await updatePersonLink('people', person.id, { ...person, projectId: f.id }); }
+    catch (e) { setErr(e?.message || 'Eklenemedi — lütfen tekrar dene.'); }
+    finally { setMemberBusy(null); }
+  };
+  const unlinkProjectMember = async (person) => {
+    setMemberBusy(person.id);
+    try { await updatePersonLink('people', person.id, { ...person, projectId: null }); }
+    catch (e) { setErr(e?.message || 'Çıkarılamadı — lütfen tekrar dene.'); }
+    finally { setMemberBusy(null); }
+  };
   // "Açık Rol" sayısı ile "Açık Pozisyonlar" listesi ayrı ayrı elle girilirse
   // birbirinden kopabiliyordu (site bir tarafta sayıyı, diğer tarafta listeyi
   // gösteriyor, tutarsızlık "açık pozisyon var" ile "yok" çelişkisi yaratıyordu).
@@ -251,29 +271,40 @@ function ProjectForm({ item, onClose, onSave, people }) {
             <Field label="Ekip Lideri"><Select value={f.leadId} onChange={v => set('leadId', v)} placeholder="Seç..." options={peopleList.map(p => ({ value: p.id, label: p.name }))} /></Field>
             <Field label="Mentör"><Select value={f.mentorId} onChange={v => set('mentorId', v)} placeholder="Yok" options={mentorList.map(p => ({ value: p.id, label: p.name }))} /></Field>
           </div>
-          <Field label="Ekip Üyeleri" hint="Birden fazla seçebilirsin">
-            <PeoplePicker people={peopleList} selected={f.memberIds || []} onChange={v => set('memberIds', v)}
-              excludeIds={[f.leadId, f.mentorId, ...projectMembersOfThis.map(p => p.id)].filter(Boolean)} />
+          <Field label="Ekip Üyeleri" hint="Yalnızca Ekip & Mentörler'de türü 'Proje Üyesi' olan kişiler eklenebilir. Bir kişiye tıklamak onu anında projeden çıkarır.">
+            {!f.id ? (
+              <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>Önce projeyi kaydet, sonra ekip üyesi ekleyebilirsin.</div>
+            ) : (
+              <>
+                {projectMembersOfThis.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                    {projectMembersOfThis.map(p => (
+                      <button key={p.id} type="button" onClick={() => unlinkProjectMember(p)} disabled={memberBusy === p.id}
+                        title="Çıkarmak için tıkla"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px 5px 5px', borderRadius: 999, background: 'var(--adm-bg)', border: '1px solid var(--adm-border-light)', fontSize: 13, cursor: memberBusy === p.id ? 'wait' : 'pointer', opacity: memberBusy === p.id ? 0.6 : 1 }}>
+                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: p.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
+                          {p.photo ? <img src={p.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}
+                        </span>
+                        {p.name}
+                        {f.leadId === p.id && <AIcon name="star" size={11} />}
+                        <AIcon name="x" size={12} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {availableProjectMembers.length > 0 ? (
+                  <Select value="" onChange={v => v && linkProjectMember(v)} placeholder={memberBusy ? 'İşleniyor…' : 'Proje üyesi ekle…'}
+                    options={availableProjectMembers.map(p => ({ value: p.id, label: p.name }))} />
+                ) : (
+                  <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
+                    {projectMembersOfThis.length === 0
+                      ? 'Henüz eklenebilecek proje üyesi yok — Ekip & Mentörler sayfasından tür "Proje Üyesi" olan bir kişi oluştur.'
+                      : 'Eklenebilecek başka proje üyesi yok.'}
+                  </div>
+                )}
+              </>
+            )}
           </Field>
-          {f.id && (
-            <Field label="Bu Projeye Bağlı Proje Üyeleri" hint="Ekip & Mentörler sayfasında 'Proje Üyesi' olarak bu projeye bağlanan kişiler — buradan değil, kişinin kendi formundan eklenir/kaldırılır">
-              {projectMembersOfThis.length === 0 ? (
-                <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Henüz proje üyesi eklenmemiş.</div>
-              ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {projectMembersOfThis.map(p => (
-                    <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px 5px 5px', borderRadius: 999, background: 'var(--adm-bg)', border: '1px solid var(--adm-border-light)', fontSize: 13 }}>
-                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: p.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
-                        {p.photo ? <img src={p.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}
-                      </span>
-                      {p.name}
-                      {f.leadId === p.id && <AIcon name="star" size={11} />}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </Field>
-          )}
         </div>
 
         <div className="adm-form-grid adm-form-grid--3">
