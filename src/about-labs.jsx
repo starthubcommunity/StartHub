@@ -11,7 +11,6 @@ import { JourneySection } from './home-page';
 // ============================================
 function OrgCard({ person, tier }) {
   const { localized } = useLang();
-  const bio = localized(person, 'bio');
   const goLinkedIn = () => { if (person.linkedin && person.linkedin !== '#') window.open(person.linkedin, '_blank', 'noopener,noreferrer'); };
   return (
     <div className={`org-card org-card--t${tier}`} onClick={goLinkedIn} style={{ cursor: person.linkedin && person.linkedin !== '#' ? 'pointer' : 'default' }}>
@@ -21,7 +20,6 @@ function OrgCard({ person, tier }) {
         {tier === 1 && <Icon name="star" size={12} />}
         {localized(person, 'role')}
       </div>
-      {bio && tier === 1 && <p className="org-card__bio org-card__bio--lead">{bio}</p>}
       {person.linkedin && (
         <a className="org-card__li" href={person.linkedin} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}><Icon name="linkedin" size={16} /></a>
       )}
