@@ -197,6 +197,15 @@ function ProjectForm({ item, onClose, onSave, people }) {
     ...projectMembersOfThis.map(p => p.id),
   ]);
   const autoTeamCount = autoTeamIds.size;
+  // Ekip Lideri artik yalnizca bu projenin proje uyeleri arasindan secilir.
+  // Mevcut lider proje uyesi degilse (eski memberIds sisteminden geliyorsa)
+  // listeden sessizce dusmesin diye ayri isaretle ekleniyor.
+  const currentLeadPerson = f.leadId ? peopleList.find(p => p.id === f.leadId) : null;
+  const leadIsProjectMember = !!currentLeadPerson && projectMembersOfThis.some(p => p.id === currentLeadPerson.id);
+  const leadOptions = [
+    ...projectMembersOfThis.map(p => ({ value: p.id, label: p.name })),
+    ...(currentLeadPerson && !leadIsProjectMember ? [{ value: currentLeadPerson.id, label: `${currentLeadPerson.name} (eski sistem)` }] : []),
+  ];
   const [memberBusy, setMemberBusy] = useStateP(null);
   const linkProjectMember = async (personId) => {
     const person = peopleList.find(p => p.id === personId);
@@ -279,7 +288,9 @@ function ProjectForm({ item, onClose, onSave, people }) {
         <div className="adm-team-edit">
           <div className="adm-field__label" style={{ marginBottom: 10, fontSize: 13 }}>Bu projeyi inşa eden ekip</div>
           <div className="adm-form-grid">
-            <Field label="Ekip Lideri"><Select value={f.leadId} onChange={v => set('leadId', v)} placeholder="Seç..." options={peopleList.map(p => ({ value: p.id, label: p.name }))} /></Field>
+            <Field label="Ekip Lideri" hint="Yalnızca bu projenin proje üyeleri arasından seçilir">
+              <Select value={f.leadId} onChange={v => set('leadId', v)} placeholder="Seç..." options={leadOptions} />
+            </Field>
             <Field label="Mentör"><Select value={f.mentorId} onChange={v => set('mentorId', v)} placeholder="Yok" options={mentorList.map(p => ({ value: p.id, label: p.name }))} /></Field>
           </div>
           {!f.id ? (
@@ -288,33 +299,39 @@ function ProjectForm({ item, onClose, onSave, people }) {
             </Field>
           ) : (
             <>
-              <Field label="Ekip Üyesi Ekle" hint="Yalnızca Ekip & Mentörler'de türü 'Proje Üyesi' olan kişiler listelenir">
-                {availableProjectMembers.length > 0 ? (
-                  <Select value="" onChange={v => v && linkProjectMember(v)} placeholder={memberBusy ? 'İşleniyor…' : 'Proje üyesi ekle…'}
-                    options={availableProjectMembers.map(p => ({ value: p.id, label: p.name }))} />
-                ) : (
-                  <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
+              <Field label="Eklenebilir Proje Üyeleri" hint="Yalnızca türü 'Proje Üyesi' olan kişiler listelenir — bir karta tıklamak onu anında bu projeye ekler">
+                {availableProjectMembers.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>
                     {projectMembersOfThis.length === 0
-                      ? 'Henüz eklenebilecek proje üyesi yok — Ekip & Mentörler sayfasından tür "Proje Üyesi" olan bir kişi oluştur.'
+                      ? 'Eklenebilecek proje üyesi yok — Ekip & Mentörler sayfasından tür "Proje Üyesi" olan bir kişi oluştur.'
                       : 'Eklenebilecek başka proje üyesi yok.'}
+                  </div>
+                ) : (
+                  <div className="adm-picker">
+                    {availableProjectMembers.map(p => (
+                      <button type="button" key={p.id} className="adm-picker__chip" onClick={() => linkProjectMember(p.id)} disabled={memberBusy === p.id} style={{ opacity: memberBusy === p.id ? 0.6 : 1 }}>
+                        <span className="adm-picker__av" style={{ background: p.color }}>
+                          {p.photo ? <img src={p.photo} alt="" /> : p.name[0]}
+                        </span>
+                        <span>{p.name}</span>
+                      </button>
+                    ))}
                   </div>
                 )}
               </Field>
-              <Field label="Bu Projeye Bağlı Proje Üyeleri" hint="Bir kişiye tıklamak onu anında projeden çıkarır">
+              <Field label="Bu Projeye Bağlı Üyeler" hint="Bir karta tıklamak onu anında projeden çıkarır">
                 {projectMembersOfThis.length === 0 ? (
                   <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Henüz proje üyesi eklenmemiş.</div>
                 ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <div className="adm-picker">
                     {projectMembersOfThis.map(p => (
-                      <button key={p.id} type="button" onClick={() => unlinkProjectMember(p)} disabled={memberBusy === p.id}
-                        title="Çıkarmak için tıkla"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px 5px 5px', borderRadius: 999, background: 'var(--adm-bg)', border: '1px solid var(--adm-border-light)', fontSize: 13, cursor: memberBusy === p.id ? 'wait' : 'pointer', opacity: memberBusy === p.id ? 0.6 : 1 }}>
-                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: p.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
-                          {p.photo ? <img src={p.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}
+                      <button type="button" key={p.id} className="adm-picker__chip adm-picker__chip--on" onClick={() => unlinkProjectMember(p)} disabled={memberBusy === p.id} style={{ opacity: memberBusy === p.id ? 0.6 : 1 }}>
+                        <span className="adm-picker__av" style={{ background: p.color }}>
+                          {p.photo ? <img src={p.photo} alt="" /> : p.name[0]}
                         </span>
-                        {p.name}
+                        <span>{p.name}</span>
                         {f.leadId === p.id && <AIcon name="star" size={11} />}
-                        <AIcon name="x" size={12} />
+                        <AIcon name="check" size={13} />
                       </button>
                     ))}
                   </div>
