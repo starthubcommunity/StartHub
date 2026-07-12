@@ -179,8 +179,8 @@ function ProjectForm({ item, onClose, onSave, people }) {
   // Panelden "Proje Üyesi" olarak bu projeye bağlanan kişiler (memberIds'e eklenmemiş
   // olsalar bile) — ekip sayısına dahil edilmeleri için. Yeni (henüz id'si olmayan)
   // projelerde hiçbir proje üyesi bağlı olamayacağından bu her zaman 0'dır.
-  const projectMemberCount = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId === f.id).length : 0;
-  const autoTeamCount = (f.leadId ? 1 : 0) + (f.memberIds || []).length + projectMemberCount;
+  const projectMembersOfThis = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId === f.id) : [];
+  const autoTeamCount = (f.leadId ? 1 : 0) + (f.memberIds || []).length + projectMembersOfThis.length;
   // "Açık Rol" sayısı ile "Açık Pozisyonlar" listesi ayrı ayrı elle girilirse
   // birbirinden kopabiliyordu (site bir tarafta sayıyı, diğer tarafta listeyi
   // gösteriyor, tutarsızlık "açık pozisyon var" ile "yok" çelişkisi yaratıyordu).
@@ -254,6 +254,25 @@ function ProjectForm({ item, onClose, onSave, people }) {
           <Field label="Ekip Üyeleri" hint="Birden fazla seçebilirsin">
             <PeoplePicker people={peopleList} selected={f.memberIds || []} onChange={v => set('memberIds', v)} excludeIds={[f.leadId, f.mentorId].filter(Boolean)} />
           </Field>
+          {f.id && (
+            <Field label="Bu Projeye Bağlı Proje Üyeleri" hint="Ekip & Mentörler sayfasında 'Proje Üyesi' olarak bu projeye bağlanan kişiler — buradan değil, kişinin kendi formundan eklenir/kaldırılır">
+              {projectMembersOfThis.length === 0 ? (
+                <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Henüz proje üyesi eklenmemiş.</div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {projectMembersOfThis.map(p => (
+                    <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px 5px 5px', borderRadius: 999, background: 'var(--adm-bg)', border: '1px solid var(--adm-border-light)', fontSize: 13 }}>
+                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: p.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
+                        {p.photo ? <img src={p.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}
+                      </span>
+                      {p.name}
+                      {f.leadId === p.id && <AIcon name="star" size={11} />}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Field>
+          )}
         </div>
 
         <div className="adm-form-grid adm-form-grid--3">

@@ -23,8 +23,26 @@ function PeoplePage() {
   }, [data.people, search, filter]);
 
   const handleSave = async (formData) => {
-    if (editing === 'new') await addItem('people', formData);
-    else await updateItem('people', editing.id, formData);
+    const { isProjectLead, ...personData } = formData;
+    if (editing === 'new') await addItem('people', personData);
+    else await updateItem('people', editing.id, personData);
+
+    // Proje üyesi "bu projenin ekip lideri" olarak işaretlendiyse/işareti
+    // kaldırıldıysa, ilgili startup'ın lead_id'sini de güncelle. Kısmi obje
+    // değil TÜM startup kaydı gönderiliyor — mapStartupToDb eksik alanları
+    // varsayılana sıfırlıyor, bu yüzden mevcut proje objesi olduğu gibi
+    // (sadece leadId değişmiş) geri yazılıyor.
+    if (personData.type === 'project_member' && personData.projectId) {
+      const proj = data.startups.find(s => s.id === personData.projectId);
+      if (proj) {
+        const isCurrentLead = proj.leadId === personData.id;
+        if (isProjectLead && !isCurrentLead) {
+          await updateItem('startups', proj.id, { ...proj, leadId: personData.id });
+        } else if (!isProjectLead && isCurrentLead) {
+          await updateItem('startups', proj.id, { ...proj, leadId: '' });
+        }
+      }
+    }
     setEditing(null);
   };
 
@@ -81,8 +99,16 @@ function PeoplePage() {
 
 function PersonForm({ item, onClose, onSave }) {
   const { data } = useAdmin();
-  const blank = { id: uid(), name: '', role_tr: '', role_en: '', type: 'team', tier: 3, color: '#2563EB', photo: null, linkedin: '', bio_tr: '', bio_en: '', projectId: null };
-  const [f, setF] = useStateP2(item ? { ...blank, ...item } : blank);
+  const blank = { id: uid(), name: '', role_tr: '', role_en: '', type: 'team', tier: 3, color: '#2563EB', photo: null, linkedin: '', bio_tr: '', bio_en: '', projectId: null, isProjectLead: false };
+  const [f, setF] = useStateP2(() => {
+    if (!item) return blank;
+    const merged = { ...blank, ...item };
+    if (merged.type === 'project_member' && merged.projectId) {
+      const proj = data.startups.find(s => s.id === merged.projectId);
+      merged.isProjectLead = proj?.leadId === merged.id;
+    }
+    return merged;
+  });
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
   const [saving, setSaving] = useStateP2(false);
   const [err, setErr] = useStateP2('');
@@ -128,6 +154,12 @@ function PersonForm({ item, onClose, onSave }) {
           <div className="adm-note">
             <AIcon name="rocket" size={14} /> Proje üyesi olarak işaretlendi — Hakkımızda'daki yönetim ekibinde görünmez, sadece bağlı olduğu projenin detay sayfasında listelenir.
           </div>
+        )}
+        {f.type === 'project_member' && f.projectId && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 14, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!f.isProjectLead} onChange={e => set('isProjectLead', e.target.checked)} style={{ accentColor: 'var(--adm-blue)', width: 15, height: 15 }} />
+            Bu projenin ekip lideri
+          </label>
         )}
         <div className="adm-form-grid">
           <Field label="Ünvan (TR)"><Input value={f.role_tr} onChange={v => set('role_tr', v)} placeholder={f.type === 'author' ? 'Konuk Yazar' : ''} /></Field>
