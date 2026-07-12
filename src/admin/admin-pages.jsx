@@ -181,13 +181,18 @@ function ProjectForm({ item, onClose, onSave, people }) {
   // projelerde hiçbir proje üyesi bağlı olamayacağından bu her zaman 0'dır.
   const projectMemberCount = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId === f.id).length : 0;
   const autoTeamCount = (f.leadId ? 1 : 0) + (f.memberIds || []).length + projectMemberCount;
+  // "Açık Rol" sayısı ile "Açık Pozisyonlar" listesi ayrı ayrı elle girilirse
+  // birbirinden kopabiliyordu (site bir tarafta sayıyı, diğer tarafta listeyi
+  // gösteriyor, tutarsızlık "açık pozisyon var" ile "yok" çelişkisi yaratıyordu).
+  // Artık sayı her zaman listeden türetiliyor, elle girilemiyor.
+  const autoOpenRoles = (f.openRolesList_tr || []).length;
 
   const [saving, setSaving] = useStateP(false);
 
   const submit = async () => {
     if (!f.name.trim() || !f.slug.trim()) { setErr('Proje adı ve slug zorunludur — boş proje yayınlanamaz.'); return; }
     setErr(''); setSaving(true);
-    try { await onSave({ ...f, team: autoTeamCount || f.team }); }
+    try { await onSave({ ...f, team: autoTeamCount || f.team, openRoles: autoOpenRoles }); }
     catch (e) { setErr(e?.message || 'Kaydedilemedi — lütfen tekrar dene.'); }
     finally { setSaving(false); }
   };
@@ -236,7 +241,7 @@ function ProjectForm({ item, onClose, onSave, people }) {
         </div>
         <div className="adm-form-grid adm-form-grid--2">
           <Field label="Ekip (otomatik)" hint="Lider + üyeler + bu projeye bağlı proje üyelerinden hesaplanır"><Input type="number" value={autoTeamCount || f.team} disabled /></Field>
-          <Field label="Açık Rol"><Input type="number" value={f.openRoles} onChange={v => set('openRoles', parseInt(v) || 0)} /></Field>
+          <Field label="Açık Rol (otomatik)" hint="Aşağıdaki 'Açık Pozisyonlar' listesinden hesaplanır"><Input type="number" value={autoOpenRoles} disabled /></Field>
         </div>
 
         {/* Ekip üyeleri editörü */}
