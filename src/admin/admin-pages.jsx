@@ -133,10 +133,10 @@ function ProjectsPage() {
     { key: 'openRoles', label: 'Açık Rol', style: { width: 90 } },
   ];
 
-  const handleSave = (formData) => {
+  const handleSave = async (formData) => {
     const id = editing === 'new' ? parseInt(uid()) : editing.id;
-    if (editing === 'new') addItem('startups', { ...formData, id });
-    else updateItem('startups', id, formData);
+    if (editing === 'new') await addItem('startups', { ...formData, id });
+    else await updateItem('startups', id, formData);
     if (formData.featured === true) clearFlagExcept('startups', id, 'featured');
     setEditing(null);
   };
@@ -176,12 +176,20 @@ function ProjectForm({ item, onClose, onSave, people }) {
   const stageOpts = Object.entries(PV_STAGE).map(([value, v]) => ({ value, label: v.label }));
   const peopleList = people || [];
   const mentorList = peopleList.filter(p => p.type === 'mentor');
+  // Panelden "Proje Üyesi" olarak bu projeye bağlanan kişiler (memberIds'e eklenmemiş
+  // olsalar bile) — ekip sayısına dahil edilmeleri için. Yeni (henüz id'si olmayan)
+  // projelerde hiçbir proje üyesi bağlı olamayacağından bu her zaman 0'dır.
+  const projectMemberCount = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId === f.id).length : 0;
+  const autoTeamCount = (f.leadId ? 1 : 0) + (f.memberIds || []).length + projectMemberCount;
 
-  const submit = () => {
+  const [saving, setSaving] = useStateP(false);
+
+  const submit = async () => {
     if (!f.name.trim() || !f.slug.trim()) { setErr('Proje adı ve slug zorunludur — boş proje yayınlanamaz.'); return; }
-    // ekip sayısını seçilen lider + üyelerden otomatik hesapla
-    const teamCount = (f.leadId ? 1 : 0) + (f.memberIds || []).length;
-    onSave({ ...f, team: teamCount || f.team });
+    setErr(''); setSaving(true);
+    try { await onSave({ ...f, team: autoTeamCount || f.team }); }
+    catch (e) { setErr(e?.message || 'Kaydedilemedi — lütfen tekrar dene.'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -227,7 +235,7 @@ function ProjectForm({ item, onClose, onSave, people }) {
           <Field label="Çözüm (EN)"><Textarea value={f.solution_en} onChange={v => set('solution_en', v)} /></Field>
         </div>
         <div className="adm-form-grid adm-form-grid--2">
-          <Field label="Ekip (otomatik)" hint="Seçilen lider + üyelerden hesaplanır"><Input type="number" value={(f.leadId ? 1 : 0) + (f.memberIds || []).length || f.team} disabled /></Field>
+          <Field label="Ekip (otomatik)" hint="Lider + üyeler + bu projeye bağlı proje üyelerinden hesaplanır"><Input type="number" value={autoTeamCount || f.team} disabled /></Field>
           <Field label="Açık Rol"><Input type="number" value={f.openRoles} onChange={v => set('openRoles', parseInt(v) || 0)} /></Field>
         </div>
 
@@ -278,8 +286,10 @@ function ProjectForm({ item, onClose, onSave, people }) {
         </Field>
         <div className="adm-form__footer">
           {err && <span className="adm-form__err">{err}</span>}
-          <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose}>İptal</button>
-          <button type="submit" className="adm-btn adm-btn--primary"><AIcon name="save" size={16} /> Kaydet</button>
+          <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose} disabled={saving}>İptal</button>
+          <button type="submit" className="adm-btn adm-btn--primary" disabled={saving}>
+            <AIcon name="save" size={16} /> {saving ? 'Kaydediliyor…' : 'Kaydet'}
+          </button>
         </div>
       </form>
       )}

@@ -1,6 +1,6 @@
 // home-page.jsx — Homepage: Hero → Yazılar → Lab → Nasıl Çalışır → Sponsorlar
 import React from 'react';
-import { useLang, resolveStat, getProject, siteStats, usePosts, useStartups, useSponsors } from './data';
+import { useLang, resolveStat, siteStats, usePosts, useStartups, useSponsors } from './data';
 import { Reveal, AnimatedCounter, Icon, Button, SectionHeader, PostCard, StartupCard, EventCard, StageBadge, stageMap, SponsorsMarquee, TagChip } from './ui-components';
 import { CTASection } from './layout';
 

@@ -1,6 +1,6 @@
 // other-pages.jsx — Yazılar (Blog) & Katıl (Join)
 import { useState as useStateOP, useEffect as useEffectOP } from 'react';
-import { useLang, getProject, usePosts, useEvents } from './data';
+import { useLang, usePosts, useEvents, useStartups } from './data';
 import { supabase } from './lib/supabase';
 import { Icon, Button, PostCard, EventCard, Reveal, TagChip } from './ui-components';
 import { CTASection, PageHeader } from './layout';
@@ -183,6 +183,7 @@ function BlogPage({ navigate }) {
 // ============================================
 function JoinPage({ navigate, projectId }) {
   const { lang, t } = useLang();
+  const { startups } = useStartups();
   const [submitted, setSubmitted] = useStateOP(false);
   const [submittedType, setSubmittedType] = useStateOP('community');
   const [submitting, setSubmitting] = useStateOP(false);
@@ -200,7 +201,7 @@ function JoinPage({ navigate, projectId }) {
   const fs = (key, fallback) => (formSettings && formSettings[key]) || fallback;
   const fl = (key, fallback) => (formSettings?.field_labels && formSettings.field_labels[key]) || fallback;
 
-  const project = projectId ? getProject(projectId) : null;
+  const project = projectId ? startups.find(s => s.id === projectId || s.slug === projectId) : null;
   const savedRole = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_role') : null;
 
   const initialType = (() => {

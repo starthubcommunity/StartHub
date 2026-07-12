@@ -1,6 +1,6 @@
 // detail-pages.jsx — Project detail & Post detail pages
 import React, { useState, useEffect } from 'react';
-import { useLang, getProject, getPost, postsForProject, getPerson, people, startups, usePosts } from './data';
+import { useLang, getPost, postsForProject, usePosts, usePeople, useStartups } from './data';
 import { Icon, Button, Reveal, Avatar, PostCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
 import { CTASection } from './layout';
 import { trackPostView } from './lib/post-analytics';
@@ -58,7 +58,9 @@ function getRoleDescription(roleName, lang) {
 // ============================================
 function ProjectDetailPage({ projectId, navigate }) {
   const { lang, t, localized } = useLang();
-  const p = getProject(projectId);
+  const { startups } = useStartups();
+  const { people } = usePeople();
+  const p = startups.find(s => s.id === projectId || s.slug === projectId);
   if (!p) {
     return (
       <div className="page-transition" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 32, gap: 16 }}>
@@ -75,9 +77,9 @@ function ProjectDetailPage({ projectId, navigate }) {
     );
   }
 
-  const lead = getPerson(p.leadId);
-  const mentor = getPerson(p.mentorId);
-  const explicitMembers = (p.memberIds || []).map(getPerson).filter(Boolean);
+  const lead = people.find(pp => pp.id === p.leadId);
+  const mentor = people.find(pp => pp.id === p.mentorId);
+  const explicitMembers = (p.memberIds || []).map(id => people.find(pp => pp.id === id)).filter(Boolean);
   const linkedIds = new Set([p.leadId, p.mentorId, ...explicitMembers.map(m => m.id)]);
   // Panelden "Proje Üyesi" olarak bu projeye bağlanan kişiler — memberIds'de
   // olmasalar bile burada listelenir, tekrar etmemesi için filtrelenir.
@@ -256,6 +258,8 @@ function ProjectDetailPage({ projectId, navigate }) {
 function PostDetailPage({ postId, navigate }) {
   const { lang, t, localized } = useLang();
   const { posts } = usePosts();
+  const { people } = usePeople();
+  const { startups } = useStartups();
   const [shareCopied, setShareCopied] = useState(false);
   const post = getPost(postId);
   useEffect(() => {
@@ -263,8 +267,8 @@ function PostDetailPage({ postId, navigate }) {
     return trackPostView(post.slug || String(post.id), lang);
   }, [post?.id, lang]);
   if (!post) return null;
-  const author = getPerson(post.authorId);
-  const project = post.projectId ? getProject(post.projectId) : null;
+  const author = people.find(pp => pp.id === post.authorId);
+  const project = post.projectId ? startups.find(s => s.id === post.projectId || s.slug === post.projectId) : null;
   const body = localized(post, 'body') || [];
   const more = posts.filter(x => x.id !== post.id && (x.tag === post.tag || x.projectId === post.projectId)).slice(0, 3);
   const moreFinal = more.length ? more : posts.filter(x => x.id !== post.id).slice(0, 3);

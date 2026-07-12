@@ -1,6 +1,6 @@
 // ui-components.jsx — Icons, Buttons, Badges, Cards, Section Headers
 import { useState as useStateUI, useEffect as useEffectUI, useRef as useRefUI } from 'react';
-import { useLang, getPerson } from './data';
+import { useLang, usePeople } from './data';
 
 // ============================================
 // SCROLL REVEAL (YC-style fade-up on scroll)
@@ -376,7 +376,8 @@ function AuthorByline({ author, date, readTime, compact }) {
 // ============================================
 function PostCard({ post, onClick, feature, pinned }) {
   const { t, lang, localized } = useLang();
-  const author = getPerson(post.authorId);
+  const { people } = usePeople();
+  const author = people.find(p => p.id === post.authorId);
   return (
     <div className={`card post-card ${feature ? 'post-card--feature' : ''}`} onClick={onClick}>
       <div className="post-card__cover" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>

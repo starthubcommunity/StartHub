@@ -286,8 +286,6 @@ const people = [
   { id: 'kerem', name: 'Kerem Şahin',    role_tr: 'Tasarım Lideri',         role_en: 'Design Lead',              type: 'team', tier: 3, color: '#DB2777', photo: null, linkedin: '#', bio_tr: 'Ürün ve marka tasarımından sorumlu.', bio_en: 'Owns product and brand design.' },
 ];
 
-const getPerson = (id) => people.find(p => p.id === id);
-
 // ============================================
 // PROJECTS (Lab) — extended model
 // ============================================
@@ -395,8 +393,6 @@ const startups = [
     trending: false, featured: false, isNew: true,
   },
 ];
-
-const getProject = (id) => startups.find(s => s.id === id || s.slug === id);
 
 // ============================================
 // POSTS — Supabase'den çekilir (bkz. dosya sonu: POSTS_FALLBACK)
@@ -664,7 +660,7 @@ function ContentProvider({ children }) {
         const msp = (spRows || []).map(mapSponsor);
         const me  = (eRows  || []).map(mapEvent);
 
-        // Modül dizilerini yerinde güncelle (getPerson/getProject için)
+        // Modül dizilerini yerinde güncelle (teamMembers/mentors türetmesi için)
         people.length   = 0; mp.forEach(x  => people.push(x));
         startups.length = 0; ms.forEach(x  => startups.push(x));
         sponsors.length = 0; msp.forEach(x => sponsors.push(x));
@@ -871,7 +867,7 @@ function LangProvider({ children, lang, setLang }) {
 export {
   translations, people, startups, sponsors, events,
   teamMembers, mentors, partners, siteStats, defaultSiteStats, resolveStat, SH_DEFAULTS,
-  getPerson, getProject, getPost, getPostBySlug, getPostSlug, postsForProject,
+  getPost, getPostBySlug, getPostSlug, postsForProject,
   mapPerson, mapStartup, mapSponsor, mapEvent,
   LangContext, useLang, LangProvider,
   PostsContext, PostsProvider, usePosts,
