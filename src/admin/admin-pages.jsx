@@ -252,7 +252,8 @@ function ProjectForm({ item, onClose, onSave, people }) {
             <Field label="Mentör"><Select value={f.mentorId} onChange={v => set('mentorId', v)} placeholder="Yok" options={mentorList.map(p => ({ value: p.id, label: p.name }))} /></Field>
           </div>
           <Field label="Ekip Üyeleri" hint="Birden fazla seçebilirsin">
-            <PeoplePicker people={peopleList} selected={f.memberIds || []} onChange={v => set('memberIds', v)} excludeIds={[f.leadId, f.mentorId].filter(Boolean)} />
+            <PeoplePicker people={peopleList} selected={f.memberIds || []} onChange={v => set('memberIds', v)}
+              excludeIds={[f.leadId, f.mentorId, ...projectMembersOfThis.map(p => p.id)].filter(Boolean)} />
           </Field>
           {f.id && (
             <Field label="Bu Projeye Bağlı Proje Üyeleri" hint="Ekip & Mentörler sayfasında 'Proje Üyesi' olarak bu projeye bağlanan kişiler — buradan değil, kişinin kendi formundan eklenir/kaldırılır">
