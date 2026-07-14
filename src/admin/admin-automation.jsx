@@ -583,7 +583,8 @@ function AutomationPage() {
           <div className="adm-note" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)', marginBottom: 16 }}>
             <AIcon name="settings" size={14} />
             <span>
-              GitHub Actions her saat çalışır, Supabase'deki tercih edilen saatlerden birinde devreye girer.
+              GitHub Actions her saat çalışır, tercih edilen saatlerden biri geçtiğinde devreye girer
+              (GitHub'ın tetiklemesi gecikirse bile bir sonraki çalışmada telafi eder).
               Üretilen taslaklar burada listelenir — <strong>Onayla</strong> ile yayına girer.
               {autoPublish && <strong> Otomatik yayın AÇIK — onay gerekmez.</strong>}
             </span>
@@ -992,7 +993,9 @@ function AutomationPage() {
               <div style={{ paddingBottom: 16, borderBottom: '1px solid var(--adm-border-light)', marginBottom: 16 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Tercih Edilen Çalışma Saatleri (UTC)</div>
                 <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', marginBottom: 12 }}>
-                  GitHub Actions her saat çalışır; Python seçtiğiniz saatlerden birini görünce devreye girer.
+                  GitHub Actions her saat çalışır; seçtiğiniz saatlerden biri geçtiğinde ve o saat için henüz
+                  üretim yapılmadıysa devreye girer. GitHub'ın tetiklemesi tam saatinde çalışmaz/gecikirse bile
+                  bir sonraki çalışmada telafi eder — taslak birkaç dakika/saat geç de olsa üretilir.
                   Birden fazla saat seçerek üretimi güne yayabilirsiniz — her seçili saatte ayrı bir üretim turu çalışır (günlük kota her turda ayrı ayrı uygulanır).
                   <br />UTC+3 (TRT) = seçilen saat + 3s
                 </div>

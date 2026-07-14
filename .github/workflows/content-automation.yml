@@ -2,9 +2,13 @@ name: Start-Hub Content Automation
 
 on:
   schedule:
-    # Her saat başı çalışır; Python kodu Supabase'den preferred_run_hours okuyup
-    # hiçbiri eşleşmiyorsa sessizce çıkar — böylece saat(ler) panelden ayarlanabilir.
-    - cron: "0 * * * *"
+    # Her saat ":07"de çalışır (tam saat başı ":00" GitHub'da en yoğun an olduğu
+    # için tetiklemeler orada daha sık gecikiyor/düşüyor — GitHub'ın kendi önerisi
+    # saat başından kaydırmak). Python tarafı preferred_run_hours'a göre "telafili"
+    # kontrol yapar: hedef saat geçtiyse ve henüz üretim yapılmadıysa üretir, bu
+    # yüzden GitHub bu tetiklemeyi de geciktirse/atlasa bile bir sonraki çalışan
+    # tetikleme telafi eder.
+    - cron: "7 * * * *"
   workflow_dispatch:
     inputs:
       mode:

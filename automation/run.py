@@ -4,7 +4,16 @@ run.py — Orkestratör. GitHub Actions cron (her saat) / workflow_dispatch ile 
 Başlangıç kontrolleri (sırayla):
   0a. Supabase'den ayarları oku
   0b. automation_enabled=False → sessizce çık
-  0c. Şu anki UTC saati preferred_run_hours listesinde yoksa çık (--ignore-hour ile atlanır)
+  0c. "Telafi" kontrolü: preferred_run_hours'daki en son geçmiş saat için bugün
+      zaten başarılı bir üretim yapılmışsa çık; yapılmamışsa (GitHub'ın cron'u
+      tam o saatte tetikleyememiş/geciktirmiş olsa bile) şimdi üret.
+      (--ignore-hour ile atlanır)
+
+  GitHub Actions'ın schedule tetikleyicisi "best effort"tür: yoğunluğa göre
+  gecikebilir hatta hiç tetiklenmeyebilir (özellikle tam saat başında). Bu
+  yüzden "şu an tam hedef saat mi" diye katı eşleşme yerine, "hedef saat
+  geçti mi ve o hedef için henüz üretim yapılmadı mı" mantığı kullanılır —
+  gecikmeli de olsa ilk çalışan tetiklemede telafi eder.
 
 Akış:
   1. RSS tara + filtre + tekrar koruması       (sources.fetch_filtered)
@@ -93,6 +102,38 @@ def _read_settings() -> dict:
     except Exception as e:
         print(f"[uyarı] Supabase ayarları okunamadı, varsayılanlar: {e}")
         return defaults
+
+
+def _last_due_datetime(preferred_hours: list[int], now: datetime.datetime) -> datetime.datetime:
+    """preferred_run_hours içindeki, 'now'a göre en son geçmiş saat damgasını döndürür.
+
+    Örn. preferred=[23], now=14 Tem 06:00 UTC ise → 13 Tem 23:00 UTC (henüz
+    bugünün 23:00'ı gelmedi, dünkü hedef hâlâ geçerli/karşılanmamış olabilir).
+    """
+    candidates = []
+    for h in preferred_hours:
+        cand = now.replace(hour=h, minute=0, second=0, microsecond=0)
+        if cand > now:
+            cand -= datetime.timedelta(days=1)
+        candidates.append(cand)
+    return max(candidates)
+
+
+def _already_done_since(since: datetime.datetime) -> bool:
+    """'since' zamanından beri başarılı (hatasız) bir üretim çalışması olmuş mu?"""
+    try:
+        rows = (_client()
+                .table("automation_logs")
+                .select("run_at")
+                .gte("run_at", since.isoformat())
+                .is_("error_text", "null")
+                .limit(1)
+                .execute()
+                .data or [])
+        return bool(rows)
+    except Exception as e:
+        print(f"[uyarı] Geçmiş çalışma kontrol edilemedi, yine de üretime devam: {e}")
+        return False
 
 
 def _log_run(found: int, filtered: int, draft_count: int,
@@ -206,19 +247,24 @@ def main():
     # 0b. Otomasyon açık mı?
     if not settings["automation_enabled"]:
         print("[bilgi] Otomasyon kapalı (automation_enabled=false). Çıkılıyor.")
-        _log_run(0, 0, 0, "Otomasyon kapalı")
         return
 
-    # 0c. Tercih edilen saat(ler) kontrolü
+    # 0c. Telafili saat kontrolü: hedef saat geçti mi ve o hedef için henüz
+    # üretim yapılmadı mı? (GitHub cron'u tam saatinde tetiklenemese/gecikse
+    # bile ilk çalışan tetiklemede telafi eder — bkz. dosya başı açıklaması)
     if not DRY_RUN and not IGNORE_HOUR:
-        current_hour = datetime.datetime.now(datetime.timezone.utc).hour
-        preferred    = settings["preferred_run_hours"]
-        if current_hour not in preferred:
-            preferred_str = ", ".join(f"{h:02d}:00" for h in preferred)
-            msg = f"Saat eşleşmedi: beklenen saatler [{preferred_str}] UTC, şu an {current_hour:02d}:00 UTC"
-            print(f"[bilgi] {msg}. Çıkılıyor.")
-            _log_run(0, 0, 0, msg)
+        preferred = settings["preferred_run_hours"]
+        if not preferred:
+            print("[bilgi] Hiç tercih edilen saat seçilmemiş. Çıkılıyor.")
             return
+        now = datetime.datetime.now(datetime.timezone.utc)
+        due_since = _last_due_datetime(preferred, now)
+        if _already_done_since(due_since):
+            print(f"[bilgi] {due_since.strftime('%Y-%m-%d %H:%M')} UTC hedefi için "
+                  f"zaten üretim yapılmış. Çıkılıyor.")
+            return
+        print(f"[bilgi] Hedef saat {due_since.strftime('%H:%M')} UTC geçti, henüz üretim "
+              f"yapılmamış — şimdi üretiliyor (gecikmeli tetikleme telafisi).")
 
     if mode in ("generate", "all"):
         # 30 günden eski seen_url kayıtlarını temizle
