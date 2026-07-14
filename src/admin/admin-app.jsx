@@ -34,8 +34,8 @@ function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--adm-bg)', fontFamily: 'var(--font-body)' }}>
-      <div style={{ width: 380, display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--adm-bg)', fontFamily: 'var(--font-body)', padding: 20, boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 24 }}>
         {/* Logo */}
         <div style={{ textAlign: 'center' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -86,6 +86,7 @@ function AdminApp() {
   const [session, setSession]         = useStateA(null);
   const [authLoading, setAuthLoading] = useStateA(true);
   const [page, setPage]               = useStateA(() => sessionStorage.getItem('sh_adm_page') || 'dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useStateA(false);
   const { trash, saveError } = useAdmin();
 
   // Tüm hook'lar koşulsuz — early return'lardan önce
@@ -144,8 +145,11 @@ function AdminApp() {
 
   return (
     <div className="adm-layout">
+      {/* Mobil sidebar arkaplanı — dışarı tıklayınca kapanır */}
+      {mobileNavOpen && <div className="adm-sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />}
+
       {/* Sidebar */}
-      <aside className="adm-sidebar">
+      <aside className={`adm-sidebar ${mobileNavOpen ? 'adm-sidebar--open' : ''}`}>
         <div className="adm-sidebar__brand">
           <div className="adm-sidebar__logo">SH</div>
           <div>
@@ -157,7 +161,7 @@ function AdminApp() {
         <nav className="adm-sidebar__nav">
           <div className="adm-sidebar__section">İçerik Yönetimi</div>
           {nav.map(n => (
-            <button key={n.id} className={`adm-sidebar__link ${page === n.id ? 'adm-sidebar__link--active' : ''}`} onClick={() => setPage(n.id)}>
+            <button key={n.id} className={`adm-sidebar__link ${page === n.id ? 'adm-sidebar__link--active' : ''}`} onClick={() => { setPage(n.id); setMobileNavOpen(false); }}>
               <AIcon name={n.icon} size={18} />
               <span>{n.label}</span>
               {n.badge > 0 && <span className="adm-sidebar__badge">{n.badge}</span>}
@@ -177,6 +181,9 @@ function AdminApp() {
       <main className="adm-main">
         <div className="adm-topbar">
           <div className="adm-breadcrumb">
+            <button className="adm-mobile-menu-btn" onClick={() => setMobileNavOpen(true)} title="Menü" aria-label="Menü">
+              <AIcon name="menu" size={20} />
+            </button>
             <span className="adm-breadcrumb__root">Admin</span>
             <AIcon name="chevronRight" size={14} style={{ color: 'var(--adm-text-dim)' }} />
             <span className="adm-breadcrumb__current">{nav.find(n => n.id === page)?.label || 'Dashboard'}</span>

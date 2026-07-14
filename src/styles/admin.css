@@ -426,15 +426,38 @@ body {
   font-size: 14px;
 }
 
+/* ---- Mobil menü butonu (yalnızca dar ekranda görünür) ---- */
+.adm-mobile-menu-btn {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 34px; height: 34px; margin-right: 4px;
+  background: none; border: none; border-radius: 8px;
+  color: var(--adm-text); cursor: pointer; flex-shrink: 0;
+}
+.adm-mobile-menu-btn:hover { background: var(--adm-bg-hover); }
+
+.adm-sidebar-backdrop {
+  display: none;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 99;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 900px) {
-  .adm-sidebar { display: none; }
+  .adm-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  .adm-sidebar--open { transform: translateX(0); box-shadow: 2px 0 24px rgba(0,0,0,0.25); }
+  .adm-sidebar-backdrop { display: block; }
+  .adm-mobile-menu-btn { display: flex; }
   .adm-main { margin-left: 0; }
   .adm-content { padding: 20px 16px; }
   .adm-grid-2 { grid-template-columns: 1fr; }
   .adm-form-grid { grid-template-columns: 1fr; }
   .adm-form-grid--3, .adm-form-grid--4 { grid-template-columns: 1fr 1fr; }
   .adm-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .adm-topbar { padding: 0 14px; }
+  .adm-topbar__right > div:first-child { display: none; } /* isim/rol metni */
 }
 
 /* ============================================
