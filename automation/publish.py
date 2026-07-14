@@ -10,8 +10,12 @@ Supabase şeması (mapPostToDb ile birebir eşleşir, artı status/published_at)
 """
 import datetime
 import math
+import requests
 from supabase import create_client
 from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
+
+_COVER_W, _COVER_H = 1200, 630
+_IMAGE_TIMEOUT = 10
 
 # Gemini'nin atadığı Türkçe kategoriye göre kart arka plan rengi
 CATEGORY_BG = {
@@ -54,6 +58,48 @@ def _to_paragraphs(text: str) -> list[str]:
     return paras or [text.strip()]
 
 
+def _process_image(source_url: str, slug: str) -> str | None:
+    """Kaynak görseli indirir, 1200x630'a merkezden kırpıp WebP'ye çevirir ve
+    Supabase Storage'daki 'post-images' bucket'ına yükler. Public URL döner.
+
+    Herhangi bir adımda hata olursa (indirme, kırpma, yükleme) None döner —
+    asla exception fırlatmaz; görselsiz yayın engellenmemeli.
+    """
+    try:
+        from io import BytesIO
+        from PIL import Image
+
+        resp = requests.get(source_url, timeout=_IMAGE_TIMEOUT, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+
+        img = Image.open(BytesIO(resp.content)).convert("RGB")
+        w, h = img.size
+        target_ratio = _COVER_W / _COVER_H
+        ratio = w / h
+        if ratio > target_ratio:
+            new_w = round(h * target_ratio)
+            left = (w - new_w) // 2
+            img = img.crop((left, 0, left + new_w, h))
+        else:
+            new_h = round(w / target_ratio)
+            top = (h - new_h) // 2
+            img = img.crop((0, top, w, top + new_h))
+        img = img.resize((_COVER_W, _COVER_H), Image.LANCZOS)
+
+        buf = BytesIO()
+        img.save(buf, format="WEBP", quality=82)
+
+        path = f"auto/{slug}.webp"
+        _client().storage.from_("post-images").upload(
+            path, buf.getvalue(),
+            file_options={"content-type": "image/webp", "upsert": "true"},
+        )
+        return _client().storage.from_("post-images").get_public_url(path)
+    except Exception as e:
+        print(f"[uyarı] Görsel alınamadı: {e}")
+        return None
+
+
 def publish_article(article: dict, dry_run: bool = False,
                     auto_publish: bool = False) -> dict | None:
     """
@@ -68,6 +114,11 @@ def publish_article(article: dict, dry_run: bool = False,
 
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+    image_url = None
+    src_image_url = article.get("image_url")
+    if src_image_url and not dry_run:
+        image_url = _process_image(src_image_url, slug)
+
     record = {
         "slug":          slug,
         "tag":           article.get("tag", "gundem"),
@@ -76,7 +127,7 @@ def publish_article(article: dict, dry_run: bool = False,
         "date":          article.get("date") or datetime.date.today().isoformat(),
         "read_time":     article.get("read_time") or _read_time(content_text, body_tr),
         "bg":            CATEGORY_BG.get(article.get("category", ""), "var(--blue-light)"),
-        "image_url":     None,
+        "image_url":     image_url,
         "source":        article.get("source", article.get("source_name", None)),
         "source_url":    article.get("source_url", None),
         "title_tr":      article.get("title_tr") or article.get("title", ""),
@@ -94,6 +145,8 @@ def publish_article(article: dict, dry_run: bool = False,
 
     if dry_run:
         import json
+        if src_image_url:
+            print(f"[dry-run] Kaynak görsel bulundu (indirme/yükleme atlanıyor): {src_image_url}")
         print(f"[dry-run] Supabase'e yazılacak kayıt ({slug}, status={record['status']}):")
         print(json.dumps(record, ensure_ascii=False, indent=2))
         return None

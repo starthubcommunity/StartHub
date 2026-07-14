@@ -301,9 +301,27 @@ function PostDetailPage({ postId, navigate }) {
             {/* Tam genişlik kapak */}
             <figure className="article__cover" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>
               {post.cover
-                ? <img src={post.cover} alt={localized(post, 'title')} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span className="post-card__cover-ph">{lang === 'tr' ? 'görsel / cover' : 'cover image'}</span>}
+                ? <img src={post.cover} alt={localized(post, 'title')} loading="lazy"
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling?.style.removeProperty('display'); }} />
+                : null}
+              <div style={{
+                  display: post.cover ? 'none' : 'flex',
+                  position: 'absolute', inset: 0,
+                  background: `linear-gradient(135deg, ${post.bg || 'var(--red)'} 0%, color-mix(in srgb, ${post.bg || 'var(--red)'} 60%, #000) 100%)`,
+                  flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '0 32px', textAlign: 'center',
+                }}>
+                <TagChip tag={post.tag} />
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 22, lineHeight: 1.35, maxWidth: 480 }}>
+                  {localized(post, 'title')}
+                </span>
+              </div>
             </figure>
+            {post.cover && post.source && (
+              <figcaption style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'right', marginTop: 4 }}>
+                {lang === 'tr' ? 'Görsel' : 'Image'}: {post.source.name}
+              </figcaption>
+            )}
 
             {/* Giriş */}
             <p className="article__lead text-pretty">{localized(post, 'excerpt')}</p>

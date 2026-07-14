@@ -392,8 +392,24 @@ function PostCard({ post, onClick, feature, pinned }) {
     <div className={`card post-card ${feature ? 'post-card--feature' : ''}`} onClick={onClick}>
       <div className="post-card__cover" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>
         {post.cover
-          ? <img src={post.cover} alt={localized(post, 'title')} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <span className="post-card__cover-ph">{lang === 'tr' ? 'görsel / cover' : 'cover image'}</span>}
+          ? <img src={post.cover} alt={localized(post, 'title')} loading="lazy"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling?.style.removeProperty('display'); }} />
+          : null}
+        <div className="post-card__cover-ph" style={{
+            display: post.cover ? 'none' : 'flex',
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(135deg, ${post.bg || 'var(--red)'} 0%, color-mix(in srgb, ${post.bg || 'var(--red)'} 60%, #000) 100%)`,
+            alignItems: 'center', justifyContent: 'center', padding: '0 24px', textAlign: 'center',
+          }}>
+          <span style={{
+              color: 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-heading)',
+              fontWeight: 700, fontSize: 15, lineHeight: 1.4, maxWidth: 240,
+              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            }}>
+            {localized(post, 'title')}
+          </span>
+        </div>
         {pinned && (
           <span className="post-card__pin"><Icon name="star" size={12} /> Tavsiye Edilen</span>
         )}

@@ -8,11 +8,54 @@ Görülmüş URL → Supabase automation_seen_urls  (tekrar engeli)
 """
 import datetime
 import re
+import requests
 from supabase import create_client
 from config import RSS_SOURCES as _CONFIG_SOURCES, KEYWORDS as _CONFIG_KEYWORDS
 from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 
 _MIN_TEXT_LEN = 80
+_OG_IMAGE_TIMEOUT = 5
+
+
+def _extract_rss_image(entry) -> str | None:
+    """RSS entry'sinde hazır bulunan görsel URL'ini sırasıyla dener (ağ isteği yok)."""
+    try:
+        thumbs = entry.get("media_thumbnail") or []
+        if thumbs and thumbs[0].get("url"):
+            return thumbs[0]["url"]
+
+        media = entry.get("media_content") or []
+        if media and media[0].get("url"):
+            return media[0]["url"]
+
+        for enc in entry.get("enclosures") or []:
+            if enc.get("href") and (enc.get("type") or "").startswith("image/"):
+                return enc["href"]
+
+        for link in entry.get("links") or []:
+            if link.get("href") and (link.get("type") or "").startswith("image/"):
+                return link["href"]
+    except Exception:
+        pass
+    return None
+
+
+def _fetch_og_image(url: str) -> str | None:
+    """Kaynak makale sayfasından og:image meta etiketini çeker.
+    Hata/timeout durumunda sessizce None döner, asla exception fırlatmaz."""
+    if not url:
+        return None
+    try:
+        from bs4 import BeautifulSoup
+        resp = requests.get(url, timeout=_OG_IMAGE_TIMEOUT, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        tag = soup.find("meta", property="og:image")
+        if tag and tag.get("content"):
+            return tag["content"]
+    except Exception:
+        pass
+    return None
 
 _sb = None
 
@@ -244,6 +287,10 @@ def fetch_filtered(limit_per_source: int = 10,
             if not has_match:
                 continue
 
+            image_url = _extract_rss_image(entry)
+            if not image_url:
+                image_url = _fetch_og_image(link)
+
             results.append({
                 "title":            title,
                 "summary":          summary,
@@ -252,6 +299,7 @@ def fetch_filtered(limit_per_source: int = 10,
                 "source_url":       src["url"],
                 "published":        entry.get("published", ""),
                 "published_parsed": entry.get("published_parsed"),
+                "image_url":        image_url,
             })
 
     print(f"[bilgi] {len(results)} yeni haber filtreden geçti "
