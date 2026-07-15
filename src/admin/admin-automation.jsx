@@ -28,6 +28,18 @@ const TABS = [
 ];
 
 // ── Yardımcılar ───────────────────────────────────────────────────────────────
+// Admin panel yalnızca admin.css'i yükler — sitenin --blue-light gibi CSS
+// değişkenleri burada tanımlı değil, bu yüzden dominant hex olmayan bg
+// değerlerini (kategori varsayılanı) somut bir hex'e çeviriyoruz.
+const SITE_BG_HEX = {
+  'var(--blue-light)':   '#EFF6FF',
+  'var(--red-light)':    '#FEF2F2',
+  'var(--green-light)':  '#F0FDF4',
+  'var(--purple-light)': '#F5F3FF',
+  'var(--orange-light)': '#FFF7ED',
+};
+const previewCoverBg = (bg) => (bg?.startsWith('#') ? bg : (SITE_BG_HEX[bg] || '#EFF6FF'));
+
 const fmtDate = (d) => d
   ? new Date(d).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })
   : '—';
@@ -1234,6 +1246,24 @@ function AutomationPage() {
               )}
             </div>
             <div className="adm-pv-article__title">{preview.title_tr}</div>
+            {preview.image_url && (
+              <div className="adm-pv-article__cover" style={{ background: previewCoverBg(preview.bg), position: 'relative' }}>
+                <img
+                  src={preview.image_url}
+                  alt={preview.title_tr}
+                  onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
+                />
+                {preview.source && (
+                  <span style={{
+                      position: 'absolute', bottom: 8, right: 12,
+                      fontSize: 10, color: 'rgba(255,255,255,0.7)',
+                      background: 'rgba(0,0,0,0.35)', padding: '2px 8px', borderRadius: 20,
+                    }}>
+                    Görsel: {preview.source}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="adm-pv-article__lead">{preview.excerpt_tr}</div>
             <div className="adm-pv-article__body">
               {(preview.body_tr || []).map((p, i) => <p key={i}>{p}</p>)}
