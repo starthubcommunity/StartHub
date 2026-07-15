@@ -6,6 +6,7 @@ node_modules/
 venv/
 __pycache__/
 *.pyc
+automation/test_output/
 
 # Build output
 dist/
