@@ -298,29 +298,36 @@ function PostDetailPage({ postId, navigate }) {
               </div>
             </header>
 
-            {/* Tam genişlik kapak */}
-            <figure className="article__cover" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>
-              {post.cover
-                ? <img src={post.cover} alt={localized(post, 'title')} loading="lazy"
-                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling?.style.removeProperty('display'); }} />
-                : null}
-              <div style={{
-                  display: post.cover ? 'none' : 'flex',
-                  position: 'absolute', inset: 0,
-                  background: `linear-gradient(135deg, ${post.bg || 'var(--red)'} 0%, color-mix(in srgb, ${post.bg || 'var(--red)'} 60%, #000) 100%)`,
-                  flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '0 32px', textAlign: 'center',
+            {/* Tam genişlik kapak — görsel yoksa hiç render edilmez */}
+            {post.cover && (
+              <figure style={{
+                  width: '100%', height: 340,
+                  background: post.bg?.startsWith('#')
+                    ? post.bg
+                    : `var(${post.bg?.replace('var(', '').replace(')', '') || '--blue-light'})`,
+                  borderRadius: 12, overflow: 'hidden', position: 'relative', marginBottom: 24,
                 }}>
-                <TagChip tag={post.tag} />
-                <span style={{ color: 'rgba(255,255,255,0.9)', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 22, lineHeight: 1.35, maxWidth: 480 }}>
-                  {localized(post, 'title')}
-                </span>
-              </div>
-            </figure>
-            {post.cover && post.source && (
-              <figcaption style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'right', marginTop: 4 }}>
-                {lang === 'tr' ? 'Görsel' : 'Image'}: {post.source.name}
-              </figcaption>
+                <img
+                  src={post.cover}
+                  alt={localized(post, 'title')}
+                  loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={e => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement.style.display = 'none';
+                  }}
+                />
+                {post.source && (
+                  <span style={{
+                      position: 'absolute', bottom: 8, right: 12,
+                      fontSize: 10, color: 'rgba(255,255,255,0.5)',
+                      background: 'rgba(0,0,0,0.3)',
+                      padding: '2px 8px', borderRadius: 20,
+                    }}>
+                    {lang === 'tr' ? 'Görsel' : 'Image'}: {post.source.name}
+                  </span>
+                )}
+              </figure>
             )}
 
             {/* Giriş */}

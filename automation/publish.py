@@ -5,8 +5,8 @@ Yayına alma kararı artık admin panelinden (Onayla/Reddet) verilir — burada 
 
 Supabase şeması (mapPostToDb ile birebir eşleşir, artı status/published_at):
     slug, tag, author_id, project_id, date, read_time, bg, image_url,
-    source, source_url, title_tr, title_en, excerpt_tr, excerpt_en,
-    body_tr, body_en, home_pinned, recommended, status, published_at
+    aspect_ratio, source, source_url, title_tr, title_en, excerpt_tr,
+    excerpt_en, body_tr, body_en, home_pinned, recommended, status, published_at
 """
 import datetime
 import math
@@ -15,7 +15,8 @@ from supabase import create_client
 from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 
 _COVER_W, _COVER_H = 1200, 630
-_IMAGE_TIMEOUT = 10
+_IMAGE_TIMEOUT = 8
+_MIN_IMAGE_WIDTH = 800
 
 # Gemini'nin atadığı Türkçe kategoriye göre kart arka plan rengi
 CATEGORY_BG = {
@@ -58,46 +59,100 @@ def _to_paragraphs(text: str) -> list[str]:
     return paras or [text.strip()]
 
 
-def _process_image(source_url: str, slug: str) -> str | None:
-    """Kaynak görseli indirir, 1200x630'a merkezden kırpıp WebP'ye çevirir ve
-    Supabase Storage'daki 'post-images' bucket'ına yükler. Public URL döner.
+def _dominant_color(img) -> str:
+    """Görselin 50x50'ye küçültülmüş halinden ortalama (dominant) rengi hex olarak döner."""
+    from PIL import Image
+    tiny = img.resize((50, 50), Image.LANCZOS)
+    pixels = list(tiny.getdata())
+    r = sum(p[0] for p in pixels) // len(pixels)
+    g = sum(p[1] for p in pixels) // len(pixels)
+    b = sum(p[2] for p in pixels) // len(pixels)
+    return f"#{r:02x}{g:02x}{b:02x}"
 
-    Herhangi bir adımda hata olursa (indirme, kırpma, yükleme) None döner —
-    asla exception fırlatmaz; görselsiz yayın engellenmemeli.
+
+def _prepare_image(source_url: str | None, slug: str, fallback_bg: str,
+                   dry_run: bool = False) -> tuple[str | None, float | None, str]:
+    """Kaynak görseli indirir, ölçer, işler ve (dry_run değilse) Supabase Storage'a yükler.
+
+    Dönüş: (image_url, aspect_ratio, bg)
+      - Kaynak görsel yoksa:            (None, None, fallback_bg)
+      - İndirilemezse/açılamazsa:       (None, None, fallback_bg)
+      - Çok küçükse (<800px) veya
+        Storage yüklemesi başarısızsa:  (None, None, dominant_hex)
+      - Başarılıysa:                    (public_url, aspect_ratio, dominant_hex)
+
+    Herhangi bir adımda hata olursa exception fırlatmaz — görselsiz yayın hiçbir
+    zaman engellenmemeli.
     """
+    if not source_url:
+        return None, None, fallback_bg
+
     try:
         from io import BytesIO
         from PIL import Image
 
         resp = requests.get(source_url, timeout=_IMAGE_TIMEOUT, headers={"User-Agent": "Mozilla/5.0"})
         resp.raise_for_status()
-
         img = Image.open(BytesIO(resp.content)).convert("RGB")
-        w, h = img.size
+        width, height = img.size
+        aspect_ratio = round(width / height, 2)
+    except Exception as e:
+        print(f"[uyarı] Görsel indirilemedi: {e}")
+        return None, None, fallback_bg
+
+    dominant_hex = _dominant_color(img)
+    print(f"[bilgi] Görsel {width}x{height}, aspect_ratio={aspect_ratio}, dominant={dominant_hex}")
+
+    if width < _MIN_IMAGE_WIDTH:
+        print(f"[uyarı] Görsel çok küçük ({width}px), kullanılmıyor")
+        return None, None, dominant_hex
+
+    try:
         target_ratio = _COVER_W / _COVER_H
-        ratio = w / h
-        if ratio > target_ratio:
-            new_w = round(h * target_ratio)
-            left = (w - new_w) // 2
-            img = img.crop((left, 0, left + new_w, h))
+        img_ratio = width / height
+
+        if aspect_ratio >= 1.2:
+            # Yatay görsel — 1200x630'a merkezden kırp
+            if img_ratio > target_ratio:
+                new_h = height
+                new_w = int(height * target_ratio)
+            else:
+                new_w = width
+                new_h = int(width / target_ratio)
+            left = (width - new_w) // 2
+            top = (height - new_h) // 2
+            final = img.crop((left, top, left + new_w, top + new_h)).resize((_COVER_W, _COVER_H), Image.LANCZOS)
         else:
-            new_h = round(w / target_ratio)
-            top = (h - new_h) // 2
-            img = img.crop((0, top, w, top + new_h))
-        img = img.resize((_COVER_W, _COVER_H), Image.LANCZOS)
+            # Kare/dikey görsel — dominant renkli canvas'a ortalayarak oturt (letterbox)
+            canvas = Image.new("RGB", (_COVER_W, _COVER_H), tuple(int(dominant_hex[i:i + 2], 16) for i in (1, 3, 5)))
+            if img_ratio > target_ratio:
+                new_w = _COVER_W
+                new_h = int(_COVER_W / img_ratio)
+            else:
+                new_h = _COVER_H
+                new_w = int(_COVER_H * img_ratio)
+            resized = img.resize((new_w, new_h), Image.LANCZOS)
+            canvas.paste(resized, ((_COVER_W - new_w) // 2, (_COVER_H - new_h) // 2))
+            final = canvas
 
         buf = BytesIO()
-        img.save(buf, format="WEBP", quality=82)
+        final.save(buf, format="WEBP", quality=85)
+
+        if dry_run:
+            mode = "crop" if aspect_ratio >= 1.2 else "letterbox"
+            print(f"[dry-run] Görsel işlendi ({final.size[0]}x{final.size[1]}, {mode}), Storage'a yüklenmeyecek.")
+            return None, aspect_ratio, dominant_hex
 
         path = f"auto/{slug}.webp"
         _client().storage.from_("post-images").upload(
             path, buf.getvalue(),
             file_options={"content-type": "image/webp", "upsert": "true"},
         )
-        return _client().storage.from_("post-images").get_public_url(path)
+        public_url = _client().storage.from_("post-images").get_public_url(path)
+        return public_url, aspect_ratio, dominant_hex
     except Exception as e:
-        print(f"[uyarı] Görsel alınamadı: {e}")
-        return None
+        print(f"[uyarı] Storage yükleme hatası: {e}")
+        return None, None, dominant_hex
 
 
 def publish_article(article: dict, dry_run: bool = False,
@@ -114,10 +169,9 @@ def publish_article(article: dict, dry_run: bool = False,
 
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-    image_url = None
-    src_image_url = article.get("image_url")
-    if src_image_url and not dry_run:
-        image_url = _process_image(src_image_url, slug)
+    category_bg = CATEGORY_BG.get(article.get("category", ""), "var(--blue-light)")
+    image_url, aspect_ratio, bg = _prepare_image(
+        article.get("image_url"), slug, category_bg, dry_run=dry_run)
 
     record = {
         "slug":          slug,
@@ -126,8 +180,9 @@ def publish_article(article: dict, dry_run: bool = False,
         "project_id":    None,
         "date":          article.get("date") or datetime.date.today().isoformat(),
         "read_time":     article.get("read_time") or _read_time(content_text, body_tr),
-        "bg":            CATEGORY_BG.get(article.get("category", ""), "var(--blue-light)"),
+        "bg":            bg,
         "image_url":     image_url,
+        "aspect_ratio":  aspect_ratio,
         "source":        article.get("source", article.get("source_name", None)),
         "source_url":    article.get("source_url", None),
         "title_tr":      article.get("title_tr") or article.get("title", ""),
@@ -145,8 +200,6 @@ def publish_article(article: dict, dry_run: bool = False,
 
     if dry_run:
         import json
-        if src_image_url:
-            print(f"[dry-run] Kaynak görsel bulundu (indirme/yükleme atlanıyor): {src_image_url}")
         print(f"[dry-run] Supabase'e yazılacak kayıt ({slug}, status={record['status']}):")
         print(json.dumps(record, ensure_ascii=False, indent=2))
         return None
