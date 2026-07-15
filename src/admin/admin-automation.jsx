@@ -1,7 +1,7 @@
 // admin-automation.jsx — Otomasyon Kontrol Merkezi
 // Tab yapısı: Taslaklar | Kaynaklar | Kelimeler | Ton & Ayarlar | Loglar
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AIcon, Modal, Field, Input, PageHead, TagInput } from './admin-ui';
+import { AIcon, Modal, Field, Input, Select, PageHead, TagInput, PostCoverUpload } from './admin-ui';
 import { supabase } from '../lib/supabase';
 
 // ── Sabitler ─────────────────────────────────────────────────────────────────
@@ -19,12 +19,17 @@ const TONE_LEVELS = [
 
 const ALL_CATEGORIES = ['AI', 'Teknoloji', 'Girişim', 'Yatırım', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık'];
 
+// image_stock.category seçenekleri — image_matcher.py'deki CATEGORY_ALIAS ile
+// makale kategorilerine (AI/Girişim/Teknoloji/Yatırım) eşleniyor.
+const IMAGE_STOCK_CATEGORIES = ['Fon', 'Yapay Zeka', 'Girişim', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık', 'Teknoloji', 'Ortaklık', 'Genel'];
+
 const TABS = [
-  { id: 'drafts',   label: 'Taslaklar',   icon: 'layers'   },
-  { id: 'sources',  label: 'Kaynaklar',   icon: 'globe'    },
-  { id: 'keywords', label: 'Kelimeler',   icon: 'search'   },
-  { id: 'settings', label: 'Ton & Ayarlar', icon: 'settings' },
-  { id: 'logs',     label: 'Loglar',      icon: 'list'     },
+  { id: 'drafts',      label: 'Taslaklar',    icon: 'layers'   },
+  { id: 'imagestock',  label: 'Görsel Stoğu', icon: 'image'    },
+  { id: 'sources',     label: 'Kaynaklar',    icon: 'globe'    },
+  { id: 'keywords',    label: 'Kelimeler',    icon: 'search'   },
+  { id: 'settings',    label: 'Ton & Ayarlar', icon: 'settings' },
+  { id: 'logs',        label: 'Loglar',       icon: 'list'     },
 ];
 
 // ── Yardımcılar ───────────────────────────────────────────────────────────────
@@ -118,6 +123,64 @@ function AutomationPage() {
   const toggleAutoPublish = async (val) => {
     setAutoPublish(val);
     await saveSettings({ auto_publish: val });
+  };
+
+  // ── Görsel Stoğu (Supabase image_stock) ───────────────────────────────────
+  const [imageStock,   setImageStock]   = useState([]);
+  const [imgLoading,   setImgLoading]   = useState(true);
+  const [imgModal,     setImgModal]     = useState(null); // null | {mode:'add'} | {mode:'edit',row}
+  const [imgForm,      setImgForm]      = useState({ url: '', category: '', tags: [], alt_tr: '', alt_en: '' });
+  const [imgSaving,    setImgSaving]    = useState(false);
+
+  const loadImageStock = useCallback(async () => {
+    setImgLoading(true);
+    const { data, error } = await supabase
+      .from('image_stock').select('*').order('id', { ascending: false });
+    if (error) flash('Görsel stoğu yüklenemedi: ' + error.message, 'orange');
+    setImageStock(data || []);
+    setImgLoading(false);
+  }, [flash]);
+
+  const openAddImage = () => {
+    setImgForm({ url: '', category: '', tags: [], alt_tr: '', alt_en: '' });
+    setImgModal({ mode: 'add' });
+  };
+  const openEditImage = (row) => {
+    setImgForm({ url: row.url, category: row.category || '', tags: row.tags || [], alt_tr: row.alt_tr || '', alt_en: row.alt_en || '' });
+    setImgModal({ mode: 'edit', row });
+  };
+  const saveImage = async () => {
+    if (!imgForm.url) { flash('Önce bir görsel yükleyin.', 'orange'); return; }
+    setImgSaving(true);
+    const payload = {
+      url: imgForm.url,
+      category: imgForm.category || null,
+      tags: imgForm.tags,
+      alt_tr: imgForm.alt_tr || null,
+      alt_en: imgForm.alt_en || null,
+    };
+    if (imgModal.mode === 'add') {
+      const { error } = await supabase.from('image_stock').insert(payload);
+      if (error) flash('Eklenemedi: ' + error.message, 'orange');
+      else { flash('Görsel stoğa eklendi.'); setImgModal(null); loadImageStock(); }
+    } else {
+      const { error } = await supabase.from('image_stock').update(payload).eq('id', imgModal.row.id);
+      if (error) flash('Güncellenemedi: ' + error.message, 'orange');
+      else { flash('Görsel güncellendi.'); setImgModal(null); loadImageStock(); }
+    }
+    setImgSaving(false);
+  };
+  const deleteImage = async (row) => {
+    if (!confirm('Bu görseli stoktan kalıcı olarak silmek istediğine emin misin?')) return;
+    const marker = '/post-images/';
+    const idx = (row.url || '').indexOf(marker);
+    if (idx !== -1) {
+      const path = row.url.slice(idx + marker.length);
+      await supabase.storage.from('post-images').remove([path]);
+    }
+    const { error } = await supabase.from('image_stock').delete().eq('id', row.id);
+    if (error) flash('Silinemedi: ' + error.message, 'orange');
+    else { setImageStock(prev => prev.filter(r => r.id !== row.id)); flash('Görsel silindi.', 'orange'); }
   };
 
   // ── RSS Kaynakları (Supabase automation_sources) ──────────────────────────
@@ -468,11 +531,12 @@ function AutomationPage() {
   // ── Yükle ────────────────────────────────────────────────────────────────
   useEffect(() => {
     loadSettings();
+    loadImageStock();
     loadSources();
     loadKeywords();
     loadDrafts();
     loadLogs();
-  }, [loadSettings, loadSources, loadKeywords, loadDrafts, loadLogs]);
+  }, [loadSettings, loadImageStock, loadSources, loadKeywords, loadDrafts, loadLogs]);
 
   useEffect(() => {
     if (draftsView === 'rejected') loadRejected();
@@ -774,6 +838,63 @@ function AutomationPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── TAB: GÖRSEL STOĞU ──────────────────────────────────────────── */}
+      {activeTab === 'imagestock' && (
+        <div>
+          <div className="adm-note" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)', marginBottom: 16 }}>
+            <AIcon name="settings" size={14} />
+            <span>
+              Otomasyon artık kaynak sitelerden görsel indirmiyor — her taslak için buradaki
+              havuzdan başlığa/özete ve kategoriye en uygun stok görsel otomatik seçiliyor.
+              Kaliteli sonuçlar için farklı kategori ve etiketlerde yeterli sayıda görsel yükleyin.
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+            <button className="adm-btn adm-btn--primary" onClick={openAddImage}>
+              <AIcon name="plus" size={15} /> Görsel Ekle
+            </button>
+          </div>
+          <div className="adm-card">
+            <div className="adm-card__header"><h3>Görsel Stoğu</h3></div>
+            <div className="adm-card__body" style={{ padding: 0 }}>
+              {imgLoading ? (
+                <div className="adm-empty"><span className="adm-spinner" style={{ width: 28, height: 28 }}></span></div>
+              ) : imageStock.length === 0 ? (
+                <div className="adm-empty" style={{ padding: '32px 24px', textAlign: 'center' }}>
+                  <AIcon name="image" size={40} style={{ opacity: 0.15, marginBottom: 12 }} />
+                  <p style={{ color: 'var(--adm-text-dim)' }}>Henüz stok görsel yok. "Görsel Ekle" ile başla.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14, padding: 16 }}>
+                  {imageStock.map(row => (
+                    <div key={row.id} style={{ border: '1px solid var(--adm-border-light)', borderRadius: 'var(--adm-r)', overflow: 'hidden' }}>
+                      <div style={{ width: '100%', aspectRatio: '1200/630', background: 'var(--adm-bg)', overflow: 'hidden' }}>
+                        <img src={row.url} alt={row.alt_tr || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                      <div style={{ padding: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span className="adm-badge" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)' }}>{row.category || '—'}</span>
+                          <span style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>{row.usage_count || 0}× kullanıldı</span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, minHeight: 20 }}>
+                          {(row.tags || []).slice(0, 4).map((tag, i) => (
+                            <span key={i} style={{ fontSize: 11, background: 'var(--adm-bg)', color: 'var(--adm-text-secondary)', padding: '2px 7px', borderRadius: 6 }}>{tag}</span>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button className="adm-icon-btn" title="Düzenle" onClick={() => openEditImage(row)}><AIcon name="edit" size={14} /></button>
+                          <button className="adm-icon-btn adm-icon-btn--danger" title="Sil" onClick={() => deleteImage(row)}><AIcon name="trash" size={14} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -1212,6 +1333,47 @@ function AutomationPage() {
               <button className="adm-btn adm-btn--ghost" onClick={() => setSourceModal(null)}>İptal</button>
               <button className="adm-btn adm-btn--primary" onClick={saveSource} disabled={srcSaving}>
                 {srcSaving ? <><span className="adm-spinner"></span> Kaydediliyor…</> : <><AIcon name="check" size={15} /> Kaydet</>}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Görsel stoğu ekle/düzenle */}
+      {imgModal && (
+        <Modal open onClose={() => setImgModal(null)} title={imgModal.mode === 'add' ? 'Görsel Ekle' : 'Görseli Düzenle'}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Field label="Görsel">
+              <PostCoverUpload
+                value={imgForm.url}
+                onChange={v => setImgForm(p => ({ ...p, url: v }))}
+                postSlug=""
+                pathPrefix="stock/"
+              />
+            </Field>
+            <Field label="Kategori">
+              <Select
+                value={imgForm.category}
+                onChange={v => setImgForm(p => ({ ...p, category: v }))}
+                placeholder="Seç..."
+                options={IMAGE_STOCK_CATEGORIES.map(c => ({ value: c, label: c }))}
+              />
+            </Field>
+            <Field label="Etiketler" hint="Enter ile ekle — örn. anlaşma, el sıkışma, iş insanı, toplantı, yatırım">
+              <TagInput tags={imgForm.tags} onChange={v => setImgForm(p => ({ ...p, tags: v }))} />
+            </Field>
+            <div className="adm-form-grid">
+              <Field label="Alt Metin (TR)" hint="Opsiyonel, SEO/erişilebilirlik için">
+                <Input value={imgForm.alt_tr} onChange={v => setImgForm(p => ({ ...p, alt_tr: v }))} />
+              </Field>
+              <Field label="Alt Metin (EN)" hint="Opsiyonel">
+                <Input value={imgForm.alt_en} onChange={v => setImgForm(p => ({ ...p, alt_en: v }))} />
+              </Field>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8, borderTop: '1px solid var(--adm-border-light)' }}>
+              <button className="adm-btn adm-btn--ghost" onClick={() => setImgModal(null)}>İptal</button>
+              <button className="adm-btn adm-btn--primary" onClick={saveImage} disabled={imgSaving}>
+                {imgSaving ? <><span className="adm-spinner"></span> Kaydediliyor…</> : <><AIcon name="check" size={15} /> Kaydet</>}
               </button>
             </div>
           </div>

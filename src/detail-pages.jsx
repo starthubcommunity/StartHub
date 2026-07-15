@@ -452,7 +452,7 @@ function PostDetailPage({ postId, navigate }) {
                 }}>
                 <img
                   src={post.cover}
-                  alt={localized(post, 'title')}
+                  alt={post.imageAlt || localized(post, 'title')}
                   loading="lazy"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={e => {

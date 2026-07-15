@@ -124,7 +124,6 @@ def generate_article(item: dict, tone_settings: dict | None = None) -> dict | No
     data["slug"]       = slugify(data.get("slug") or data.get("title_tr", "yazi"))
     data.setdefault("source_url", item["link"])
     data.setdefault("source",     item["source_name"])
-    data["image_url"]  = item.get("image_url")
     data.setdefault("tag",        "gundem")
     if data.get("tag") not in ("gundem", "blog", "etkinlik"):
         data["tag"] = "gundem"

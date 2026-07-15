@@ -254,7 +254,7 @@ function cropToWebP(file, targetW = 1200, targetH = 630) {
   });
 }
 
-function PostCoverUpload({ value, onChange, postSlug = '' }) {
+function PostCoverUpload({ value, onChange, postSlug = '', pathPrefix = '' }) {
   const inputRef = useRefU(null);
   const [dragging, setDragging] = useStateU(false);
   const [uploading, setUploading] = useStateU(false);
@@ -266,7 +266,7 @@ function PostCoverUpload({ value, onChange, postSlug = '' }) {
     setError(null);
     try {
       const blob = await cropToWebP(file);
-      const filename = `${Date.now()}${postSlug ? '-' + postSlug : ''}.webp`;
+      const filename = `${pathPrefix}${Date.now()}${postSlug ? '-' + postSlug : ''}.webp`;
       const { error: upErr } = await supabase.storage
         .from('post-images')
         .upload(filename, blob, { contentType: 'image/webp', upsert: true });
@@ -417,8 +417,10 @@ function ConfirmDialog({ open, onClose, onConfirm, title, message }) {
 function TagInput({ tags = [], onChange }) {
   const [input, setInput] = useStateU('');
   const add = () => {
-    const v = input.trim();
-    if (v && !tags.includes(v)) { onChange([...tags, v]); setInput(''); }
+    // Virgülle ayrılmış birden fazla etiket tek seferde eklenebilir (örn. yapıştırma)
+    const parts = input.split(',').map(s => s.trim()).filter(Boolean);
+    const fresh = parts.filter(p => !tags.includes(p));
+    if (fresh.length) { onChange([...tags, ...fresh]); setInput(''); }
   };
   const remove = (idx) => onChange(tags.filter((_, i) => i !== idx));
   return (
