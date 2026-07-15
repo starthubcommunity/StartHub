@@ -59,6 +59,25 @@ def _to_paragraphs(text: str) -> list[str]:
     return paras or [text.strip()]
 
 
+def _to_rgb(raw):
+    """Şeffaf (RGBA/LA/P) görselleri beyaz zemin üzerine düzleştirerek RGB'ye çevirir.
+
+    convert('RGB') doğrudan çağrılsaydı şeffaf alanlar siyaha boyanırdı — bu,
+    ara adımda (dominant renk hesaplanmadan önce) yanlış/koyu bir görüntüye yol
+    açardı. Nihai canvas zaten dominant renkle dolduğu için bu sadece o ara
+    adımdaki siyahlığı önlemek içindir.
+    """
+    from PIL import Image
+    if raw.mode in ("RGBA", "LA", "P"):
+        background = Image.new("RGB", raw.size, (255, 255, 255))
+        if raw.mode == "P":
+            raw = raw.convert("RGBA")
+        if raw.mode in ("RGBA", "LA"):
+            background.paste(raw, mask=raw.split()[-1])
+        return background
+    return raw.convert("RGB")
+
+
 def _dominant_color(img) -> str:
     """Görselin 50x50'ye küçültülmüş halinden ortalama (dominant) rengi hex olarak döner."""
     from PIL import Image
@@ -93,7 +112,7 @@ def _prepare_image(source_url: str | None, slug: str, fallback_bg: str,
 
         resp = requests.get(source_url, timeout=_IMAGE_TIMEOUT, headers={"User-Agent": "Mozilla/5.0"})
         resp.raise_for_status()
-        img = Image.open(BytesIO(resp.content)).convert("RGB")
+        img = _to_rgb(Image.open(BytesIO(resp.content)))
         width, height = img.size
         aspect_ratio = round(width / height, 2)
     except Exception as e:

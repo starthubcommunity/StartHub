@@ -54,6 +54,19 @@ TEST_IMAGES = [
 ]
 
 
+def _to_rgb(raw: Image.Image) -> Image.Image:
+    """Şeffaf (RGBA/LA/P) görselleri beyaz zemin üzerine düzleştirerek RGB'ye çevirir
+    (convert('RGB') doğrudan çağrılsaydı şeffaf alanlar siyaha boyanırdı)."""
+    if raw.mode in ("RGBA", "LA", "P"):
+        background = Image.new("RGB", raw.size, (255, 255, 255))
+        if raw.mode == "P":
+            raw = raw.convert("RGBA")
+        if raw.mode in ("RGBA", "LA"):
+            background.paste(raw, mask=raw.split()[-1])
+        return background
+    return raw.convert("RGB")
+
+
 def _dominant_color(img: Image.Image) -> str:
     """Görselin 50x50'ye küçültülmüş halinden ortalama (dominant) rengi hex olarak döner."""
     tiny = img.resize((50, 50), Image.LANCZOS)
@@ -108,7 +121,7 @@ def run_test(case: dict) -> None:
     try:
         resp = requests.get(url, timeout=_TIMEOUT, headers={"User-Agent": "Mozilla/5.0"})
         resp.raise_for_status()
-        img = Image.open(BytesIO(resp.content)).convert("RGB")
+        img = _to_rgb(Image.open(BytesIO(resp.content)))
     except Exception as e:
         print(f"Hata     : Görsel indirilemedi/açılamadı — {e}")
         print("=" * 60)
