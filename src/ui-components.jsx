@@ -122,6 +122,7 @@ const iconSvgs = {
   building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
   graduationCap: '<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 6.5 3 12 0v-5"/>',
   handshake: '<path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14h2"/><path d="m7 18 4 4H3"/><path d="m17 18 4 4h-8"/>',
+  volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
 };
 
 function Icon({ name, size = 20, className = '', style = {} }) {
@@ -358,19 +359,28 @@ function TagChip({ tag, size }) {
 // ============================================
 // AUTHOR BYLINE — foto + isim + rol (+ tarih)
 // ============================================
-function AuthorByline({ author, date, readTime, compact }) {
+function AuthorByline({ author, guestAuthor, date, readTime, compact }) {
   const { t, localized } = useLang();
-  if (!author && !date && !readTime) return null;
+  const displayAuthor = guestAuthor
+    ? {
+        name: guestAuthor.name,
+        role_tr: guestAuthor.title || 'Konuk Yazar',
+        role_en: guestAuthor.title || 'Guest Author',
+        photo: guestAuthor.avatar || null,
+        color: '#64748B',
+      }
+    : author;
+  if (!displayAuthor && !date && !readTime) return null;
   const metaParts = [
-    author ? localized(author, 'role') : null,
+    displayAuthor ? localized(displayAuthor, 'role') : null,
     date || null,
     readTime ? `${readTime} ${t('sections.minRead')}` : null,
   ].filter(Boolean);
   return (
     <div className={`byline ${compact ? 'byline--compact' : ''}`}>
-      {author && <Avatar person={author} size={compact ? 30 : 38} />}
+      {displayAuthor && <Avatar person={displayAuthor} size={compact ? 30 : 38} />}
       <div className="byline__txt">
-        {author && <div className="byline__name">{author.name}</div>}
+        {displayAuthor && <div className="byline__name">{displayAuthor.name}</div>}
         <div className="byline__sub">
           {metaParts.map((p, i) => (
             <span key={i}>{i > 0 && <span className="byline__dot">·</span>}{p}</span>

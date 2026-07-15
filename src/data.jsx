@@ -418,6 +418,7 @@ function mapPost(row) {
     body_en:     row.body_en     || [],
     homePinned:  row.home_pinned  || false,
     recommended: row.recommended  || false,
+    guestAuthor: row.guest_author || null,
   };
 }
 

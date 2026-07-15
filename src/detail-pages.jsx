@@ -1,5 +1,5 @@
 // detail-pages.jsx — Project detail & Post detail pages
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLang, getPost, postsForProject, usePosts, usePeople, useStartups } from './data';
 import { Icon, Button, Reveal, Avatar, PostCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
 import { CTASection } from './layout';
@@ -262,6 +262,60 @@ function PostDetailPage({ postId, navigate }) {
   const { startups } = useStartups();
   const [shareCopied, setShareCopied] = useState(false);
   const post = getPost(postId);
+
+  // Okuma ilerleme çubuğu
+  const [readProgress, setReadProgress] = useState(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+      setReadProgress(scrollable > 0 ? Math.min(100, Math.max(0, (window.scrollY / scrollable) * 100)) : 0);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [post?.id]);
+
+  // Sesli okuma (Web Speech API)
+  const ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const [ttsOpen, setTtsOpen] = useState(false);
+  const [ttsState, setTtsState] = useState('idle'); // idle | playing | paused
+  const [ttsRate, setTtsRate] = useState(1);
+  const [ttsParaIdx, setTtsParaIdx] = useState(-1);
+  const ttsGenRef = useRef(0);
+  const ttsBtnRef = useRef(null);
+  const ttsPanelRef = useRef(null);
+  const paraRefs = useRef([]);
+
+  useEffect(() => {
+    if (!ttsOpen) return;
+    const onOutside = (e) => {
+      if (ttsPanelRef.current?.contains(e.target)) return;
+      if (ttsBtnRef.current?.contains(e.target)) return;
+      setTtsOpen(false);
+    };
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [ttsOpen]);
+
+  // Sayfa değişince / unmount'ta okumayı durdur
+  useEffect(() => {
+    return () => {
+      ttsGenRef.current++;
+      if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    };
+  }, [post?.id]);
+
+  // İçindekiler açık/kapalı — localStorage'da sakla
+  const [tocOpen, setTocOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem('sh_toc_open');
+      return v === null ? true : v === 'true';
+    } catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('sh_toc_open', String(tocOpen)); } catch {}
+  }, [tocOpen]);
+
   useEffect(() => {
     if (!post) return;
     return trackPostView(post.slug || String(post.id), lang);
@@ -273,8 +327,46 @@ function PostDetailPage({ postId, navigate }) {
   const more = posts.filter(x => x.id !== post.id && (x.tag === post.tag || x.projectId === post.projectId)).slice(0, 3);
   const moreFinal = more.length ? more : posts.filter(x => x.id !== post.id).slice(0, 3);
 
+  // Sesli okuma kontrolleri
+  const speakFrom = (idx, rate, gen) => {
+    if (gen !== ttsGenRef.current) return;
+    if (idx >= body.length) { setTtsState('idle'); setTtsParaIdx(-1); return; }
+    const utt = new SpeechSynthesisUtterance(body[idx]);
+    utt.lang = 'tr-TR';
+    utt.rate = rate;
+    utt.onstart = () => { if (gen === ttsGenRef.current) setTtsParaIdx(idx); };
+    utt.onend = () => { if (gen === ttsGenRef.current) speakFrom(idx + 1, rate, gen); };
+    window.speechSynthesis.speak(utt);
+  };
+  const ttsPlay = () => {
+    const gen = ++ttsGenRef.current;
+    window.speechSynthesis.cancel();
+    setTtsState('playing');
+    speakFrom(0, ttsRate, gen);
+  };
+  const ttsPause = () => { window.speechSynthesis.pause(); setTtsState('paused'); };
+  const ttsResume = () => { window.speechSynthesis.resume(); setTtsState('playing'); };
+  const ttsStop = () => {
+    ttsGenRef.current++;
+    window.speechSynthesis.cancel();
+    setTtsState('idle');
+    setTtsParaIdx(-1);
+  };
+  const ttsSetRate = (r) => {
+    setTtsRate(r);
+    if (ttsState !== 'idle') {
+      const gen = ++ttsGenRef.current;
+      window.speechSynthesis.cancel();
+      setTtsState('playing');
+      speakFrom(ttsParaIdx >= 0 ? ttsParaIdx : 0, r, gen);
+    }
+  };
+
   return (
     <div className="page-transition">
+      {/* Okuma ilerleme çubuğu */}
+      <div className="read-progress" style={{ width: `${readProgress}%` }} />
+
       <div className="page-header" style={{ paddingBottom: 0 }}>
         <div className="container">
           <span className="pd-back" onClick={() => { navigate('blog'); window.scrollTo({ top: 0 }); }}>
@@ -291,9 +383,60 @@ function PostDetailPage({ postId, navigate }) {
               <TagChip tag={post.tag} />
               <h1 className="article__title text-pretty">{localized(post, 'title')}</h1>
               <div className="article__meta">
-                <AuthorByline author={author} />
-                <div className="article__date">
-                  <span>{post.date}</span><span className="article__dot">·</span><span>{post.readTime} {t('sections.minRead')}</span>
+                <AuthorByline author={author} guestAuthor={post.guestAuthor} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="article__date">
+                    <span>{post.date}</span><span className="article__dot">·</span><span>{post.readTime} {t('sections.minRead')}</span>
+                  </div>
+                  {ttsSupported && body.length > 0 && (
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        ref={ttsBtnRef}
+                        className={`tts-btn ${ttsState === 'playing' ? 'tts-btn--active' : ''}`}
+                        title={lang === 'tr' ? 'Sesli oku' : 'Read aloud'}
+                        onClick={() => setTtsOpen(o => !o)}
+                      >
+                        <Icon name="volume" size={16} />
+                      </button>
+                      {ttsOpen && (
+                        <div ref={ttsPanelRef} className="tts-panel">
+                          <div className="tts-panel__actions">
+                            {ttsState === 'idle' && (
+                              <button className="tts-panel__btn" onClick={ttsPlay}>{lang === 'tr' ? 'Dinle' : 'Listen'}</button>
+                            )}
+                            {ttsState === 'playing' && (
+                              <>
+                                <button className="tts-panel__btn" onClick={ttsPause}>{lang === 'tr' ? 'Duraklat' : 'Pause'}</button>
+                                <button className="tts-panel__btn" onClick={ttsStop}>{lang === 'tr' ? 'Durdur' : 'Stop'}</button>
+                              </>
+                            )}
+                            {ttsState === 'paused' && (
+                              <>
+                                <button className="tts-panel__btn" onClick={ttsResume}>{lang === 'tr' ? 'Devam' : 'Resume'}</button>
+                                <button className="tts-panel__btn" onClick={ttsStop}>{lang === 'tr' ? 'Durdur' : 'Stop'}</button>
+                              </>
+                            )}
+                          </div>
+                          <div className="tts-panel__rates">
+                            {[0.8, 1, 1.2, 1.5].map(r => (
+                              <button
+                                key={r}
+                                className={`tts-panel__rate ${ttsRate === r ? 'tts-panel__rate--active' : ''}`}
+                                onClick={() => ttsSetRate(r)}
+                              >
+                                {r}x
+                              </button>
+                            ))}
+                          </div>
+                          {ttsParaIdx >= 0 && (
+                            <div className="tts-panel__progress">
+                              {lang === 'tr' ? 'Paragraf' : 'Paragraph'} {ttsParaIdx + 1}/{body.length}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </header>
@@ -330,12 +473,46 @@ function PostDetailPage({ postId, navigate }) {
               </figure>
             )}
 
+            {/* İçindekiler — 5+ paragraf varsa, yalnızca desktop'ta görünür (bkz. CSS) */}
+            {body.length >= 5 && (
+              <div className="toc-box">
+                <button type="button" className="toc-box__head" onClick={() => setTocOpen(o => !o)}>
+                  <span className="toc-box__title">{lang === 'tr' ? 'İçindekiler' : 'Contents'}</span>
+                  <Icon name="chevronDown" size={16} style={{ transition: 'transform 0.25s ease', transform: tocOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                </button>
+                {tocOpen && (
+                  <ol className="toc-box__list">
+                    {body.map((para, i) => (
+                      <li key={i} onClick={() => paraRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                        {para.slice(0, 70)}{para.length > 70 ? '…' : ''}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            )}
+
             {/* Giriş */}
             <p className="article__lead text-pretty">{localized(post, 'excerpt')}</p>
 
             {/* Gövde */}
             <div className="article__body">
-              {body.map((para, i) => <p key={i} className="text-pretty">{para}</p>)}
+              {body.map((para, i) => (
+                <p
+                  key={i}
+                  className="text-pretty"
+                  ref={el => { paraRefs.current[i] = el; }}
+                  style={i === ttsParaIdx ? {
+                    borderLeft: '3px solid var(--accent)',
+                    background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+                    borderRadius: '0 8px 8px 0',
+                    paddingLeft: 14,
+                    transition: 'all 0.3s ease',
+                  } : { transition: 'all 0.3s ease' }}
+                >
+                  {para}
+                </p>
+              ))}
             </div>
 
             {/* İlgili proje */}

@@ -418,7 +418,11 @@ function PostsPage() {
       </div>
     )},
     { key: 'tag', label: 'Kategori', style: { width: 100 }, render: (r) => <span className="adm-badge adm-badge--tag">{(PV_TAG[r.tag] || {}).label || r.tag}</span> },
-    { key: 'authorId', label: 'Yazar', style: { width: 120 }, render: (r) => { const p = data.people.find(pp => pp.id === r.authorId); return p ? p.name : '—'; } },
+    { key: 'authorId', label: 'Yazar', style: { width: 120 }, render: (r) => {
+      if (r.guestAuthor?.name) return <span>{r.guestAuthor.name} <span style={{ color: 'var(--adm-text-dim)', fontSize: 11 }}>(misafir)</span></span>;
+      const p = data.people.find(pp => pp.id === r.authorId);
+      return p ? p.name : '—';
+    } },
     { key: 'date', label: 'Tarih', style: { width: 110 } },
     { key: 'status', label: 'Durum', style: { width: 110 }, render: (r) => {
       const s = r.status || 'published';
@@ -455,7 +459,7 @@ function PostsPage() {
 }
 
 function PostForm({ item, onClose, onSave, people, startups, recCount }) {
-  const blank = { slug: '', tag: 'blog', authorId: '', projectId: null, date: new Date().toISOString().slice(0,10), readTime: 5, bg: 'var(--blue-light)', cover: null, title_tr: '', title_en: '', excerpt_tr: '', excerpt_en: '', body_tr: [], body_en: [], source: null, recommended: false, homePinned: false, status: 'published', publishedAt: new Date().toISOString() };
+  const blank = { slug: '', tag: 'blog', authorId: '', guestAuthor: null, projectId: null, date: new Date().toISOString().slice(0,10), readTime: 5, bg: 'var(--blue-light)', cover: null, title_tr: '', title_en: '', excerpt_tr: '', excerpt_en: '', body_tr: [], body_en: [], source: null, recommended: false, homePinned: false, status: 'published', publishedAt: new Date().toISOString() };
   const [f, setF] = useStateP(item ? { ...blank, ...item } : blank);
   const [step, setStep] = useStateP(0);
   const [preview, setPreview] = useStateP(false);
@@ -470,7 +474,7 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
   });
   const setSlug = (v) => { slugLocked.current = true; setF(prev => ({ ...prev, slug: v.toLowerCase().replace(/[^a-z0-9-]/g, '-') })); };
 
-  const authorName = (people.find(p => p.id === f.authorId) || {}).name;
+  const authorName = f.guestAuthor?.name || (people.find(p => p.id === f.authorId) || {}).name;
   const authors = people.filter(p => p.type === 'author' || p.type === 'team' || p.type === 'mentor');
 
   const contentValid = f.title_tr.trim() && f.excerpt_tr.trim() && (f.body_tr || []).length > 0;
@@ -481,6 +485,7 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
   const submit = async () => {
     if (!contentValid) { setErr('Başlık, özet ve içerik zorunludur — boş yazı yayınlanamaz.'); setStep(0); return; }
     if (!f.slug) { setErr('Slug boş olamaz — başlık girilince otomatik oluşur.'); setStep(0); return; }
+    if (f.guestAuthor && !f.guestAuthor.name?.trim()) { setErr('Misafir yazarın adı zorunludur.'); setStep(1); return; }
     setSaving(true); setErr('');
     try {
       const payload = { ...f };
@@ -553,7 +558,23 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
               </div>
               <div style={{ flex: 1 }}>
                 <Field label="Kategori"><Select value={f.tag} onChange={v => set('tag', v)} options={[{value:'blog',label:'Blog'},{value:'gundem',label:'Gündem'}]} /></Field>
-                <Field label="Yazar"><Select value={f.authorId} onChange={v => set('authorId', v)} placeholder="Seç..." options={authors.map(p => ({value:p.id,label:p.name}))} /></Field>
+                <Field label="Yazar">
+                  <div className="adm-tri" style={{ marginBottom: 10, display: 'inline-flex' }}>
+                    <button type="button" className={`adm-tri__btn ${!f.guestAuthor ? 'adm-tri__btn--active' : ''}`}
+                      onClick={() => set('guestAuthor', null)}>Ekipten Seç</button>
+                    <button type="button" className={`adm-tri__btn ${f.guestAuthor ? 'adm-tri__btn--active' : ''}`}
+                      onClick={() => { set('authorId', ''); set('guestAuthor', f.guestAuthor || { name: '', title: '', avatar: '' }); }}>Misafir Yazar</button>
+                  </div>
+                  {!f.guestAuthor ? (
+                    <Select value={f.authorId} onChange={v => set('authorId', v)} placeholder="Seç..." options={authors.map(p => ({value:p.id,label:p.name}))} />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <Input value={f.guestAuthor.name} onChange={v => set('guestAuthor', { ...f.guestAuthor, name: v })} placeholder="Ad Soyad" />
+                      <Input value={f.guestAuthor.title} onChange={v => set('guestAuthor', { ...f.guestAuthor, title: v })} placeholder="Unvan / Açıklama (örn. Konuk Yazar)" />
+                      <Input value={f.guestAuthor.avatar} onChange={v => set('guestAuthor', { ...f.guestAuthor, avatar: v })} placeholder="Profil fotoğrafı URL (opsiyonel)" />
+                    </div>
+                  )}
+                </Field>
                 <Field label="İlgili Proje"><Select value={f.projectId || ''} onChange={v => set('projectId', v ? parseInt(v) : null)} placeholder="Yok" options={startups.map(s => ({value:String(s.id),label:s.name}))} /></Field>
               </div>
             </div>
