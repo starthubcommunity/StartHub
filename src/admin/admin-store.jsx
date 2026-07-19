@@ -78,6 +78,28 @@ function mapPostFromDb(row) {
   };
 }
 
+// LinkedIn Şirket Sayfası paylaşımı — CORS'u atlamak için Supabase Edge Function
+// (linkedin-post) üzerinden sunucu tarafında LinkedIn Posts API'ye istek atar.
+async function postToLinkedIn(post, { accessToken, organizationId }) {
+  if (!accessToken || !organizationId) {
+    throw new Error('LinkedIn erişim anahtarı veya şirket sayfası ID eksik.');
+  }
+  const shareUrl = `https://starthub-community.com/post/${post.slug || post.id}`;
+  const { data, error } = await supabase.functions.invoke('linkedin-post', {
+    body: {
+      accessToken,
+      organizationId,
+      title: post.title_tr || '',
+      summary: (post.excerpt_tr || '').slice(0, 700),
+      url: shareUrl,
+      imageUrl: post.cover || post.image_url || null,
+    },
+  });
+  if (error) throw new Error(error.message || 'LinkedIn paylaşımı başarısız.');
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
 // ── people ─────────────────────────────────────────────────────────────
 function mapPersonToDb(item) {
   const db = {
@@ -452,4 +474,4 @@ function AdminProvider({ children }) {
   }, children);
 }
 
-export { AdminContext, useAdmin, AdminProvider, uid, COLLECTIONS };
+export { AdminContext, useAdmin, AdminProvider, uid, COLLECTIONS, postToLinkedIn };

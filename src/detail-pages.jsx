@@ -552,10 +552,15 @@ function PostDetailPage({ postId, navigate }) {
                   title="LinkedIn'de Paylaş"
                   onClick={() => {
                     const shareUrl = `https://starthub-community.com/post/${post.slug || post.id}`;
-                    window.open(
-                      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
-                      '_blank', 'noopener,noreferrer,width=600,height=600'
-                    );
+                    // shareArticle, share-offsite'dan daha iyi önizleme verir (LinkedIn artık
+                    // title/summary parametrelerini garantili okumasa da, hâlâ og: etiketlerini
+                    // share-offsite'a göre daha güvenilir tarıyor).
+                    const linkedInUrl = `https://www.linkedin.com/shareArticle?mini=true` +
+                      `&url=${encodeURIComponent(shareUrl)}` +
+                      `&title=${encodeURIComponent(localized(post, 'title'))}` +
+                      `&summary=${encodeURIComponent(localized(post, 'excerpt'))}` +
+                      `&source=Start-Hub`;
+                    window.open(linkedInUrl, '_blank', 'noopener,noreferrer,width=600,height=600');
                   }}>
                   <Icon name="linkedin" size={16} />
                 </button>

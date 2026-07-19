@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AIcon, Modal, Field, Input, Select, PageHead, TagInput, PostCoverUpload } from './admin-ui';
 import { supabase } from '../lib/supabase';
+import { postToLinkedIn } from './admin-store';
 
 // ── Sabitler ─────────────────────────────────────────────────────────────────
 const GITHUB_REPO     = 'starthubcommunity/StartHub';
@@ -86,6 +87,7 @@ function AutomationPage() {
   const [toneLevel,         setToneLevel]          = useState(3);
   const [toneExtra,         setToneExtra]          = useState({});
   const [toneBanned,        setToneBanned]         = useState([]);
+  const [linkedinOrgId,     setLinkedinOrgId]      = useState('');
   const [settingsLoaded,    setSettingsLoaded]     = useState(false);
   const [savingSettings,    setSavingSettings]     = useState(false);
 
@@ -103,6 +105,7 @@ function AutomationPage() {
     setToneLevel(data.tone_level ?? 3);
     setToneExtra(data.tone_extra_instructions || {});
     setToneBanned(data.tone_banned_phrases || []);
+    setLinkedinOrgId(data.linkedin_org_id || '');
     setSettingsLoaded(true);
   }, []);
 
@@ -307,6 +310,7 @@ function AutomationPage() {
     if (error) { flash('Onaylama başarısız: ' + error.message, 'orange'); return; }
     setDrafts(prev => prev.filter(d => d.id !== draft.id));
     flash(`Yayınlandı: ${draft.title_tr}`);
+    if (draftLinkedinFlags[draft.id]) await shareDraftToLinkedin(draft);
   };
   const reject = async (draft) => {
     if (actingId) return;
@@ -456,6 +460,30 @@ function AutomationPage() {
   const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => { localStorage.setItem('sh_gh_token', ghToken); }, [ghToken]);
+
+  // ── LinkedIn Yayın ─────────────────────────────────────────────────────────
+  // Access token oturuma özel (sessionStorage) — sekme kapanınca silinir, uzun ömürlü
+  // bir sır olarak saklanmaz. Şirket sayfası ID'si ise site_settings'te kalıcı.
+  const [linkedinToken, setLinkedinToken] = useState(() => sessionStorage.getItem('sh_linkedin_token') || '');
+  const [linkedinSaving, setLinkedinSaving] = useState(false);
+  const [draftLinkedinFlags, setDraftLinkedinFlags] = useState({}); // {draftId: bool} — "Onayla" ile birlikte LinkedIn'e de paylaş
+
+  useEffect(() => { sessionStorage.setItem('sh_linkedin_token', linkedinToken); }, [linkedinToken]);
+
+  const saveLinkedinOrgId = async () => {
+    setLinkedinSaving(true);
+    await saveSettings({ linkedin_org_id: linkedinOrgId });
+    setLinkedinSaving(false);
+  };
+
+  const shareDraftToLinkedin = async (draft) => {
+    try {
+      await postToLinkedIn(draft, { accessToken: linkedinToken, organizationId: linkedinOrgId });
+      flash('LinkedIn paylaşımı başarıyla yapıldı!');
+    } catch (e) {
+      flash('LinkedIn paylaşımı başarısız: ' + e.message, 'orange');
+    }
+  };
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -742,6 +770,18 @@ function AutomationPage() {
                               <div className="adm-table__actions" style={{ justifyContent: 'flex-end' }}>
                                 <button className="adm-icon-btn" title="Önizle" onClick={() => setPreview(d)}><AIcon name="eye" size={15} /></button>
                                 <button className="adm-icon-btn" title="Düzenle" onClick={() => openEditDraft(d)}><AIcon name="edit" size={15} /></button>
+                                <label
+                                  title="Onaylanınca LinkedIn'de de paylaş"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'var(--adm-text-dim)', cursor: 'pointer', userSelect: 'none' }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!draftLinkedinFlags[d.id]}
+                                    onChange={e => setDraftLinkedinFlags(prev => ({ ...prev, [d.id]: e.target.checked }))}
+                                    style={{ cursor: 'pointer' }}
+                                  />
+                                  <AIcon name="linkedin" size={13} />
+                                </label>
                                 <button
                                   className="adm-btn adm-btn--primary adm-btn--sm"
                                   onClick={() => approve(d)}
@@ -1244,6 +1284,40 @@ function AutomationPage() {
                   {triggerMsg.text}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* LinkedIn Yayın */}
+          <div className="adm-card" style={{ marginTop: 20 }}>
+            <div className="adm-card__header"><h3>LinkedIn Yayın</h3></div>
+            <div className="adm-card__body">
+              <div className="adm-note" style={{ background: 'var(--adm-blue-light)', color: 'var(--adm-blue)', marginBottom: 16 }}>
+                <AIcon name="settings" size={14} />
+                <span>
+                  Taslaklar sekmesinde bir taslağı onaylarken yanındaki LinkedIn kutucuğunu işaretlersen,
+                  yayınlandığı anda şirket sayfanızda otomatik paylaşılır. Access token LinkedIn'in OAuth
+                  akışıyla alınır ve <strong>sadece bu tarayıcı sekmesinde</strong> (sessionStorage) tutulur —
+                  hiçbir yere kaydedilmez, sekmeyi kapatınca silinir.
+                </span>
+              </div>
+              <Field label="LinkedIn Access Token" hint="w_organization_social izinli OAuth token — sadece bu oturumda saklanır">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Input type="password" value={linkedinToken} onChange={setLinkedinToken} placeholder="AQV..." />
+                  {linkedinToken && (
+                    <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setLinkedinToken('')} title="Token'ı sil">
+                      <AIcon name="x" size={14} />
+                    </button>
+                  )}
+                </div>
+              </Field>
+              <Field label="Şirket Sayfası ID" hint="linkedin.com/company/{id} ya da sayfa yönetici panelinden alınır — kalıcı olarak kaydedilir">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Input value={linkedinOrgId} onChange={setLinkedinOrgId} placeholder="örn. 12345678" />
+                  <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={saveLinkedinOrgId} disabled={linkedinSaving}>
+                    {linkedinSaving ? <span className="adm-spinner"></span> : 'Kaydet'}
+                  </button>
+                </div>
+              </Field>
             </div>
           </div>
         </div>
