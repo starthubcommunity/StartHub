@@ -1,10 +1,9 @@
 // admin-pages.jsx — Dashboard, Projects, Posts
 import { useState as useStateP, useEffect as useEffectP, useMemo as useMemoP, useRef as useRefP } from 'react';
-import { useAdmin, uid, COLLECTIONS, postToLinkedIn } from './admin-store';
+import { useAdmin, uid, COLLECTIONS } from './admin-store';
 import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper } from './admin-ui';
 import { ProjectPreview, PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
 import { people } from '../data';
-import { supabase } from '../lib/supabase';
 
 // ============================================
 // DASHBOARD — istatistikler (auto/manuel) + özet
@@ -466,7 +465,6 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
   const [preview, setPreview] = useStateP(false);
   const [err, setErr] = useStateP('');
   const [saving, setSaving] = useStateP(false);
-  const [shareToLinkedin, setShareToLinkedin] = useStateP(false); // varsayılan kapalı — DB'ye kaydedilmez, sadece yayınlama anındaki niyeti taşır
   const slugLocked = useRefP(!!item?.slug);
 
   const set = (k, v) => setF(prev => {
@@ -497,13 +495,6 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
         payload.publishedAt = null;
       }
       await onSave(payload);
-      if (payload.status === 'published' && shareToLinkedin) {
-        const accessToken = sessionStorage.getItem('sh_linkedin_token') || '';
-        const { data: settings } = await supabase.from('site_settings').select('linkedin_org_id').eq('id', 1).single();
-        postToLinkedIn(payload, { accessToken, organizationId: settings?.linkedin_org_id })
-          .then(() => alert('LinkedIn paylaşımı başarıyla yapıldı!'))
-          .catch(e2 => alert('LinkedIn paylaşımı başarısız: ' + e2.message));
-      }
     } catch (e) {
       if (e.code === '23505' || (e.message || '').includes('duplicate') || (e.message || '').includes('unique')) {
         setErr('Bu slug zaten kullanılıyor, değiştirin.');
@@ -618,16 +609,6 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
                 </div>
                 <label className="adm-switch">
                   <input type="checkbox" checked={!!f.homePinned} onChange={e => set('homePinned', e.target.checked)} />
-                  <span></span>
-                </label>
-              </div>
-              <div className="adm-pin-row">
-                <div>
-                  <div className="adm-pin-row__title"><AIcon name="linkedin" size={14} /> LinkedIn'de Paylaş</div>
-                  <div className="adm-pin-row__sub">Kaydedince durum "Yayınlandı" ise şirket sayfasında otomatik paylaşılır</div>
-                </div>
-                <label className="adm-switch">
-                  <input type="checkbox" checked={shareToLinkedin} onChange={e => setShareToLinkedin(e.target.checked)} />
                   <span></span>
                 </label>
               </div>
