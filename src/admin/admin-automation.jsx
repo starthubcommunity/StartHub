@@ -86,6 +86,7 @@ function AutomationPage() {
   const [toneLevel,         setToneLevel]          = useState(3);
   const [toneExtra,         setToneExtra]          = useState({});
   const [toneBanned,        setToneBanned]         = useState([]);
+  const [autoLinkedinShare, setAutoLinkedinShare]  = useState(false);
   const [settingsLoaded,    setSettingsLoaded]     = useState(false);
   const [savingSettings,    setSavingSettings]     = useState(false);
 
@@ -103,6 +104,7 @@ function AutomationPage() {
     setToneLevel(data.tone_level ?? 3);
     setToneExtra(data.tone_extra_instructions || {});
     setToneBanned(data.tone_banned_phrases || []);
+    setAutoLinkedinShare(data.auto_linkedin_share ?? false);
     setSettingsLoaded(true);
   }, []);
 
@@ -123,6 +125,10 @@ function AutomationPage() {
   const toggleAutoPublish = async (val) => {
     setAutoPublish(val);
     await saveSettings({ auto_publish: val });
+  };
+  const toggleAutoLinkedinShare = async (val) => {
+    setAutoLinkedinShare(val);
+    await saveSettings({ auto_linkedin_share: val });
   };
 
   // ── Görsel Stoğu (Supabase image_stock) ───────────────────────────────────
@@ -300,10 +306,11 @@ function AutomationPage() {
   const approve = async (draft) => {
     if (actingId) return;
     setActingId(draft.id);
-    // linkedin_share: işaretliyse true yazılır — asıl paylaşımı Make.com senaryosu
-    // bu alanı izleyerek yapıyor, burada sadece bayrak kaldırılıyor.
+    // linkedin_share: "Otomatik LinkedIn Paylaşımı" ayarı açıksa ya da bu taslak
+    // için manuel işaretlendiyse true yazılır — asıl paylaşımı Make.com senaryosu
+    // bu alanı izleyerek yapıyor, burada sadece bayrak set ediliyor.
     const { error } = await supabase.from('posts')
-      .update({ status: 'published', published_at: new Date().toISOString(), linkedin_share: !!draftLinkedinFlags[draft.id] })
+      .update({ status: 'published', published_at: new Date().toISOString(), linkedin_share: autoLinkedinShare || !!draftLinkedinFlags[draft.id] })
       .eq('id', draft.id);
     setActingId(null);
     if (error) { flash('Onaylama başarısız: ' + error.message, 'orange'); return; }
@@ -1136,6 +1143,22 @@ function AutomationPage() {
                 </div>
                 <label className="adm-switch">
                   <input type="checkbox" checked={autoPublish} onChange={e => toggleAutoPublish(e.target.checked)} />
+                  <span></span>
+                </label>
+              </div>
+
+              {/* Otomatik LinkedIn paylaşımı */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 16, borderBottom: '1px solid var(--adm-border-light)', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}><AIcon name="linkedin" size={14} style={{ marginRight: 4, verticalAlign: -2 }} /> Otomatik LinkedIn Paylaşımı</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', maxWidth: 420 }}>
+                    Açıkken bir taslak onaylandığında <code>linkedin_share</code> otomatik olarak işaretlenir
+                    (Make.com senaryonuz bunu izleyip paylaşır). Kapalıyken taslak listesindeki LinkedIn
+                    kutucuğuyla ya da Yazılar listesindeki simgeyle manuel seçim yapmanız gerekir.
+                  </div>
+                </div>
+                <label className="adm-switch">
+                  <input type="checkbox" checked={autoLinkedinShare} onChange={e => toggleAutoLinkedinShare(e.target.checked)} />
                   <span></span>
                 </label>
               </div>

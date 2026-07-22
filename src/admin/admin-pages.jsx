@@ -409,6 +409,18 @@ function PostsPage() {
     return data.posts.filter(p => (p.title_tr || '').toLowerCase().includes(q) || (p.title_en || '').toLowerCase().includes(q));
   }, [data.posts, search]);
 
+  const toggleLinkedinShare = async (r) => {
+    if (r.linkedinPosted) {
+      alert('Bu yazı zaten LinkedIn\'de paylaşıldı.');
+      return;
+    }
+    try {
+      await updateItem('posts', r.id, { ...r, linkedinShare: !r.linkedinShare });
+    } catch (e) {
+      alert('Güncellenemedi: ' + e.message);
+    }
+  };
+
   const columns = [
     { key: 'title_tr', label: 'Başlık', render: (r) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -430,6 +442,23 @@ function PostsPage() {
       const { label, color, bg } = cfg[s] || cfg.published;
       return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 99, background: bg, color }}>{label}</span>;
     }},
+    { key: 'linkedin', label: 'LinkedIn', style: { width: 60, textAlign: 'center' }, tdStyle: { textAlign: 'center' }, render: (r) => (
+      <div style={{ position: 'relative', display: 'inline-flex' }}>
+        <button
+          className="adm-icon-btn"
+          title={r.linkedinPosted ? 'LinkedIn\'de paylaşıldı' : r.linkedinShare ? 'Paylaşım işaretli — kaldırmak için tıkla' : 'LinkedIn\'de paylaşmak için işaretle'}
+          onClick={() => toggleLinkedinShare(r)}
+          style={{ color: r.linkedinShare ? '#0A66C2' : 'var(--adm-text-dim)', background: r.linkedinShare ? 'rgba(10,102,194,0.1)' : 'transparent' }}
+        >
+          <AIcon name="linkedin" size={16} />
+        </button>
+        {r.linkedinPosted && (
+          <span style={{ position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderRadius: '50%', background: 'var(--adm-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--adm-bg-card, #fff)' }}>
+            <AIcon name="check" size={8} style={{ color: '#fff' }} />
+          </span>
+        )}
+      </div>
+    )},
   ];
 
   const handleSave = async (formData) => {
