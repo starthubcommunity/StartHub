@@ -398,10 +398,18 @@ function toSlug(str) {
 // POSTS — 2 adımlı (önce içerik, sonra detaylar)
 // ============================================
 function PostsPage() {
-  const { data, addItem, updateItem, deleteItem, clearFlagExcept, countFlag } = useAdmin();
+  const { data, addItem, updateItem, deleteItem, patchLocal, clearFlagExcept, countFlag } = useAdmin();
   const [search, setSearch] = useStateP('');
   const [editing, setEditing] = useStateP(null);
   const [deleting, setDeleting] = useStateP(null);
+  const [toast, setToast] = useStateP(null);
+  const [linkedinBusy, setLinkedinBusy] = useStateP({}); // {postId: true} — istek sürerken çift tıkı/yarışı önler
+  const [turnOffConfirm, setTurnOffConfirm] = useStateP(null); // zaten paylaşılmış bir yazıda kapatma onayı bekleyen post
+
+  const flash = (msg, kind = 'green') => {
+    setToast({ msg, kind });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const filtered = useMemoP(() => {
     if (!search) return data.posts;
@@ -409,16 +417,38 @@ function PostsPage() {
     return data.posts.filter(p => (p.title_tr || '').toLowerCase().includes(q) || (p.title_en || '').toLowerCase().includes(q));
   }, [data.posts, search]);
 
-  const toggleLinkedinShare = async (r) => {
-    if (r.linkedinPosted) {
-      alert('Bu yazı zaten LinkedIn\'de paylaşıldı.');
+  // Gerçek toggle: local state'i anında günceller (optimistic), sonra Supabase'e yazar.
+  // İstek başarısız olursa önceki değere geri döner.
+  const applyLinkedinToggle = async (r, next) => {
+    setLinkedinBusy(prev => ({ ...prev, [r.id]: true }));
+    patchLocal('posts', r.id, { linkedinShare: next });
+    try {
+      await updateItem('posts', r.id, { ...r, linkedinShare: next });
+      flash(next ? 'LinkedIn paylaşımı açıldı.' : 'LinkedIn paylaşımı kapatıldı.');
+    } catch (e) {
+      patchLocal('posts', r.id, { linkedinShare: r.linkedinShare }); // rollback
+      flash('İşlem başarısız: ' + (e.message || 'Bilinmeyen hata'), 'orange');
+    } finally {
+      setLinkedinBusy(prev => { const n = { ...prev }; delete n[r.id]; return n; });
+    }
+  };
+
+  const toggleLinkedinShare = (r) => {
+    if (linkedinBusy[r.id]) return;
+    const next = !r.linkedinShare;
+    // linkedin_posted=true iken KAPATMA girişimi — geri alınamaz sonuçları olabileceği
+    // için önce onay iste. Açma (next=true) veya henüz paylaşılmamış yazılarda onaya gerek yok.
+    if (!next && r.linkedinPosted) {
+      setTurnOffConfirm(r);
       return;
     }
-    try {
-      await updateItem('posts', r.id, { ...r, linkedinShare: !r.linkedinShare });
-    } catch (e) {
-      alert('Güncellenemedi: ' + e.message);
-    }
+    applyLinkedinToggle(r, next);
+  };
+
+  const confirmTurnOff = () => {
+    const r = turnOffConfirm;
+    setTurnOffConfirm(null);
+    if (r) applyLinkedinToggle(r, false);
   };
 
   const columns = [
@@ -442,23 +472,38 @@ function PostsPage() {
       const { label, color, bg } = cfg[s] || cfg.published;
       return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 99, background: bg, color }}>{label}</span>;
     }},
-    { key: 'linkedin', label: 'LinkedIn', style: { width: 60, textAlign: 'center' }, tdStyle: { textAlign: 'center' }, render: (r) => (
-      <div style={{ position: 'relative', display: 'inline-flex' }}>
-        <button
-          className="adm-icon-btn"
-          title={r.linkedinPosted ? 'LinkedIn\'de paylaşıldı' : r.linkedinShare ? 'Paylaşım işaretli — kaldırmak için tıkla' : 'LinkedIn\'de paylaşmak için işaretle'}
-          onClick={() => toggleLinkedinShare(r)}
-          style={{ color: r.linkedinShare ? '#0A66C2' : 'var(--adm-text-dim)', background: r.linkedinShare ? 'rgba(10,102,194,0.1)' : 'transparent' }}
-        >
-          <AIcon name="linkedin" size={16} />
-        </button>
-        {r.linkedinPosted && (
-          <span style={{ position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderRadius: '50%', background: 'var(--adm-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--adm-bg-card, #fff)' }}>
-            <AIcon name="check" size={8} style={{ color: '#fff' }} />
-          </span>
-        )}
-      </div>
-    )},
+    { key: 'linkedin', label: 'LinkedIn', style: { width: 60, textAlign: 'center' }, tdStyle: { textAlign: 'center' }, render: (r) => {
+      const busy = !!linkedinBusy[r.id];
+      return (
+        <div style={{ position: 'relative', display: 'inline-flex' }}>
+          <button
+            className="adm-icon-btn"
+            aria-pressed={!!r.linkedinShare}
+            disabled={busy}
+            title={r.linkedinShare ? 'LinkedIn paylaşımı açık (kapatmak için tıkla)' : 'LinkedIn\'de paylaşmak için işaretle'}
+            onClick={() => toggleLinkedinShare(r)}
+            style={{
+              color: r.linkedinShare ? '#0A66C2' : 'var(--adm-text-dim)',
+              background: r.linkedinShare ? 'rgba(10,102,194,0.1)' : 'transparent',
+              opacity: busy ? 0.5 : 1,
+              cursor: busy ? 'wait' : 'pointer',
+            }}
+          >
+            {busy
+              ? <span className="adm-spinner" style={{ width: 14, height: 14, borderColor: 'rgba(10,102,194,0.25)', borderTopColor: '#0A66C2' }}></span>
+              : <AIcon name="linkedin" size={16} />}
+          </button>
+          {r.linkedinPosted && (
+            <span
+              title="LinkedIn'de yayınlandı"
+              style={{ position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderRadius: '50%', background: 'var(--adm-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--adm-bg-card, #fff)' }}
+            >
+              <AIcon name="check" size={8} style={{ color: '#fff' }} />
+            </span>
+          )}
+        </div>
+      );
+    }},
   ];
 
   const handleSave = async (formData) => {
@@ -471,6 +516,14 @@ function PostsPage() {
 
   return (
     <div>
+      {toast && (
+        <div className="adm-auto-status" style={{
+          background: toast.kind === 'orange' ? 'var(--adm-orange-light)' : 'var(--adm-green-light)',
+          color: toast.kind === 'orange' ? 'var(--adm-orange)' : 'var(--adm-green)',
+        }}>
+          <AIcon name="check" size={14} /><span>{toast.msg}</span>
+        </div>
+      )}
       <PageHead title="Yazılar" desc={`${data.posts.length} yazı`} actions={
         <button className="adm-btn adm-btn--primary" onClick={() => setEditing('new')}><AIcon name="plus" size={16} /> Yeni Yazı</button>
       } />
@@ -483,6 +536,30 @@ function PostsPage() {
       {!!editing && <PostForm item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSave={handleSave} people={data.people} startups={data.startups} recCount={countFlag('posts', 'recommended', editing === 'new' ? undefined : editing.id)} />}
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={() => { deleteItem('posts', deleting.id); setDeleting(null); }}
         title="Yazı silinecek" message="Son Silinenler'den geri getirebilirsin." />
+
+      {/* LinkedIn'de zaten paylaşılmış bir yazıda kapatma onayı.
+          NOT (tasarım kararı): "Evet, kapat" SADECE linkedin_share bayrağını false yapar —
+          LinkedIn'deki gerçek gönderiyi silmez/geri çekmez. Make.com senaryosu bu geçişi
+          (posted=true iken share=false) izlememeli/repost etmemeli; gönderiyi gerçekten
+          kaldırmak istenirse LinkedIn üzerinden elle silinmesi gerekir. */}
+      {turnOffConfirm && (
+        <Modal open onClose={() => setTurnOffConfirm(null)} title="LinkedIn paylaşımını kapat">
+          <div style={{ textAlign: 'center', padding: '4px 4px 4px' }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--adm-orange-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <AIcon name="alertTriangle" size={22} style={{ color: 'var(--adm-orange)' }} />
+            </div>
+            <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', marginBottom: 24, lineHeight: 1.5 }}>
+              Bu yazı LinkedIn'de zaten paylaşıldı. Kutucuğu kapatmak sadece buradaki takip
+              bayrağını sıfırlar — LinkedIn'deki gönderiyi silmez. Gönderiyi kaldırmak
+              isterseniz LinkedIn üzerinden elle silmeniz gerekir. Devam etmek istiyor musunuz?
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button className="adm-btn adm-btn--ghost" onClick={() => setTurnOffConfirm(null)}>Vazgeç</button>
+              <button className="adm-btn adm-btn--danger" onClick={confirmTurnOff}>Evet, kapat</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

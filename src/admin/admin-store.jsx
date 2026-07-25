@@ -351,6 +351,17 @@ function AdminProvider({ children }) {
       });
   }, []);
 
+  // Sunucu round-trip'ini beklemeden local cache'i günceller (optimistic UI).
+  // Supabase'e yazmaz — çağıran taraf updateItem ile gerçek isteği ayrıca atar,
+  // hata olursa aynı fonksiyonla önceki değere geri döner (rollback).
+  const patchLocal = useCallbackS((collection, id, partial) => {
+    const idField = COLLECTIONS[collection].idField;
+    setData(prev => ({
+      ...prev,
+      [collection]: prev[collection].map(it => it[idField] === id ? { ...it, ...partial } : it),
+    }));
+  }, []);
+
   const updateItem = useCallbackS((collection, id, updates) => {
     const entry   = DB_TABLE[collection];
     const idField = COLLECTIONS[collection].idField;
@@ -447,7 +458,7 @@ function AdminProvider({ children }) {
   return React.createElement(AdminContext.Provider, {
     value: {
       data, trash, counts, saveError, postsLoading, contentLoading,
-      addItem, updateItem, deleteItem,
+      addItem, updateItem, deleteItem, patchLocal,
       clearFlagExcept, countFlag,
       restoreItem, purgeItem, emptyTrash,
       setStat, statValue,
