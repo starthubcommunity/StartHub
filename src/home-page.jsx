@@ -393,6 +393,9 @@ function JourneySection() {
 function SponsorsSection() {
   const { t } = useLang();
   const { sponsors } = useSponsors();
+  // Gerçek destekçi eklenene kadar bölüm hiç gösterilmez — panelden bir
+  // destekçi eklenir eklenmez otomatik olarak tekrar görünür hale gelir.
+  if (!sponsors || sponsors.length === 0) return null;
   return (
     <section className="section section--alt" style={{ paddingTop: 64, paddingBottom: 64 }}>
       <div className="container">
