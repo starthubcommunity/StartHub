@@ -867,7 +867,7 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .org-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
 .org-card--t1 { min-width: 244px; border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); background: linear-gradient(165deg, var(--red-light), var(--card-bg) 55%); }
 .org-card--t2 { border-color: color-mix(in srgb, var(--blue) 22%, var(--border)); background: linear-gradient(165deg, var(--blue-light), var(--card-bg) 55%); }
-.org-card--t3 { min-width: 178px; padding: 18px 20px; background: linear-gradient(165deg, var(--bg-secondary), var(--card-bg) 55%); }
+.org-card--t3 { min-width: 160px; padding: 16px 16px; background: linear-gradient(165deg, var(--bg-secondary), var(--card-bg) 55%); border-color: color-mix(in srgb, var(--text-tertiary) 35%, var(--border)); }
 .org-card__name { font-family: var(--font-heading); font-weight: 700; font-size: 17px; margin-top: 12px; letter-spacing: -0.01em; }
 .org-card--t1 .org-card__name { font-size: 20px; }
 .org-card--t3 .org-card__name { font-size: 15px; margin-top: 10px; }

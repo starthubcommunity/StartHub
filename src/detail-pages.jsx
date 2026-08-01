@@ -277,25 +277,10 @@ function PostDetailPage({ postId, navigate }) {
 
   // Sesli okuma (Web Speech API)
   const ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
-  const [ttsOpen, setTtsOpen] = useState(false);
-  const [ttsState, setTtsState] = useState('idle'); // idle | playing | paused
-  const [ttsRate, setTtsRate] = useState(1);
+  const [ttsState, setTtsState] = useState('idle'); // idle | playing
   const [ttsParaIdx, setTtsParaIdx] = useState(-1);
   const ttsGenRef = useRef(0);
-  const ttsBtnRef = useRef(null);
-  const ttsPanelRef = useRef(null);
   const paraRefs = useRef([]);
-
-  useEffect(() => {
-    if (!ttsOpen) return;
-    const onOutside = (e) => {
-      if (ttsPanelRef.current?.contains(e.target)) return;
-      if (ttsBtnRef.current?.contains(e.target)) return;
-      setTtsOpen(false);
-    };
-    document.addEventListener('mousedown', onOutside);
-    return () => document.removeEventListener('mousedown', onOutside);
-  }, [ttsOpen]);
 
   // Sayfa değişince / unmount'ta okumayı durdur
   useEffect(() => {
@@ -327,39 +312,30 @@ function PostDetailPage({ postId, navigate }) {
   const more = posts.filter(x => x.id !== post.id && (x.tag === post.tag || x.projectId === post.projectId)).slice(0, 3);
   const moreFinal = more.length ? more : posts.filter(x => x.id !== post.id).slice(0, 3);
 
-  // Sesli okuma kontrolleri
-  const speakFrom = (idx, rate, gen) => {
+  // Sesli okuma kontrolleri — tek tıkla direkt oynat, tekrar tıklayınca sustur.
+  const TTS_RATE = 1;
+  const speakFrom = (idx, gen) => {
     if (gen !== ttsGenRef.current) return;
     if (idx >= body.length) { setTtsState('idle'); setTtsParaIdx(-1); return; }
     const utt = new SpeechSynthesisUtterance(body[idx]);
     utt.lang = 'tr-TR';
-    utt.rate = rate;
+    utt.rate = TTS_RATE;
     utt.onstart = () => { if (gen === ttsGenRef.current) setTtsParaIdx(idx); };
-    utt.onend = () => { if (gen === ttsGenRef.current) speakFrom(idx + 1, rate, gen); };
+    utt.onend = () => { if (gen === ttsGenRef.current) speakFrom(idx + 1, gen); };
     window.speechSynthesis.speak(utt);
   };
-  const ttsPlay = () => {
-    const gen = ++ttsGenRef.current;
-    window.speechSynthesis.cancel();
-    setTtsState('playing');
-    speakFrom(0, ttsRate, gen);
-  };
-  const ttsPause = () => { window.speechSynthesis.pause(); setTtsState('paused'); };
-  const ttsResume = () => { window.speechSynthesis.resume(); setTtsState('playing'); };
   const ttsStop = () => {
     ttsGenRef.current++;
     window.speechSynthesis.cancel();
     setTtsState('idle');
     setTtsParaIdx(-1);
   };
-  const ttsSetRate = (r) => {
-    setTtsRate(r);
-    if (ttsState !== 'idle') {
-      const gen = ++ttsGenRef.current;
-      window.speechSynthesis.cancel();
-      setTtsState('playing');
-      speakFrom(ttsParaIdx >= 0 ? ttsParaIdx : 0, r, gen);
-    }
+  const ttsToggle = () => {
+    if (ttsState === 'playing') { ttsStop(); return; }
+    const gen = ++ttsGenRef.current;
+    window.speechSynthesis.cancel();
+    setTtsState('playing');
+    speakFrom(0, gen);
   };
 
   return (
@@ -389,53 +365,13 @@ function PostDetailPage({ postId, navigate }) {
                     <span>{post.date}</span><span className="article__dot">·</span><span>{post.readTime} {t('sections.minRead')}</span>
                   </div>
                   {ttsSupported && body.length > 0 && (
-                    <div style={{ position: 'relative' }}>
-                      <button
-                        ref={ttsBtnRef}
-                        className={`tts-btn ${ttsState === 'playing' ? 'tts-btn--active' : ''}`}
-                        title={lang === 'tr' ? 'Sesli oku' : 'Read aloud'}
-                        onClick={() => setTtsOpen(o => !o)}
-                      >
-                        <Icon name="volume" size={16} />
-                      </button>
-                      {ttsOpen && (
-                        <div ref={ttsPanelRef} className="tts-panel">
-                          <div className="tts-panel__actions">
-                            {ttsState === 'idle' && (
-                              <button className="tts-panel__btn" onClick={ttsPlay}>{lang === 'tr' ? 'Dinle' : 'Listen'}</button>
-                            )}
-                            {ttsState === 'playing' && (
-                              <>
-                                <button className="tts-panel__btn" onClick={ttsPause}>{lang === 'tr' ? 'Duraklat' : 'Pause'}</button>
-                                <button className="tts-panel__btn" onClick={ttsStop}>{lang === 'tr' ? 'Durdur' : 'Stop'}</button>
-                              </>
-                            )}
-                            {ttsState === 'paused' && (
-                              <>
-                                <button className="tts-panel__btn" onClick={ttsResume}>{lang === 'tr' ? 'Devam' : 'Resume'}</button>
-                                <button className="tts-panel__btn" onClick={ttsStop}>{lang === 'tr' ? 'Durdur' : 'Stop'}</button>
-                              </>
-                            )}
-                          </div>
-                          <div className="tts-panel__rates">
-                            {[0.8, 1, 1.2, 1.5].map(r => (
-                              <button
-                                key={r}
-                                className={`tts-panel__rate ${ttsRate === r ? 'tts-panel__rate--active' : ''}`}
-                                onClick={() => ttsSetRate(r)}
-                              >
-                                {r}x
-                              </button>
-                            ))}
-                          </div>
-                          {ttsParaIdx >= 0 && (
-                            <div className="tts-panel__progress">
-                              {lang === 'tr' ? 'Paragraf' : 'Paragraph'} {ttsParaIdx + 1}/{body.length}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      className={`tts-btn ${ttsState === 'playing' ? 'tts-btn--active' : ''}`}
+                      title={ttsState === 'playing' ? (lang === 'tr' ? 'Durdur' : 'Stop') : (lang === 'tr' ? 'Sesli oku' : 'Read aloud')}
+                      onClick={ttsToggle}
+                    >
+                      <Icon name={ttsState === 'playing' ? 'pause' : 'volume'} size={16} />
+                    </button>
                   )}
                 </div>
               </div>
@@ -551,7 +487,11 @@ function PostDetailPage({ postId, navigate }) {
                 <button className="article__share-btn"
                   title="LinkedIn'de Paylaş"
                   onClick={() => {
-                    const shareUrl = `https://starthub-community.com/post/${post.slug || post.id}`;
+                    // window.location.href kullanılır — site hash routing (#/post/slug)
+                    // kullandığından ve gerçek domain bu tarayıcı sekmesinde zaten doğru
+                    // olduğundan (bkz. Kopyala butonu), sabit bir URL inşa etmek yanlış
+                    // (hash'siz) veya güncel olmayan bir domaine işaret edebiliyordu.
+                    const shareUrl = window.location.href;
                     // shareArticle, share-offsite'dan daha iyi önizleme verir (LinkedIn artık
                     // title/summary parametrelerini garantili okumasa da, hâlâ og: etiketlerini
                     // share-offsite'a göre daha güvenilir tarıyor).
@@ -567,7 +507,11 @@ function PostDetailPage({ postId, navigate }) {
                 <button className="article__share-btn"
                   title="X (Twitter)'da Paylaş"
                   onClick={() => {
-                    const shareUrl = `https://starthub-community.com/post/${post.slug || post.id}`;
+                    // window.location.href kullanılır — site hash routing (#/post/slug)
+                    // kullandığından ve gerçek domain bu tarayıcı sekmesinde zaten doğru
+                    // olduğundan (bkz. Kopyala butonu), sabit bir URL inşa etmek yanlış
+                    // (hash'siz) veya güncel olmayan bir domaine işaret edebiliyordu.
+                    const shareUrl = window.location.href;
                     const text = localized(post, 'title');
                     window.open(
                       `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`,

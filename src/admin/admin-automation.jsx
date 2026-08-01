@@ -12,9 +12,9 @@ const GEMINI_LIMIT    = 20; // ücretsiz günlük istek limiti
 const TONE_LEVELS = [
   { level: 1, label: 'Resmi Haber',    desc: 'Nesnel, olgusal, abartısız haber dili' },
   { level: 2, label: 'Bilgilendirici', desc: 'Net ve anlaşılır, teknik terimleri açıklar' },
-  { level: 3, label: 'Dengeli',        desc: 'Samimi ama profesyonel (varsayılan)' },
-  { level: 4, label: 'Sıcak',          desc: 'Topluluk odaklı, ilham verici örnekler' },
-  { level: 5, label: 'Coşkulu',        desc: 'Motivasyonel, enerjik, harekete geçirici' },
+  { level: 3, label: 'Analitik',       desc: 'Bilgi yoğun, sohbet havasından uzak (varsayılan)' },
+  { level: 4, label: 'Derinlemesine',  desc: 'Uzman düzeyi analiz, sayısal karşılaştırmalar' },
+  { level: 5, label: 'Yoğun İçgörü',   desc: 'En yüksek bilgi yoğunluğu, katmanlı uzman analizi' },
 ];
 
 const ALL_CATEGORIES = ['AI', 'Teknoloji', 'Girişim', 'Yatırım', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık'];

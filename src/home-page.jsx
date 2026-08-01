@@ -294,7 +294,11 @@ function LabProjects({ navigate }) {
   const { t, localized } = useLang();
   const { startups } = useStartups();
   const { people } = usePeople();
-  const shown = startups.filter(s => s.featured || s.trending).slice(0, 3);
+  // Öne çıkan proje, trending listesi doluysa slice(0,3) tarafından dışarıda
+  // kalmasın diye her zaman ilk sıraya sabitlenir.
+  const featuredProject = startups.find(s => s.featured);
+  const rest = startups.filter(s => s.trending && s.id !== featuredProject?.id);
+  const shown = [...(featuredProject ? [featuredProject] : []), ...rest].slice(0, 3);
   const goProject = (id) => { navigate('project', id); window.scrollTo({ top: 0 }); };
 
   return (

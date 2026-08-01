@@ -2,7 +2,7 @@
 import { useState as useStateOP, useEffect as useEffectOP } from 'react';
 import { useLang, usePosts, useEvents, useStartups } from './data';
 import { supabase } from './lib/supabase';
-import { Icon, Button, PostCard, EventCard, Reveal, TagChip } from './ui-components';
+import { Icon, Button, PostCard, EventCard, Reveal } from './ui-components';
 import { CTASection, PageHeader } from './layout';
 import { getRoleDescription } from './detail-pages';
 
@@ -126,18 +126,6 @@ function BlogPage({ navigate }) {
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          {/* Üç etiketin ne olduğunu anlatan tıklanabilir kartlar */}
-          <div className="tag-intro">
-            {['blog', 'gundem', 'etkinlik'].map(k => (
-              <div className={`tag-intro__item ${active === k ? 'tag-intro__item--active' : ''}`} key={k}
-                onClick={() => setActive(active === k ? 'all' : k)}
-                style={{ cursor: 'pointer' }}>
-                <h4><TagChip tag={k} /></h4>
-                <p>{t(`tags.${k}Desc`)}</p>
-              </div>
-            ))}
-          </div>
-
           <div className="filters" style={{ marginBottom: 32 }}>
             {cats.map(c => (
               <button key={c.key} className={`filter-btn ${active === c.key ? 'filter-btn--active' : ''}`} onClick={() => setActive(c.key)}>
@@ -493,11 +481,11 @@ function JoinPage({ navigate, projectId }) {
                 <form onSubmit={handleSubmit} noValidate>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{fl('c_name', t('join.name'))}</label>
+                      <label className="form-label">{fl('c_name', t('join.name'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
                       <input className={`form-input${invalidFields.has('name') ? ' form-input--invalid' : ''}`} value={communityForm.name} onChange={e => handleC('name', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{fl('c_email', t('join.email'))}</label>
+                      <label className="form-label">{fl('c_email', t('join.email'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
                     </div>
                   </div>
@@ -555,11 +543,11 @@ function JoinPage({ navigate, projectId }) {
                 <form onSubmit={handleSubmit} noValidate>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{fl('m_name', t('join.name'))}</label>
+                      <label className="form-label">{fl('m_name', t('join.name'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
                       <input className={`form-input${invalidFields.has('name') ? ' form-input--invalid' : ''}`} value={mentorForm.name} onChange={e => handleM('name', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{fl('m_email', t('join.email'))}</label>
+                      <label className="form-label">{fl('m_email', t('join.email'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
                     </div>
                   </div>
@@ -611,11 +599,11 @@ function JoinPage({ navigate, projectId }) {
                 <form onSubmit={handleSubmit} noValidate>
                   <div className="grid grid-2">
                     <div className="form-group">
-                      <label className="form-label">{fl('s_contact', lang === 'tr' ? 'İletişim Kişisi' : 'Contact Name')}</label>
+                      <label className="form-label">{fl('s_contact', lang === 'tr' ? 'İletişim Kişisi' : 'Contact Name')} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
                       <input className={`form-input${invalidFields.has('contact_name') ? ' form-input--invalid' : ''}`} value={sponsorForm.contact_name} onChange={e => handleS('contact_name', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{fl('s_email', t('join.email'))}</label>
+                      <label className="form-label">{fl('s_email', t('join.email'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={sponsorForm.email} onChange={e => handleS('email', e.target.value)} />
                     </div>
                   </div>

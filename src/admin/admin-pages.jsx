@@ -1,6 +1,6 @@
 // admin-pages.jsx — Dashboard, Projects, Posts
 import { useState as useStateP, useEffect as useEffectP, useMemo as useMemoP, useRef as useRefP } from 'react';
-import { useAdmin, uid, COLLECTIONS } from './admin-store';
+import { useAdmin, uid, nextId, COLLECTIONS } from './admin-store';
 import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper } from './admin-ui';
 import { ProjectPreview, PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
 import { people } from '../data';
@@ -138,7 +138,7 @@ function ProjectsPage() {
   ];
 
   const handleSave = async (formData) => {
-    const id = editing === 'new' ? parseInt(uid()) : editing.id;
+    const id = editing === 'new' ? nextId(data.startups) : editing.id;
     if (editing === 'new') await addItem('startups', { ...formData, id });
     else await updateItem('startups', id, formData);
     if (formData.featured === true) clearFlagExcept('startups', id, 'featured');
@@ -507,7 +507,7 @@ function PostsPage() {
   ];
 
   const handleSave = async (formData) => {
-    const id = editing === 'new' ? parseInt(uid()) : editing.id;
+    const id = editing === 'new' ? nextId(data.posts) : editing.id;
     if (editing === 'new') await addItem('posts', { ...formData, id });
     else await updateItem('posts', id, formData);
     if (formData.homePinned === true) clearFlagExcept('posts', id, 'homePinned');

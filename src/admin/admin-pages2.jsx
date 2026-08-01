@@ -1,6 +1,6 @@
 // admin-pages2.jsx — People, Sponsors, Recently Deleted
 import { useState as useStateP2, useMemo as useMemoP2 } from 'react';
-import { useAdmin, uid, COLLECTIONS } from './admin-store';
+import { useAdmin, uid, nextId, COLLECTIONS } from './admin-store';
 import { AIcon, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, SearchBar, PageHead, ConfirmDialog, TagInput, PeoplePicker } from './admin-ui';
 
 // ============================================
@@ -191,8 +191,8 @@ function SponsorsPage() {
   const [deleting, setDeleting] = useStateP2(null);
 
   const handleSave = async (formData) => {
-    if (editing === 'new') await addItem('sponsors', formData);
-    else await updateItem('sponsors', editing.name, formData);
+    if (editing === 'new') await addItem('sponsors', { ...formData, id: nextId(data.sponsors) });
+    else await updateItem('sponsors', editing.id, formData);
     setEditing(null);
   };
 
@@ -227,7 +227,7 @@ function SponsorsPage() {
           <SponsorFormInner item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSave={handleSave} />
         </Modal>
       )}
-      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={() => { deleteItem('sponsors', deleting.name); setDeleting(null); }}
+      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={() => { deleteItem('sponsors', deleting.id); setDeleting(null); }}
         title={`"${deleting?.name}" silinecek`} message="Son Silinenler'den geri getirebilirsin." />
     </div>
   );

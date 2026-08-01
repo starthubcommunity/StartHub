@@ -21,6 +21,16 @@ function loadTrash() {
 
 const clone = (obj) => JSON.parse(JSON.stringify(obj));
 const uid   = () => Date.now() + Math.random().toString(36).slice(2, 8);
+// Startups/posts/sponsors id kolonlari DB'de identity/default'suz bigint —
+// manuel bir id uretmek zorundayiz. Date.now() bazli devasa sayilar yerine
+// (bkz. eski parseInt(uid()) hatasi: applications.project_id gibi gercek
+// int4 kolonlarina referans verildiginde "out of range for type integer"
+// hatasi veriyordu) kucuk, artan bir id uretiyoruz. Anormal derecede buyuk
+// (timestamp bazli) eski id'ler max hesabini bozmasin diye elenir.
+const nextId = (list) => {
+  const normal = (list || []).map(x => Number(x.id)).filter(n => Number.isFinite(n) && n < 1e9);
+  return (normal.length ? Math.max(...normal) : 0) + 1;
+};
 
 // ── posts ──────────────────────────────────────────────────────────────
 function mapPostToDb(item) {
@@ -467,4 +477,4 @@ function AdminProvider({ children }) {
   }, children);
 }
 
-export { AdminContext, useAdmin, AdminProvider, uid, COLLECTIONS };
+export { AdminContext, useAdmin, AdminProvider, uid, nextId, COLLECTIONS };

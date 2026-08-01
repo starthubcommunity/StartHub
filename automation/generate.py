@@ -39,12 +39,15 @@ def _call_with_retry(model, prompt: str):
 
 
 # ---- Ton seviyeleri ----
+# Not: Tüm seviyeler bilgi/analiz odaklı — "blog"/topluluk sohbeti üslubuna
+# kaymasınlar diye kasıtlı olarak motive edici/coşkulu dil içermiyor. Fark
+# eden şey resmiyet derecesi ve analiz derinliği, "samimiyet" değil.
 TONE_INSTRUCTIONS = {
     1: "Ton: Resmi haber dili kullan. Tamamen nesnel ve olgusal ol; abartılı sıfatlar, duygusal ifadeler ve yorum içeren cümlelerden kaçın. Yalnızca doğrulanabilir rakamlara ve olgulara dayan.",
     2: "Ton: Net ve bilgilendirici bir dil kullan. Teknik terimleri kısaca açıkla, gereksiz sözcüklerden kaçın. Okuyucuyu bilinçlendirmeyi öncelikle hedefle.",
-    3: "Ton: Samimi ama profesyonel bir üslup benimse. Okuyucuyla doğal bir dilde konuş; Türk girişim ekosistemine somut, özgün bağlantılar kur.",
-    4: "Ton: Sıcak ve kapsayıcı bir topluluk dili kullan. Okuyucuyu girişim topluluğunun aktif bir parçası olarak hissettir; ilham verici ve somut örneklere yer ver.",
-    5: "Ton: Coşkulu ve motive edici bir üslup benimse. Heyecan verici gelişmeleri öne çıkar, girişimcileri harekete geçmeye ilham ver. Enerjik ol ama her iddia olgusal temele dayansın.",
+    3: "Ton: Açık ve bilgi yoğun bir analiz dili kullan. Sohbet havasından kaçın; her paragraf yeni bir veri, mekanizma veya karşılaştırma taşısın. Türk girişim ekosistemine somut, özgün bağlantılar kur.",
+    4: "Ton: Uzman düzeyinde derinlemesine analiz yap. Gelişmeyi izole bir haber gibi değil, daha geniş bir trend/mekanizma içinde açıkla; sayısal karşılaştırmalar ve nedensellik zincirleri kullan.",
+    5: "Ton: En yüksek bilgi yoğunluğu seviyesi. Konuyu uzman bir analist gibi katmanlı şekilde işle — arka plan, mekanizma, sonuç ve çıkarım sırasıyla verilsin. Coşku veya motivasyon dili değil, keskin ve yoğun bir içgörü hedefle; okuyucu 'bunu bilmiyordum' desin.",
 }
 
 _cached_tone_level: int | None = None
