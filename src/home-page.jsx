@@ -294,10 +294,10 @@ function LabProjects({ navigate }) {
   const { t, localized } = useLang();
   const { startups } = useStartups();
   const { people } = usePeople();
-  // Öne çıkan proje, trending listesi doluysa slice(0,3) tarafından dışarıda
-  // kalmasın diye her zaman ilk sıraya sabitlenir.
+  // Bu bölüm artık featured/trending şartı aramadan tüm projeleri gösterir
+  // (en fazla 3) — öne çıkan proje varsa, ilk sıraya sabitlenir.
   const featuredProject = startups.find(s => s.featured);
-  const rest = startups.filter(s => s.trending && s.id !== featuredProject?.id);
+  const rest = startups.filter(s => s.id !== featuredProject?.id);
   const shown = [...(featuredProject ? [featuredProject] : []), ...rest].slice(0, 3);
   const goProject = (id) => { navigate('project', id); window.scrollTo({ top: 0 }); };
 
