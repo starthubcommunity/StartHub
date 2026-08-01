@@ -624,6 +624,13 @@ body {
 @media (max-width: 560px) {
   .adm-pv-article__title { font-size: 22px; }
   .adm-pv-card__head { flex-direction: column; }
+  .adm-card__body { padding: 16px; }
+  .adm-modal-overlay { padding: 0; align-items: stretch; }
+  .adm-modal, .adm-modal--wide, .adm-modal--sm {
+    max-width: 100%; width: 100%; min-height: 100vh;
+    border-radius: 0; margin: 0;
+  }
+  .adm-modal__body { max-height: calc(100vh - 60px); }
 }
 
 /* ============================================

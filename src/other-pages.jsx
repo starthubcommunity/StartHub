@@ -443,12 +443,13 @@ function JoinPage({ navigate, projectId }) {
 
           {/* 3-card type selector — only when not project context */}
           {!project && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 36 }}>
+            <div className="join-type-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 36 }}>
               {typeCards.map(card => {
                 const active = joinType === card.key;
                 return (
                   <div
                     key={card.key}
+                    className="join-type-card"
                     onClick={() => selectType(card.key)}
                     style={{
                       padding: '22px 18px', borderRadius: 16, cursor: 'pointer',

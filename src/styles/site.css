@@ -104,6 +104,15 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 
 /* --- Layout --- */
 .container { max-width: var(--container); margin: 0 auto; padding: 0 24px; width: 100%; }
+@media (max-width: 640px) {
+  .container { padding: 0 16px; }
+}
+/* iOS input odaklanmada otomatik zoom yapmasın diye 16px altına inmiyoruz */
+@media (max-width: 768px) {
+  input, select, textarea { font-size: 16px; }
+  .btn { min-height: 44px; }
+  .nav__link, .filter-btn, .lab-tab, .footer__link { min-height: 44px; display: flex; align-items: center; }
+}
 .section { padding: var(--section-py) 0; }
 .section--alt { background: var(--section-alt-bg); }
 .section--dark { background: var(--bg-dark); color: var(--text-inverse); }
@@ -462,6 +471,14 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 
 @media (max-width: 1100px) { .hero__grid { grid-template-columns: 1fr; } .hero__visual { display: none; } .hero__content { max-width: 640px; } }
 @media (max-width: 768px) { .hero__sc--open { display: none; } }
+@media (max-width: 480px) {
+  .hero__title { font-size: clamp(28px, 8vw, 40px); }
+  .hero__desc { font-size: 15px; margin-bottom: 24px; }
+  .hero__ctas { flex-direction: column; width: 100%; }
+  .hero__ctas .btn { width: 100%; justify-content: center; }
+  .hero__stats { gap: 16px; }
+  .hero__stat-value { font-size: 20px; }
+}
 
 /* Startup Score bar */
 .score-bar { height: 4px; border-radius: 999px; background: var(--bg-tertiary); overflow: hidden; flex: 1; }
@@ -826,7 +843,6 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .pd-metric { background: var(--card-bg); padding: 22px 24px; }
 .pd-metric__v { font-family: var(--font-heading); font-weight: 700; font-size: 28px; }
 .pd-metric__l { font-size: 13px; color: var(--text-tertiary); margin-top: 2px; }
-@media (max-width: 640px) { .pd-metrics { grid-template-columns: 1fr; } }
 
 /* Overview + stats sidebar */
 .pd-overview { display: grid; grid-template-columns: 1.7fr 1fr; gap: 32px; align-items: start; }
@@ -914,7 +930,24 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .article__ref-item { display: flex; align-items: flex-start; gap: 11px; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
 .article__ref-num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--card-bg); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text-tertiary); }
 .article__ref-item a { color: var(--blue); font-weight: 600; }
-@media (max-width: 640px) { .article__cover { aspect-ratio: 4/3; } .article__lead { font-size: 19px; } }
+@media (max-width: 640px) {
+  .article__cover { aspect-ratio: 4/3; } .article__lead { font-size: 19px; }
+  /* Paylaşım butonları mobilde ekranın altında sabit kalır */
+  .article__footer .article__share {
+    position: sticky; bottom: 0;
+    background: var(--bg-primary);
+    padding: 12px 16px; margin: 0 -16px;
+    border-top: 1px solid var(--border);
+    z-index: 10;
+  }
+}
+@media (max-width: 480px) {
+  .post-card__title { font-size: 16px; }
+  .article__title { font-size: clamp(24px, 6vw, 36px); }
+  .article__lead { font-size: 17px; }
+  .article__body p { font-size: 16px; }
+  .article__share { flex-wrap: wrap; gap: 8px; }
+}
 
 /* Okuma ilerleme çubuğu */
 .read-progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); z-index: 1002; transition: width 0.1s linear; }
@@ -1010,3 +1043,37 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .join-banner .btn--dark { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.28); color: #fff; }
 .join-banner .btn--dark:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.5); }
 @media (max-width: 680px) { .join-banner { padding: 28px 24px; gap: 20px; } .join-banner__actions { width: 100%; } .join-banner__actions .btn { flex: 1; justify-content: center; } }
+
+/* Katıl sayfası — rol seçim kartları (inline grid stili !important ile eziliyor) */
+@media (max-width: 640px) {
+  .join-type-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Lab sayfası sekme geçişi (Projeler / Fırsatlar) — dar ekranda yatay kaydırma */
+@media (max-width: 640px) {
+  .lab-tabs { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .lab-tabs::-webkit-scrollbar { display: none; }
+}
+
+/* Org chart (Hakkımızda) — dar ekranda tek sütun */
+@media (max-width: 480px) {
+  .org__tier { flex-direction: column; align-items: center; }
+  .org-card { width: 100%; max-width: 300px; }
+}
+
+/* Tipografi — çok dar ekranlarda başlıklar */
+@media (max-width: 480px) {
+  .text-display { font-size: clamp(28px, 8vw, 36px); }
+  .text-h1 { font-size: clamp(24px, 7vw, 32px); }
+  .text-h2 { font-size: clamp(20px, 6vw, 26px); }
+  .page-header { padding: 32px 0 24px; }
+  .page-header__title { font-size: clamp(26px, 7vw, 32px); }
+  .page-header__desc { font-size: 15px; }
+  .section-header__desc { font-size: 15px; }
+}
+
+/* Proje detay sayfası — dar ekranda başlık bloğu ve metrikler */
+@media (max-width: 640px) {
+  .pd-head { flex-direction: column; }
+  .pd-metrics { grid-template-columns: repeat(2, 1fr); }
+}
