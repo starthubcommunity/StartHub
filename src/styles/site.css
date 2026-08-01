@@ -15,6 +15,7 @@ ul, ol { list-style: none; }
 
 /* --- Design Tokens --- */
 :root {
+  color-scheme: light;
   --font-heading: 'Space Grotesk', system-ui, sans-serif;
   --font-body: 'DM Sans', system-ui, sans-serif;
 
@@ -1066,7 +1067,7 @@ textarea.form-input { min-height: 120px; resize: vertical; }
   .text-display { font-size: clamp(28px, 8vw, 36px); }
   .text-h1 { font-size: clamp(24px, 7vw, 32px); }
   .text-h2 { font-size: clamp(20px, 6vw, 26px); }
-  .page-header { padding: 32px 0 24px; }
+  .page-header { padding: calc(var(--nav-h) + var(--announce-h) + 20px) 0 24px; }
   .page-header__title { font-size: clamp(26px, 7vw, 32px); }
   .page-header__desc { font-size: 15px; }
   .section-header__desc { font-size: 15px; }
