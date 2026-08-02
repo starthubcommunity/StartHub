@@ -15,6 +15,7 @@ ul, ol { list-style: none; }
 
 /* --- Design Tokens --- */
 :root {
+  color-scheme: light;
   --font-heading: 'Space Grotesk', system-ui, sans-serif;
   --font-body: 'DM Sans', system-ui, sans-serif;
 
@@ -109,9 +110,23 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 }
 /* iOS input odaklanmada otomatik zoom yapmasın diye 16px altına inmiyoruz */
 @media (max-width: 768px) {
-  input, select, textarea { font-size: 16px; }
+  input, select, textarea, .form-input { font-size: 16px; }
   .btn { min-height: 44px; }
   .nav__link, .filter-btn, .lab-tab, .footer__link { min-height: 44px; display: flex; align-items: center; }
+  .org-card__li, .team-row__li, .footer__socials a {
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .footer__link { margin-bottom: 4px; }
+  .hero__av, .chip, .roadmap__phase, .lab-tab__count, .org-card__role, .team-row__tag { font-size: 12px; }
+}
+/* SectionHeader'ın kendi style prop'unu almadığı için (bkz. bileşen tanımı),
+   "Tümünü Gör" satırlarındaki marginBottom:0 override'ı hiç uygulanmıyordu —
+   .section-header'ın taban 48px'lik alt boşluğu her zaman kalıyordu. */
+.section-head-row .section-header { margin-bottom: 0; }
+@media (max-width: 640px) {
+  .section-head-row { display: block; }
+  .section-head-row .section-header { margin-bottom: 16px; }
 }
 .section { padding: var(--section-py) 0; }
 .section--alt { background: var(--section-alt-bg); }
@@ -604,7 +619,7 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .mentor-card__li:hover { color: var(--accent); }
 
 /* --- Mobile Nav --- */
-.mobile-menu { display: none; position: fixed; inset: 0; background: rgba(251,249,244,0.98); backdrop-filter: blur(20px); z-index: 999; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.mobile-menu { display: none; position: fixed; inset: 0; background: rgba(251,249,244,0.98); backdrop-filter: blur(20px); z-index: 1001; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
 .mobile-menu--open { display: flex; }
 .mobile-menu__link { font-family: var(--font-heading); font-size: 24px; font-weight: 600; padding: 12px 24px; color: var(--text-primary); border-radius: var(--r-md); }
 .mobile-menu__close { position: absolute; top: 20px; right: 20px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
@@ -808,6 +823,11 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 }
 .lab-tab:hover { color: var(--text-primary); background: var(--bg-tertiary); }
 .lab-tab--active { background: var(--card-bg); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.opp-row { display: flex; align-items: center; gap: 14px; padding: 16px 24px; }
+@media (max-width: 600px) {
+  .opp-row { flex-direction: column; align-items: stretch; gap: 12px; }
+  .opp-row .btn { width: 100%; justify-content: center; }
+}
 .lab-tab__count {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 22px; height: 20px; padding: 0 6px;
@@ -1066,7 +1086,7 @@ textarea.form-input { min-height: 120px; resize: vertical; }
   .text-display { font-size: clamp(28px, 8vw, 36px); }
   .text-h1 { font-size: clamp(24px, 7vw, 32px); }
   .text-h2 { font-size: clamp(20px, 6vw, 26px); }
-  .page-header { padding: 32px 0 24px; }
+  .page-header { padding: calc(var(--nav-h) + var(--announce-h) + 24px) 0 24px; }
   .page-header__title { font-size: clamp(26px, 7vw, 32px); }
   .page-header__desc { font-size: 15px; }
   .section-header__desc { font-size: 15px; }

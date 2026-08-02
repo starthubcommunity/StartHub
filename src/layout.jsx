@@ -18,6 +18,13 @@ function Navbar({ currentPage, navigate }) {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (e) => { if (e.key === 'Escape') setMobileOpen(false); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen]);
+
   const navItems = [
     { key: 'home',  label: t('nav.home') },
     { key: 'blog',  label: t('nav.blog') },
@@ -57,7 +64,8 @@ function Navbar({ currentPage, navigate }) {
             <Button variant="primary" size="sm" onClick={() => handleNav('join')}>
               {t('nav.join')}
             </Button>
-            <button className="nav__mobile-toggle" onClick={() => setMobileOpen(true)}>
+            <button className="nav__mobile-toggle" onClick={() => setMobileOpen(o => !o)}
+              aria-label="Menü" aria-expanded={mobileOpen}>
               <Icon name="menu" size={24} />
             </button>
           </div>
@@ -75,6 +83,9 @@ function Navbar({ currentPage, navigate }) {
             {item.label}
           </a>
         ))}
+        <button className="nav__lang" onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')} style={{ marginTop: 8 }}>
+          {lang === 'tr' ? 'EN' : 'TR'}
+        </button>
         <div style={{ marginTop: 16 }}>
           <Button variant="primary" size="lg" onClick={() => handleNav('join')}>
             {t('nav.join')}
