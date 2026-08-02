@@ -205,7 +205,7 @@ function ProjectDetailPage({ projectId, navigate }) {
             <SectionHeader label={t('labs.openPositions')} title={p.openRoles > 0
               ? (lang === 'tr' ? `${p.openRoles} açık pozisyon` : `${p.openRoles} open positions`)
               : t('labs.noOpenPositions')} style={{ marginBottom: 20 }} />
-            {openList.length > 0 ? (
+            {openList.length > 0 && (
               <div className="grid grid-2" style={{ gap: 16 }}>
                 {openList.map((r, i) => (
                   <div className="open-role" key={i} onClick={() => { sessionStorage.setItem('sh_join_role', r); navigate('join', p.id); window.scrollTo({ top: 0 }); }}>
@@ -224,8 +224,6 @@ function ProjectDetailPage({ projectId, navigate }) {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p style={{ color: 'var(--text-tertiary)' }}>{t('labs.noOpenPositions')}</p>
             )}
           </div>
         </div>
@@ -380,7 +378,7 @@ function PostDetailPage({ postId, navigate }) {
             {/* Tam genişlik kapak — görsel yoksa hiç render edilmez */}
             {post.cover && (
               <figure style={{
-                  width: '100%', height: 340,
+                  width: '100%', aspectRatio: '1200 / 630', height: 'auto',
                   background: post.bg?.startsWith('#')
                     ? post.bg
                     : `var(${post.bg?.replace('var(', '').replace(')', '') || '--blue-light'})`,

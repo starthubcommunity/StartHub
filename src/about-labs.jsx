@@ -290,8 +290,7 @@ function OpportunitiesTab({ opportunities, navigate }) {
                   {g.roles.map((role, i) => {
                     const desc = getRoleDescription(role, lang);
                     return (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 14, padding: '16px 24px',
+                      <div key={i} className="opp-row" style={{
                         borderTop: i > 0 ? '1px solid var(--border-light)' : 'none',
                       }}>
                         <span style={{
