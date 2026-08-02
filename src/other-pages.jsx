@@ -416,8 +416,8 @@ function JoinPage({ navigate, projectId }) {
     : ['Financial Support', 'Mentorship', 'Event Sponsorship', 'Internship', 'Other'];
 
   const submitBtn = (
-    <div style={{ paddingTop: 12 }}>
-      <Button variant="primary" size="lg" iconRight="arrowRight" style={{ width: '100%', opacity: submitting ? 0.7 : 1, pointerEvents: submitting ? 'none' : undefined }}>
+    <div className="join-submit-row" style={{ paddingTop: 12 }}>
+      <Button variant="primary" size="lg" iconRight="arrowRight" className="join-submit-btn" style={{ opacity: submitting ? 0.7 : 1, pointerEvents: submitting ? 'none' : undefined }}>
         {submitting ? (lang === 'tr' ? 'Gönderiliyor…' : 'Sending…') : t('join.submit')}
       </Button>
     </div>
@@ -427,16 +427,26 @@ function JoinPage({ navigate, projectId }) {
     <div style={{ padding: '10px 14px', background: 'var(--red-light, #FEF2F2)', border: '1px solid #FECACA', borderRadius: 8, fontSize: 14, color: 'var(--red, #DC2626)', marginBottom: 12 }}>{submitError}</div>
   ) : null;
 
+  const joinTitle = project
+    ? (lang === 'tr' ? `${project.name} Ekibine Katıl` : `Join ${project.name} Team`)
+    : (lang === 'tr' ? fs('hero_title_tr', t('join.title')) : fs('hero_title_en', t('join.title')));
+  const joinDesc = project
+    ? (lang === 'tr' ? `${project.name} projesine başvurunu bu form ile gönderebilirsin.` : `Submit your application to join the ${project.name} project.`)
+    : (lang === 'tr' ? fs('hero_desc_tr', t('join.desc')) : fs('hero_desc_en', t('join.desc')));
+
   return (
     <div className="page-transition">
-      <PageHeader
-        label={t('join.label')}
-        title={project
-          ? (lang === 'tr' ? `${project.name} Ekibine Katıl` : `Join ${project.name} Team`)
-          : (lang === 'tr' ? fs('hero_title_tr', t('join.title')) : fs('hero_title_en', t('join.title')))}
-        desc={project
-          ? (lang === 'tr' ? `${project.name} projesine başvurunu bu form ile gönderebilirsin.` : `Submit your application to join the ${project.name} project.`)
-          : (lang === 'tr' ? fs('hero_desc_tr', t('join.desc')) : fs('hero_desc_en', t('join.desc')))} />
+      {/* PageHeader bileşeni yerine burada elle render ediyoruz — bu sayfada
+          form 680px'lik dar bir kapta ortalı, başlık aynı genişlikte olmazsa
+          sol kenarları hizasız kalıyordu. Diğer sayfalardaki <PageHeader/>
+          kullanımına dokunulmadı. */}
+      <div className="page-header">
+        <div className="container" style={{ maxWidth: 680 }}>
+          <div className="page-header__label">{t('join.label')}</div>
+          <h1 className="page-header__title text-h1">{joinTitle}</h1>
+          {joinDesc && <p className="page-header__desc text-pretty">{joinDesc}</p>}
+        </div>
+      </div>
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container" style={{ maxWidth: 680 }}>

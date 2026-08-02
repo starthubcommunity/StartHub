@@ -192,7 +192,7 @@ function ProjectDetailPage({ projectId, navigate }) {
       <section className="section section--alt" style={{ paddingTop: 56, paddingBottom: 56 }}>
         <div className="container">
           <SectionHeader label={t('labs.team')} title={lang === 'tr' ? 'Bu projeyi inşa eden ekip' : 'The team building this project'} />
-          <div className="grid grid-2" style={{ gap: 16 }}>
+          <div className="grid grid-2 pd-team-grid" style={{ gap: 16 }}>
             {lead && <Reveal><TeamRow person={lead} tag={t('labs.teamLead')} kind="lead" /></Reveal>}
             {mentor && <Reveal delay={60}><TeamRow person={mentor} tag={t('labs.mentor')} kind="mentor" /></Reveal>}
             {members.map((m, i) => (
@@ -342,7 +342,9 @@ function PostDetailPage({ postId, navigate }) {
       <div className="read-progress" style={{ width: `${readProgress}%` }} />
 
       <div className="page-header" style={{ paddingBottom: 0 }}>
-        <div className="container">
+        {/* .article kolonu 740px'te ortalı — geri linki aynı sol kenardan
+            başlasın diye kap aynı genişliğe sabitlendi. */}
+        <div className="container" style={{ maxWidth: 740 }}>
           <span className="pd-back" onClick={() => { navigate('blog'); window.scrollTo({ top: 0 }); }}>
             <Icon name="chevronRight" size={16} style={{ transform: 'rotate(180deg)' }} /> {t('post.backToList')}
           </span>

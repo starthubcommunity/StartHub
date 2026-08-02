@@ -108,6 +108,13 @@ function Footer({ navigate }) {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [termsOpen, setTermsOpen]     = useState(false);
 
+  useEffect(() => {
+    if (!privacyOpen && !termsOpen) return;
+    const onKeyDown = (e) => { if (e.key === 'Escape') { setPrivacyOpen(false); setTermsOpen(false); } };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [privacyOpen, termsOpen]);
+
   const copyEmail = async () => {
     try {
       await navigator.clipboard.writeText('iletisim@starthub-community.com');

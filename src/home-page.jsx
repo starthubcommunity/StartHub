@@ -262,7 +262,7 @@ function LatestPosts({ navigate }) {
     <section className="section">
       <div className="container">
         <Reveal>
-          <div className="section-head-row" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32, gap: 24, flexWrap: 'wrap' }}>
+          <div className="section-head-row" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32, gap: 24 }}>
             <SectionHeader label={t('sections.latestContent')} title={t('sections.latestContentDesc')} style={{ marginBottom: 0 }} />
             <Button variant="ghost" size="sm" iconRight="arrowRight"
               onClick={() => { navigate('blog'); window.scrollTo({ top: 0 }); }} style={{ flexShrink: 0 }}>
@@ -305,7 +305,7 @@ function LabProjects({ navigate }) {
     <section className="section section--alt">
       <div className="container">
         <Reveal>
-          <div className="section-head-row" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32, gap: 24, flexWrap: 'wrap' }}>
+          <div className="section-head-row" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32, gap: 24 }}>
             <SectionHeader label={t('sections.labProjects')} title={t('sections.labProjectsDesc')} style={{ marginBottom: 0 }} />
             <Button variant="ghost" size="sm" iconRight="arrowRight"
               onClick={() => { navigate('labs'); window.scrollTo({ top: 0 }); }} style={{ flexShrink: 0 }}>

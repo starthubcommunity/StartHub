@@ -359,7 +359,12 @@ function LabsPage({ navigate }) {
 
   return (
     <div className="page-transition">
-      <PageHeader label={t('labs.label')} title={t('labs.title')} desc={t('labs.desc')} />
+      <PageHeader
+        label={activeTab === 'opportunities' ? t('labs.opportunities') : t('labs.label')}
+        title={activeTab === 'opportunities' ? (lang === 'tr' ? 'Açık Pozisyonlar' : 'Open Positions') : t('labs.title')}
+        desc={activeTab === 'opportunities'
+          ? (lang === 'tr' ? 'Start-Hub ekosistemindeki tüm açık pozisyonları keşfet ve bir ekibe katıl.' : 'Discover every open position across the Start-Hub ecosystem and join a team.')
+          : t('labs.desc')} />
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
@@ -402,7 +407,7 @@ function LabsPage({ navigate }) {
                 </div>
               </div>
 
-              <div className="grid grid-2">
+              <div className="grid grid-2 lab-proj-grid">
                 {filtered.map(s => (
                   <StartupCard key={s.id} startup={s} onClick={() => goProject(s.id)} />
                 ))}
