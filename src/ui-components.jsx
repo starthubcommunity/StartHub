@@ -413,13 +413,10 @@ function PostCard({ post, onClick, feature, pinned }) {
             background: `linear-gradient(135deg, ${post.bg || 'var(--red)'} 0%, color-mix(in srgb, ${post.bg || 'var(--red)'} 60%, #000) 100%)`,
             alignItems: 'center', justifyContent: 'center', padding: '0 24px', textAlign: 'center',
           }}>
-          <span style={{
-              color: 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-heading)',
-              fontWeight: 700, fontSize: 15, lineHeight: 1.4, maxWidth: 240,
-              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}>
-            {localized(post, 'title')}
-          </span>
+          {/* Kart altında zaten gerçek başlık var (post-card__title) — burada
+              tekrar etmesin, düşük kontrastta okunaksız duruyordu. Sadece
+              kategori ikonu + marka gradyanı kalsın. */}
+          <Icon name={post.tag === 'etkinlik' ? 'calendar' : post.tag === 'gundem' ? 'globe' : 'layers'} size={34} style={{ color: 'rgba(255,255,255,0.55)' }} />
         </div>
         {pinned && (
           <span className="post-card__pin"><Icon name="star" size={12} /> Tavsiye Edilen</span>

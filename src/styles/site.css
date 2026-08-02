@@ -5,7 +5,11 @@
 
 /* --- Reset & Base --- */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+/* html'e de body'yle aynı arka plan açıkça verilir — yalnızca body'de olması
+   bazı mobil tarayıcılarda (özellikle iOS Safari overscroll/bounce alanında
+   ve ilk boyama sırasında) canvas arka planının doğru şekilde devralınmamasına
+   yol açabiliyor; color-scheme:light bunu garanti etmiyor. */
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; background: var(--bg-primary); }
 body { font-family: 'DM Sans', system-ui, sans-serif; color: var(--text-primary); background: var(--bg-primary); line-height: 1.6; overflow-x: hidden; }
 img { max-width: 100%; display: block; }
 a { text-decoration: none; color: inherit; }

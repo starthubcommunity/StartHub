@@ -278,6 +278,13 @@ function PostDetailPage({ postId, navigate }) {
   const [ttsState, setTtsState] = useState('idle'); // idle | playing
   const [ttsParaIdx, setTtsParaIdx] = useState(-1);
   const ttsGenRef = useRef(0);
+  // iOS Safari, referansı tutulmayan SpeechSynthesisUtterance'ı sese
+  // başlamadan/ortasında çöpe atabiliyor (bilinen WebKit hatası) — bu yüzden
+  // aktif utterance'a kalıcı bir referans tutuyoruz.
+  const ttsUttRef = useRef(null);
+  // iOS Safari, konuşma ~15sn sürünce kendiliğinden duraklatıyor (başka bir
+  // bilinen WebKit hatası); periyodik pause/resume ile canlı tutuyoruz.
+  const ttsKeepAliveRef = useRef(null);
   const paraRefs = useRef([]);
 
   // Sayfa değişince / unmount'ta okumayı durdur
@@ -314,32 +321,58 @@ function PostDetailPage({ postId, navigate }) {
   const TTS_RATE = 1;
   const speakFrom = (idx, gen) => {
     if (gen !== ttsGenRef.current) return;
-    if (idx >= body.length) { setTtsState('idle'); setTtsParaIdx(-1); return; }
+    if (idx >= body.length) { setTtsState('idle'); setTtsParaIdx(-1); ttsUttRef.current = null; return; }
     const utt = new SpeechSynthesisUtterance(body[idx]);
     utt.lang = 'tr-TR';
     utt.rate = TTS_RATE;
     utt.onstart = () => { if (gen === ttsGenRef.current) setTtsParaIdx(idx); };
     utt.onend = () => { if (gen === ttsGenRef.current) speakFrom(idx + 1, gen); };
+    utt.onerror = () => { if (gen === ttsGenRef.current) speakFrom(idx + 1, gen); };
+    ttsUttRef.current = utt; // canlı referans — GC'yi önler
     window.speechSynthesis.speak(utt);
   };
   const ttsStop = () => {
     ttsGenRef.current++;
     window.speechSynthesis.cancel();
+    ttsUttRef.current = null;
     setTtsState('idle');
     setTtsParaIdx(-1);
   };
   const ttsToggle = () => {
     if (ttsState === 'playing') { ttsStop(); return; }
+    // Burada bilerek cancel() ÇAĞRILMIYOR: idle durumdayken konuşacak bir
+    // şey zaten yok, ve iOS Safari'de cancel() hemen ardından aynı senkron
+    // tikte speak() çağırmak sessizce başarısız olabiliyor (bilinen bug).
     const gen = ++ttsGenRef.current;
-    window.speechSynthesis.cancel();
     setTtsState('playing');
     speakFrom(0, gen);
   };
 
+  // iOS Safari ~15sn sonra konuşmayı kendiliğinden duraklatıyor — canlı
+  // tutmak için periyodik pause/resume "dürtüsü".
+  useEffect(() => {
+    if (ttsState !== 'playing') return;
+    ttsKeepAliveRef.current = setInterval(() => {
+      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 10000);
+    return () => { if (ttsKeepAliveRef.current) clearInterval(ttsKeepAliveRef.current); };
+  }, [ttsState]);
+
   return (
-    <div className="page-transition">
-      {/* Okuma ilerleme çubuğu */}
+    <>
+      {/* Okuma ilerleme çubuğu — .page-transition'ın DIŞINDA render edilir.
+          .page-transition'ın fadeUp animasyonu bittikten sonra bile
+          computed transform "none" değil (tarayıcılar animasyonun tuttuğu
+          bitiş durumunu identity matrix olarak temsil ediyor: matrix(1,0,0,1,0,0)),
+          ve CSS'te "none" olmayan HER transform değeri position:fixed
+          torunlar için containing block oluşturur — bu da çubuğu viewport
+          yerine bu div'e sabitleyip scroll'da yukarı kaydırıyordu. Kalıcı
+          çözüm: çubuğu o kapsayıcının hiç içine koymamak. */}
       <div className="read-progress" style={{ width: `${readProgress}%` }} />
+      <div className="page-transition">
 
       <div className="page-header" style={{ paddingBottom: 0 }}>
         {/* .article kolonu 740px'te ortalı — geri linki aynı sol kenardan
@@ -552,6 +585,7 @@ function PostDetailPage({ postId, navigate }) {
         </section>
       )}
     </div>
+    </>
   );
 }
 
