@@ -400,6 +400,7 @@ function toSlug(str) {
 function PostsPage() {
   const { data, addItem, updateItem, deleteItem, patchLocal, clearFlagExcept, countFlag } = useAdmin();
   const [search, setSearch] = useStateP('');
+  const [statusFilter, setStatusFilter] = useStateP('all');
   const [editing, setEditing] = useStateP(null);
   const [deleting, setDeleting] = useStateP(null);
   const [toast, setToast] = useStateP(null);
@@ -411,11 +412,22 @@ function PostsPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  const STATUS_FILTERS = [
+    { key: 'all',      label: 'Tümü' },
+    { key: 'published', label: 'Yayında' },
+    { key: 'draft',      label: 'Taslak' },
+    { key: 'rejected',   label: 'Reddedildi' },
+  ];
+
   const filtered = useMemoP(() => {
-    if (!search) return data.posts;
-    const q = search.toLowerCase();
-    return data.posts.filter(p => (p.title_tr || '').toLowerCase().includes(q) || (p.title_en || '').toLowerCase().includes(q));
-  }, [data.posts, search]);
+    let list = data.posts;
+    if (statusFilter !== 'all') list = list.filter(p => (p.status || 'published') === statusFilter);
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(p => (p.title_tr || '').toLowerCase().includes(q) || (p.title_en || '').toLowerCase().includes(q));
+    }
+    return list;
+  }, [data.posts, search, statusFilter]);
 
   // Gerçek toggle: local state'i anında günceller (optimistic), sonra Supabase'e yazar.
   // İstek başarısız olursa önceki değere geri döner.
@@ -524,11 +536,20 @@ function PostsPage() {
           <AIcon name="check" size={14} /><span>{toast.msg}</span>
         </div>
       )}
-      <PageHead title="Yazılar" desc={`${data.posts.length} yazı`} actions={
+      <PageHead title="Yazılar" desc={`${filtered.length} / ${data.posts.length} yazı`} actions={
         <button className="adm-btn adm-btn--primary" onClick={() => setEditing('new')}><AIcon name="plus" size={16} /> Yeni Yazı</button>
       } />
       <div className="adm-card">
-        <div className="adm-card__header"><SearchBar value={search} onChange={setSearch} placeholder="Yazı ara..." /></div>
+        <div className="adm-card__header" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+          <SearchBar value={search} onChange={setSearch} placeholder="Yazı ara..." />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {STATUS_FILTERS.map(f => (
+              <button key={f.key} className={`adm-chip ${statusFilter === f.key ? 'adm-chip--active' : ''}`} onClick={() => setStatusFilter(f.key)}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="adm-card__body" style={{ padding: 0 }}>
           <DataTable columns={columns} data={filtered} onEdit={setEditing} onDelete={setDeleting} />
         </div>
