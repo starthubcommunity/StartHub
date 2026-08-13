@@ -406,6 +406,7 @@ function PostsPage() {
   const [toast, setToast] = useStateP(null);
   const [linkedinBusy, setLinkedinBusy] = useStateP({}); // {postId: true} — istek sürerken çift tıkı/yarışı önler
   const [turnOffConfirm, setTurnOffConfirm] = useStateP(null); // zaten paylaşılmış bir yazıda kapatma onayı bekleyen post
+  const [repostConfirm, setRepostConfirm] = useStateP(null); // "LinkedIn'den sildim, yeniden paylaş" onayı bekleyen post
 
   const flash = (msg, kind = 'green') => {
     setToast({ msg, kind });
@@ -463,6 +464,30 @@ function PostsPage() {
     if (r) applyLinkedinToggle(r, false);
   };
 
+  // Yazı LinkedIn'de "yayında" görünüyor ama gönderi LinkedIn'den elle silindiyse,
+  // Make.com senaryosu linkedin_posted=true olduğu için tekrar paylaşmayı reddediyordu
+  // (yinelenen paylaşımı önleyen kontrol). Bu, o bayrağı sıfırlayıp Make.com'un
+  // yeniden paylaşmasına izin verir — linkedin_share açık kalır.
+  const resetLinkedinRepost = async (r) => {
+    if (linkedinBusy[r.id]) return;
+    setLinkedinBusy(prev => ({ ...prev, [r.id]: true }));
+    patchLocal('posts', r.id, { linkedinPosted: false });
+    try {
+      await updateItem('posts', r.id, { ...r, linkedinShare: true, linkedinPosted: false });
+      flash('Yeniden paylaşım için işaretlendi — birkaç dakika içinde LinkedIn\'de tekrar yayınlanır.');
+    } catch (e) {
+      patchLocal('posts', r.id, { linkedinPosted: r.linkedinPosted });
+      flash('İşlem başarısız: ' + (e.message || 'Bilinmeyen hata'), 'orange');
+    } finally {
+      setLinkedinBusy(prev => { const n = { ...prev }; delete n[r.id]; return n; });
+    }
+  };
+  const confirmRepost = () => {
+    const r = repostConfirm;
+    setRepostConfirm(null);
+    if (r) resetLinkedinRepost(r);
+  };
+
   const columns = [
     { key: 'title_tr', label: 'Başlık', render: (r) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -484,34 +509,52 @@ function PostsPage() {
       const { label, color, bg } = cfg[s] || cfg.published;
       return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 99, background: bg, color }}>{label}</span>;
     }},
-    { key: 'linkedin', label: 'LinkedIn', style: { width: 60, textAlign: 'center' }, tdStyle: { textAlign: 'center' }, render: (r) => {
+    { key: 'linkedin', label: 'LinkedIn', style: { width: 92, textAlign: 'center' }, tdStyle: { textAlign: 'center' }, render: (r) => {
       const busy = !!linkedinBusy[r.id];
+      const statusTitle = !r.linkedinShare
+        ? 'LinkedIn\'de paylaşmak için tıkla'
+        : r.linkedinPosted
+          ? 'LinkedIn\'de yayında — kapatmak için tıkla'
+          : 'Paylaşım kuyrukta, birkaç dakika içinde LinkedIn\'de yayınlanacak — durdurmak için tıkla';
       return (
-        <div style={{ position: 'relative', display: 'inline-flex' }}>
-          <button
-            className="adm-icon-btn"
-            aria-pressed={!!r.linkedinShare}
-            disabled={busy}
-            title={r.linkedinShare ? 'LinkedIn paylaşımı açık (kapatmak için tıkla)' : 'LinkedIn\'de paylaşmak için işaretle'}
-            onClick={() => toggleLinkedinShare(r)}
-            style={{
-              color: r.linkedinShare ? '#0A66C2' : 'var(--adm-text-dim)',
-              background: r.linkedinShare ? 'rgba(10,102,194,0.1)' : 'transparent',
-              opacity: busy ? 0.5 : 1,
-              cursor: busy ? 'wait' : 'pointer',
-            }}
-          >
-            {busy
-              ? <span className="adm-spinner" style={{ width: 14, height: 14, borderColor: 'rgba(10,102,194,0.25)', borderTopColor: '#0A66C2' }}></span>
-              : <AIcon name="linkedin" size={16} />}
-          </button>
-          {r.linkedinPosted && (
-            <span
-              title="LinkedIn'de yayınlandı"
-              style={{ position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderRadius: '50%', background: 'var(--adm-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--adm-bg-card, #fff)' }}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <button
+              className="adm-icon-btn"
+              aria-pressed={!!r.linkedinShare}
+              disabled={busy}
+              title={statusTitle}
+              onClick={() => toggleLinkedinShare(r)}
+              style={{
+                color: r.linkedinShare ? '#0A66C2' : 'var(--adm-text-dim)',
+                background: r.linkedinShare ? 'rgba(10,102,194,0.1)' : 'transparent',
+                opacity: busy ? 0.5 : 1,
+                cursor: busy ? 'wait' : 'pointer',
+              }}
             >
-              <AIcon name="check" size={8} style={{ color: '#fff' }} />
-            </span>
+              {busy
+                ? <span className="adm-spinner" style={{ width: 14, height: 14, borderColor: 'rgba(10,102,194,0.25)', borderTopColor: '#0A66C2' }}></span>
+                : <AIcon name="linkedin" size={16} />}
+            </button>
+            {r.linkedinPosted && (
+              <span
+                title="LinkedIn'de yayınlandı"
+                style={{ position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderRadius: '50%', background: 'var(--adm-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--adm-bg-card, #fff)' }}
+              >
+                <AIcon name="check" size={8} style={{ color: '#fff' }} />
+              </span>
+            )}
+          </div>
+          {r.linkedinPosted && (
+            <button
+              className="adm-icon-btn"
+              disabled={busy}
+              title="LinkedIn'de bu gönderiyi elle sildiysen, yeniden paylaşmak için tıkla"
+              onClick={() => setRepostConfirm(r)}
+              style={{ color: 'var(--adm-text-dim)', opacity: busy ? 0.5 : 1, cursor: busy ? 'wait' : 'pointer' }}
+            >
+              <AIcon name="refresh" size={14} />
+            </button>
           )}
         </div>
       );
@@ -572,11 +615,37 @@ function PostsPage() {
             <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', marginBottom: 24, lineHeight: 1.5 }}>
               Bu yazı LinkedIn'de zaten paylaşıldı. Kutucuğu kapatmak sadece buradaki takip
               bayrağını sıfırlar — LinkedIn'deki gönderiyi silmez. Gönderiyi kaldırmak
-              isterseniz LinkedIn üzerinden elle silmeniz gerekir. Devam etmek istiyor musunuz?
+              isterseniz LinkedIn üzerinden elle silmeniz gerekir; sildikten sonra yeniden
+              paylaşmak isterseniz yenileme (↻) ikonunu kullanabilirsiniz. Devam etmek
+              istiyor musunuz?
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button className="adm-btn adm-btn--ghost" onClick={() => setTurnOffConfirm(null)}>Vazgeç</button>
               <button className="adm-btn adm-btn--danger" onClick={confirmTurnOff}>Evet, kapat</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* LinkedIn'de yayında görünen ama gerçekte LinkedIn üzerinden elle silinmiş
+          bir gönderiyi yeniden paylaşabilmek için: sadece linkedin_posted bayrağını
+          sıfırlar, Make.com senaryosunun yinelenen-paylaşım kontrolünü aşıp yeniden
+          göndermesine izin verir. linkedin_share açık kalır. */}
+      {repostConfirm && (
+        <Modal open onClose={() => setRepostConfirm(null)} title="LinkedIn'de yeniden paylaş">
+          <div style={{ textAlign: 'center', padding: '4px 4px 4px' }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(10,102,194,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <AIcon name="refresh" size={22} style={{ color: '#0A66C2' }} />
+            </div>
+            <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', marginBottom: 24, lineHeight: 1.5 }}>
+              Bu, "LinkedIn'de yayında" durumunu sıfırlar ve yazıyı yeniden paylaşım
+              kuyruğuna alır — birkaç dakika içinde LinkedIn'de tekrar yayınlanır. Sadece
+              gönderiyi LinkedIn'den kendiniz sildiyseniz kullanın; hâlâ yayındaysa
+              yinelenen bir gönderi oluşur. Devam etmek istiyor musunuz?
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button className="adm-btn adm-btn--ghost" onClick={() => setRepostConfirm(null)}>Vazgeç</button>
+              <button className="adm-btn adm-btn--primary" onClick={confirmRepost}>Evet, yeniden paylaş</button>
             </div>
           </div>
         </Modal>
