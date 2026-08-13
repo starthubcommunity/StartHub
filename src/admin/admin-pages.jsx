@@ -465,18 +465,27 @@ function PostsPage() {
   };
 
   // Yazı LinkedIn'de "yayında" görünüyor ama gönderi LinkedIn'den elle silindiyse,
-  // Make.com senaryosu linkedin_posted=true olduğu için tekrar paylaşmayı reddediyordu
-  // (yinelenen paylaşımı önleyen kontrol). Bu, o bayrağı sıfırlayıp Make.com'un
-  // yeniden paylaşmasına izin verir — linkedin_share açık kalır.
+  // yeniden paylaşılabilmesi lazım. Make.com'daki Filter adımı şu dört koşulu ARADA
+  // birlikte istiyor: record.linkedin_share=true, record.status=published,
+  // record.linkedin_posted=false, VE old_record.linkedin_share != true — yani
+  // linkedin_share'in gerçekten false'tan true'ya GEÇTİĞİ anı (yükselen kenar)
+  // arıyor, sadece "şu an true olması" yetmiyor. linkedin_share zaten true
+  // olduğu için tek adımda posted:false yazmak old_record.linkedin_share'i de
+  // true bırakıyor ve filtre hiç geçmiyordu. Bu yüzden önce false'a, sonra
+  // (gerçek bir DB geçişi oluşacak şekilde) tekrar true'ya yazıyoruz — filtrenin
+  // yinelenen-paylaşım korumasını bozmadan, gerçek bir "yeniden aç" olayı üretir.
   const resetLinkedinRepost = async (r) => {
     if (linkedinBusy[r.id]) return;
     setLinkedinBusy(prev => ({ ...prev, [r.id]: true }));
-    patchLocal('posts', r.id, { linkedinPosted: false });
     try {
+      patchLocal('posts', r.id, { linkedinShare: false, linkedinPosted: false });
+      await updateItem('posts', r.id, { ...r, linkedinShare: false, linkedinPosted: false });
+      await new Promise(resolve => setTimeout(resolve, 800));
+      patchLocal('posts', r.id, { linkedinShare: true });
       await updateItem('posts', r.id, { ...r, linkedinShare: true, linkedinPosted: false });
       flash('Yeniden paylaşım için işaretlendi — birkaç dakika içinde LinkedIn\'de tekrar yayınlanır.');
     } catch (e) {
-      patchLocal('posts', r.id, { linkedinPosted: r.linkedinPosted });
+      patchLocal('posts', r.id, { linkedinShare: r.linkedinShare, linkedinPosted: r.linkedinPosted });
       flash('İşlem başarısız: ' + (e.message || 'Bilinmeyen hata'), 'orange');
     } finally {
       setLinkedinBusy(prev => { const n = { ...prev }; delete n[r.id]; return n; });
