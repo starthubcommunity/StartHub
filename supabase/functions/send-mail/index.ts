@@ -1,12 +1,13 @@
 // Supabase Edge Function: send-mail
 // Frontend'de zaten cagriliyor: sb.functions.invoke("send-mail", { body: { to, subject, body } })
 // Resend API key'ini asla buraya yazma; Supabase project secret'i olarak sakla:
-//   supabase secrets set RESEND_API_KEY=re_xxx MAIL_FROM="StartHub <no-reply@starthub-community.com>"
+//   supabase secrets set RESEND_API_KEY=re_xxx MAIL_FROM="StartHub <no-reply@starthub-community.com>" REPLY_TO=starthub.community@gmail.com
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const FROM_EMAIL = Deno.env.get("MAIL_FROM") || "StartHub <no-reply@starthub-community.com>";
+const REPLY_TO = Deno.env.get("REPLY_TO") || "starthub.community@gmail.com";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,7 +38,7 @@ serve(async (req) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json; charset=utf-8",
       },
-      body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, text: body, ...(html ? { html } : {}) }),
+      body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, text: body, reply_to: REPLY_TO, ...(html ? { html } : {}) }),
     });
 
     const data = await res.json();
