@@ -35,7 +35,7 @@ serve(async (req) => {
       method: "POST",
       headers: {
         Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, text: body, ...(html ? { html } : {}) }),
     });
