@@ -26,3 +26,6 @@ Thumbs.db
 
 # Vite
 *.local
+
+# Supabase CLI local cache
+supabase/.temp/

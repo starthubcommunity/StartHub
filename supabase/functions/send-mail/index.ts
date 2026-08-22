@@ -17,7 +17,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { to, subject, body } = await req.json();
+    const { to, subject, body, html } = await req.json();
     if (!to || !subject || !body) {
       return new Response(JSON.stringify({ error: "to, subject ve body zorunlu" }), {
         status: 400,
@@ -37,7 +37,7 @@ serve(async (req) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, text: body }),
+      body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, text: body, ...(html ? { html } : {}) }),
     });
 
     const data = await res.json();
