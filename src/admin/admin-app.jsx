@@ -10,7 +10,7 @@ import { AnalyticsPage } from './admin-analytics';
 import { PeoplePage, SponsorsPage, TrashPage } from './admin-pages2';
 import { ApplicationsPage } from './admin-applications';
 import { SettingsPage } from './admin-settings';
-import { supabase } from '../lib/supabase';
+import { supabase, setRememberMe } from '../lib/supabase';
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────
 function LoginPage() {
@@ -18,10 +18,15 @@ function LoginPage() {
   const [password, setPassword] = useStateA('');
   const [error, setError]       = useStateA('');
   const [loading, setLoading]   = useStateA(false);
+  const [remember, setRemember] = useStateA(true);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
+    // Oturumun nerede saklanacağını (localStorage/sessionStorage) girişten
+    // ÖNCE ayarlıyoruz — Supabase, oturumu bu depolara handleSubmit içinde
+    // yazacak.
+    setRememberMe(remember);
     const { error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -60,6 +65,11 @@ function LoginPage() {
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" required placeholder="••••••••"
                 style={{ width: '100%', padding: '10px 13px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'var(--adm-bg)', fontSize: 14, color: 'var(--adm-text)', boxSizing: 'border-box', outline: 'none', fontFamily: 'var(--font-body)' }} />
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--adm-text-dim)', userSelect: 'none' }}>
+              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: '#DC2626', cursor: 'pointer' }} />
+              Beni hatırla
+            </label>
             {error && <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px' }}>{error}</div>}
             <button type="submit" disabled={loading}
               style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, letterSpacing: '-0.01em' }}>
