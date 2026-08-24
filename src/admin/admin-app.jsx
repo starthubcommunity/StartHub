@@ -12,6 +12,123 @@ import { ApplicationsPage } from './admin-applications';
 import { SettingsPage } from './admin-settings';
 import { supabase, setRememberMe } from '../lib/supabase';
 
+// Ortak kart kabuğu — giriş / şifremi unuttum / e-posta gönderildi ekranları
+// hepsi bu çerçeveyi paylaşır.
+function AuthShell({ title, desc, children }) {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--adm-bg)', fontFamily: 'var(--font-body)', padding: 20, boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 16 }}>SH</div>
+            <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 20, color: 'var(--adm-text)', letterSpacing: '-0.02em' }}>Start-Hub</span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Yönetim Paneli</div>
+        </div>
+        <div style={{ background: 'var(--adm-card)', border: '1px solid var(--adm-border-light)', borderRadius: 16, padding: 28 }}>
+          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 18, marginBottom: 4, color: 'var(--adm-text)', letterSpacing: '-0.01em' }}>{title}</div>
+          <div style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 22 }}>{desc}</div>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const adm_inputStyle = { width: '100%', padding: '10px 13px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'var(--adm-bg)', fontSize: 14, color: 'var(--adm-text)', boxSizing: 'border-box', outline: 'none', fontFamily: 'var(--font-body)' };
+
+// ─── ŞİFREMİ UNUTTUM ────────────────────────────────────────────────────
+function ForgotPasswordPage({ onBack }) {
+  const [email, setEmail]     = useStateA('');
+  const [error, setError]     = useStateA('');
+  const [loading, setLoading] = useStateA(false);
+  const [sent, setSent]       = useStateA(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/admin/`,
+    });
+    setLoading(false);
+    if (err) { setError('Bağlantı gönderilemedi: ' + err.message); return; }
+    setSent(true);
+  };
+
+  if (sent) {
+    return (
+      <AuthShell title="E-posta gönderildi" desc="Gelen kutunuzu kontrol edin.">
+        <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
+          <strong style={{ color: 'var(--adm-text)' }}>{email}</strong> adresine bir şifre sıfırlama
+          bağlantısı gönderdik. Bağlantıya tıklayıp yeni şifrenizi belirleyebilirsiniz.
+        </p>
+        <button onClick={onBack} style={{ width: '100%', padding: '11px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'none', color: 'var(--adm-text)', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+          Girişe dön
+        </button>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell title="Şifremi unuttum" desc="E-posta adresinize bir sıfırlama bağlantısı gönderelim.">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>E-POSTA</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} type="email" required placeholder="ornek@starthub.com" style={adm_inputStyle} />
+        </div>
+        {error && <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px' }}>{error}</div>}
+        <button type="submit" disabled={loading}
+          style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, letterSpacing: '-0.01em' }}>
+          {loading ? 'Gönderiliyor…' : 'Sıfırlama Bağlantısı Gönder'}
+        </button>
+        <button type="button" onClick={onBack}
+          style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: 'var(--adm-text-dim)', cursor: 'pointer', textAlign: 'center' }}>
+          ← Girişe dön
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
+// ─── YENİ ŞİFRE BELİRLE (sıfırlama linkinden dönünce) ──────────────────
+function SetNewPasswordPage({ onDone }) {
+  const [password, setPassword]   = useStateA('');
+  const [password2, setPassword2] = useStateA('');
+  const [error, setError]         = useStateA('');
+  const [loading, setLoading]     = useStateA(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (password.length < 6) { setError('Şifre en az 6 karakter olmalı.'); return; }
+    if (password !== password2) { setError('Şifreler birbiriyle eşleşmiyor.'); return; }
+    setLoading(true); setError('');
+    const { error: err } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (err) { setError('Şifre güncellenemedi: ' + err.message); return; }
+    onDone();
+  };
+
+  return (
+    <AuthShell title="Yeni şifre belirle" desc="Hesabınız için yeni bir şifre girin.">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>YENİ ŞİFRE</label>
+          <input value={password} onChange={e => setPassword(e.target.value)} type="password" required placeholder="••••••••" style={adm_inputStyle} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>YENİ ŞİFRE (TEKRAR)</label>
+          <input value={password2} onChange={e => setPassword2(e.target.value)} type="password" required placeholder="••••••••" style={adm_inputStyle} />
+        </div>
+        {error && <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px' }}>{error}</div>}
+        <button type="submit" disabled={loading}
+          style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, letterSpacing: '-0.01em' }}>
+          {loading ? 'Kaydediliyor…' : 'Şifreyi Kaydet'}
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────
 function LoginPage() {
   const [email, setEmail]       = useStateA('');
@@ -19,6 +136,7 @@ function LoginPage() {
   const [error, setError]       = useStateA('');
   const [loading, setLoading]   = useStateA(false);
   const [remember, setRemember] = useStateA(true);
+  const [forgot, setForgot]     = useStateA(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,47 +156,37 @@ function LoginPage() {
     // Başarılıysa onAuthStateChange AdminApp'te session'ı otomatik günceller
   };
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--adm-bg)', fontFamily: 'var(--font-body)', padding: 20, boxSizing: 'border-box' }}>
-      <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 16 }}>SH</div>
-            <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 20, color: 'var(--adm-text)', letterSpacing: '-0.02em' }}>Start-Hub</span>
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Yönetim Paneli</div>
-        </div>
+  if (forgot) return <ForgotPasswordPage onBack={() => setForgot(false)} />;
 
-        {/* Card */}
-        <div style={{ background: 'var(--adm-card)', border: '1px solid var(--adm-border-light)', borderRadius: 16, padding: 28 }}>
-          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 18, marginBottom: 4, color: 'var(--adm-text)', letterSpacing: '-0.01em' }}>Giriş Yap</div>
-          <div style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 22 }}>Yetkili hesabınızla devam edin.</div>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>E-POSTA</label>
-              <input value={email} onChange={e => setEmail(e.target.value)} type="email" required placeholder="ornek@starthub.com"
-                style={{ width: '100%', padding: '10px 13px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'var(--adm-bg)', fontSize: 14, color: 'var(--adm-text)', boxSizing: 'border-box', outline: 'none', fontFamily: 'var(--font-body)' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>ŞİFRE</label>
-              <input value={password} onChange={e => setPassword(e.target.value)} type="password" required placeholder="••••••••"
-                style={{ width: '100%', padding: '10px 13px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'var(--adm-bg)', fontSize: 14, color: 'var(--adm-text)', boxSizing: 'border-box', outline: 'none', fontFamily: 'var(--font-body)' }} />
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--adm-text-dim)', userSelect: 'none' }}>
-              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
-                style={{ width: 16, height: 16, accentColor: '#DC2626', cursor: 'pointer' }} />
-              Beni hatırla
-            </label>
-            {error && <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px' }}>{error}</div>}
-            <button type="submit" disabled={loading}
-              style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, letterSpacing: '-0.01em' }}>
-              {loading ? 'Giriş yapılıyor…' : 'Giriş Yap →'}
-            </button>
-          </form>
+  return (
+    <AuthShell title="Giriş Yap" desc="Yetkili hesabınızla devam edin.">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>E-POSTA</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} type="email" required placeholder="ornek@starthub.com" style={adm_inputStyle} />
         </div>
-      </div>
-    </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>ŞİFRE</label>
+          <input value={password} onChange={e => setPassword(e.target.value)} type="password" required placeholder="••••••••" style={adm_inputStyle} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--adm-text-dim)', userSelect: 'none' }}>
+            <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: '#DC2626', cursor: 'pointer' }} />
+            Beni hatırla
+          </label>
+          <button type="button" onClick={() => setForgot(true)}
+            style={{ background: 'none', border: 'none', padding: 0, fontSize: 12.5, color: '#DC2626', fontWeight: 600, cursor: 'pointer' }}>
+            Şifremi unuttum
+          </button>
+        </div>
+        {error && <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px' }}>{error}</div>}
+        <button type="submit" disabled={loading}
+          style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, letterSpacing: '-0.01em' }}>
+          {loading ? 'Giriş yapılıyor…' : 'Giriş Yap →'}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 
@@ -95,6 +203,7 @@ function AuthLoading() {
 function AdminApp() {
   const [session, setSession]         = useStateA(null);
   const [authLoading, setAuthLoading] = useStateA(true);
+  const [recovery, setRecovery]       = useStateA(false); // şifre sıfırlama linkinden dönüldü mü
   const [page, setPage]               = useStateA(() => sessionStorage.getItem('sh_adm_page') || 'dashboard');
   const [mobileNavOpen, setMobileNavOpen] = useStateA(false);
   const { trash, saveError } = useAdmin();
@@ -105,8 +214,12 @@ function AdminApp() {
       setSession(s);
       setAuthLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
+      // Kullanıcı e-postadaki sıfırlama bağlantısına tıklayıp geri döndüğünde
+      // Supabase geçici bir oturum kurup bu olayı tetikliyor — normal panele
+      // değil, yeni şifre belirleme ekranına yönlendiriyoruz.
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -118,6 +231,7 @@ function AdminApp() {
   };
 
   if (authLoading) return <AuthLoading />;
+  if (recovery)    return <SetNewPasswordPage onDone={() => setRecovery(false)} />;
   if (!session)    return <LoginPage />;
 
   // Supabase session'dan kullanıcı bilgisi türet
