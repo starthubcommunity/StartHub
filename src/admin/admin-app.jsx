@@ -37,6 +37,22 @@ function AuthShell({ title, desc, children }) {
 
 const adm_inputStyle = { width: '100%', padding: '10px 13px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'var(--adm-bg)', fontSize: 14, color: 'var(--adm-text)', boxSizing: 'border-box', outline: 'none', fontFamily: 'var(--font-body)' };
 
+// Göz ikonuyla göster/gizle yapılabilen şifre alanı — giriş ve şifre
+// belirleme ekranlarında ortak kullanılıyor.
+function PasswordInput({ value, onChange, placeholder }) {
+  const [show, setShow] = useStateA(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <input value={value} onChange={onChange} type={show ? 'text' : 'password'} required placeholder={placeholder}
+        style={{ ...adm_inputStyle, paddingRight: 42 }} />
+      <button type="button" onClick={() => setShow(s => !s)} title={show ? 'Şifreyi gizle' : 'Şifreyi göster'}
+        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', padding: 6, cursor: 'pointer', color: 'var(--adm-text-dim)', display: 'flex', alignItems: 'center' }}>
+        <AIcon name={show ? 'eyeOff' : 'eye'} size={16} />
+      </button>
+    </div>
+  );
+}
+
 // ─── ŞİFREMİ UNUTTUM ────────────────────────────────────────────────────
 function ForgotPasswordPage({ onBack }) {
   const [email, setEmail]     = useStateA('');
@@ -113,11 +129,11 @@ function SetNewPasswordPage({ onDone }) {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>YENİ ŞİFRE</label>
-          <input value={password} onChange={e => setPassword(e.target.value)} type="password" required placeholder="••••••••" style={adm_inputStyle} />
+          <PasswordInput value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>YENİ ŞİFRE (TEKRAR)</label>
-          <input value={password2} onChange={e => setPassword2(e.target.value)} type="password" required placeholder="••••••••" style={adm_inputStyle} />
+          <PasswordInput value={password2} onChange={e => setPassword2(e.target.value)} placeholder="••••••••" />
         </div>
         {error && <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px' }}>{error}</div>}
         <button type="submit" disabled={loading}
@@ -167,7 +183,7 @@ function LoginPage() {
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>ŞİFRE</label>
-          <input value={password} onChange={e => setPassword(e.target.value)} type="password" required placeholder="••••••••" style={adm_inputStyle} />
+          <PasswordInput value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--adm-text-dim)', userSelect: 'none' }}>
