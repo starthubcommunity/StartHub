@@ -1,0 +1,84 @@
+/* ============================================
+   KURUCU HATTI (/hub) — TASARIM SİSTEMİ
+   admin.css'i import ETMEZ. Paylaşılan bileşenler (admin-ui.jsx)
+   bozulmadan çalışsın diye token bloğu aynı --adm-* isimleriyle
+   buraya kopyalanmıştır (HUB_SPEC §4.3).
+   ============================================ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-font-smoothing: antialiased; }
+
+:root {
+  color-scheme: light;
+  --font-heading: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+
+  /* Warm admin palette */
+  --adm-bg: #FAF8F3;
+  --adm-bg-card: #FFFFFF;
+  --adm-bg-sidebar: #1C1915;
+  --adm-bg-sidebar-hover: rgba(255,255,255,0.06);
+  --adm-bg-sidebar-active: rgba(255,255,255,0.1);
+  --adm-bg-input: #FFFFFF;
+  --adm-bg-hover: #F5F1E9;
+
+  --adm-text: #1C1917;
+  --adm-text-secondary: #57534E;
+  --adm-text-dim: #A29D94;
+  --adm-text-inverse: #FAF8F3;
+  --adm-text-sidebar: #A8A29E;
+  --adm-text-sidebar-active: #FFFFFF;
+
+  --adm-border: #E7E0D2;
+  --adm-border-light: #F0EADE;
+  --adm-border-focus: #DC2626;
+
+  --adm-red: #DC2626;
+  --adm-red-light: #FEF2F2;
+  --adm-blue: #2563EB;
+  --adm-blue-light: #EFF6FF;
+  --adm-green: #16A34A;
+  --adm-green-light: #F0FDF4;
+  --adm-purple: #7C3AED;
+  --adm-purple-light: #F5F3FF;
+  --adm-orange: #EA580C;
+  --adm-orange-light: #FFF7ED;
+  --adm-amber: #D97706;
+
+  --adm-r: 10px;
+  --adm-r-sm: 6px;
+  --adm-r-lg: 14px;
+  --adm-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  --adm-shadow-md: 0 4px 14px rgba(0,0,0,0.07);
+  --adm-shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+  --sidebar-w: 260px;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--adm-bg);
+  color: var(--adm-text);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+/* ---- Adım 1: boş kabuk ---- */
+.hub-boot {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px;
+}
+.hub-boot__brand { display: flex; align-items: center; gap: 12px; }
+.hub-boot__logo {
+  width: 40px; height: 40px; border-radius: var(--adm-r);
+  background: var(--adm-red); color: #fff;
+  font-family: var(--font-heading); font-weight: 700; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  letter-spacing: -0.02em;
+}
+.hub-boot__title {
+  font-family: var(--font-heading); font-weight: 700; font-size: 18px;
+  color: var(--adm-text); letter-spacing: -0.01em;
+}
+.hub-boot__sub { font-size: 12px; color: var(--adm-text-dim); font-weight: 500; }
+.hub-boot__note { font-size: 13px; color: var(--adm-text-dim); }
