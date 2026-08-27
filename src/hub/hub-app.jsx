@@ -2,9 +2,16 @@
 // HUB_SPEC §5.1 (aynı Supabase istemcisi, aynı oturum) + §5.2 (açılış akışı).
 // Router yok; sayfa geçişi sonraki adımlarda useState + sessionStorage ile.
 import React from 'react';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase, setRememberMe } from '../lib/supabase';
-import { HubStoreProvider, useHubStore } from './hub-store';
+import { AIcon } from '../admin/admin-ui';
+import { HubStoreProvider } from './hub-store';
+import { HubMemberContext, useHubMember } from './hub-member';
+import TablePage from './pages/table';
+
+// useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
+// (Adım 3 kabul kriteri bu isme atıf yapıyor).
+export { useHubMember };
 
 // ─── Paylaşılan stiller (admin AuthShell deseni, --adm-* token'ları) ──────
 const inputStyle = { width: '100%', padding: '10px 13px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'var(--adm-bg)', fontSize: 14, color: 'var(--adm-text)', boxSizing: 'border-box', outline: 'none', fontFamily: 'var(--font-body)' };
@@ -235,50 +242,67 @@ function NoAccessPage({ email, onLogout }) {
   );
 }
 
-// ─── Üyelik / rol context'i ────────────────────────────────────────────
-// Rol her oturum açılışında BİR KEZ RPC ile çekilir, context'e konur;
-// localStorage'a YAZILMAZ (HUB_SPEC §5.2). Arayüzde yalnızca menü
-// görünürlüğü için kullanılır — gerçek kısıt RLS'tedir.
-const HubMemberContext = createContext(null);
-
-export function useHubMember() {
-  return useContext(HubMemberContext);
-}
-
 // ─── Uygulama kabuğu (rol geçtikten sonra) ─────────────────────────────
-// Adım 3: yalnızca kimlik + rol + çıkış. Sidebar ve sayfalar sonraki adımlarda.
+// Router yok: sayfa geçişi useState + sessionStorage (proje kuralı).
+// Bu adımda yalnızca "Tablo" bağlı; diğer sayfalar sonraki adımlarda.
+const NAV = [
+  { id: 'today',     label: 'Bugün',      icon: 'dashboard', ready: false },
+  { id: 'table',     label: 'Tablo',      icon: 'layers',    ready: true },
+  { id: 'board',     label: 'Hat',        icon: 'trendingUp', ready: false },
+  { id: 'templates', label: 'Şablonlar',  icon: 'penEdit',   ready: false },
+  { id: 'import',    label: 'Yetenek avı', icon: 'upload',    ready: false },
+  { id: 'metrics',   label: 'Metrikler',  icon: 'trendingUp', ready: false },
+  { id: 'settings',  label: 'Ayarlar',    icon: 'settings',   ready: false },
+];
+
 function HubApp({ email, onLogout }) {
   const role = useHubMember();
-  const { candidates, loading, loadError } = useHubStore();
+  const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'table');
+  useEffect(() => { sessionStorage.setItem('sh_hub_page', page); }, [page]);
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--adm-bg)', fontFamily: 'var(--font-body)', color: 'var(--adm-text)' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid var(--adm-border)', background: 'var(--adm-bg-card)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--adm-red)', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>SH</div>
+    <div className="hub-layout">
+      <aside className="hub-sidebar">
+        <div className="hub-sidebar__brand">
+          <div className="hub-sidebar__logo">SH</div>
           <div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15 }}>Kurucu Hattı</div>
-            <div style={{ fontSize: 11, color: 'var(--adm-text-dim)' }}>{email} · {role}</div>
+            <div className="hub-sidebar__title">Kurucu Hattı</div>
+            <div className="hub-sidebar__sub">{role}</div>
           </div>
         </div>
-        <button onClick={onLogout}
-          style={{ background: 'none', border: '1px solid var(--adm-border)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--adm-text-secondary)', fontSize: 13, fontFamily: 'var(--font-body)' }}>
-          Çıkış
-        </button>
-      </header>
-      <main style={{ padding: 40, maxWidth: 720, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, marginBottom: 8, letterSpacing: '-0.01em' }}>Hoş geldin</h1>
-        <p style={{ color: 'var(--adm-text-secondary)' }}>
-          Auth ve rol kapısı hazır. Rolün: <strong>{role}</strong>. Tablo, Hat ve Bugün
-          ekranları sonraki adımlarda eklenecek.
-        </p>
-        <p style={{ color: 'var(--adm-text-dim)', fontSize: 13, marginTop: 12 }}>
-          {loadError
-            ? `Veri yüklenemedi: ${loadError}`
-            : loading
-              ? 'Veri yükleniyor…'
-              : `Havuzda ${candidates.length} aday yüklü.`}
-        </p>
-      </main>
+        <nav className="hub-sidebar__nav">
+          {NAV.map((n) => (
+            <button key={n.id}
+              className={`hub-sidebar__link ${page === n.id ? 'hub-sidebar__link--active' : ''}`}
+              disabled={!n.ready}
+              title={n.ready ? '' : 'Sonraki adımda'}
+              onClick={() => n.ready && setPage(n.id)}>
+              <AIcon name={n.icon} size={17} />
+              <span>{n.label}</span>
+              {!n.ready && <span style={{ marginLeft: 'auto', fontSize: 10, opacity: 0.6 }}>yakında</span>}
+            </button>
+          ))}
+        </nav>
+        <div className="hub-sidebar__foot">
+          <button className="hub-sidebar__link" onClick={onLogout}>
+            <AIcon name="logout" size={17} /><span>Çıkış</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="hub-main">
+        <div className="hub-topbar">
+          <span style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>
+            {NAV.find((n) => n.id === page)?.label}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
+        </div>
+        <div className="hub-content">
+          {page === 'table' ? <TablePage /> : (
+            <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
