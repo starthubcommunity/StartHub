@@ -139,13 +139,17 @@ export default function TablePage() {
     if (key === 'stage') {
       const chk = canAdvance(row, value, { role, touchCount: row.lastContactAt ? 1 : 0 });
       if (!chk.ok) { flash(chk.reason); return; }
+      // Aşama değişimi store.advanceStage üzerinden: stage_changed_at = now()
+      // + hub_stage_log aynı işlemde (§9).
+      try { await store.advanceStage(id, value); }
+      catch (e) { flash('Kaydedilemedi: ' + e.message); }
+      return;
     }
 
     const prev = row[key];
     store.patchCandidate(id, { [key]: value });
     try {
       await store.updateCandidate(id, { ...row, [key]: value });
-      if (key === 'stage') store.logStage(id, prev, value).catch(() => {});
     } catch (e) {
       store.patchCandidate(id, { [key]: prev });
       flash('Kaydedilemedi: ' + e.message);
@@ -200,12 +204,8 @@ export default function TablePage() {
       const row = candidates.find((c) => c.id === id);
       const chk = canAdvance(row, toStage, { role, touchCount: row.lastContactAt ? 1 : 0 });
       if (!chk.ok) { skipped.push(row.fullName); continue; }
-      store.patchCandidate(id, { stage: toStage });
-      try {
-        await store.updateCandidate(id, { ...row, stage: toStage });
-        store.logStage(id, row.stage, toStage).catch(() => {});
-        moved++;
-      } catch { store.patchCandidate(id, { stage: row.stage }); }
+      try { await store.advanceStage(id, toStage); moved++; }
+      catch { /* advanceStage kendi rollback'ini yapar */ }
     }
     flash(`${moved} aday “${STAGE_LABEL[toStage]}” aşamasına taşındı` +
       (skipped.length ? ` · ${skipped.length} atlandı (kural)` : ''));
@@ -221,9 +221,15 @@ export default function TablePage() {
     flash(`${ids.length} aday güncellendi (${label}).`);
   };
 
-  const bulkArchive = (reason) => {
+  const bulkArchive = async (reason) => {
     if (!reason) return;
-    bulkSet({ stage: 'archived', archiveReason: reason }, 'arşiv');
+    const ids = [...selected];
+    for (const id of ids) {
+      // Arşiv de bir aşama değişimi → advanceStage (stage_changed_at + log).
+      try { await store.advanceStage(id, 'archived', { reason, extra: { archiveReason: reason } }); }
+      catch { /* rollback advanceStage içinde */ }
+    }
+    flash(`${ids.length} aday arşivlendi.`);
   };
   const bulkTag = (tag) => {
     const t = tag.trim(); if (!t) return;

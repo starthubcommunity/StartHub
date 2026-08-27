@@ -55,7 +55,7 @@ export function canAdvance(candidate, toStage, ctx = {}) {
           reason: `Eşik sağlanmadı: toplam ≥ ${THRESHOLD.minTotal} ve hiçbir eksen ≤ ${THRESHOLD.minAxis - 1} olmamalı.`,
         };
       const flags = (c.redFlags || []).length;
-      if (flags >= THRESHOLD.maxRedFlags) {
+      if (flags >= THRESHOLD.blockAtRedFlags) {
         const overridden = role === 'cofounder' && filled(c.overrideReason);
         return overridden
           ? { ok: true }
@@ -91,15 +91,20 @@ export function canAdvance(candidate, toStage, ctx = {}) {
 }
 
 // isStale(candidate, now) -> { stale, level: 'warn'|'critical'|null, days }
-// Yalnızca `contacted` ve `interviewed` aşamaları için tanımlı (§2.6).
-// Referans zaman: son temas → yoksa güncelleme → yoksa oluşturma. Şartname
-// ayrı bir "aşamaya giriş" zamanı tutmuyor; en yakın anlamlı zaman budur.
+// §9 tablosu: aşamaya göre sayaç referansı ve eşikler.
+//   contacted   → last_contact_at   (7 / 14 gün)
+//   interviewed → stage_changed_at  (5 / 10)
+//   replied     → stage_changed_at  (3 / 7)
+//   finalist    → stage_changed_at  (5 / 10)
+//   diğerleri   → bayatlama uygulanmaz
+// ⚠️ updated_at ASLA referans DEĞİLDİR — herhangi bir alan düzenlenince
+// sıfırlanır ve takip görevi hiç doğmaz.
 export function isStale(candidate, now = Date.now()) {
   const c = candidate || {};
   const rule = STALE[c.stage];
   if (!rule) return { stale: false, level: null, days: 0 };
 
-  const ref = asTime(c.lastContactAt) || asTime(c.updatedAt) || asTime(c.createdAt);
+  const ref = asTime(c[rule.ref]);
   if (!ref) return { stale: false, level: null, days: 0 };
 
   const days = daysBetween(ref, toMs(now));

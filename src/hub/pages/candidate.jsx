@@ -252,7 +252,7 @@ function AssessTab({ c, save, role }) {
         );
       })}
 
-      {flagCount >= THRESHOLD.maxRedFlags && (
+      {flagCount >= THRESHOLD.blockAtRedFlags && (
         <LField label="Override gerekçesi (yalnızca kurucu)" textarea
           hint="2+ bayrakla finalist'e geçiş için zorunlu (§2.4)."
           value={c.overrideReason} onCommit={(v) => save({ overrideReason: v })} />

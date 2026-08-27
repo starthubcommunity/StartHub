@@ -148,6 +148,27 @@ export function HubStoreProvider({ children }) {
     [addItem, currentMember]
   );
 
+  // Aşama değiştir — TEK yer. HER aşama değişiminde stage_changed_at = now()
+  // yazılır ve aynı işlemde hub_stage_log kaydı düşer (§9 bayatlama sayacı).
+  // canAdvance kontrolü çağıran tarafta yapılır; burada yalnızca DB işi.
+  // `extra` ile ek kolon değişimi (ör. archiveReason) aynı update'e girer.
+  const advanceStage = useCallback(async (id, toStage, { reason = null, extra = {} } = {}) => {
+    const row = data.candidates.find((c) => c.id === id);
+    if (!row) return;
+    const from = row.stage;
+    const stamp = new Date().toISOString();
+    const prev = { stage: from, stageChangedAt: row.stageChangedAt ?? null };
+    Object.keys(extra).forEach((k) => { prev[k] = row[k]; });
+    patchLocal('candidates', id, { stage: toStage, stageChangedAt: stamp, ...extra });
+    try {
+      await updateItem('candidates', id, { ...row, stage: toStage, stageChangedAt: stamp, ...extra });
+      await logStage(id, from, toStage, reason);
+    } catch (e) {
+      patchLocal('candidates', id, prev);
+      throw e;
+    }
+  }, [data, patchLocal, updateItem, logStage]);
+
   // Tek adayın geçmişi — "Geçmiş" sekmesi için ihtiyaç anında.
   const loadHistory = useCallback(async (candidateId) => {
     const [touches, interviews, gates, stageLog] = await Promise.all([
@@ -173,7 +194,7 @@ export function HubStoreProvider({ children }) {
     reload: loadAll,
     addItem, updateItem, deleteItem, patchLocal,
     addCandidate, updateCandidate, deleteCandidate, patchCandidate,
-    logStage, loadHistory,
+    logStage, advanceStage, loadHistory,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).

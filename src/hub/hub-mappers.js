@@ -47,8 +47,11 @@ export function mapCandidateToDb(c) {
     enrichment:  c.enrichment  || {},
     enriched_at: c.enrichedAt  ?? null,
     // süreç
-    stage:          c.stage         || 'pool',
-    archive_reason: c.archiveReason ?? null,
+    stage:            c.stage          || 'pool',
+    // Bayatlama sayacının referansı (§9). Değer yoksa DB default'u (now())
+    // devrede kalsın diye gönderilmez; aşama değişiminde store now() yazar.
+    stage_changed_at: orUndef(c.stageChangedAt),
+    archive_reason:   c.archiveReason  ?? null,
     owner_id:       c.ownerId       ?? null,
     open_role_id:   c.openRoleId    ?? null,
     startup_id:     c.startupId     ?? null,
@@ -111,8 +114,9 @@ export function mapCandidateFromDb(r) {
     enrichment: r.enrichment  || {},
     enrichedAt: r.enriched_at ?? null,
     // süreç
-    stage:         r.stage          || 'pool',
-    archiveReason: r.archive_reason ?? null,
+    stage:          r.stage            || 'pool',
+    stageChangedAt: r.stage_changed_at ?? null,
+    archiveReason:  r.archive_reason   ?? null,
     ownerId:       r.owner_id       ?? null,
     openRoleId:    r.open_role_id   ?? null,
     startupId:     r.startup_id     ?? null,

@@ -134,20 +134,25 @@ export const AI_PRESCORE_FINISHING = [
 
 // ─── Eşik değerleri (§2.3 + §2.4 + §9) ──────────────────────────────
 // Finalist eşiği: toplam ≥ minTotal VE hiçbir eksen ≤ 2 (yani her eksen
-// ≥ minAxis) VE kırmızı bayrak < maxRedFlags (ya da cofounder + override).
+// ≥ minAxis) VE kırmızı bayrak sayısı < blockAtRedFlags (ya da cofounder +
+// override). Kural: redFlags.length < blockAtRedFlags → geçebilir;
+// redFlags.length >= blockAtRedFlags → finalist'e geçiş kilitli.
 export const THRESHOLD = {
   minTotal: 10,
-  minAxis: 3,        // "hiçbir eksen ≤ 2" ⇔ her eksen ≥ 3
-  maxRedFlags: 2,    // red_flags.length < 2
+  minAxis: 3,            // "hiçbir eksen ≤ 2" ⇔ her eksen ≥ 3
+  blockAtRedFlags: 2,    // bu sayı ve üzeri bayrak → finalist kilitli
 };
 
-// ─── Bayatlama (§2.6) ───────────────────────────────────────────────
-// Şartname yalnızca `warn` eşiğini sabitliyor (contacted 7 gün, interviewed
-// 5 gün). `critical` şartnamede yok — geçici olarak 2× alınıyor, Ayarlar'dan
-// ayarlanabilir hale gelene kadar.
+// ─── Bayatlama sayacı (§9 tablosu) ─────────────────────────────────
+// Her aşama için: sayaç HANGİ zamandan başlar + warn/critical (gün).
+// ⚠️ updated_at ASLA referans değildir — herhangi bir alan düzenlenince
+// sıfırlanır ve takip görevi hiç doğmaz. Sayaç yalnızca stage_changed_at
+// ve last_contact_at üzerinden işler. Listede olmayan aşamada bayatlama yok.
 export const STALE = {
-  contacted:   { warn: 7,  critical: 14 },
-  interviewed: { warn: 5,  critical: 10 },
+  contacted:   { ref: 'lastContactAt',  warn: 7, critical: 14 },
+  interviewed: { ref: 'stageChangedAt', warn: 5, critical: 10 },
+  replied:     { ref: 'stageChangedAt', warn: 3, critical: 7 },
+  finalist:    { ref: 'stageChangedAt', warn: 5, critical: 10 },
 };
 
 // ─── Kapılar (§2.5) ─────────────────────────────────────────────────

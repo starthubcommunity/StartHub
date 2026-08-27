@@ -95,22 +95,45 @@ t('replied gibi kısıtsız hedef her zaman ok', () => {
   assert.equal(canAdvance(cand({ stage: 'contacted' }), 'replied').ok, true);
 });
 
-// ── isStale ────────────────────────────────────────────────────────
-t('contacted, 3 gün → bayat değil', () => {
+// ── isStale (§9 tablosu) ──────────────────────────────────────────
+t('contacted, son temas 3 gün önce → bayat değil', () => {
   assert.deepEqual(isStale(cand({ stage: 'contacted', lastContactAt: ago(3) })), { stale: false, level: null, days: 3 });
 });
-t('contacted, 8 gün → warn', () => {
+t('contacted, son temas 8 gün önce → warn', () => {
   const r = isStale(cand({ stage: 'contacted', lastContactAt: ago(8) }));
   assert.equal(r.stale, true); assert.equal(r.level, 'warn');
 });
-t('contacted, 15 gün → critical', () => {
+t('contacted, son temas 15 gün önce → critical', () => {
   assert.equal(isStale(cand({ stage: 'contacted', lastContactAt: ago(15) })).level, 'critical');
 });
-t('interviewed, 6 gün → warn (eşik 5)', () => {
-  assert.equal(isStale(cand({ stage: 'interviewed', lastContactAt: ago(6) })).level, 'warn');
+
+// GERÇEK HATA SENARYOSU: updated_at bugün olsa bile sayaç last_contact_at'ten
+// işler — 6. günde etiket düzenlemek 7 günlük takibi öteleyemez.
+t('contacted: temas 8 gün önce ama updatedAt bugün → yine de BAYAT', () => {
+  const c = cand({ stage: 'contacted', lastContactAt: ago(8), updatedAt: ago(0), stageChangedAt: ago(8) });
+  const r = isStale(c);
+  assert.equal(r.stale, true, 'updated_at referans alınmamalı');
+  assert.equal(r.level, 'warn');
+  assert.equal(r.days, 8);
 });
-t('pool aşaması → bayatlama tanımsız', () => {
-  assert.deepEqual(isStale(cand({ stage: 'pool', lastContactAt: ago(90) })), { stale: false, level: null, days: 0 });
+
+t('interviewed: sayaç stage_changed_at\'ten (6 gün → warn, eşik 5)', () => {
+  const r = isStale(cand({ stage: 'interviewed', stageChangedAt: ago(6), lastContactAt: ago(1), updatedAt: ago(0) }));
+  assert.equal(r.level, 'warn');
+});
+t('interviewed: last_contact_at TAZE olsa da stage_changed_at bayatsa BAYAT', () => {
+  assert.equal(isStale(cand({ stage: 'interviewed', stageChangedAt: ago(12), lastContactAt: ago(0) })).level, 'critical');
+});
+t('replied: stage_changed_at 4 gün → warn (eşik 3)', () => {
+  assert.equal(isStale(cand({ stage: 'replied', stageChangedAt: ago(4) })).level, 'warn');
+});
+t('finalist: stage_changed_at 11 gün → critical (eşik 5/10)', () => {
+  assert.equal(isStale(cand({ stage: 'finalist', stageChangedAt: ago(11) })).level, 'critical');
+});
+t('pool / gate_a / joined → bayatlama uygulanmaz', () => {
+  for (const stage of ['pool', 'gate_a', 'gate_b', 'joined', 'archived']) {
+    assert.deepEqual(isStale(cand({ stage, stageChangedAt: ago(90), lastContactAt: ago(90) })), { stale: false, level: null, days: 0 });
+  }
 });
 
 // ── gateStatus ─────────────────────────────────────────────────────
