@@ -7,7 +7,9 @@ import { supabase, setRememberMe } from '../lib/supabase';
 import { AIcon } from '../admin/admin-ui';
 import { HubStoreProvider } from './hub-store';
 import { HubMemberContext, useHubMember } from './hub-member';
+import { EMPTY_FILTERS } from './components/filter-bar';
 import TablePage from './pages/table';
+import BoardPage from './pages/board';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -248,7 +250,7 @@ function NoAccessPage({ email, onLogout }) {
 const NAV = [
   { id: 'today',     label: 'Bugün',      icon: 'dashboard', ready: false },
   { id: 'table',     label: 'Tablo',      icon: 'layers',    ready: true },
-  { id: 'board',     label: 'Hat',        icon: 'trendingUp', ready: false },
+  { id: 'board',     label: 'Hat',        icon: 'trendingUp', ready: true },
   { id: 'templates', label: 'Şablonlar',  icon: 'penEdit',   ready: false },
   { id: 'import',    label: 'Yetenek avı', icon: 'upload',    ready: false },
   { id: 'metrics',   label: 'Metrikler',  icon: 'trendingUp', ready: false },
@@ -259,6 +261,9 @@ function HubApp({ email, onLogout }) {
   const role = useHubMember();
   const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'table');
   useEffect(() => { sessionStorage.setItem('sh_hub_page', page); }, [page]);
+
+  // Tablo ve Hat aynı filtre durumunu paylaşır — sayfa değişince korunur (§8.3).
+  const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
 
   return (
     <div className="hub-layout">
@@ -298,9 +303,9 @@ function HubApp({ email, onLogout }) {
           <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
         </div>
         <div className="hub-content">
-          {page === 'table' ? <TablePage /> : (
-            <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>
-          )}
+          {page === 'table' ? <TablePage filters={filters} setFilters={setFilters} />
+            : page === 'board' ? <BoardPage filters={filters} setFilters={setFilters} />
+            : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}
         </div>
       </div>
     </div>

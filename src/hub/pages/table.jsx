@@ -81,12 +81,11 @@ function cmp(a, b, key) {
   return String(va).localeCompare(String(vb), 'tr');
 }
 
-export default function TablePage() {
+export default function TablePage({ filters, setFilters }) {
   const store = useHubStore();
   const { candidates, members, loading } = store;
   const role = useHubMember();
 
-  const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [sort, setSort]       = useState([{ key: 'createdAt', dir: 'desc' }]);
   const [view, setView]       = useState(null);
