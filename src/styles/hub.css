@@ -263,3 +263,12 @@ body {
 .hub-card__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .hub-card__dot--warn { background: var(--adm-amber); }
 .hub-card__dot--critical { background: var(--adm-red); }
+
+/* Kapılar (aday kartı) */
+.hub-gates { border: 1px solid var(--adm-border); border-radius: var(--adm-r); padding: 12px 14px; margin-bottom: 16px; background: var(--adm-bg-card); }
+.hub-gate { border: 1px solid var(--adm-border-light); border-radius: var(--adm-r-sm); padding: 10px 12px; margin: 8px 0; }
+.hub-gate__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.hub-gate__task { font-size: 12.5px; color: var(--adm-text-secondary); white-space: pre-wrap; background: var(--adm-bg); border-radius: 6px; padding: 6px 8px; }
+.hub-gate__status--running { background: var(--adm-blue-light); color: var(--adm-blue); }
+.hub-gate__status--due { background: var(--adm-amber); color: #fff; }
+.hub-gate__status--overdue { background: var(--adm-red-light); color: var(--adm-red); }

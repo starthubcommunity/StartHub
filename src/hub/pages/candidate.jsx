@@ -11,7 +11,9 @@ import {
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
   INTERVIEW_DECISION_LABEL, GATE_RESULT_LABEL, THRESHOLD,
 } from '../hub-constants';
-import { thresholdMet, canAdvance } from '../hub-rules';
+import { thresholdMet, canAdvance, gateStatus } from '../hub-rules';
+import { GATE } from '../hub-constants';
+import { supabase } from '../../lib/supabase';
 import { fillTemplate } from './templates';
 
 // Metin/textarea/select alanı — metin ve textarea blur'da, select anında işler.
@@ -124,10 +126,14 @@ export default function CandidatePanel({ candidateId, onClose }) {
 }
 
 // ── Özet ────────────────────────────────────────────────────────────
+const GATE_STAGES = ['finalist', 'gate_a', 'gate_b', 'joined'];
+
 function SummaryTab({ c, save }) {
   const nextActionRequired = c.stage !== 'pool';
   return (
     <div>
+      {GATE_STAGES.includes(c.stage) && <GatesSection c={c} />}
+
       <h4 className="hub-h4">Kimlik</h4>
       <div className="adm-form-grid">
         <LField label="Ad Soyad" value={c.fullName} onCommit={(v) => save({ fullName: v })} required />
@@ -201,6 +207,172 @@ function EvidenceList({ evidence, onChange }) {
         <input className="adm-input adm-input--sm" style={{ width: 140 }} placeholder="not" value={note} onChange={(e) => setNote(e.target.value)} />
         <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={add}>Ekle</button>
       </div>
+    </div>
+  );
+}
+
+// ── Kapılar (§2.5) ────────────────────────────────────────────────
+// Team sistemine YALNIZCA referansla bağlanır (startup_id + person_id yazılır);
+// app_state JSON bloğu okunmaz/yazılmaz (§4.6.2).
+const remaining = (dueAt) => {
+  if (!dueAt) return '';
+  const ms = new Date(dueAt) - Date.now();
+  if (ms <= 0) return 'süre doldu';
+  const h = Math.round(ms / 3600000);
+  return h < 48 ? `${h} saat kaldı` : `${Math.round(h / 24)} gün kaldı`;
+};
+const STATUS_LABEL = { running: 'Sürüyor', due: 'Süre doldu', overdue: 'Gecikti' };
+
+function GateCard({ gate, onMark }) {
+  const st = gateStatus(gate);
+  return (
+    <div className="hub-gate">
+      <div className="hub-gate__head">
+        <strong>Kapı {gate.gate}</strong>
+        <span className={`hub-pill hub-gate__status hub-gate__status--${st}`}>
+          {STATUS_LABEL[st]}{gate.result === 'pending' && st === 'running' ? ` · ${remaining(gate.dueAt)}` : ''}
+        </span>
+      </div>
+      {gate.taskText && <div className="hub-gate__task">{gate.taskText}</div>}
+      <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '4px 0' }}>
+        Başlangıç: {String(gate.startedAt).slice(0, 10)} · Vade: {String(gate.dueAt).slice(0, 16).replace('T', ' ')}
+      </div>
+      {gate.result === 'pending' ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onMark({ delivered: true, result: 'passed' })}>Teslim etti</button>
+          <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onMark({ delivered: false, result: 'failed' })}>Teslim etmedi</button>
+        </div>
+      ) : (
+        <div className="hub-pill" style={gate.result === 'passed'
+          ? { background: 'var(--adm-green-light)', color: 'var(--adm-green)' }
+          : { background: 'var(--adm-red-light)', color: 'var(--adm-red)' }}>
+          {gate.result === 'passed' ? 'Geçti' : 'Kaldı'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GatesSection({ c }) {
+  const store = useHubStore();
+  const gates = store.gates.filter((g) => g.candidateId === c.id);
+  const gateA = gates.filter((g) => g.gate === 'A').sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))[0];
+  const gateB = gates.filter((g) => g.gate === 'B').sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
+  const vestingStart = gateA ? String(gateA.startedAt).slice(0, 10) : null;
+
+  const [taskText, setTaskText] = useState('');
+  const [startups, setStartups] = useState(null);
+  const [projId, setProjId] = useState(String(c.startupId || ''));
+  const [personId, setPersonId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
+
+  useEffect(() => {
+    supabase.from('startups').select('id, name').order('name')
+      .then(({ data }) => setStartups(data || []))
+      .catch(() => setStartups([]));
+  }, []);
+
+  const startA = async () => {
+    setBusy(true);
+    try {
+      const due = new Date(Date.now() + GATE.aHours * 3600000).toISOString();
+      await store.startGate(c, 'A', { taskText: taskText.trim() || null, dueAt: due });
+      setTaskText('');
+    } catch (e) { flash('Başlatılamadı: ' + e.message); }
+    setBusy(false);
+  };
+  const startB = async () => {
+    setBusy(true);
+    try {
+      const due = new Date(Date.now() + GATE.bDays * 86400000).toISOString();
+      await store.startGate(c, 'B', {
+        dueAt: due,
+        startupId: projId ? Number(projId) : null,
+        personId: personId ? Number(personId) : null,
+      });
+    } catch (e) { flash('Başlatılamadı: ' + e.message); }
+    setBusy(false);
+  };
+  const toTeam = async () => {
+    setBusy(true);
+    try {
+      const v = await store.moveToTeam(c.id);
+      flash(v ? `Ekibe aktarıldı · hak ediş başlangıcı ${v} (Kapı A ilk günü).` : 'Ekibe aktarıldı.');
+    } catch (e) { flash('Aktarılamadı: ' + e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="hub-gates">
+      <h4 className="hub-h4">Süreç · Kapılar</h4>
+      {vestingStart && (
+        <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginBottom: 8 }}>
+          Hak ediş başlangıcı (geriye dönük): <strong>{vestingStart}</strong>
+        </div>
+      )}
+
+      {/* Kapı A başlat — finalist aşamasında, henüz A yokken */}
+      {c.stage === 'finalist' && !gateA && (
+        <div className="hub-gate">
+          <strong>Kapı A başlat</strong>
+          <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '2px 0 6px' }}>
+            72 saatlik tek çıktılı görev. Metin adaya olduğu gibi gider.
+          </div>
+          <textarea className="adm-input adm-textarea" rows={3} value={taskText}
+            onChange={(e) => setTaskText(e.target.value)}
+            placeholder="Ör. Sektörden 3 kişiyle konuş, kısa notlarını getir." />
+          <button className="adm-btn adm-btn--primary adm-btn--sm" style={{ marginTop: 6 }} disabled={busy} onClick={startA}>
+            Kapı A başlat (72 saat)
+          </button>
+        </div>
+      )}
+
+      {gateA && <GateCard gate={gateA} onMark={(p) => store.markGate(gateA.id, p)} />}
+
+      {/* Kapı B başlat — A geçtiyse ve B yoksa */}
+      {gateA?.result === 'passed' && !gateB && (
+        <div className="hub-gate">
+          <strong>Kapı B başlat</strong>
+          <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '2px 0 6px' }}>
+            10 günlük ilk sprint. Proje referansı yazılır (startup_id + person_id).
+          </div>
+          <div className="adm-form-grid">
+            <Field label="Proje">
+              {startups && startups.length ? (
+                <select className="adm-input adm-select" value={projId} onChange={(e) => setProjId(e.target.value)}>
+                  <option value="">—</option>
+                  {startups.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              ) : (
+                <input className="adm-input" placeholder="startup_id (people/startups ID'si)" value={projId}
+                  onChange={(e) => setProjId(e.target.value.replace(/\D/g, ''))} />
+              )}
+            </Field>
+            <Field label="Ekip kişi ID (people.id, ops.)">
+              <input className="adm-input" value={personId} onChange={(e) => setPersonId(e.target.value.replace(/\D/g, ''))} />
+            </Field>
+          </div>
+          <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={startB}>
+            Kapı B başlat (10 gün)
+          </button>
+        </div>
+      )}
+
+      {gateB && <GateCard gate={gateB} onMark={(p) => store.markGate(gateB.id, p)} />}
+
+      {/* Ekibe aktar — B geçtiyse */}
+      {gateB?.result === 'passed' && c.stage !== 'joined' && (
+        <button className="adm-btn adm-btn--primary adm-btn--sm" style={{ marginTop: 4 }} disabled={busy} onClick={toTeam}>
+          Ekibe aktar
+        </button>
+      )}
+      {c.stage === 'joined' && (
+        <div className="hub-pill" style={{ background: 'var(--adm-green-light)', color: 'var(--adm-green)' }}>Ekipte</div>
+      )}
+
+      {msg && <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginTop: 8 }}>{msg}</div>}
     </div>
   );
 }
