@@ -8,6 +8,7 @@ import { AIcon } from '../admin/admin-ui';
 import { HubStoreProvider } from './hub-store';
 import { HubMemberContext, useHubMember } from './hub-member';
 import { EMPTY_FILTERS } from './components/filter-bar';
+import TodayPage from './pages/today';
 import TablePage from './pages/table';
 import BoardPage from './pages/board';
 import TemplatesPage from './pages/templates';
@@ -249,7 +250,7 @@ function NoAccessPage({ email, onLogout }) {
 // Router yok: sayfa geçişi useState + sessionStorage (proje kuralı).
 // Bu adımda yalnızca "Tablo" bağlı; diğer sayfalar sonraki adımlarda.
 const NAV = [
-  { id: 'today',     label: 'Bugün',      icon: 'dashboard', ready: false },
+  { id: 'today',     label: 'Bugün',      icon: 'dashboard', ready: true },
   { id: 'table',     label: 'Tablo',      icon: 'layers',    ready: true },
   { id: 'board',     label: 'Hat',        icon: 'trendingUp', ready: true },
   { id: 'templates', label: 'Şablonlar',  icon: 'penEdit',   ready: true },
@@ -260,7 +261,7 @@ const NAV = [
 
 function HubApp({ email, onLogout }) {
   const role = useHubMember();
-  const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'table');
+  const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'today');
   useEffect(() => { sessionStorage.setItem('sh_hub_page', page); }, [page]);
 
   // Tablo ve Hat aynı filtre durumunu paylaşır — sayfa değişince korunur (§8.3).
@@ -304,7 +305,8 @@ function HubApp({ email, onLogout }) {
           <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
         </div>
         <div className="hub-content">
-          {page === 'table' ? <TablePage filters={filters} setFilters={setFilters} />
+          {page === 'today' ? <TodayPage onGoto={setPage} />
+            : page === 'table' ? <TablePage filters={filters} setFilters={setFilters} />
             : page === 'board' ? <BoardPage filters={filters} setFilters={setFilters} />
             : page === 'templates' ? <TemplatesPage />
             : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}

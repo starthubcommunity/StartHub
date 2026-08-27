@@ -272,3 +272,17 @@ body {
 .hub-gate__status--running { background: var(--adm-blue-light); color: var(--adm-blue); }
 .hub-gate__status--due { background: var(--adm-amber); color: #fff; }
 .hub-gate__status--overdue { background: var(--adm-red-light); color: var(--adm-red); }
+
+/* Bugün ekranı */
+.hub-today { max-width: 720px; }
+.hub-today__block { margin-bottom: 20px; }
+.hub-today__blockhead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.hub-today__blockhead h3 { font-family: var(--font-heading); font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.hub-today__target { font-size: 12px; font-weight: 700; color: var(--adm-text-secondary); background: var(--adm-bg-hover); border-radius: 20px; padding: 2px 10px; }
+.hub-today__rows { display: flex; flex-direction: column; border: 1px solid var(--adm-border); border-radius: var(--adm-r); overflow: hidden; background: var(--adm-bg-card); }
+.hub-today__row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 14px; background: none; border: none; border-bottom: 1px solid var(--adm-border-light); cursor: pointer; font-family: var(--font-body); font-size: 13.5px; color: var(--adm-text); }
+.hub-today__row:last-child { border-bottom: none; }
+.hub-today__row:hover { background: var(--adm-bg-hover); }
+.hub-today__main { font-weight: 600; }
+.hub-today__meta { color: var(--adm-text-dim); font-size: 12.5px; margin-left: auto; }
+.hub-today__row .adm-btn { margin-left: 8px; }
