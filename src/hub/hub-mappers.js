@@ -68,10 +68,11 @@ export function mapCandidateToDb(c) {
     next_action:      c.nextAction     ?? null,
     next_action_at:   c.nextActionAt   ?? null,
     next_action_link: c.nextActionLink ?? null,
-    // kvkk
+    // kvkk — retain_until'ın DB default'u (current_date + 1 yıl) devreye
+    // girsin diye değer yoksa gönderilmez (§12).
     kvkk_consent: c.kvkkConsent ?? false,
     kvkk_at:      c.kvkkAt      ?? null,
-    retain_until: c.retainUntil ?? null,
+    retain_until: orUndef(c.retainUntil),
     // sahiplik
     created_by: c.createdBy ?? null,
   };
