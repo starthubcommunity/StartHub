@@ -8,10 +8,11 @@ import { useHubMember } from '../hub-member';
 import {
   RUBRIC_AXES, RED_FLAGS, SCORE_MIN, SCORE_MAX, AI_PRESCORE_FINISHING,
   EDU_STATUSES, CLASS_YEARS, ROLE_TYPES, DATA_TRUST_LABEL,
-  STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
+  STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
   INTERVIEW_DECISION_LABEL, GATE_RESULT_LABEL, THRESHOLD,
 } from '../hub-constants';
 import { thresholdMet, canAdvance } from '../hub-rules';
+import { fillTemplate } from './templates';
 
 // Metin/textarea/select alanı — metin ve textarea blur'da, select anında işler.
 function LField({ label, value, onCommit, textarea, type = 'text', required, hint, options }) {
@@ -48,6 +49,9 @@ export default function CandidatePanel({ candidateId, onClose }) {
   const candidate = store.candidates.find((c) => c.id === candidateId);
   const [tab, setTab] = useState('summary');
   const [history, setHistory] = useState(null);
+  const [composing, setComposing] = useState(false);
+  const [toast, setToast] = useState(null);
+  const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 3500); };
 
   useEffect(() => {
     if (tab === 'history' && !history && candidate) {
@@ -90,12 +94,31 @@ export default function CandidatePanel({ candidateId, onClose }) {
           ))}
         </div>
 
+        <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--adm-border)', background: 'var(--adm-bg-card)', flexWrap: 'wrap' }}>
+          <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => setComposing(true)}>
+            <AIcon name="edit" size={13} /> Mesaj taslağı üret
+          </button>
+          {candidate.stage === 'contacted' && (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm"
+              onClick={() => store.markReplied(candidateId).then(() => { setHistory(null); flash('Aşama: Cevap.'); })}>
+              <AIcon name="check" size={13} /> Cevap geldi
+            </button>
+          )}
+        </div>
+
         <div className="hub-panel__body">
           {tab === 'summary' && <SummaryTab c={candidate} save={save} />}
           {tab === 'assess' && <AssessTab c={candidate} save={save} role={role} />}
           {tab === 'history' && <HistoryTab history={history} />}
         </div>
       </div>
+
+      {composing && (
+        <MessageComposer candidate={candidate}
+          onDone={(msg) => { setComposing(false); setHistory(null); flash(msg); }}
+          onCancel={() => setComposing(false)} />
+      )}
+      {toast && <div className="hub-toast">{toast}</div>}
     </div>
   );
 }
@@ -286,5 +309,92 @@ function HistoryTab({ history }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// ── Mesaj taslağı (§8.5b) ─────────────────────────────────────────
+// Sistem mesajı GÖNDERMEZ. "Kopyala" tek işlemde: panoya kopyalar +
+// hub_touches kaydı + adayı contacted'a taşır + 7 gün follow_up + şablon
+// sent_count++. Kişiselleştirme satırı AYRI ve zorunlu — boşken kopyalama
+// devre dışı. "Toplu gönder" butonu YOK ve eklenmeyecek.
+function MessageComposer({ candidate, onDone, onCancel }) {
+  const { templates, sendTouch } = useHubStore();
+  const active = useMemo(() => templates.filter((t) => t.active), [templates]);
+  const [tplId, setTplId] = useState(() => {
+    const match = active.find((t) => t.sourceType === candidate.source);
+    return (match || active[0])?.id || '';
+  });
+  const tpl = active.find((t) => t.id === tplId);
+  const [personalization, setPersonalization] = useState(candidate.whyThisOne || '');
+  const [body, setBody] = useState('');
+  const [channel, setChannel] = useState('linkedin');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => { setBody(tpl ? fillTemplate(tpl.body, candidate) : ''); }, [tplId]); // eslint-disable-line
+
+  const canCopy = personalization.trim().length > 0 && !busy && active.length > 0;
+  const fullText = `${personalization.trim()}\n\n${body}`.trim();
+
+  const copy = async () => {
+    if (!canCopy) return;
+    setBusy(true); setErr('');
+    try { await navigator.clipboard.writeText(fullText); } catch { /* pano izni yoksa yine de kaydet */ }
+    try {
+      await sendTouch(candidate, {
+        templateId: tpl?.id || null, variant: tpl?.variant || null,
+        channel, personalization: personalization.trim(),
+      });
+      onDone('Panoya kopyalandı · temas kaydedildi · aday “Temas” aşamasında.');
+    } catch (e) { setBusy(false); setErr('Temas kaydedilemedi: ' + e.message); }
+  };
+
+  return (
+    <div className="adm-modal-overlay" onClick={(e) => { e.stopPropagation(); onCancel(); }}>
+      <div className="adm-modal adm-modal--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="adm-modal__header">
+          <h3>Mesaj taslağı</h3>
+          <button className="adm-icon-btn" onClick={onCancel}><AIcon name="x" size={18} /></button>
+        </div>
+        <div className="adm-modal__body">
+          {active.length === 0 && (
+            <div className="hub-ai" style={{ marginBottom: 12 }}>Aktif şablon yok — Şablonlar ekranından ekle.</div>
+          )}
+          <div className="adm-form-grid">
+            <Field label="Şablon">
+              <select className="adm-input adm-select" value={tplId} onChange={(e) => setTplId(e.target.value)}>
+                {active.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.variant}</option>)}
+              </select>
+            </Field>
+            <Field label="Kanal" required hint="Cevap oranını kanal bazında ölçmek için.">
+              <select className="adm-input adm-select" value={channel} onChange={(e) => setChannel(e.target.value)}>
+                {TOUCH_CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="Kişiselleştirme satırı" required
+            hint="Somut esere atıf. BOŞKEN “Kopyala” devre dışıdır (§8.5b).">
+            <textarea className="adm-input adm-textarea" rows={2} value={personalization}
+              onChange={(e) => setPersonalization(e.target.value)}
+              placeholder="Teknofest 2026'da … projesiyle finale kaldı; GitHub'daki … deposunda canlı demo linki var." />
+          </Field>
+          <Field label="Gövde" hint="Şablondan dolduruldu — düzenleyebilirsin.">
+            <textarea className="adm-input adm-textarea" rows={7} value={body} onChange={(e) => setBody(e.target.value)} />
+          </Field>
+          {err && <div style={{ color: 'var(--adm-red)', fontSize: 13, marginBottom: 8 }}>{err}</div>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
+              Kopyala → temas kaydı + “Temas” aşaması + 7 gün takip + şablon sayacı.
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="adm-btn adm-btn--ghost" onClick={onCancel}>İptal</button>
+              <button className="adm-btn adm-btn--primary" disabled={!canCopy} onClick={copy}>
+                <AIcon name="save" size={14} /> Kopyala
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

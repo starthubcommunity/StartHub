@@ -11,9 +11,9 @@ import { supabase } from '../lib/supabase';
 import { HUB_TABLES } from './hub-mappers';
 
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
-// Aday geçmişi (touches / interviews / gates / stageLog) tek aday için
-// loadHistory() ile ihtiyaç anında çekilir.
-const COLLECTIONS = ['candidates', 'members', 'openRoles', 'views', 'templates'];
+// interviews / stageLog tek aday için loadHistory() ile ihtiyaç anında çekilir;
+// touches ve gates ise Bugün ekranı + temas/kapı akışları için global tutulur.
+const COLLECTIONS = ['candidates', 'members', 'openRoles', 'views', 'templates', 'touches', 'gates'];
 
 const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
 
@@ -169,6 +169,102 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, patchLocal, updateItem, logStage]);
 
+  const STAGE_ORDER = ['pool', 'contacted', 'replied', 'interviewed', 'finalist', 'gate_a', 'gate_b', 'joined'];
+
+  // ── Mesaj gönderme akışı (§8.5b) ────────────────────────────────
+  // Sistem mesajı GÖNDERMEZ. "Kopyala" anında: hub_touches kaydı + adayı
+  // contacted'a taşı (yalnızca contacted öncesindeyse) + 7 günlük follow_up_at
+  // + son temas tarihi + şablonun sent_count'unu artır. Panoya kopyalama
+  // çağıran tarafta (navigator.clipboard).
+  const sendTouch = useCallback(async (candidate, { templateId = null, variant = null, channel, personalization = null }) => {
+    const now = new Date();
+    const followUp = new Date(now.getTime() + 7 * 86400000).toISOString();
+    await addItem('touches', {
+      candidateId: candidate.id,
+      channel,
+      templateId,
+      variant,
+      senderId: currentMember?.id ?? null,
+      sentAt: now.toISOString(),
+      outcome: 'pending',
+      followUpAt: followUp,
+      note: personalization,
+    });
+
+    const beforeContacted = STAGE_ORDER.indexOf(candidate.stage) < STAGE_ORDER.indexOf('contacted');
+    if (beforeContacted) {
+      await advanceStage(candidate.id, 'contacted', { reason: 'ilk mesaj', extra: { lastContactAt: now.toISOString() } });
+    } else {
+      patchLocal('candidates', candidate.id, { lastContactAt: now.toISOString() });
+      await updateItem('candidates', candidate.id, { ...candidate, lastContactAt: now.toISOString() });
+    }
+
+    if (templateId) {
+      const tpl = data.templates.find((t) => t.id === templateId);
+      if (tpl) {
+        patchLocal('templates', templateId, { sentCount: (tpl.sentCount || 0) + 1 });
+        await updateItem('templates', templateId, { ...tpl, sentCount: (tpl.sentCount || 0) + 1 });
+      }
+    }
+  }, [addItem, advanceStage, updateItem, patchLocal, currentMember, data]);
+
+  // "Cevap geldi" — aşama replied, son temasın outcome'u replied, şablonun
+  // reply_count'u artar (§8.5b adım 7).
+  const markReplied = useCallback(async (candidateId) => {
+    const candidate = data.candidates.find((c) => c.id === candidateId);
+    if (!candidate) return;
+    const last = data.touches
+      .filter((t) => t.candidateId === candidateId)
+      .sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt))[0];
+    if (last && last.outcome !== 'replied') {
+      patchLocal('touches', last.id, { outcome: 'replied' });
+      await updateItem('touches', last.id, { ...last, outcome: 'replied' });
+      if (last.templateId) {
+        const tpl = data.templates.find((t) => t.id === last.templateId);
+        if (tpl) {
+          patchLocal('templates', tpl.id, { replyCount: (tpl.replyCount || 0) + 1 });
+          await updateItem('templates', tpl.id, { ...tpl, replyCount: (tpl.replyCount || 0) + 1 });
+        }
+      }
+    }
+    if (candidate.stage === 'contacted') {
+      await advanceStage(candidateId, 'replied', { reason: 'cevap geldi' });
+    }
+  }, [data, patchLocal, updateItem, advanceStage]);
+
+  // ── Kapılar (§2.5) ─────────────────────────────────────────────
+  // Team sistemine YALNIZCA referansla bağlanır (startup_id + person_id yazılır);
+  // app_state JSON bloğu okunmaz/yazılmaz (§4.6.2).
+  const startGate = useCallback(async (candidate, gate, { taskText = null, dueAt, startupId = null, personId = null }) => {
+    await addItem('gates', {
+      candidateId: candidate.id, gate, startupId, personId,
+      taskText, startedAt: new Date().toISOString(), dueAt, result: 'pending',
+    });
+    const toStage = gate === 'A' ? 'gate_a' : 'gate_b';
+    const extra = gate === 'B' && startupId != null ? { startupId } : {};
+    await advanceStage(candidate.id, toStage, { reason: `Kapı ${gate} başlatıldı`, extra });
+  }, [addItem, advanceStage]);
+
+  const markGate = useCallback((gateId, patch) => {
+    const g = data.gates.find((x) => x.id === gateId);
+    if (!g) return Promise.resolve();
+    patchLocal('gates', gateId, patch);
+    return updateItem('gates', gateId, { ...g, ...patch }).catch((e) => { patchLocal('gates', gateId, g); throw e; });
+  }, [data, patchLocal, updateItem]);
+
+  // "Ekibe aktar" — aşama joined; hak ediş başlangıcı Kapı A'nın ilk günü
+  // (geriye dönük, §2.5). Ayrı kolon yok — stage_log.reason'a yazılır.
+  const moveToTeam = useCallback(async (candidateId) => {
+    const gatesA = data.gates
+      .filter((g) => g.candidateId === candidateId && g.gate === 'A' && g.startedAt)
+      .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
+    const vestingStart = gatesA[0] ? String(gatesA[0].startedAt).slice(0, 10) : null;
+    await advanceStage(candidateId, 'joined', {
+      reason: vestingStart ? `hak ediş başlangıcı: ${vestingStart} (Kapı A ilk günü)` : 'ekibe aktarıldı',
+    });
+    return vestingStart;
+  }, [data, advanceStage]);
+
   // Tek adayın geçmişi — "Geçmiş" sekmesi için ihtiyaç anında.
   const loadHistory = useCallback(async (candidateId) => {
     const [touches, interviews, gates, stageLog] = await Promise.all([
@@ -195,6 +291,8 @@ export function HubStoreProvider({ children }) {
     addItem, updateItem, deleteItem, patchLocal,
     addCandidate, updateCandidate, deleteCandidate, patchCandidate,
     logStage, advanceStage, loadHistory,
+    sendTouch, markReplied,
+    startGate, markGate, moveToTeam,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).
