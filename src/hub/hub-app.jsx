@@ -4,6 +4,7 @@
 import React from 'react';
 import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase, setRememberMe } from '../lib/supabase';
+import { HubStoreProvider, useHubStore } from './hub-store';
 
 // ─── Paylaşılan stiller (admin AuthShell deseni, --adm-* token'ları) ──────
 const inputStyle = { width: '100%', padding: '10px 13px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'var(--adm-bg)', fontSize: 14, color: 'var(--adm-text)', boxSizing: 'border-box', outline: 'none', fontFamily: 'var(--font-body)' };
@@ -248,6 +249,7 @@ export function useHubMember() {
 // Adım 3: yalnızca kimlik + rol + çıkış. Sidebar ve sayfalar sonraki adımlarda.
 function HubApp({ email, onLogout }) {
   const role = useHubMember();
+  const { candidates, loading, loadError } = useHubStore();
   return (
     <div style={{ minHeight: '100vh', background: 'var(--adm-bg)', fontFamily: 'var(--font-body)', color: 'var(--adm-text)' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid var(--adm-border)', background: 'var(--adm-bg-card)' }}>
@@ -268,6 +270,13 @@ function HubApp({ email, onLogout }) {
         <p style={{ color: 'var(--adm-text-secondary)' }}>
           Auth ve rol kapısı hazır. Rolün: <strong>{role}</strong>. Tablo, Hat ve Bugün
           ekranları sonraki adımlarda eklenecek.
+        </p>
+        <p style={{ color: 'var(--adm-text-dim)', fontSize: 13, marginTop: 12 }}>
+          {loadError
+            ? `Veri yüklenemedi: ${loadError}`
+            : loading
+              ? 'Veri yükleniyor…'
+              : `Havuzda ${candidates.length} aday yüklü.`}
         </p>
       </main>
     </div>
@@ -327,7 +336,9 @@ export default function HubRoot() {
 
   return (
     <HubMemberContext.Provider value={role}>
-      <HubApp email={session.user.email || ''} onLogout={handleLogout} />
+      <HubStoreProvider>
+        <HubApp email={session.user.email || ''} onLogout={handleLogout} />
+      </HubStoreProvider>
     </HubMemberContext.Provider>
   );
 }
