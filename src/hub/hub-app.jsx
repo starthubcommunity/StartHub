@@ -15,6 +15,7 @@ import TemplatesPage from './pages/templates';
 import ImportPage from './pages/import';
 import SourcesPage from './pages/sources';
 import MetricsPage from './pages/metrics';
+import SettingsPage from './pages/settings';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -260,7 +261,7 @@ const NAV = [
   { id: 'import',    label: 'Yetenek avı', icon: 'upload',     ready: true },
   { id: 'sources',   label: 'GitHub tarama', icon: 'refresh',  ready: true },
   { id: 'metrics',   label: 'Metrikler',   icon: 'trendingUp', ready: true },
-  { id: 'settings',  label: 'Ayarlar',     icon: 'settings',   ready: false },
+  { id: 'settings',  label: 'Ayarlar',     icon: 'settings',   ready: true, cofounderOnly: true },
 ];
 
 function HubApp({ email, onLogout }) {
@@ -282,7 +283,7 @@ function HubApp({ email, onLogout }) {
           </div>
         </div>
         <nav className="hub-sidebar__nav">
-          {NAV.map((n) => (
+          {NAV.filter((n) => !n.cofounderOnly || role === 'cofounder').map((n) => (
             <button key={n.id}
               className={`hub-sidebar__link ${page === n.id ? 'hub-sidebar__link--active' : ''}`}
               disabled={!n.ready}
@@ -316,6 +317,7 @@ function HubApp({ email, onLogout }) {
             : page === 'import' ? <ImportPage />
             : page === 'sources' ? <SourcesPage />
             : page === 'metrics' ? <MetricsPage />
+            : page === 'settings' ? <SettingsPage />
             : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}
         </div>
       </div>

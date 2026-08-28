@@ -313,6 +313,23 @@ export function HubStoreProvider({ children }) {
     return { batch, created };
   }, [addItem, currentMember]);
 
+  // ── KVKK: adayı tamamen sil (§8.6.10 / §12) ───────────────────
+  // Bağlı kayıtlar (touches / interviews / gates / stage_log) FK on delete
+  // cascade ile gider. Ham yapıştırma metni: batch'te başka aday kalmadıysa
+  // hub_import_batches satırı da silinir.
+  const purgeCandidate = useCallback(async (id) => {
+    const cand = data.candidates.find((c) => c.id === id);
+    const { error } = await supabase.from('hub_candidates').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    setData((prev) => ({ ...prev, candidates: prev.candidates.filter((c) => c.id !== id) }));
+    if (cand?.batchId) {
+      const { count } = await supabase
+        .from('hub_candidates').select('id', { count: 'exact', head: true })
+        .eq('batch_id', cand.batchId);
+      if (!count) await supabase.from('hub_import_batches').delete().eq('id', cand.batchId);
+    }
+  }, [data]);
+
   // Tek adayın geçmişi — "Geçmiş" sekmesi için ihtiyaç anında.
   const loadHistory = useCallback(async (candidateId) => {
     const [touches, interviews, gates, stageLog] = await Promise.all([
@@ -341,7 +358,7 @@ export function HubStoreProvider({ children }) {
     logStage, advanceStage, loadHistory,
     sendTouch, markReplied,
     startGate, markGate, moveToTeam,
-    importCandidates,
+    importCandidates, purgeCandidate,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).
