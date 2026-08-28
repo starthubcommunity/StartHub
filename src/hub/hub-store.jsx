@@ -269,6 +269,50 @@ export function HubStoreProvider({ children }) {
     return vestingStart;
   }, [data, advanceStage]);
 
+  // ── İçe aktarma (§8.6.3) ───────────────────────────────────────
+  // Ham metin hub_import_batches.raw_text'e saklanır. Kabul edilen her satır
+  // pool'a yeni aday olur; kvkk alanları doldurulur. applications kaydı ASLA
+  // taşınmaz/değiştirilmez — kopyalanır, source_ref'e id yazılır (§4.6.3).
+  const importCandidates = useCallback(async (batchInfo, rows) => {
+    const accepted = rows.filter((r) => r._take);
+    const batch = await addItem('batches', {
+      method: batchInfo.method,
+      source: batchInfo.source,
+      sourceDetail: batchInfo.sourceDetail || null,
+      eventDate: batchInfo.eventDate || null,
+      rawText: batchInfo.rawText || null,
+      parsedCount: rows.length,
+      acceptedCount: accepted.length,
+      createdBy: currentMember?.id ?? null,
+    });
+    const retainUntil = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+    const created = [];
+    for (const r of accepted) {
+      const c = await addItem('candidates', {
+        fullName: r.fullName || '(isimsiz)',
+        email: r.email || null,
+        linkedin: r.linkedin || null,
+        github: r.github || null,
+        university: r.university || null,
+        department: r.department || null,
+        roleType: r.roleType || batchInfo.roleType || null,
+        source: batchInfo.source,
+        sourceDetail: batchInfo.sourceDetail || null,
+        sourceRef: r.sourceRef || null,
+        batchId: batch?.id ?? null,
+        evidence: r.evidence || [],
+        dataTrust: r.dataTrust || 'guess',
+        stage: 'pool',
+        createdBy: currentMember?.id ?? null,
+        kvkkConsent: false,
+        kvkkAt: null,
+        retainUntil,
+      });
+      created.push(c);
+    }
+    return { batch, created };
+  }, [addItem, currentMember]);
+
   // Tek adayın geçmişi — "Geçmiş" sekmesi için ihtiyaç anında.
   const loadHistory = useCallback(async (candidateId) => {
     const [touches, interviews, gates, stageLog] = await Promise.all([
@@ -297,6 +341,7 @@ export function HubStoreProvider({ children }) {
     logStage, advanceStage, loadHistory,
     sendTouch, markReplied,
     startGate, markGate, moveToTeam,
+    importCandidates,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).

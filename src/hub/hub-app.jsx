@@ -12,6 +12,7 @@ import TodayPage from './pages/today';
 import TablePage from './pages/table';
 import BoardPage from './pages/board';
 import TemplatesPage from './pages/templates';
+import ImportPage from './pages/import';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -254,7 +255,7 @@ const NAV = [
   { id: 'table',     label: 'Tablo',      icon: 'layers',    ready: true },
   { id: 'board',     label: 'Hat',        icon: 'trendingUp', ready: true },
   { id: 'templates', label: 'Şablonlar',  icon: 'penEdit',   ready: true },
-  { id: 'import',    label: 'Yetenek avı', icon: 'upload',    ready: false },
+  { id: 'import',    label: 'Yetenek avı', icon: 'upload',    ready: true },
   { id: 'metrics',   label: 'Metrikler',  icon: 'trendingUp', ready: false },
   { id: 'settings',  label: 'Ayarlar',    icon: 'settings',   ready: false },
 ];
@@ -309,6 +310,7 @@ function HubApp({ email, onLogout }) {
             : page === 'table' ? <TablePage filters={filters} setFilters={setFilters} />
             : page === 'board' ? <BoardPage filters={filters} setFilters={setFilters} />
             : page === 'templates' ? <TemplatesPage />
+            : page === 'import' ? <ImportPage />
             : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}
         </div>
       </div>

@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { canAdvance, thresholdMet, isStale, gateStatus, rubricComplete } from './hub-rules.js';
 import { stageReachCounts, stageConversion } from './hub-metrics.js';
+import { parsePastedText, findDuplicate } from './hub-parse.js';
 
 let pass = 0;
 const t = (name, fn) => {
@@ -182,6 +183,54 @@ t('atlanan aşama da "ulaşılmış" sayılır (pool→interviewed doğrudan)', 
 t('boş log → tüm sayımlar 0, oranlar null', () => {
   assert.equal(stageReachCounts([]).interviewed, 0);
   assert.equal(stageConversion([]).finalist, null);
+});
+
+// ── Yapıştır-ayrıştır (§8.6.3) — alan uydurma yok ─────────────────
+const F = ['Ada', 'Mert', 'Elif', 'Can', 'Zeynep', 'Kaan', 'Naz', 'Efe', 'Deniz', 'Ece'];
+const L = ['Yılmaz', 'Kaya', 'Demir', 'Çelik'];
+const HACK_TEXT = Array.from({ length: 40 }, (_, i) => {
+  const n = i + 1;
+  const name = `${F[i % 10]} ${L[Math.floor(i / 10)]}`;
+  if (i % 3 === 0) return `${n}. Takim${n} - Proje${n} - ${name}, github.com/kul${n} (İTÜ)`;
+  if (i % 3 === 1) return `${n}. ${name} - kul${n}@ornek.com - Boğaziçi Üniversitesi`;
+  return `${n}. ${name} - linkedin.com/in/kul${n}`; // üni/e-posta YOK
+}).join('\n');
+
+t('40 satırlık hackathon metni → 40 satıra ayrılıyor', () => {
+  const { rows } = parsePastedText(HACK_TEXT);
+  assert.equal(rows.length, 40);
+});
+t('metinde olmayan üniversite/e-posta BOŞ kalıyor (uydurulmuyor)', () => {
+  const { rows } = parsePastedText(HACK_TEXT);
+  const noUni = rows.filter((r) => !r.university);
+  assert.ok(noUni.length >= 13, `en az 13 satırda üni boş bekleniyordu, ${noUni.length} bulundu`);
+  // 3. tip satırlarda ne üni ne e-posta var:
+  const r3 = rows[2];
+  assert.equal(r3.university, '');
+  assert.equal(r3.email, '');
+  assert.ok(r3.linkedin.includes('linkedin.com/in/'));
+});
+t('açık üni "declared", kısaltmadan çıkarım "guess"', () => {
+  const { rows } = parsePastedText('Ada Yılmaz - Boğaziçi Üniversitesi\nAli Veli — (İTÜ)');
+  assert.equal(rows[0].dataTrust, 'declared');
+  assert.equal(rows[1].university, 'İstanbul Teknik Üniversitesi');
+  assert.equal(rows[1].dataTrust, 'guess');
+});
+t('tekrar tespiti: aynı github + aynı e-posta + benzer ad', () => {
+  const { rows } = parsePastedText(HACK_TEXT);
+  assert.equal(rows[0].github, 'https://github.com/kul1');
+  const existing = [
+    { id: 'e1', fullName: 'Bambaşka Biri', github: 'https://github.com/kul1', email: null, linkedin: null },
+    { id: 'e2', fullName: 'Yok Kimse', github: null, email: 'kul2@ornek.com', linkedin: null },
+    { id: 'e3', fullName: 'Ece Çelik', github: null, email: null, linkedin: null },
+  ];
+  assert.equal(findDuplicate(rows[0], existing)?.id, 'e1');       // github
+  assert.equal(findDuplicate(rows[1], existing)?.id, 'e2');       // e-posta
+  assert.equal(findDuplicate(rows[39], existing)?.id, 'e3');      // benzer ad (Ece Çelik)
+  assert.equal(findDuplicate(rows[5], existing), null);           // yeni
+});
+t('boş metin → boş sonuç', () => {
+  assert.deepEqual(parsePastedText('   ').rows, []);
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);
