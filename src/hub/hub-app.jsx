@@ -13,6 +13,7 @@ import TablePage from './pages/table';
 import BoardPage from './pages/board';
 import TemplatesPage from './pages/templates';
 import ImportPage from './pages/import';
+import SourcesPage from './pages/sources';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -251,13 +252,14 @@ function NoAccessPage({ email, onLogout }) {
 // Router yok: sayfa geçişi useState + sessionStorage (proje kuralı).
 // Bu adımda yalnızca "Tablo" bağlı; diğer sayfalar sonraki adımlarda.
 const NAV = [
-  { id: 'today',     label: 'Bugün',      icon: 'dashboard', ready: true },
-  { id: 'table',     label: 'Tablo',      icon: 'layers',    ready: true },
-  { id: 'board',     label: 'Hat',        icon: 'trendingUp', ready: true },
-  { id: 'templates', label: 'Şablonlar',  icon: 'penEdit',   ready: true },
-  { id: 'import',    label: 'Yetenek avı', icon: 'upload',    ready: true },
-  { id: 'metrics',   label: 'Metrikler',  icon: 'trendingUp', ready: false },
-  { id: 'settings',  label: 'Ayarlar',    icon: 'settings',   ready: false },
+  { id: 'today',     label: 'Bugün',       icon: 'dashboard',  ready: true },
+  { id: 'table',     label: 'Tablo',       icon: 'layers',     ready: true },
+  { id: 'board',     label: 'Hat',         icon: 'trendingUp', ready: true },
+  { id: 'templates', label: 'Şablonlar',   icon: 'penEdit',    ready: true },
+  { id: 'import',    label: 'Yetenek avı', icon: 'upload',     ready: true },
+  { id: 'sources',   label: 'GitHub tarama', icon: 'refresh',  ready: true },
+  { id: 'metrics',   label: 'Metrikler',   icon: 'trendingUp', ready: false },
+  { id: 'settings',  label: 'Ayarlar',     icon: 'settings',   ready: false },
 ];
 
 function HubApp({ email, onLogout }) {
@@ -311,6 +313,7 @@ function HubApp({ email, onLogout }) {
             : page === 'board' ? <BoardPage filters={filters} setFilters={setFilters} />
             : page === 'templates' ? <TemplatesPage />
             : page === 'import' ? <ImportPage />
+            : page === 'sources' ? <SourcesPage />
             : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}
         </div>
       </div>

@@ -397,6 +397,31 @@ function AssessTab({ c, save, role }) {
   const met = thresholdMet(c);
   const finalistChk = canAdvance(c, 'finalist', { role });
   const flagCount = (c.redFlags || []).length;
+  const [enriching, setEnriching] = useState(false);
+  const [enrichErr, setEnrichErr] = useState('');
+
+  // §8.6.5 — havuza girmiş adayda GitHub linki varsa zenginleştirme.
+  // Yalnızca `ai_score` (bitirmişlik); iletişim/kapasite DOKUNULMAZ.
+  const enrich = async () => {
+    const login = (c.github || '').match(/github\.com\/([A-Za-z0-9-]+)/i)?.[1];
+    if (!login) { setEnrichErr('GitHub linki yok.'); return; }
+    setEnriching(true); setEnrichErr('');
+    try {
+      const { enrichUser } = await import('../hub-github');
+      const { computeEnrichment, prescoreFinishing, whyThisOne } = await import('../hub-enrich');
+      const { user, repos, top, prsToOthers, orgs, readmes } = await enrichUser(login, {});
+      const enrichment = computeEnrichment({ user, repos, prsToOthers, orgs, readmes });
+      const prescore = prescoreFinishing(enrichment, top, {});
+      await save({
+        enrichment,
+        enrichedAt: enrichment.fetched_at,
+        aiScore: prescore.score,
+        aiScoreNote: prescore.note,
+        whyThisOne: c.whyThisOne || whyThisOne(top, {}),
+      });
+    } catch (e) { setEnrichErr(e.message); }
+    setEnriching(false);
+  };
 
   const setScore = (axisKey, n) => {
     const field = AXIS_FIELD[axisKey];
@@ -428,8 +453,17 @@ function AssessTab({ c, save, role }) {
       ))}
 
       <div className="hub-ai" style={{ margin: '8px 0 16px' }}>
-        <b>AI ön puanı · öneri</b> (yalnızca bitirmişlik) —{' '}
-        {c.aiScore != null ? <>{c.aiScore}/5{c.aiScoreNote ? ` · ${c.aiScoreNote}` : ''}</> : 'henüz yok'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <b>AI ön puanı · öneri</b> (yalnızca bitirmişlik) —{' '}
+          {c.aiScore != null ? <>{c.aiScore}/5{c.aiScoreNote ? ` · ${c.aiScoreNote}` : ''}</> : 'henüz yok'}
+          {c.github && (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }} disabled={enriching} onClick={enrich}>
+              {enriching ? 'Analiz ediliyor…' : 'Zenginleştir (GitHub)'}
+            </button>
+          )}
+        </div>
+        {enrichErr && <div style={{ color: 'var(--adm-red)', marginTop: 4 }}>{enrichErr}</div>}
+        <div style={{ marginTop: 4 }}>İletişim ve kapasite eksenleri AI ile tahmin edilmez — görüşmeden çıkar.</div>
       </div>
 
       <div className={`hub-threshold ${met && finalistChk.ok ? 'hub-threshold--ok' : 'hub-threshold--no'}`}>

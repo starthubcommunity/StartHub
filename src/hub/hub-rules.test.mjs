@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { canAdvance, thresholdMet, isStale, gateStatus, rubricComplete } from './hub-rules.js';
 import { stageReachCounts, stageConversion } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
+import { computeEnrichment, prescoreFinishing, whyThisOne } from './hub-enrich.js';
 
 let pass = 0;
 const t = (name, fn) => {
@@ -231,6 +232,59 @@ t('tekrar tespiti: aynı github + aynı e-posta + benzer ad', () => {
 });
 t('boş metin → boş sonuç', () => {
   assert.deepEqual(parsePastedText('   ').rows, []);
+});
+
+// ── Zenginleştirme + AI ön puanı (§8.6.5–8.6.7) ──────────────────
+const daysAgo = (d) => new Date(Date.now() - d * DAY).toISOString();
+const mkRepo = (o = {}) => {
+  const name = o.name || 'x';
+  return { owner: { login: 'ada' }, fork: false, language: 'TypeScript', stargazers_count: 0, description: '', homepage: '', has_pages: false, pushed_at: daysAgo(10), created_at: daysAgo(300), html_url: `https://github.com/ada/${name}`, name, full_name: `ada/${name}`, ...o };
+};
+const USER = { login: 'ada', name: 'Ada Yılmaz' };
+
+t('6 sinyal doluyor; iki bitmiş proje → finished_projects=2', () => {
+  const repos = [
+    mkRepo({ name: 'canli-app', stargazers_count: 40, homepage: 'https://canli.app', language: 'TypeScript' }),
+    mkRepo({ name: 'kutuphane', stargazers_count: 12, language: 'Python' }),
+    mkRepo({ name: 'deneme', stargazers_count: 0, description: 'edu', language: 'JavaScript' }),
+  ];
+  const e = computeEnrichment({ user: USER, repos, prsToOthers: 3, orgs: [{ login: 'x' }] });
+  assert.equal(e.finished_projects, 2);
+  assert.equal(e.breadth, 3);
+  assert.equal(e.collaboration, 4);
+  assert.equal(e.solo_finisher, true);
+  assert.ok(typeof e.activity_recency === 'number');
+  assert.ok(typeof e.consistency === 'number');
+  assert.ok(e.fetched_at);
+});
+
+t('AI ön puanı yalnızca bitirmişlik; iletişim/kapasite dokunulmaz', () => {
+  const repos = [
+    mkRepo({ name: 'canli-app', stargazers_count: 40, homepage: 'https://c.app' }),
+    mkRepo({ name: 'lib', stargazers_count: 9 }),
+  ];
+  const e = computeEnrichment({ user: USER, repos });
+  const p = prescoreFinishing(e, repos, {});
+  assert.equal(p.score, 5);                       // ≥2 bitmiş + canlı
+  assert.match(p.note, /Ön puan 5/);
+  assert.ok(p.evidence.includes('canli-app'));    // dayandığı kanıt
+  // enrichment/prescore iletişim veya kapasite alanı ÜRETMEZ:
+  assert.ok(!('communication' in e) && !('capacity' in e));
+  assert.deepEqual(Object.keys(p).sort(), ['confidence', 'evidence', 'note', 'score']);
+});
+
+t('boş / yalnızca fork → ön puan 1', () => {
+  assert.equal(prescoreFinishing(computeEnrichment({ user: USER, repos: [] }), [], {}).score, 1);
+  const forks = [mkRepo({ fork: true, stargazers_count: 100 })];
+  assert.equal(prescoreFinishing(computeEnrichment({ user: USER, repos: forks }), forks, {}).score, 2);
+});
+
+t('"neden bu kişi": somut esere atıf, en fazla iki cümle', () => {
+  const repos = [mkRepo({ name: 'tid-ceviri', stargazers_count: 340, homepage: 'https://demo', pushed_at: daysAgo(21) })];
+  const w = whyThisOne(repos, {});
+  assert.ok(w.includes('tid-ceviri'), 'repo adına atıf olmalı');
+  assert.ok((w.match(/\./g) || []).length <= 2, 'en fazla iki cümle');
+  assert.doesNotMatch(w, /yetenekli|başarılı|harika|etkileyici/i, 'sıfat kullanılmamalı');
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);
