@@ -2,7 +2,7 @@
 // Test kütüphanesi yok — düz node. Çalıştır: node src/hub/hub-rules.test.mjs
 import assert from 'node:assert/strict';
 import { canAdvance, thresholdMet, isStale, gateStatus, rubricComplete } from './hub-rules.js';
-import { stageReachCounts, stageConversion } from './hub-metrics.js';
+import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
 import { computeEnrichment, prescoreFinishing, whyThisOne } from './hub-enrich.js';
 
@@ -277,6 +277,47 @@ t('boş / yalnızca fork → ön puan 1', () => {
   assert.equal(prescoreFinishing(computeEnrichment({ user: USER, repos: [] }), [], {}).score, 1);
   const forks = [mkRepo({ fork: true, stargazers_count: 100 })];
   assert.equal(prescoreFinishing(computeEnrichment({ user: USER, repos: forks }), forks, {}).score, 2);
+});
+
+// ── Kaynak kırılımı + 90 gün (§8.6.9, §8.7) ─────────────────────
+t('sourceFunnel: kaynak bazında "hiç ulaşmış" sayımı', () => {
+  const cands = [
+    { id: 'a', source: 'github' }, { id: 'b', source: 'github' }, { id: 'c', source: 'hackathon' },
+  ];
+  const log = [
+    { candidateId: 'a', toStage: 'contacted' }, { candidateId: 'a', toStage: 'replied' },
+    { candidateId: 'b', toStage: 'contacted' },
+    { candidateId: 'c', toStage: 'contacted' }, { candidateId: 'c', toStage: 'interviewed' },
+  ];
+  const f = sourceFunnel(cands, log);
+  assert.equal(f.github.pool, 2);
+  assert.equal(f.github.contacted, 2);
+  assert.equal(f.github.replied, 1);
+  assert.equal(f.hackathon.interviewed, 1);
+});
+t('active90: 90 günü dolmamışsa rate null (uydurma yok)', () => {
+  const cands = [{ id: 'x', stage: 'joined' }];
+  const log = [{ candidateId: 'x', toStage: 'joined', createdAt: new Date().toISOString() }];
+  assert.equal(active90(cands, log).rate, null);
+  assert.equal(active90(cands, log).eligible, 0);
+});
+t('active90: 100 gün önce joined + hâlâ joined → %100', () => {
+  const old = new Date(Date.now() - 100 * DAY).toISOString();
+  const cands = [{ id: 'x', stage: 'joined' }, { id: 'y', stage: 'archived' }];
+  const log = [
+    { candidateId: 'x', toStage: 'joined', createdAt: old },
+    { candidateId: 'y', toStage: 'joined', createdAt: old },
+  ];
+  const r = active90(cands, log);
+  assert.equal(r.eligible, 2);
+  assert.equal(r.active, 1);
+  assert.equal(r.rate, 50);
+});
+t('intervalToDays', () => {
+  assert.equal(intervalToDays('7 days'), 7);
+  assert.equal(intervalToDays('14 days 00:00:00'), 14);
+  assert.equal(intervalToDays('1 mon'), 30);
+  assert.equal(intervalToDays(null), 7);
 });
 
 t('"neden bu kişi": somut esere atıf, en fazla iki cümle', () => {

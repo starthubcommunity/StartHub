@@ -13,7 +13,7 @@ import { HUB_TABLES } from './hub-mappers';
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
 // interviews tek aday için loadHistory() ile çekilir; touches/gates Bugün
 // ekranı + akışları için, stageLog ise Hat dönüşüm oranları (§8.7) için global.
-const COLLECTIONS = ['candidates', 'members', 'openRoles', 'views', 'templates', 'touches', 'gates', 'stageLog'];
+const COLLECTIONS = ['candidates', 'members', 'openRoles', 'views', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
 
 const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
 

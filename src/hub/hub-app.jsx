@@ -14,6 +14,7 @@ import BoardPage from './pages/board';
 import TemplatesPage from './pages/templates';
 import ImportPage from './pages/import';
 import SourcesPage from './pages/sources';
+import MetricsPage from './pages/metrics';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -258,7 +259,7 @@ const NAV = [
   { id: 'templates', label: 'Şablonlar',   icon: 'penEdit',    ready: true },
   { id: 'import',    label: 'Yetenek avı', icon: 'upload',     ready: true },
   { id: 'sources',   label: 'GitHub tarama', icon: 'refresh',  ready: true },
-  { id: 'metrics',   label: 'Metrikler',   icon: 'trendingUp', ready: false },
+  { id: 'metrics',   label: 'Metrikler',   icon: 'trendingUp', ready: true },
   { id: 'settings',  label: 'Ayarlar',     icon: 'settings',   ready: false },
 ];
 
@@ -314,6 +315,7 @@ function HubApp({ email, onLogout }) {
             : page === 'templates' ? <TemplatesPage />
             : page === 'import' ? <ImportPage />
             : page === 'sources' ? <SourcesPage />
+            : page === 'metrics' ? <MetricsPage />
             : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}
         </div>
       </div>

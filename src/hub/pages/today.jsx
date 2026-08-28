@@ -1,11 +1,12 @@
 // today.jsx — Bugün ekranı (§8.1). Varsayılan açılış sayfası.
-// Beş blok, tek sütun, her satırda tek tıkla aksiyon (adayı aç).
+// Altı blok, tek sütun, her satırda tek tıkla aksiyon.
 // Boş blok gizlenir; hepsi boşsa tek satırlık davet.
 import React, { useState, useMemo } from 'react';
 import { AIcon } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { isStale } from '../hub-rules';
 import { thresholdMet } from '../hub-rules';
+import { intervalToDays } from '../hub-metrics';
 import { WEEKLY_TARGET, STAGE_LABEL } from '../hub-constants';
 import CandidatePanel from './candidate';
 
@@ -51,7 +52,7 @@ function Row({ onClick, main, meta, action }) {
 
 export default function TodayPage({ onGoto }) {
   const store = useHubStore();
-  const { candidates, touches, gates, currentMember } = store;
+  const { candidates, touches, gates, sources, currentMember } = store;
   const [openId, setOpenId] = useState(null);
   const byId = useMemo(() => Object.fromEntries(candidates.map((c) => [c.id, c])), [candidates]);
   const now = Date.now();
@@ -87,7 +88,13 @@ export default function TodayPage({ onGoto }) {
     .map((g) => ({ g, c: byId[g.candidateId] }))
     .filter((x) => x.c);
 
-  const allEmpty = !toSend.length && !dueFollowUps.length && !interviewsToday.length && !stale.length && !dueGates.length;
+  // 6) Kontrol zamanı gelen kaynaklar (§8.6.8)
+  const dueSources = (sources || []).filter(
+    (s) => s.status === 'active' &&
+      (!s.lastChecked || now - new Date(s.lastChecked).getTime() >= intervalToDays(s.checkEvery) * 86400000)
+  );
+
+  const allEmpty = !toSend.length && !dueFollowUps.length && !interviewsToday.length && !stale.length && !dueGates.length && !dueSources.length;
 
   return (
     <div className="hub-today">
@@ -147,6 +154,14 @@ export default function TodayPage({ onGoto }) {
             {dueGates.map(({ g, c }) => (
               <Row key={g.id} onClick={() => setOpenId(c.id)}
                 main={c.fullName} meta={`Kapı ${g.gate} · vade ${fmt(g.dueAt)}`} />
+            ))}
+          </Block>
+
+          <Block title="Kontrol zamanı gelen kaynaklar">
+            {dueSources.map((s) => (
+              <Row key={s.id} onClick={() => onGoto?.('sources')}
+                main={s.name}
+                meta={s.lastChecked ? `son kontrol ${String(s.lastChecked).slice(0, 10)}` : 'hiç kontrol edilmedi'} />
             ))}
           </Block>
         </>
