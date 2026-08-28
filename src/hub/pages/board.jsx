@@ -4,8 +4,9 @@
 import React, { useState, useMemo } from 'react';
 import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
-import { STAGES, STAGE_ORDER, SOURCE_LABEL } from '../hub-constants';
+import { STAGES, SOURCE_LABEL } from '../hub-constants';
 import { canAdvance, thresholdMet, isStale } from '../hub-rules';
+import { stageConversion } from '../hub-metrics';
 import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
 
@@ -41,7 +42,7 @@ function BoardCard({ c, owner, onOpen, onDragStart, onDragEnd }) {
 
 export default function BoardPage({ filters, setFilters }) {
   const store = useHubStore();
-  const { candidates, members } = store;
+  const { candidates, members, stageLog } = store;
   const role = useHubMember();
   const [openId, setOpenId] = useState(null);
   const [dragId, setDragId] = useState(null);
@@ -62,10 +63,10 @@ export default function BoardPage({ filters, setFilters }) {
     return g;
   }, [visible]);
 
-  // Sütun başlığı: sayı + bir önceki aşamadan dönüşüm oranı.
-  // Yorum: huni oranı — i. aşamaya "ulaşmış" (i ve sonrası) / (i-1 ve sonrası),
-  // archived dışı adaylar üzerinden.
-  const atOrBeyond = (i) => visible.filter((c) => STAGE_ORDER.indexOf(c.stage) >= i).length;
+  // Sütun başlığı: SAYI = mevcut doluluk; ORAN = hub_stage_log'dan, o aşamaya
+  // hiç ulaşmış benzersiz aday / bir önceki aşamaya ulaşan (§8.7). Arşivlenenler
+  // paydadan çıkarılmaz — filtreden de bağımsız (gerçek huni).
+  const conv = useMemo(() => stageConversion(stageLog), [stageLog]);
 
   const handleDrop = async (toStage) => {
     setOverStage(null);
@@ -92,10 +93,9 @@ export default function BoardPage({ filters, setFilters }) {
       <FilterBar filters={filters} onChange={setFilters} members={members} />
 
       <div className="hub-board">
-        {STAGES.map((s, i) => {
+        {STAGES.map((s) => {
           const list = byStage[s.value];
-          const rate = i === 0 ? null
-            : Math.round((100 * atOrBeyond(i)) / Math.max(1, atOrBeyond(i - 1)));
+          const rate = conv[s.value];
           return (
             <div key={s.value}
               className={`hub-board__col ${overStage === s.value ? 'hub-board__col--over' : ''}`}

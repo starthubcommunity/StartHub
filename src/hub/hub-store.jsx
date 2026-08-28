@@ -11,9 +11,9 @@ import { supabase } from '../lib/supabase';
 import { HUB_TABLES } from './hub-mappers';
 
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
-// interviews / stageLog tek aday için loadHistory() ile ihtiyaç anında çekilir;
-// touches ve gates ise Bugün ekranı + temas/kapı akışları için global tutulur.
-const COLLECTIONS = ['candidates', 'members', 'openRoles', 'views', 'templates', 'touches', 'gates'];
+// interviews tek aday için loadHistory() ile çekilir; touches/gates Bugün
+// ekranı + akışları için, stageLog ise Hat dönüşüm oranları (§8.7) için global.
+const COLLECTIONS = ['candidates', 'members', 'openRoles', 'views', 'templates', 'touches', 'gates', 'stageLog'];
 
 const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
 
@@ -252,15 +252,19 @@ export function HubStoreProvider({ children }) {
     return updateItem('gates', gateId, { ...g, ...patch }).catch((e) => { patchLocal('gates', gateId, g); throw e; });
   }, [data, patchLocal, updateItem]);
 
-  // "Ekibe aktar" — aşama joined; hak ediş başlangıcı Kapı A'nın ilk günü
-  // (geriye dönük, §2.5). Ayrı kolon yok — stage_log.reason'a yazılır.
+  // "Ekibe aktar" — aşama joined. joined_at + vesting_start_date KOLONLARI
+  // doldurulur (§6/0003); stage_log.reason'a da insan okusun diye yazılır
+  // ama kaynak artık kolondur. vesting_start_date = Kapı A'nın ilk günü,
+  // geriye dönük (§2.5).
   const moveToTeam = useCallback(async (candidateId) => {
     const gatesA = data.gates
       .filter((g) => g.candidateId === candidateId && g.gate === 'A' && g.startedAt)
       .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
     const vestingStart = gatesA[0] ? String(gatesA[0].startedAt).slice(0, 10) : null;
+    const joinedAt = new Date().toISOString();
     await advanceStage(candidateId, 'joined', {
       reason: vestingStart ? `hak ediş başlangıcı: ${vestingStart} (Kapı A ilk günü)` : 'ekibe aktarıldı',
+      extra: { joinedAt, vestingStartDate: vestingStart },
     });
     return vestingStart;
   }, [data, advanceStage]);

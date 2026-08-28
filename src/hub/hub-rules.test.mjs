@@ -2,6 +2,7 @@
 // Test kütüphanesi yok — düz node. Çalıştır: node src/hub/hub-rules.test.mjs
 import assert from 'node:assert/strict';
 import { canAdvance, thresholdMet, isStale, gateStatus, rubricComplete } from './hub-rules.js';
+import { stageReachCounts, stageConversion } from './hub-metrics.js';
 
 let pass = 0;
 const t = (name, fn) => {
@@ -145,6 +146,42 @@ t('vade 2 saat önce geçti → due', () => {
 });
 t('vade 3 gün önce geçti → overdue', () => {
   assert.equal(gateStatus({ dueAt: ago(3) }), 'overdue');
+});
+
+// ── Dönüşüm oranı (§8.7) — hub_stage_log'dan, arşiv paydadan çıkmaz ──
+t('10 interviewed, 8 archived, 2 finalist → görüşme→finalist %20', () => {
+  const log = [];
+  for (let i = 1; i <= 10; i++) {
+    const id = `c${i}`;
+    log.push(
+      { candidateId: id, toStage: 'contacted' },
+      { candidateId: id, toStage: 'replied' },
+      { candidateId: id, toStage: 'interviewed' },
+    );
+  }
+  for (let i = 1; i <= 8; i++) log.push({ candidateId: `c${i}`, toStage: 'archived' });
+  for (let i = 9; i <= 10; i++) log.push({ candidateId: `c${i}`, toStage: 'finalist' });
+
+  const counts = stageReachCounts(log);
+  assert.equal(counts.interviewed, 10, 'arşivlenenler paydadan çıkarılmamalı');
+  assert.equal(counts.finalist, 2);
+
+  const conv = stageConversion(log);
+  assert.equal(conv.finalist, 20);        // 2 / 10
+  assert.equal(conv.interviewed, 100);    // 10 / 10 (replied→interviewed hepsi)
+  assert.equal(conv.pool, null);          // ilk aşamada oran yok
+});
+t('atlanan aşama da "ulaşılmış" sayılır (pool→interviewed doğrudan)', () => {
+  const log = [{ candidateId: 'x', toStage: 'interviewed' }];
+  const c = stageReachCounts(log);
+  assert.equal(c.contacted, 1);
+  assert.equal(c.replied, 1);
+  assert.equal(c.interviewed, 1);
+  assert.equal(c.finalist, 0);
+});
+t('boş log → tüm sayımlar 0, oranlar null', () => {
+  assert.equal(stageReachCounts([]).interviewed, 0);
+  assert.equal(stageConversion([]).finalist, null);
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

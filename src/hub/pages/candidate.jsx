@@ -258,7 +258,8 @@ function GatesSection({ c }) {
   const gates = store.gates.filter((g) => g.candidateId === c.id);
   const gateA = gates.filter((g) => g.gate === 'A').sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))[0];
   const gateB = gates.filter((g) => g.gate === 'B').sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
-  const vestingStart = gateA ? String(gateA.startedAt).slice(0, 10) : null;
+  // joined'da kaynak KOLONDUR (vesting_start_date); öncesinde Kapı A'dan tahmin.
+  const vestingStart = c.vestingStartDate || (gateA ? String(gateA.startedAt).slice(0, 10) : null);
 
   const [taskText, setTaskText] = useState('');
   const [startups, setStartups] = useState(null);
@@ -307,9 +308,21 @@ function GatesSection({ c }) {
   return (
     <div className="hub-gates">
       <h4 className="hub-h4">Süreç · Kapılar</h4>
-      {vestingStart && (
+      {c.stage === 'joined' ? (
+        <div className="hub-gate" style={{ background: 'var(--adm-green-light)', borderColor: 'transparent' }}>
+          <div style={{ fontSize: 13 }}>
+            <strong>Hak ediş başlangıcı:</strong> {c.vestingStartDate || vestingStart || '—'}
+            <span style={{ color: 'var(--adm-text-dim)' }}> · Kapı A'nın ilk günü (geriye dönük)</span>
+          </div>
+          {c.joinedAt && (
+            <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>
+              Katılım tarihi: {String(c.joinedAt).slice(0, 10)}
+            </div>
+          )}
+        </div>
+      ) : vestingStart && (
         <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginBottom: 8 }}>
-          Hak ediş başlangıcı (geriye dönük): <strong>{vestingStart}</strong>
+          Hak ediş başlangıcı (tahmini, geriye dönük): <strong>{vestingStart}</strong>
         </div>
       )}
 
