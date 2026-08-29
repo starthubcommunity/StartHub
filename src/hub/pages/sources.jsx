@@ -6,7 +6,8 @@ import { useHubMember } from '../hub-member';
 import { SOURCES, SOURCE_LABEL } from '../hub-constants';
 import { sourceFunnel, intervalToDays } from '../hub-metrics';
 import { searchUsers, enrichUser, requestsPerUser } from '../hub-github';
-import { computeEnrichment, prescoreFinishing, whyThisOne, UNKNOWABLE } from '../hub-enrich';
+import { computeEnrichment, prescoreFinishing, whyThisOne } from '../hub-enrich';
+import UnknowablePanel from '../components/unknowable';
 
 // §8.6.1 — 12 kaynak, kütüğe başlangıç verisi.
 const SEED_SOURCES = [
@@ -101,8 +102,14 @@ function GitHubScan() {
           top,
         });
       }
-      setRows(out);
+      // "Son aktiflik" filtresi TARAMA SONRASI — activity_recency üzerinden.
+      const maxDays = params.activeMonths > 0 ? params.activeMonths * 30 : null;
+      const filtered = maxDays == null ? out
+        : out.filter((r) => r.enrichment.activity_recency != null && r.enrichment.activity_recency <= maxDays);
+      const dropped = out.length - filtered.length;
+      setRows(filtered);
       setProg(null);
+      if (dropped > 0) setDone(`${dropped} kullanıcı son aktiflik filtresiyle elendi (${params.activeMonths} ay).`);
     } catch (e) { setErr(e.message); setProg(null); }
     setBusy(false);
   };
@@ -155,12 +162,16 @@ function GitHubScan() {
         </div>
       </div>
 
+      <UnknowablePanel />
+
       <div className="adm-form-grid adm-form-grid--3">
         <Field label="Konum"><Input value={params.location} onChange={(v) => set('location', v)} /></Field>
         <Field label="Dil"><Input value={params.language} onChange={(v) => set('language', v)} placeholder="TypeScript" /></Field>
         <Field label="Min. repo"><input className="adm-input" type="number" value={params.minRepos} onChange={(e) => set('minRepos', +e.target.value)} /></Field>
         <Field label="Min. takipçi"><input className="adm-input" type="number" value={params.minFollowers} onChange={(e) => set('minFollowers', +e.target.value)} /></Field>
-        <Field label="Son aktiflik (ay)"><input className="adm-input" type="number" value={params.activeMonths} onChange={(e) => set('activeMonths', +e.target.value)} /></Field>
+        <Field label="Son aktiflik (ay)" hint="Sorguya girmez — tarama sonrası activity_recency ile filtrelenir (0 = filtreleme yok).">
+          <input className="adm-input" type="number" value={params.activeMonths} onChange={(e) => set('activeMonths', +e.target.value)} />
+        </Field>
         <Field label="Kaç kullanıcı"><input className="adm-input" type="number" value={limit} onChange={(e) => setLimit(+e.target.value)} /></Field>
         <Field label="GitHub token (opsiyonel — kaydedilmez)"><input className="adm-input" type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="ghp_…" /></Field>
         <Field label="Derin analiz (README/PR/org — daha yavaş)">
@@ -185,13 +196,6 @@ function GitHubScan() {
         </div>
       )}
       {err && <div style={{ color: 'var(--adm-red)', fontSize: 13, marginTop: 10 }}>{err}</div>}
-
-      <div className="hub-ai" style={{ marginTop: 16 }}>
-        <b>Bu taramadan kesinlikle çıkarılamaz</b> — kullanıcı sistemin ne bilmediğini bilmeli:
-        <ul style={{ margin: '6px 0 0 18px' }}>
-          {UNKNOWABLE.map((u) => <li key={u}>{u}</li>)}
-        </ul>
-      </div>
 
       {rows && (
         <div style={{ marginTop: 16 }}>

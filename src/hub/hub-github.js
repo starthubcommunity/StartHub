@@ -25,16 +25,16 @@ async function gh(path, token) {
 }
 
 // Arama sorgusu kur (§8.6.4 parametreleri).
-export function buildQuery({ location = 'Turkey', language = '', minRepos = 3, minFollowers = 0, activeMonths = 6 }) {
+// ⚠️ `pushed:` NİTELEYİCİSİ YOK — bu yalnızca repository aramasında geçerlidir;
+// user aramasında total_count:0 döndürüp taramayı sessizce boşaltır. "Son
+// aktiflik" filtresi tarama SONRASI activity_recency üzerinden uygulanır
+// (repolar zaten çekiliyor, ek API maliyeti yok).
+export function buildQuery({ location = 'Turkey', language = '', minRepos = 3, minFollowers = 0 }) {
   const parts = [];
   if (location) parts.push(`location:${JSON.stringify(location).replace(/"/g, '')}`);
   if (language) parts.push(`language:${language}`);
   if (minRepos) parts.push(`repos:>=${minRepos}`);
   if (minFollowers) parts.push(`followers:>=${minFollowers}`);
-  if (activeMonths) {
-    const d = new Date(Date.now() - activeMonths * 30 * 86400000).toISOString().slice(0, 10);
-    parts.push(`pushed:>=${d}`);
-  }
   return parts.join(' ');
 }
 

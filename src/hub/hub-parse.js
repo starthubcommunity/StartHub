@@ -118,9 +118,14 @@ export function parsePastedText(raw) {
     const uni = matchUniversity(rec);
     const inferred = nm.trust === 'guess' || uni.trust === 'guess';
     const hasVerbatim = !!(email || github || linkedin || nm.trust === 'declared' || uni.trust === 'declared');
+    // İsmi çıkarılamayan satır → açık 'unparsed' durumu. Ön izlemede
+    // görsel olarak ayrışır ve "AL" kutusu VARSAYILAN OLARAK KAPALI olur
+    // (§8.6.3 — boş satır sessizce havuza girmesin).
+    const unparsed = !String(nm.fullName || '').trim();
     return {
       _id: i,
-      _take: true,
+      _unparsed: unparsed,
+      _take: !unparsed,
       fullName: nm.fullName || '',
       email: email || '',
       linkedin: linkedin || '',

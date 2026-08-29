@@ -206,6 +206,7 @@ export function HubStoreProvider({ children }) {
         await updateItem('templates', templateId, { ...tpl, sentCount: (tpl.sentCount || 0) + 1 });
       }
     }
+    return { advanced: beforeContacted };
   }, [addItem, advanceStage, updateItem, patchLocal, currentMember, data]);
 
   // "Cevap geldi" — aşama replied, son temasın outcome'u replied, şablonun

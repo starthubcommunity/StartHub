@@ -20,6 +20,9 @@ const CELLS = [
 // Parti içi tekrarlar + havuzla tekrar tespiti.
 function annotate(rows, candidates) {
   return rows.map((r, i) => {
+    // İsmi olmayan satır = ayrıştırılamadı (parser vermediyse burada da yakala,
+    // ör. CSV modu). "AL" varsayılan kapalı.
+    const unparsed = r._unparsed ?? !String(r.fullName || '').trim();
     let dup = findDuplicate(r, candidates);
     if (!dup) {
       for (let j = 0; j < i; j++) {
@@ -33,7 +36,7 @@ function annotate(rows, candidates) {
         }
       }
     }
-    return { ...r, _dup: dup, _take: r._take && !dup };
+    return { ...r, _dup: dup, _unparsed: unparsed, _take: r._take && !dup && !unparsed };
   });
 }
 
@@ -45,8 +48,8 @@ function PreviewTable({ rows, onChange, onConfirm, confirming, note }) {
   return (
     <div>
       <div style={{ fontSize: 13, color: 'var(--adm-text-secondary)', margin: '4px 0 10px' }}>
-        {rows.length} satır ayrıştırıldı · {take} alınacak ·{' '}
-        {rows.filter((r) => r._dup).length} tekrar · {blanks} boş alan (uydurulmadı). {note}
+        {rows.length} satır · {take} alınacak · {rows.filter((r) => r._dup).length} tekrar ·{' '}
+        {rows.filter((r) => r._unparsed).length} ayrıştırılamadı · {blanks} boş alan (uydurulmadı). {note}
       </div>
       <div className="hub-grid-wrap" style={{ maxHeight: '46vh' }}>
         <table className="hub-grid">
@@ -55,12 +58,12 @@ function PreviewTable({ rows, onChange, onConfirm, confirming, note }) {
               <th className="hub-col-frozen" style={{ left: 0, width: 34 }}>al</th>
               {CELLS.map(([, label]) => <th key={label} style={{ minWidth: 150 }}>{label}</th>)}
               <th style={{ minWidth: 110 }}>Veri güveni</th>
-              <th style={{ minWidth: 160 }}>Tekrar</th>
+              <th style={{ minWidth: 160 }}>Durum</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={r._id ?? i} className={r._dup ? '' : ''}>
+              <tr key={r._id ?? i} className={r._unparsed ? 'hub-row--unparsed' : ''}>
                 <td className="hub-col-frozen hub-cell__check" style={{ left: 0 }}>
                   <input type="checkbox" checked={r._take} onChange={(e) => set(i, '_take', e.target.checked)} />
                 </td>
@@ -77,9 +80,11 @@ function PreviewTable({ rows, onChange, onConfirm, confirming, note }) {
                   </select>
                 </td>
                 <td style={{ padding: '0 8px' }}>
-                  {r._dup
-                    ? <span className="hub-pill hub-pill--flag">{r._dup.reason}</span>
-                    : <span style={{ color: 'var(--adm-text-dim)', fontSize: 12 }}>—</span>}
+                  {r._unparsed
+                    ? <span className="hub-pill hub-pill--flag">ayrıştırılamadı</span>
+                    : r._dup
+                      ? <span className="hub-pill hub-pill--flag">{r._dup.reason}</span>
+                      : <span style={{ color: 'var(--adm-text-dim)', fontSize: 12 }}>—</span>}
                 </td>
               </tr>
             ))}

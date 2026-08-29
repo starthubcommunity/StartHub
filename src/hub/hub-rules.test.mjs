@@ -34,42 +34,70 @@ t('rubrik eksik → sağlanmıyor', () => {
   assert.equal(rubricComplete(cand({ scoreFinishing: 5, scoreCommunication: 5 })), false);
 });
 
-// ── canAdvance: finalist ────────────────────────────────────────────
-t('5-5-1 aday finalist OLAMAZ', () => {
-  const r = canAdvance(cand({ scoreFinishing: 5, scoreCommunication: 5, scoreCapacity: 1 }), 'finalist');
+// ── canAdvance: SIRA zorunluluğu (§9) ──────────────────────────────
+const iv = (o = {}) => cand({ stage: 'interviewed', ...o });   // finalist'in bir önceki aşaması
+
+t('KRİTİK: pool\'daki aday, puanlar eşiği geçse bile DOĞRUDAN finalist YAPILAMAZ', () => {
+  const c = cand({ stage: 'pool', scoreFinishing: 5, scoreCommunication: 5, scoreCapacity: 5 });
+  const r = canAdvance(c, 'finalist');
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /atlanamaz/);
+});
+t('pool→finalist: cofounder ama override yoksa yine reddedilir', () => {
+  const c = cand({ stage: 'pool', scoreFinishing: 5, scoreCommunication: 5, scoreCapacity: 5 });
+  assert.equal(canAdvance(c, 'finalist', { role: 'cofounder' }).ok, false);
+});
+t('pool→finalist: cofounder + override → atlama serbest (hedef koşulu da sağlanınca)', () => {
+  const c = cand({ stage: 'pool', scoreFinishing: 5, scoreCommunication: 5, scoreCapacity: 5, overrideReason: 'zaman baskısı, kurucu kararı' });
+  assert.equal(canAdvance(c, 'finalist', { role: 'cofounder' }).ok, true);
+});
+t('ileri tek adım serbest (replied→interviewed, rubrik dolu)', () => {
+  assert.equal(canAdvance(cand({ stage: 'replied', scoreFinishing: 3, scoreCommunication: 3, scoreCapacity: 3 }), 'interviewed').ok, true);
+});
+t('geri gitmek serbest (finalist→pool, interviewed→contacted)', () => {
+  assert.equal(canAdvance(cand({ stage: 'finalist' }), 'pool').ok, true);
+  assert.equal(canAdvance(cand({ stage: 'interviewed' }), 'contacted').ok, true);
+});
+t('aynı aşamaya "geçiş" → ok', () => {
+  assert.equal(canAdvance(cand({ stage: 'replied' }), 'replied').ok, true);
+});
+
+// ── canAdvance: finalist (bir önceki aşamadan, sıra sağlanmış) ──────
+t('5-5-1 aday finalist OLAMAZ (eşik)', () => {
+  const r = canAdvance(iv({ scoreFinishing: 5, scoreCommunication: 5, scoreCapacity: 1 }), 'finalist');
   assert.equal(r.ok, false);
   assert.match(r.reason, /Eşik/);
 });
 t('5-5-5, bayraksız aday finalist OLABİLİR', () => {
-  assert.equal(canAdvance(cand({ scoreFinishing: 5, scoreCommunication: 5, scoreCapacity: 5 }), 'finalist').ok, true);
+  assert.equal(canAdvance(iv({ scoreFinishing: 5, scoreCommunication: 5, scoreCapacity: 5 }), 'finalist').ok, true);
 });
 t('2 bayraklı aday, eşik tamam, recruiter → finalist OLAMAZ', () => {
-  const c = cand({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_i'] });
+  const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_i'] });
   const r = canAdvance(c, 'finalist', { role: 'recruiter' });
   assert.equal(r.ok, false);
   assert.match(r.reason, /kırmızı bayrak/);
 });
 t('2 bayraklı aday, cofounder + override_reason → finalist OLABİLİR', () => {
-  const c = cand({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_i'], overrideReason: 'Kurucu ekibinde ikinci kişi zaten bu riski dengeliyor.' });
+  const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_i'], overrideReason: 'Kurucu ekibinde ikinci kişi zaten bu riski dengeliyor.' });
   assert.equal(canAdvance(c, 'finalist', { role: 'cofounder' }).ok, true);
 });
 t('2 bayraklı aday, cofounder ama override_reason BOŞ → finalist OLAMAZ', () => {
-  const c = cand({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_i'], overrideReason: '   ' });
+  const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_i'], overrideReason: '   ' });
   assert.equal(canAdvance(c, 'finalist', { role: 'cofounder' }).ok, false);
 });
 t('1 bayrak eşiği bozmaz', () => {
-  const c = cand({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame'] });
+  const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame'] });
   assert.equal(canAdvance(c, 'finalist', { role: 'recruiter' }).ok, true);
 });
 
 // ── canAdvance: interviewed / contacted / gates / archived ─────────
 t('rubrik dolmadan görüşme aşamasına geçilemez', () => {
-  const r = canAdvance(cand({ scoreFinishing: 3 }), 'interviewed');
+  const r = canAdvance(cand({ stage: 'replied', scoreFinishing: 3 }), 'interviewed');
   assert.equal(r.ok, false);
   assert.match(r.reason, /[Rr]ubrik/);
 });
 t('rubrik dolunca görüşme aşamasına geçilebilir', () => {
-  assert.equal(canAdvance(cand({ scoreFinishing: 3, scoreCommunication: 3, scoreCapacity: 3 }), 'interviewed').ok, true);
+  assert.equal(canAdvance(cand({ stage: 'replied', scoreFinishing: 3, scoreCommunication: 3, scoreCapacity: 3 }), 'interviewed').ok, true);
 });
 t('temas kaydı yokken contacted OLAMAZ', () => {
   assert.equal(canAdvance(cand({ stage: 'pool' }), 'contacted').ok, false);
@@ -151,6 +179,17 @@ t('vade 3 gün önce geçti → overdue', () => {
 });
 
 // ── Dönüşüm oranı (§8.7) — hub_stage_log'dan, arşiv paydadan çıkmaz ──
+t('KABUL TESTİ: 3 interviewed, 2 archived, 1 meşru finalist → görüşme→finalist %33', () => {
+  const log = [];
+  for (const id of ['a', 'b', 'c']) log.push(
+    { candidateId: id, toStage: 'contacted' }, { candidateId: id, toStage: 'replied' }, { candidateId: id, toStage: 'interviewed' });
+  log.push({ candidateId: 'a', toStage: 'archived' }, { candidateId: 'b', toStage: 'archived' });
+  log.push({ candidateId: 'c', toStage: 'finalist' });
+  const counts = stageReachCounts(log);
+  assert.equal(counts.interviewed, 3, 'arşivlenenler paydada kalmalı');
+  assert.equal(counts.finalist, 1);
+  assert.equal(stageConversion(log).finalist, 33);      // 1/3
+});
 t('10 interviewed, 8 archived, 2 finalist → görüşme→finalist %20', () => {
   const log = [];
   for (let i = 1; i <= 10; i++) {
@@ -232,6 +271,13 @@ t('tekrar tespiti: aynı github + aynı e-posta + benzer ad', () => {
 });
 t('boş metin → boş sonuç', () => {
   assert.deepEqual(parsePastedText('   ').rows, []);
+});
+t('isimsiz satır → _unparsed:true ve "AL" varsayılan KAPALI (§8.6.3)', () => {
+  const { rows } = parsePastedText('github.com/coolhacker - awesome project\nAda Yılmaz - ada@ornek.com');
+  assert.equal(rows[0]._unparsed, true);
+  assert.equal(rows[0]._take, false);           // sessizce havuza girmez
+  assert.equal(rows[1]._unparsed, false);
+  assert.equal(rows[1]._take, true);
 });
 
 // ── Zenginleştirme + AI ön puanı (§8.6.5–8.6.7) ──────────────────

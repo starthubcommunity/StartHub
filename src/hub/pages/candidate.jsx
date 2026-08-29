@@ -15,6 +15,7 @@ import { thresholdMet, canAdvance, gateStatus } from '../hub-rules';
 import { GATE } from '../hub-constants';
 import { supabase } from '../../lib/supabase';
 import { fillTemplate } from './templates';
+import UnknowablePanel from '../components/unknowable';
 
 // Metin/textarea/select alanı — metin ve textarea blur'da, select anında işler.
 function LField({ label, value, onCommit, textarea, type = 'text', required, hint, options }) {
@@ -395,7 +396,9 @@ const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunica
 
 function AssessTab({ c, save, role }) {
   const met = thresholdMet(c);
-  const finalistChk = canAdvance(c, 'finalist', { role });
+  // Eşik göstergesi puan+bayrak kuralını gösterir — aşama SIRASINDAN bağımsız
+  // (sıra ayrı bir kısıt). Bu yüzden sanal olarak "interviewed"dan kontrol.
+  const finalistChk = canAdvance({ ...c, stage: 'interviewed' }, 'finalist', { role });
   const flagCount = (c.redFlags || []).length;
   const [enriching, setEnriching] = useState(false);
   const [enrichErr, setEnrichErr] = useState('');
@@ -456,15 +459,24 @@ function AssessTab({ c, save, role }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <b>AI ön puanı · öneri</b> (yalnızca bitirmişlik) —{' '}
           {c.aiScore != null ? <>{c.aiScore}/5{c.aiScoreNote ? ` · ${c.aiScoreNote}` : ''}</> : 'henüz yok'}
-          {c.github && (
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }} disabled={enriching} onClick={enrich}>
-              {enriching ? 'Analiz ediliyor…' : 'Zenginleştir (GitHub)'}
-            </button>
-          )}
+          <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }}
+            disabled={enriching || !c.github}
+            title={c.github ? '' : 'GitHub linki yok'}
+            onClick={enrich}>
+            {enriching ? 'Analiz ediliyor…' : 'Zenginleştir (GitHub)'}
+          </button>
         </div>
         {enrichErr && <div style={{ color: 'var(--adm-red)', marginTop: 4 }}>{enrichErr}</div>}
         <div style={{ marginTop: 4 }}>İletişim ve kapasite eksenleri AI ile tahmin edilmez — görüşmeden çıkar.</div>
       </div>
+      <UnknowablePanel compact />
+      {c.enrichment && Object.keys(c.enrichment).length > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', margin: '4px 0 12px' }}>
+          Sinyaller: bitmiş {c.enrichment.finished_projects ?? '—'} · son aktiflik {c.enrichment.activity_recency ?? '—'} gün ·
+          süreklilik {c.enrichment.consistency ?? '—'}/12 · dil {c.enrichment.breadth ?? '—'} ·
+          iş birliği {c.enrichment.collaboration ?? '—'}
+        </div>
+      )}
 
       <div className={`hub-threshold ${met && finalistChk.ok ? 'hub-threshold--ok' : 'hub-threshold--no'}`}>
         <AIcon name={met && finalistChk.ok ? 'check' : 'x'} size={16} />
@@ -560,11 +572,13 @@ function MessageComposer({ candidate, onDone, onCancel }) {
     setBusy(true); setErr('');
     try { await navigator.clipboard.writeText(fullText); } catch { /* pano izni yoksa yine de kaydet */ }
     try {
-      await sendTouch(candidate, {
+      const res = await sendTouch(candidate, {
         templateId: tpl?.id || null, variant: tpl?.variant || null,
         channel, personalization: personalization.trim(),
       });
-      onDone('Panoya kopyalandı · temas kaydedildi · aday “Temas” aşamasında.');
+      onDone(res?.advanced
+        ? 'Panoya kopyalandı · temas kaydedildi · aday “Temas” aşamasına geçti.'
+        : 'Panoya kopyalandı · temas kaydedildi · son temas tarihi güncellendi (aşama değişmedi).');
     } catch (e) { setBusy(false); setErr('Temas kaydedilemedi: ' + e.message); }
   };
 

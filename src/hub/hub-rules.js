@@ -3,7 +3,7 @@
 // Saf, yan etkisiz fonksiyonlar. Arayüz bunları ÇAĞIRIR; eşik / aşama-geçiş /
 // bayatlama mantığı BAŞKA HİÇBİR YERDE tekrarlanmaz. Hiçbir bileşen kendi
 // eşik kontrolünü yazmaz.
-import { THRESHOLD, STALE } from './hub-constants.js';
+import { THRESHOLD, STALE, STAGE_ORDER, STAGE_LABEL } from './hub-constants.js';
 
 const DAY_MS = 86400000;
 const daysBetween = (from, to) => Math.floor((to - from) / DAY_MS);
@@ -25,11 +25,8 @@ export function thresholdMet(c) {
   return total >= THRESHOLD.minTotal && Math.min(...axes) >= THRESHOLD.minAxis;
 }
 
-// canAdvance(candidate, toStage, ctx?) -> { ok, reason? }
-// ctx: { role, touchCount, interviewCount, gates } — verilmezse candidate
-// alanlarından türetilir.
-export function canAdvance(candidate, toStage, ctx = {}) {
-  const c = candidate || {};
+// Hedefin kendi çıkış koşulu (§9 "Kontroller"). Sıra kontrolü ayrı — canAdvance.
+function targetGate(c, toStage, ctx = {}) {
   const { role = null, touchCount = null, interviewCount = null, gates = null } = ctx;
 
   switch (toStage) {
@@ -78,16 +75,50 @@ export function canAdvance(candidate, toStage, ctx = {}) {
         : { ok: false, reason: `Kapı ${g} başlatılmadan bu aşamaya geçilemez.` };
     }
 
-    case 'archived': {
-      return filled(c.archiveReason)
-        ? { ok: true }
-        : { ok: false, reason: 'Arşivleme sebebi zorunludur.' };
-    }
-
     default:
       // pool / replied / joined ve tanımsız hedefler: §9'da makine kısıtı yok.
       return { ok: true };
   }
+}
+
+// canAdvance(candidate, toStage, ctx?) -> { ok, reason? }
+// §9 "Sıra zorunluluğu": ileri yönde yalnızca index+1 serbest (hedefin kendi
+// koşuluyla). index+2 ve fazlası reddedilir; yalnızca role==='cofounder' ve
+// overrideReason dolu ise geçer. Geri gitmek serbest (stage_log'a yazılır).
+// archived her aşamadan, archive_reason zorunlu.
+// ctx: { role, touchCount, interviewCount, gates }.
+export function canAdvance(candidate, toStage, ctx = {}) {
+  const c = candidate || {};
+  const { role = null } = ctx;
+
+  // archived — her aşamadan, sebep zorunlu
+  if (toStage === 'archived') {
+    return filled(c.archiveReason)
+      ? { ok: true }
+      : { ok: false, reason: 'Arşivleme sebebi zorunludur.' };
+  }
+
+  const fromIdx = STAGE_ORDER.indexOf(c.stage);
+  const toIdx = STAGE_ORDER.indexOf(toStage);
+
+  // Pipeline dışı (arşivden çıkış, tanımsız hedef): yalnızca hedef koşulu
+  if (fromIdx < 0 || toIdx < 0) return targetGate(c, toStage, ctx);
+
+  if (toIdx === fromIdx) return { ok: true };
+  if (toIdx < fromIdx) return { ok: true };   // geri gitmek serbest
+
+  // ileri
+  if (toIdx - fromIdx >= 2) {
+    const canSkip = role === 'cofounder' && filled(c.overrideReason);
+    if (!canSkip) {
+      return {
+        ok: false,
+        reason: `Aşama atlanamaz: ${STAGE_LABEL[c.stage] || c.stage} → ${STAGE_LABEL[toStage] || toStage} ` +
+          `(${toIdx - fromIdx} adım). Aralıktaki aşamalardan geçilmeli; yalnızca kurucu, override gerekçesiyle atlayabilir.`,
+      };
+    }
+  }
+  return targetGate(c, toStage, ctx);
 }
 
 // isStale(candidate, now) -> { stale, level: 'warn'|'critical'|null, days }
