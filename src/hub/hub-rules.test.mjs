@@ -1,7 +1,7 @@
 // hub-rules.test.mjs — kural motoru senaryoları.
 // Test kütüphanesi yok — düz node. Çalıştır: node src/hub/hub-rules.test.mjs
 import assert from 'node:assert/strict';
-import { canAdvance, thresholdMet, isStale, gateStatus, rubricComplete } from './hub-rules.js';
+import { canAdvance, thresholdMet, thresholdText, presentGate, isStale, gateStatus, rubricComplete } from './hub-rules.js';
 import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
 import { computeEnrichment, prescoreFinishing, whyThisOne } from './hub-enrich.js';
@@ -88,6 +88,46 @@ t('2 bayraklı aday, cofounder ama override_reason BOŞ → finalist OLAMAZ', ()
 t('1 bayrak eşiği bozmaz', () => {
   const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame'] });
   assert.equal(canAdvance(c, 'finalist', { role: 'recruiter' }).ok, true);
+});
+
+// ── İKİ HAT (§12.1) ───────────────────────────────────────────────
+// 4-2-4: kurucu hattında min eksen 2 → geçmez; üye hattında bitirmişlik 4
+// ve kapasite 4 → geçer (iletişim serbest).
+const SC = { scoreFinishing: 4, scoreCommunication: 2, scoreCapacity: 4 };
+t('aynı puan tablosu: ÜYE hattında eşik geçer, KURUCU hattında geçmez', () => {
+  assert.equal(thresholdMet({ track: 'member', ...SC }), true);
+  assert.equal(thresholdMet({ track: 'founder', ...SC }), false);
+});
+t('üye hattı: iletişim yalnızca rol needs_communication ise zorunlu', () => {
+  assert.equal(thresholdMet({ track: 'member', ...SC }, { needsCommunication: true }), false);   // comm 2 < 3
+  assert.equal(thresholdMet({ track: 'member', ...SC, scoreCommunication: 3 }, { needsCommunication: true }), true);
+});
+t('üye hattı: görüşmeye geçiş için bitirmişlik+kapasite yeter (iletişim boş olabilir)', () => {
+  const c = cand({ track: 'member', stage: 'replied', scoreFinishing: 3, scoreCapacity: 3 });
+  assert.equal(canAdvance(c, 'interviewed').ok, true);
+  assert.equal(canAdvance(cand({ track: 'founder', stage: 'replied', scoreFinishing: 3, scoreCapacity: 3 }), 'interviewed').ok, false);
+});
+t('üye hattında Kapı B İSTENMEZ (gate_a → joined tek adım)', () => {
+  const r = canAdvance(cand({ track: 'member', stage: 'gate_a' }), 'gate_b');
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /Kapı B yok/);
+  // gate_a → joined üye hattında bitişik, "atlama" değil:
+  assert.equal(canAdvance(cand({ track: 'member', stage: 'gate_a' }), 'joined').ok, true);
+  // kurucu hattında gate_a → joined 2 adım → reddedilir:
+  const rf = canAdvance(cand({ track: 'founder', stage: 'gate_a' }), 'joined');
+  assert.equal(rf.ok, false);
+  assert.match(rf.reason, /atlanamaz/);
+});
+t('presentGate: role bağlı + eşik + bayrak<2', () => {
+  assert.equal(presentGate({ track: 'member', ...SC, redFlags: [] }, null).ok, false);                    // role yok
+  assert.equal(presentGate({ track: 'member', ...SC, redFlags: [] }, { needsCommunication: false }).ok, true);
+  assert.equal(presentGate({ track: 'founder', ...SC, redFlags: [] }, { needsCommunication: false }).ok, false); // kurucu eşiği
+  assert.equal(presentGate({ track: 'member', ...SC, redFlags: ['a', 'b'] }, { needsCommunication: false }).ok, false);
+});
+t('thresholdText hat bazında okunur', () => {
+  assert.match(thresholdText('founder'), /toplam ≥ 10/);
+  assert.match(thresholdText('member'), /bitirmişlik ≥ 3 ve kapasite ≥ 3/);
+  assert.match(thresholdText('member', { needsCommunication: true }), /iletişim ≥ 3/);
 });
 
 // ── canAdvance: interviewed / contacted / gates / archived ─────────
