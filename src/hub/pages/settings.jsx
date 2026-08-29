@@ -125,7 +125,9 @@ export default function SettingsPage() {
       </div>
       <ul style={{ fontSize: 13, color: 'var(--adm-text-secondary)', margin: '0 0 4px 18px' }}>
         {RUBRIC_AXES.map((a) => <li key={a.value}><strong>{a.label}:</strong> {a.hint}</li>)}
-        <li>Finalist eşiği: toplam ≥ {THRESHOLD.minTotal}, her eksen ≥ {THRESHOLD.minAxis}, kırmızı bayrak &lt; {THRESHOLD.blockAtRedFlags}</li>
+        <li>Kurucu hattı eşiği: toplam ≥ {THRESHOLD.founder.minTotal}, her eksen ≥ {THRESHOLD.founder.minAxis}</li>
+        <li>Üye hattı eşiği: bitirmişlik ≥ {THRESHOLD.member.minFinishing}, kapasite ≥ {THRESHOLD.member.minCapacity} (iletişim yalnızca rol gerektiriyorsa ≥ {THRESHOLD.member.minCommunication})</li>
+        <li>Ortak: kırmızı bayrak &lt; {THRESHOLD.blockAtRedFlags} (ya da kurucu + override)</li>
         <li>Bayatlama: contacted {STALE.contacted.warn}/{STALE.contacted.critical}g · interviewed {STALE.interviewed.warn}/{STALE.interviewed.critical}g · replied {STALE.replied.warn}/{STALE.replied.critical}g · finalist {STALE.finalist.warn}/{STALE.finalist.critical}g</li>
         <li>Kapılar: A {GATE.aHours} saat · B {GATE.bDays} gün</li>
       </ul>

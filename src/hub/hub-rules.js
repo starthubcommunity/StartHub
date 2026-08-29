@@ -3,7 +3,7 @@
 // Saf, yan etkisiz fonksiyonlar. Arayüz bunları ÇAĞIRIR; eşik / aşama-geçiş /
 // bayatlama mantığı BAŞKA HİÇBİR YERDE tekrarlanmaz. Hiçbir bileşen kendi
 // eşik kontrolünü yazmaz.
-import { THRESHOLD, STALE, STAGE_ORDER, STAGE_LABEL } from './hub-constants.js';
+import { THRESHOLD, STALE, STAGE_LABEL, stageOrderFor } from './hub-constants.js';
 
 const DAY_MS = 86400000;
 const daysBetween = (from, to) => Math.floor((to - from) / DAY_MS);
@@ -16,18 +16,42 @@ export function rubricComplete(c) {
   return c?.scoreFinishing != null && c?.scoreCommunication != null && c?.scoreCapacity != null;
 }
 
-// Finalist puan eşiği: toplam ≥ 10 VE hiçbir eksen ≤ 2 (§2.3 / §9).
-// Kırmızı bayrak kuralı ayrı — bkz. canAdvance('finalist').
-export function thresholdMet(c) {
+// Puan eşiği — HAT BAZINDA (§12.1). İkinci parametre bağlı açık rol
+// (member hattında needs_communication için). Kırmızı bayrak kuralı ayrı —
+// bkz. canAdvance('finalist'). Eşik sayıları yalnızca hub-constants'tan.
+export function thresholdMet(c, openRole = null) {
+  if (!c) return false;
+  if ((c.track || 'founder') === 'member') {
+    const t = THRESHOLD.member;
+    if (c.scoreFinishing == null || c.scoreCapacity == null) return false;
+    if (c.scoreFinishing < t.minFinishing || c.scoreCapacity < t.minCapacity) return false;
+    if (openRole?.needsCommunication) {
+      if (c.scoreCommunication == null || c.scoreCommunication < t.minCommunication) return false;
+    }
+    return true;
+  }
+  // founder
   if (!rubricComplete(c)) return false;
   const axes = [c.scoreFinishing, c.scoreCommunication, c.scoreCapacity];
   const total = axes.reduce((s, n) => s + n, 0);
-  return total >= THRESHOLD.minTotal && Math.min(...axes) >= THRESHOLD.minAxis;
+  return total >= THRESHOLD.founder.minTotal && Math.min(...axes) >= THRESHOLD.founder.minAxis;
+}
+
+// İnsan-okunur eşik açıklaması (reason metinleri + arayüz için).
+export function thresholdText(track = 'founder', openRole = null) {
+  if (track === 'member') {
+    const t = THRESHOLD.member;
+    return `bitirmişlik ≥ ${t.minFinishing} ve kapasite ≥ ${t.minCapacity}` +
+      (openRole?.needsCommunication ? ` ve iletişim ≥ ${t.minCommunication}` : '');
+  }
+  const t = THRESHOLD.founder;
+  return `toplam ≥ ${t.minTotal} ve hiçbir eksen ≤ ${t.minAxis - 1}`;
 }
 
 // Hedefin kendi çıkış koşulu (§9 "Kontroller"). Sıra kontrolü ayrı — canAdvance.
 function targetGate(c, toStage, ctx = {}) {
-  const { role = null, touchCount = null, interviewCount = null, gates = null } = ctx;
+  const { role = null, touchCount = null, interviewCount = null, gates = null, openRole = null } = ctx;
+  const track = c.track || 'founder';
 
   switch (toStage) {
     case 'contacted': {
@@ -40,16 +64,23 @@ function targetGate(c, toStage, ctx = {}) {
     case 'interviewed': {
       if (interviewCount != null && interviewCount < 1)
         return { ok: false, reason: 'Görüşme kaydı yok.' };
-      return rubricComplete(c)
+      // Üye hattında iletişim ekseni boş olabilir (§12.1) — rubrik "dolu"
+      // sayılması için bitirmişlik + kapasite yeter.
+      const complete = track === 'member'
+        ? (c.scoreFinishing != null && c.scoreCapacity != null)
+        : rubricComplete(c);
+      return complete
         ? { ok: true }
-        : { ok: false, reason: 'Rubrik doldurulmadan görüşme aşamasına geçilemez — üç eksen de girilmeli.' };
+        : { ok: false, reason: track === 'member'
+            ? 'Bitirmişlik ve kapasite girilmeden görüşme aşamasına geçilemez.'
+            : 'Rubrik doldurulmadan görüşme aşamasına geçilemez — üç eksen de girilmeli.' };
     }
 
     case 'finalist': {
-      if (!thresholdMet(c))
+      if (!thresholdMet(c, openRole))
         return {
           ok: false,
-          reason: `Eşik sağlanmadı: toplam ≥ ${THRESHOLD.minTotal} ve hiçbir eksen ≤ ${THRESHOLD.minAxis - 1} olmamalı.`,
+          reason: `Eşik sağlanmadı (${track === 'member' ? 'üye' : 'kurucu'} hattı): ${thresholdText(track, openRole)}.`,
         };
       const flags = (c.redFlags || []).length;
       if (flags >= THRESHOLD.blockAtRedFlags) {
@@ -82,14 +113,16 @@ function targetGate(c, toStage, ctx = {}) {
 }
 
 // canAdvance(candidate, toStage, ctx?) -> { ok, reason? }
-// §9 "Sıra zorunluluğu": ileri yönde yalnızca index+1 serbest (hedefin kendi
-// koşuluyla). index+2 ve fazlası reddedilir; yalnızca role==='cofounder' ve
-// overrideReason dolu ise geçer. Geri gitmek serbest (stage_log'a yazılır).
+// §9 "Sıra zorunluluğu" + §12.1 iki hat: ileri yönde yalnızca (hattın kendi
+// sırasında) bir adım serbest. Fazlası reddedilir; yalnızca role==='cofounder'
+// ve overrideReason dolu ise geçer. Geri gitmek serbest (stage_log'a yazılır).
+// Üye hattında Kapı B YOKTUR — gate_a → joined tek adımdır, atlama sayılmaz.
 // archived her aşamadan, archive_reason zorunlu.
-// ctx: { role, touchCount, interviewCount, gates }.
+// ctx: { role, touchCount, interviewCount, gates, openRole }.
 export function canAdvance(candidate, toStage, ctx = {}) {
   const c = candidate || {};
   const { role = null } = ctx;
+  const track = c.track || 'founder';
 
   // archived — her aşamadan, sebep zorunlu
   if (toStage === 'archived') {
@@ -98,8 +131,14 @@ export function canAdvance(candidate, toStage, ctx = {}) {
       : { ok: false, reason: 'Arşivleme sebebi zorunludur.' };
   }
 
-  const fromIdx = STAGE_ORDER.indexOf(c.stage);
-  const toIdx = STAGE_ORDER.indexOf(toStage);
+  // Üye hattında Kapı B yok (§12.1)
+  if (toStage === 'gate_b' && track === 'member') {
+    return { ok: false, reason: 'Üye hattında Kapı B yoktur (finalist → Kapı A → Ekipte).' };
+  }
+
+  const order = stageOrderFor(track);
+  const fromIdx = order.indexOf(c.stage);
+  const toIdx = order.indexOf(toStage);
 
   // Pipeline dışı (arşivden çıkış, tanımsız hedef): yalnızca hedef koşulu
   if (fromIdx < 0 || toIdx < 0) return targetGate(c, toStage, ctx);
@@ -119,6 +158,23 @@ export function canAdvance(candidate, toStage, ctx = {}) {
     }
   }
   return targetGate(c, toStage, ctx);
+}
+
+// presentGate(candidate, openRole) -> { ok, reason? }
+// §12.3 adım 5: aday proje sahibine SUNULABİLİR mi — hat eşiği sağlandı mı,
+// kırmızı bayrak < eşik mi, bir açık role bağlı mı.
+export function presentGate(candidate, openRole) {
+  const c = candidate || {};
+  if (!openRole) return { ok: false, reason: 'Aday bir açık role bağlanmalı.' };
+  const track = c.track || 'founder';
+  if (!thresholdMet(c, openRole)) {
+    return { ok: false, reason: `Eşik sağlanmadı (${track === 'member' ? 'üye' : 'kurucu'} hattı): ${thresholdText(track, openRole)}.` };
+  }
+  const flags = (c.redFlags || []).length;
+  if (flags >= THRESHOLD.blockAtRedFlags) {
+    return { ok: false, reason: `${flags} kırmızı bayrak işaretli — sunulamaz.` };
+  }
+  return { ok: true };
 }
 
 // isStale(candidate, now) -> { stale, level: 'warn'|'critical'|null, days }

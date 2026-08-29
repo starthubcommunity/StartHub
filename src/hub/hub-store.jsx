@@ -13,7 +13,7 @@ import { HUB_TABLES } from './hub-mappers';
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
 // interviews tek aday için loadHistory() ile çekilir; touches/gates Bugün
 // ekranı + akışları için, stageLog ise Hat dönüşüm oranları (§8.7) için global.
-const COLLECTIONS = ['candidates', 'members', 'openRoles', 'views', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
+const COLLECTIONS = ['candidates', 'members', 'openRoles', 'roleLog', 'views', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
 
 const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
 
@@ -267,8 +267,94 @@ export function HubStoreProvider({ children }) {
       reason: vestingStart ? `hak ediş başlangıcı: ${vestingStart} (Kapı A ilk günü)` : 'ekibe aktarıldı',
       extra: { joinedAt, vestingStartDate: vestingStart },
     });
+    // §12.3 adım 7: aday joined olunca bağlı rol `filled` olur.
+    const cand = data.candidates.find((c) => c.id === candidateId);
+    if (cand?.openRoleId) {
+      const role = data.openRoles.find((r) => r.id === cand.openRoleId);
+      if (role && role.status !== 'filled') {
+        const patch = { status: 'filled', filledAt: joinedAt };
+        patchLocal('openRoles', role.id, patch);
+        await updateItem('openRoles', role.id, { ...role, ...patch });
+        await addItem('roleLog', { roleId: role.id, fromStatus: role.status, toStatus: 'filled', note: `${cand.fullName} ekibe katıldı`, actorId: currentMember?.id ?? null });
+      }
+    }
     return vestingStart;
-  }, [data, advanceStage]);
+  }, [data, advanceStage, patchLocal, updateItem, addItem, currentMember]);
+
+  // ── Açık roller: durum makinesi (§12.2 / 12.3) ────────────────
+  const logRoleStatus = useCallback((roleId, fromStatus, toStatus, note = null) =>
+    addItem('roleLog', { roleId, fromStatus, toStatus, note, actorId: currentMember?.id ?? null }),
+    [addItem, currentMember]
+  );
+
+  // Rol durumunu ilerlet + günlüğe yaz + ilgili zaman damgaları (§12.6).
+  const advanceRole = useCallback(async (roleId, toStatus, { note = null, assignTo } = {}) => {
+    const role = data.openRoles.find((r) => r.id === roleId);
+    if (!role) return;
+    const now = new Date().toISOString();
+    const patch = { status: toStatus };
+    if (toStatus === 'requested') {
+      patch.requestedAt = role.requestedAt || now;
+      patch.requestedBy = role.requestedBy || currentMember?.id || null;
+    }
+    if (toStatus === 'sourcing' && !role.assignedTo) {
+      patch.assignedTo = assignTo || currentMember?.id || null;
+    }
+    if (toStatus === 'filled') patch.filledAt = now;
+    const prev = {};
+    Object.keys(patch).forEach((k) => { prev[k] = role[k]; });
+    patchLocal('openRoles', roleId, patch);
+    try {
+      await updateItem('openRoles', roleId, { ...role, ...patch });
+      await logRoleStatus(roleId, role.status, toStatus, note);
+    } catch (e) {
+      patchLocal('openRoles', roleId, prev);
+      throw e;
+    }
+  }, [data, patchLocal, updateItem, logRoleStatus, currentMember]);
+
+  // §12.3 adım 5: eşiği geçen adayı proje sahibine sun. Aday `presented_at` +
+  // owner_decision='pending' alır, açık role bağlanır, rol `shortlist` olur.
+  // presentGate kontrolü çağıran tarafta (canPresent).
+  const presentCandidate = useCallback(async (candidateId, roleId) => {
+    const cand = data.candidates.find((c) => c.id === candidateId);
+    if (!cand) return;
+    const now = new Date().toISOString();
+    const patch = { presentedAt: now, ownerDecision: 'pending', openRoleId: roleId };
+    patchLocal('candidates', candidateId, patch);
+    await updateItem('candidates', candidateId, { ...cand, ...patch });
+    const role = data.openRoles.find((r) => r.id === roleId);
+    if (role && role.status === 'sourcing') {
+      await advanceRole(roleId, 'shortlist', { note: `${cand.fullName} sunuldu` });
+    }
+  }, [data, patchLocal, updateItem, advanceRole]);
+
+  // §12.3 adım 6-7: proje sahibi kararı. GEREKÇE ZORUNLU. Kabul → aday finalist
+  // + Kapı A başlar (kurucu hattı ilerisi Kapı A'da normal akar); rol shortlist'te
+  // kalır (aday joined olunca filled). Ret → aday olduğu yerde kalır.
+  const ownerDecide = useCallback(async (candidateId, decision, note) => {
+    if (!note || !note.trim()) throw new Error('Karar gerekçesi zorunludur.');
+    const cand = data.candidates.find((c) => c.id === candidateId);
+    if (!cand) return;
+    const role = cand.openRoleId ? data.openRoles.find((r) => r.id === cand.openRoleId) : null;
+    const patch = { ownerDecision: decision, ownerDecisionNote: note.trim() };
+    if (decision === 'accepted' && role?.startupId != null) patch.startupId = role.startupId;
+    patchLocal('candidates', candidateId, patch);
+    await updateCandidate(candidateId, { ...cand, ...patch });
+
+    if (decision === 'accepted') {
+      const c2 = { ...cand, ...patch };
+      await advanceStage(candidateId, 'finalist', { reason: 'proje sahibi kabul etti' });
+      const due = new Date(Date.now() + 72 * 3600000).toISOString();
+      await startGate({ ...c2, stage: 'finalist' }, 'A', {
+        taskText: role?.firstDeliverable || null, dueAt: due, startupId: role?.startupId ?? null,
+      });
+      if (role) {
+        patchLocal('openRoles', role.id, { acceptedAt: new Date().toISOString() });
+        await updateItem('openRoles', role.id, { ...role, acceptedAt: new Date().toISOString() });
+      }
+    }
+  }, [data, patchLocal, updateCandidate, updateItem, advanceStage, startGate]);
 
   // ── İçe aktarma (§8.6.3) ───────────────────────────────────────
   // Ham metin hub_import_batches.raw_text'e saklanır. Kabul edilen her satır
@@ -360,6 +446,7 @@ export function HubStoreProvider({ children }) {
     sendTouch, markReplied,
     startGate, markGate, moveToTeam,
     importCandidates, purgeCandidate,
+    logRoleStatus, advanceRole, presentCandidate, ownerDecide,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).

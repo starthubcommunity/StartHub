@@ -26,6 +26,10 @@ export const ARCHIVED_STAGE = { value: 'archived', label: 'Arşiv' };
 // Tüm geçerli `stage` değerleri (DB check kısıtıyla birebir).
 export const ALL_STAGES = [...STAGES, ARCHIVED_STAGE];
 export const STAGE_ORDER = STAGES.map((s) => s.value);
+// Üye hattında Kapı B YOKTUR (§12.1): finalist → gate_a → joined. Bu bir
+// "atlama" değil, hattın kendi sırasıdır.
+export const MEMBER_STAGE_ORDER = STAGE_ORDER.filter((s) => s !== 'gate_b');
+export const stageOrderFor = (track) => (track === 'member' ? MEMBER_STAGE_ORDER : STAGE_ORDER);
 export const STAGE_LABEL = toLabelMap(ALL_STAGES);
 
 // Bir aşamanın pipeline sırasındaki indexi (archived → -1).
@@ -132,16 +136,57 @@ export const AI_PRESCORE_FINISHING = [
   { value: 1, when: 'Boş veya yalnızca fork' },
 ];
 
-// ─── Eşik değerleri (§2.3 + §2.4 + §9) ──────────────────────────────
-// Finalist eşiği: toplam ≥ minTotal VE hiçbir eksen ≤ 2 (yani her eksen
-// ≥ minAxis) VE kırmızı bayrak sayısı < blockAtRedFlags (ya da cofounder +
-// override). Kural: redFlags.length < blockAtRedFlags → geçebilir;
-// redFlags.length >= blockAtRedFlags → finalist'e geçiş kilitli.
+// ─── Hatlar (§12.1) ─────────────────────────────────────────────────
+// Aday `track` alanı: kurallar buna göre değişir.
+export const TRACKS = [
+  { value: 'founder', label: 'Kurucu' },
+  { value: 'member',  label: 'Üye' },
+];
+export const TRACK_LABEL = toLabelMap(TRACKS);
+
+// ─── Eşik değerleri — HAT BAZINDA (§12.1 + §2.3 + §2.4 + §9) ────────
+// Kurucu hattı: toplam ≥ minTotal VE hiçbir eksen ≤ 2 (her eksen ≥ minAxis),
+//               iletişim ekseni zorunlu (rubricComplete).
+// Üye hattı:    bitirmişlik ≥ minFinishing VE kapasite ≥ minCapacity.
+//               İletişim yalnızca rol needs_communication ise zorunlu; o
+//               durumda eşik minCommunication (şartname sayı vermiyor → 3).
+// Ortak: kırmızı bayrak sayısı < blockAtRedFlags (ya da cofounder + override).
 export const THRESHOLD = {
-  minTotal: 10,
-  minAxis: 3,            // "hiçbir eksen ≤ 2" ⇔ her eksen ≥ 3
-  blockAtRedFlags: 2,    // bu sayı ve üzeri bayrak → finalist kilitli
+  blockAtRedFlags: 2,
+  founder: { minTotal: 10, minAxis: 3 },
+  member:  { minFinishing: 3, minCapacity: 3, minCommunication: 3 },
 };
+
+// ─── Açık rol durum makinesi (§12.2) ──────────────────────────────
+export const ROLE_STATUSES = [
+  { value: 'draft',     label: 'Taslak' },
+  { value: 'requested', label: 'Talep edildi' },
+  { value: 'sourcing',  label: 'Aranıyor' },
+  { value: 'shortlist', label: 'Kısa liste' },
+  { value: 'filled',    label: 'Dolduruldu' },
+  { value: 'paused',    label: 'Donduruldu' },
+  { value: 'cancelled', label: 'İptal' },
+];
+export const ROLE_STATUS_LABEL = toLabelMap(ROLE_STATUSES);
+
+// Durumdan hangi geçişler serbest (§12.2 şeması). paused/cancelled her
+// aktif durumdan yapılabilir; filled sisteme aittir (aday joined olunca).
+export const ROLE_STATUS_NEXT = {
+  draft:     ['requested', 'cancelled'],
+  requested: ['sourcing', 'paused', 'cancelled'],
+  sourcing:  ['shortlist', 'paused', 'cancelled'],
+  shortlist: ['sourcing', 'paused', 'cancelled'],  // filled otomatik
+  paused:    ['requested', 'sourcing', 'cancelled'],
+  filled:    [],
+  cancelled: ['draft'],
+};
+
+export const OWNER_DECISIONS = [
+  { value: 'pending',  label: 'Bekliyor' },
+  { value: 'accepted', label: 'Kabul' },
+  { value: 'rejected', label: 'Ret' },
+];
+export const OWNER_DECISION_LABEL = toLabelMap(OWNER_DECISIONS);
 
 // ─── Bayatlama sayacı (§9 tablosu) ─────────────────────────────────
 // Her aşama için: sayaç HANGİ zamandan başlar + warn/critical (gün).

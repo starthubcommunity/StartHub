@@ -57,6 +57,11 @@ export function mapCandidateToDb(c) {
     owner_id:       c.ownerId       ?? null,
     open_role_id:   c.openRoleId    ?? null,
     startup_id:     c.startupId     ?? null,
+    // §12 — hat ve proje sahibi kararı
+    track:               c.track             || 'founder',
+    presented_at:        c.presentedAt       ?? null,
+    owner_decision:      c.ownerDecision     ?? null,
+    owner_decision_note: c.ownerDecisionNote ?? null,
     // puanlama (score_total generated — gönderilmez)
     score_finishing:     c.scoreFinishing     ?? null,
     score_communication: c.scoreCommunication ?? null,
@@ -124,6 +129,11 @@ export function mapCandidateFromDb(r) {
     ownerId:       r.owner_id       ?? null,
     openRoleId:    r.open_role_id   ?? null,
     startupId:     r.startup_id     ?? null,
+    // §12
+    track:             r.track               || 'founder',
+    presentedAt:       r.presented_at        ?? null,
+    ownerDecision:     r.owner_decision      ?? null,
+    ownerDecisionNote: r.owner_decision_note ?? null,
     // puanlama
     scoreFinishing:     r.score_finishing     ?? null,
     scoreCommunication: r.score_communication ?? null,
@@ -185,6 +195,19 @@ export function mapOpenRoleToDb(o) {
     skills:     o.skills || [],
     urgency:    o.urgency || 'normal',
     filled:     o.filled ?? false,
+    // §12 — talep akışı ve iki hat
+    status:              o.status || 'draft',
+    track:               o.track || 'member',
+    needs_communication: o.needsCommunication ?? false,
+    weekly_hours:        o.weeklyHours ?? null,
+    duration_months:     o.durationMonths ?? null,
+    first_deliverable:   o.firstDeliverable ?? null,
+    team_size:           o.teamSize ?? null,
+    requested_by:        o.requestedBy ?? null,
+    assigned_to:         o.assignedTo ?? null,
+    requested_at:        o.requestedAt ?? null,
+    accepted_at:         o.acceptedAt ?? null,
+    filled_at:           o.filledAt ?? null,
   };
 }
 export function mapOpenRoleFromDb(r) {
@@ -197,7 +220,41 @@ export function mapOpenRoleFromDb(r) {
     skills:    r.skills || [],
     urgency:   r.urgency || 'normal',
     filled:    r.filled ?? false,
+    status:              r.status || 'draft',
+    track:               r.track || 'member',
+    needsCommunication:  r.needs_communication ?? false,
+    weeklyHours:         r.weekly_hours ?? null,
+    durationMonths:      r.duration_months ?? null,
+    firstDeliverable:    r.first_deliverable ?? null,
+    teamSize:            r.team_size ?? null,
+    requestedBy:         r.requested_by ?? null,
+    assignedTo:          r.assigned_to ?? null,
+    requestedAt:         r.requested_at ?? null,
+    acceptedAt:          r.accepted_at ?? null,
+    filledAt:            r.filled_at ?? null,
     createdAt: r.created_at ?? null,
+  };
+}
+
+// ══ hub_role_log (§12.6) ══════════════════════════════════════════════
+export function mapRoleLogToDb(l) {
+  return {
+    role_id:     l.roleId,
+    from_status: l.fromStatus ?? null,
+    to_status:   l.toStatus || '',
+    note:        l.note ?? null,
+    actor_id:    l.actorId ?? null,
+  };
+}
+export function mapRoleLogFromDb(r) {
+  return {
+    id:         r.id,
+    roleId:     r.role_id,
+    fromStatus: r.from_status ?? null,
+    toStatus:   r.to_status || '',
+    note:       r.note ?? null,
+    actorId:    r.actor_id ?? null,
+    createdAt:  r.created_at ?? null,
   };
 }
 
@@ -423,6 +480,7 @@ export const HUB_TABLES = {
   candidates: { table: 'hub_candidates',      toDb: mapCandidateToDb, fromDb: mapCandidateFromDb },
   members:    { table: 'hub_members',         toDb: mapMemberToDb,    fromDb: mapMemberFromDb    },
   openRoles:  { table: 'hub_open_roles',      toDb: mapOpenRoleToDb,  fromDb: mapOpenRoleFromDb  },
+  roleLog:    { table: 'hub_role_log',        toDb: mapRoleLogToDb,   fromDb: mapRoleLogFromDb   },
   stageLog:   { table: 'hub_stage_log',       toDb: mapStageLogToDb,  fromDb: mapStageLogFromDb  },
   touches:    { table: 'hub_touches',         toDb: mapTouchToDb,     fromDb: mapTouchFromDb     },
   interviews: { table: 'hub_interviews',      toDb: mapInterviewToDb, fromDb: mapInterviewFromDb },

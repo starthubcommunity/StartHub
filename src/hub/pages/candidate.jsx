@@ -9,9 +9,10 @@ import {
   RUBRIC_AXES, RED_FLAGS, SCORE_MIN, SCORE_MAX, AI_PRESCORE_FINISHING,
   EDU_STATUSES, CLASS_YEARS, ROLE_TYPES, DATA_TRUST_LABEL,
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
-  INTERVIEW_DECISION_LABEL, GATE_RESULT_LABEL, THRESHOLD,
+  INTERVIEW_DECISION_LABEL, GATE_RESULT_LABEL, THRESHOLD, TRACKS, TRACK_LABEL,
+  OWNER_DECISION_LABEL,
 } from '../hub-constants';
-import { thresholdMet, canAdvance, gateStatus } from '../hub-rules';
+import { thresholdMet, thresholdText, canAdvance, presentGate, gateStatus } from '../hub-rules';
 import { GATE } from '../hub-constants';
 import { supabase } from '../../lib/supabase';
 import { fillTemplate } from './templates';
@@ -50,6 +51,9 @@ export default function CandidatePanel({ candidateId, onClose }) {
   const store = useHubStore();
   const role = useHubMember();
   const candidate = store.candidates.find((c) => c.id === candidateId);
+  const openRole = candidate?.openRoleId
+    ? store.openRoles.find((r) => r.id === candidate.openRoleId) || null
+    : null;
   const [tab, setTab] = useState('summary');
   const [history, setHistory] = useState(null);
   const [composing, setComposing] = useState(false);
@@ -110,8 +114,8 @@ export default function CandidatePanel({ candidateId, onClose }) {
         </div>
 
         <div className="hub-panel__body">
-          {tab === 'summary' && <SummaryTab c={candidate} save={save} />}
-          {tab === 'assess' && <AssessTab c={candidate} save={save} role={role} />}
+          {tab === 'summary' && <SummaryTab c={candidate} save={save} openRole={openRole} role={role} store={store} flash={flash} />}
+          {tab === 'assess' && <AssessTab c={candidate} save={save} role={role} openRole={openRole} />}
           {tab === 'history' && <HistoryTab history={history} />}
         </div>
       </div>
@@ -129,11 +133,79 @@ export default function CandidatePanel({ candidateId, onClose }) {
 // ── Özet ────────────────────────────────────────────────────────────
 const GATE_STAGES = ['finalist', 'gate_a', 'gate_b', 'joined'];
 
-function SummaryTab({ c, save }) {
+// §12 — hat seçimi, bağlı açık rol, proje sahibine sunma, karar sonucu.
+function TrackRoleSection({ c, save, openRole, role, store, flash }) {
+  const [busy, setBusy] = useState(false);
+  const myStartups = store.currentMember?.startupIds || [];
+  // Bağlanabilecek roller: talep/arama/kısa liste durumunda; project_owner
+  // yalnızca kendi projesinin rollerini görür (§12.7).
+  const linkable = store.openRoles.filter((r) => {
+    if (!['requested', 'sourcing', 'shortlist'].includes(r.status)) return false;
+    if (role === 'project_owner') return r.startupId != null && myStartups.includes(r.startupId);
+    return true;
+  });
+
+  const chk = presentGate(c, openRole);
+  const canPresentNow = chk.ok && !c.presentedAt && openRole?.status === 'sourcing' && role !== 'project_owner';
+
+  const present = async () => {
+    setBusy(true);
+    try { await store.presentCandidate(c.id, openRole.id); flash?.('Aday proje sahibine sunuldu.'); }
+    catch (e) { flash?.('Sunulamadı: ' + e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="hub-gates" style={{ marginBottom: 16 }}>
+      <h4 className="hub-h4">Hat & Rol</h4>
+      <div className="adm-form-grid">
+        <Field label="Hat" hint="Eşik göstergesi buna göre hesaplanır (§12.1).">
+          <select className="adm-input adm-select" value={c.track || 'founder'} onChange={(e) => save({ track: e.target.value })}>
+            {TRACKS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Bağlı açık rol">
+          <select className="adm-input adm-select" value={c.openRoleId || ''} onChange={(e) => save({ openRoleId: e.target.value || null })}>
+            <option value="">—</option>
+            {linkable.map((r) => <option key={r.id} value={r.id}>{r.title}{r.track === 'member' ? ' · üye' : ' · kurucu'}</option>)}
+            {c.openRoleId && !linkable.some((r) => r.id === c.openRoleId) && openRole && (
+              <option value={openRole.id}>{openRole.title} (mevcut)</option>
+            )}
+          </select>
+        </Field>
+      </div>
+
+      {c.presentedAt ? (
+        <div style={{ fontSize: 13, marginTop: 4 }}>
+          <strong>Sunuldu:</strong> {String(c.presentedAt).slice(0, 10)} ·{' '}
+          {c.ownerDecision && c.ownerDecision !== 'pending' ? (
+            <span className={`hub-pill ${c.ownerDecision === 'accepted' ? '' : 'hub-pill--flag'}`}
+              style={c.ownerDecision === 'accepted' ? { background: 'var(--adm-green-light)', color: 'var(--adm-green)' } : {}}>
+              {OWNER_DECISION_LABEL[c.ownerDecision]}
+            </span>
+          ) : <span className="hub-pill">proje sahibi kararı bekleniyor</span>}
+          {c.ownerDecisionNote && <div style={{ color: 'var(--adm-text-secondary)', marginTop: 2 }}>Gerekçe: {c.ownerDecisionNote}</div>}
+        </div>
+      ) : (
+        <div style={{ marginTop: 6 }}>
+          <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={!canPresentNow || busy} onClick={present}
+            title={canPresentNow ? '' : (chk.reason || (openRole?.status !== 'sourcing' ? 'Rol "aranıyor" durumunda olmalı (recruiter üstlenmeli)' : 'Sunulamaz'))}>
+            Proje sahibine sun
+          </button>
+          {!chk.ok && openRole && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginLeft: 8 }}>{chk.reason}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryTab({ c, save, openRole, role, store, flash }) {
   const nextActionRequired = c.stage !== 'pool';
   return (
     <div>
       {GATE_STAGES.includes(c.stage) && <GatesSection c={c} />}
+
+      <TrackRoleSection c={c} save={save} openRole={openRole} role={role} store={store} flash={flash} />
 
       <h4 className="hub-h4">Kimlik</h4>
       <div className="adm-form-grid">
@@ -394,11 +466,12 @@ function GatesSection({ c }) {
 // ── Değerlendirme ──────────────────────────────────────────────────
 const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunication', capacity: 'scoreCapacity' };
 
-function AssessTab({ c, save, role }) {
-  const met = thresholdMet(c);
+function AssessTab({ c, save, role, openRole }) {
+  const track = c.track || 'founder';
+  const met = thresholdMet(c, openRole);
   // Eşik göstergesi puan+bayrak kuralını gösterir — aşama SIRASINDAN bağımsız
   // (sıra ayrı bir kısıt). Bu yüzden sanal olarak "interviewed"dan kontrol.
-  const finalistChk = canAdvance({ ...c, stage: 'interviewed' }, 'finalist', { role });
+  const finalistChk = canAdvance({ ...c, stage: 'interviewed' }, 'finalist', { role, openRole });
   const flagCount = (c.redFlags || []).length;
   const [enriching, setEnriching] = useState(false);
   const [enrichErr, setEnrichErr] = useState('');
@@ -439,11 +512,13 @@ function AssessTab({ c, save, role }) {
     <div>
       <h4 className="hub-h4">Rubrik</h4>
       <p style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginBottom: 12 }}>
-        Üç eksen, {SCORE_MIN}–{SCORE_MAX}. Eşik: toplam ≥ {THRESHOLD.minTotal} ve hiçbir eksen ≤ {THRESHOLD.minAxis - 1}.
+        Üç eksen, {SCORE_MIN}–{SCORE_MAX}. {track === 'member' ? 'Üye' : 'Kurucu'} hattı eşiği: {thresholdText(track, openRole)}.
       </p>
-      {RUBRIC_AXES.map((ax) => (
-        <div key={ax.value} style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{ax.label}</div>
+      {RUBRIC_AXES.map((ax) => {
+        const optional = track === 'member' && ax.value === 'communication' && !openRole?.needsCommunication;
+        return (
+        <div key={ax.value} style={{ marginBottom: 12, opacity: optional ? 0.55 : 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{ax.label}{optional ? ' · isteğe bağlı (üye hattı)' : ''}</div>
           <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginBottom: 6 }}>{ax.hint}</div>
           <div className="hub-score-row">
             {[1, 2, 3, 4, 5].map((n) => (
@@ -453,7 +528,8 @@ function AssessTab({ c, save, role }) {
             ))}
           </div>
         </div>
-      ))}
+        );
+      })}
 
       <div className="hub-ai" style={{ margin: '8px 0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
