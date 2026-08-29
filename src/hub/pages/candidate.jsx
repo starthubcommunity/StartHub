@@ -13,6 +13,7 @@ import {
   OWNER_DECISION_LABEL,
 } from '../hub-constants';
 import { thresholdMet, thresholdText, canAdvance, presentGate, gateStatus } from '../hub-rules';
+import { suggestRolesFor } from '../hub-match';
 import { GATE } from '../hub-constants';
 import { supabase } from '../../lib/supabase';
 import { fillTemplate } from './templates';
@@ -155,6 +156,20 @@ function TrackRoleSection({ c, save, openRole, role, store, flash }) {
     setBusy(false);
   };
 
+  // §12.3 adım 6 — proje sahibi kararı. GEREKÇE ZORUNLU. recruiter kabul/ret VEREMEZ (§12.7).
+  const [note, setNote] = useState('');
+  const decidePending = role === 'project_owner' && c.presentedAt && (!c.ownerDecision || c.ownerDecision === 'pending');
+  const decide = async (decision) => {
+    if (!note.trim()) { flash?.('Karar gerekçesi zorunludur.'); return; }
+    setBusy(true);
+    try {
+      await store.ownerDecide(c.id, decision, note.trim());
+      flash?.(decision === 'accepted' ? 'Kabul edildi · aday Kapı A\'ya geçti.' : 'Reddedildi.');
+      setNote('');
+    } catch (e) { flash?.(e.message); }
+    setBusy(false);
+  };
+
   return (
     <div className="hub-gates" style={{ marginBottom: 16 }}>
       <h4 className="hub-h4">Hat & Rol</h4>
@@ -175,8 +190,20 @@ function TrackRoleSection({ c, save, openRole, role, store, flash }) {
         </Field>
       </div>
 
+      {decidePending && (
+        <div className="hub-threshold hub-threshold--no" style={{ display: 'block', marginTop: 8 }}>
+          <strong>Sana sunuldu — kabul veya ret ver (gerekçe zorunlu).</strong>
+          <textarea className="adm-input adm-textarea" rows={2} style={{ margin: '6px 0' }} value={note}
+            onChange={(e) => setNote(e.target.value)} placeholder="Kararının gerekçesi…" />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || !note.trim()} onClick={() => decide('accepted')}>Kabul</button>
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy || !note.trim()} onClick={() => decide('rejected')}>Ret</button>
+          </div>
+        </div>
+      )}
+
       {c.presentedAt ? (
-        <div style={{ fontSize: 13, marginTop: 4 }}>
+        <div style={{ fontSize: 13, marginTop: 6 }}>
           <strong>Sunuldu:</strong> {String(c.presentedAt).slice(0, 10)} ·{' '}
           {c.ownerDecision && c.ownerDecision !== 'pending' ? (
             <span className={`hub-pill ${c.ownerDecision === 'accepted' ? '' : 'hub-pill--flag'}`}
@@ -195,6 +222,19 @@ function TrackRoleSection({ c, save, openRole, role, store, flash }) {
           {!chk.ok && openRole && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginLeft: 8 }}>{chk.reason}</span>}
         </div>
       )}
+
+      {!c.openRoleId && role !== 'project_owner' && (() => {
+        const sug = suggestRolesFor(c, store.openRoles);
+        return sug.length === 0 ? null : (
+          <div style={{ fontSize: 12.5, marginTop: 8, color: 'var(--adm-text-secondary)' }}>
+            <strong>Uygun açık roller</strong> (öneri — atama değil):{' '}
+            {sug.map(({ role: r }) => (
+              <button key={r.id} className="hub-pill" style={{ border: 'none', cursor: 'pointer', marginRight: 4 }}
+                onClick={() => save({ openRoleId: r.id })}>{r.title}</button>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

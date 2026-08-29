@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { canAdvance, thresholdMet, thresholdText, presentGate, isStale, gateStatus, rubricComplete } from './hub-rules.js';
 import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
+import { matchScore, suggestRolesFor } from './hub-match.js';
 import { computeEnrichment, prescoreFinishing, whyThisOne } from './hub-enrich.js';
 
 let pass = 0;
@@ -128,6 +129,14 @@ t('thresholdText hat bazında okunur', () => {
   assert.match(thresholdText('founder'), /toplam ≥ 10/);
   assert.match(thresholdText('member'), /bitirmişlik ≥ 3 ve kapasite ≥ 3/);
   assert.match(thresholdText('member', { needsCommunication: true }), /iletişim ≥ 3/);
+});
+t('matchScore: role_type + beceri örtüşmesi + hat uyumu (§12.4)', () => {
+  const role = { roleType: 'technical', skills: ['React', 'SQL'], track: 'member', status: 'sourcing' };
+  const strong = { roleType: 'technical', skills: ['react', 'sql', 'go'], track: 'member' };
+  const weak = { roleType: 'business', skills: ['excel'], track: 'founder' };
+  assert.ok(matchScore(strong, role) > matchScore(weak, role));
+  assert.equal(matchScore(weak, role), 0);
+  assert.deepEqual(suggestRolesFor(strong, [role]).map((x) => x.role), [role]);
 });
 
 // ── canAdvance: interviewed / contacted / gates / archived ─────────

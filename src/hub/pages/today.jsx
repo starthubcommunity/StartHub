@@ -7,7 +7,8 @@ import { useHubStore } from '../hub-store';
 import { isStale } from '../hub-rules';
 import { thresholdMet } from '../hub-rules';
 import { intervalToDays } from '../hub-metrics';
-import { WEEKLY_TARGET, STAGE_LABEL } from '../hub-constants';
+import { WEEKLY_TARGET, STAGE_LABEL, ROLE_STATUS_LABEL } from '../hub-constants';
+import { useHubMember } from '../hub-member';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -52,10 +53,12 @@ function Row({ onClick, main, meta, action }) {
 
 export default function TodayPage({ onGoto }) {
   const store = useHubStore();
-  const { candidates, touches, gates, sources, currentMember } = store;
+  const { candidates, touches, gates, sources, openRoles, currentMember } = store;
+  const role = useHubMember();
   const [openId, setOpenId] = useState(null);
   const byId = useMemo(() => Object.fromEntries(candidates.map((c) => [c.id, c])), [candidates]);
   const now = Date.now();
+  const myStartups = currentMember?.startupIds || [];
 
   // 1) Gönderilecek mesajlar — pool, sorumlusu ben, eşiği geçen
   const toSend = candidates.filter(
@@ -94,7 +97,22 @@ export default function TodayPage({ onGoto }) {
       (!s.lastChecked || now - new Date(s.lastChecked).getTime() >= intervalToDays(s.checkEvery) * 86400000)
   );
 
-  const allEmpty = !toSend.length && !dueFollowUps.length && !interviewsToday.length && !stale.length && !dueGates.length && !dueSources.length;
+  // ── Role göre bloklar (§12.5) ────────────────────────────────
+  const roleRequests = (openRoles || []).filter((r) => r.status === 'requested');   // recruiter
+  const rolesWaitingCands = (openRoles || []).filter(
+    (r) => r.status === 'sourcing' && candidates.every((c) => c.openRoleId !== r.id)   // recruiter — hiç aday yok
+  );
+  const presentedToMe = candidates.filter(                                          // project_owner
+    (c) => c.presentedAt && (!c.ownerDecision || c.ownerDecision === 'pending') &&
+      c.startupId != null && myStartups.includes(c.startupId)
+  );
+  const myOpenRoles = (openRoles || []).filter(                                     // project_owner
+    (r) => r.startupId != null && myStartups.includes(r.startupId) && !['filled', 'cancelled'].includes(r.status)
+  );
+
+  const allEmpty = !toSend.length && !dueFollowUps.length && !interviewsToday.length && !stale.length &&
+    !dueGates.length && !dueSources.length && !roleRequests.length && !rolesWaitingCands.length &&
+    !presentedToMe.length && !myOpenRoles.length;
 
   return (
     <div className="hub-today">
@@ -162,6 +180,34 @@ export default function TodayPage({ onGoto }) {
               <Row key={s.id} onClick={() => onGoto?.('sources')}
                 main={s.name}
                 meta={s.lastChecked ? `son kontrol ${String(s.lastChecked).slice(0, 10)}` : 'hiç kontrol edilmedi'} />
+            ))}
+          </Block>
+
+          {/* §12.5 — recruiter blokları */}
+          <Block title="Yeni rol talepleri">
+            {roleRequests.map((r) => (
+              <Row key={r.id} onClick={() => onGoto?.('roles')} main={r.title}
+                meta={`${r.track === 'founder' ? 'kurucu' : 'üye'} hattı · üstlenilmeyi bekliyor`} />
+            ))}
+          </Block>
+          <Block title="Aday bekleyen roller">
+            {rolesWaitingCands.map((r) => (
+              <Row key={r.id} onClick={() => onGoto?.('roles')} main={r.title}
+                meta={`aranıyor · henüz aday yok`} />
+            ))}
+          </Block>
+
+          {/* §12.5 — proje sahibi blokları */}
+          <Block title="Sana sunulan adaylar">
+            {presentedToMe.map((c) => (
+              <Row key={c.id} onClick={() => setOpenId(c.id)} main={c.fullName}
+                meta={`sunuldu ${String(c.presentedAt).slice(0, 10)} · karar bekliyor`} />
+            ))}
+          </Block>
+          <Block title="Açık rollerin">
+            {myOpenRoles.map((r) => (
+              <Row key={r.id} onClick={() => onGoto?.('roles')} main={r.title}
+                meta={ROLE_STATUS_LABEL[r.status]} />
             ))}
           </Block>
         </>

@@ -5,6 +5,7 @@ import { AIcon, Field, Input, Textarea, Select, Modal, ConfirmDialog } from '../
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
+import { suggestCandidatesFor } from '../hub-match';
 import {
   ROLE_TYPES, ROLE_TYPE_LABEL, TRACKS, URGENCIES, URGENCY_LABEL,
   ROLE_STATUS_LABEL, STAGE_LABEL, STAGES,
@@ -160,6 +161,15 @@ export default function RolesPage({ onScanForRole }) {
                   {funnel.length ? funnel.map(([s, n]) => `${STAGE_LABEL[s.value]} ${n}`).join(' · ') : '—'}
                   {r.status === 'sourcing' && <span style={{ color: 'var(--adm-text-dim)' }}> · aday sunma aday kartından yapılır</span>}
                 </div>
+                {['sourcing', 'shortlist'].includes(r.status) && (() => {
+                  const sug = suggestCandidatesFor(r, candidates);
+                  return sug.length === 0 ? null : (
+                    <div style={{ fontSize: 12, marginTop: 4, color: 'var(--adm-text-secondary)' }}>
+                      <strong>Havuzdan öneri</strong> (role_type + beceri örtüşmesi — atama değil):{' '}
+                      {sug.map(({ candidate }) => candidate.fullName).join(', ')}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                   {statusButtons(r).map(([to, label, kind]) => (
