@@ -16,6 +16,7 @@ import ImportPage from './pages/import';
 import SourcesPage from './pages/sources';
 import MetricsPage from './pages/metrics';
 import SettingsPage from './pages/settings';
+import RolesPage from './pages/roles';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -257,6 +258,7 @@ const NAV = [
   { id: 'today',     label: 'Bugün',       icon: 'dashboard',  ready: true },
   { id: 'table',     label: 'Tablo',       icon: 'layers',     ready: true },
   { id: 'board',     label: 'Hat',         icon: 'trendingUp', ready: true },
+  { id: 'roles',     label: 'Açık Roller', icon: 'rocket',     ready: true },
   { id: 'templates', label: 'Şablonlar',   icon: 'penEdit',    ready: true },
   { id: 'import',    label: 'Yetenek avı', icon: 'upload',     ready: true },
   { id: 'sources',   label: 'GitHub tarama', icon: 'refresh',  ready: true },
@@ -271,6 +273,12 @@ function HubApp({ email, onLogout }) {
 
   // Tablo ve Hat aynı filtre durumunu paylaşır — sayfa değişince korunur (§8.3).
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
+  // "Bu rol için tara" → GitHub taramasını rolün skills[] ile tohumlar (§12.4).
+  const [scanSeed, setScanSeed] = useState(null);
+  const scanForRole = (r) => {
+    setScanSeed({ roleId: r.id, roleTitle: r.title, skills: r.skills || [] });
+    setPage('sources');
+  };
 
   return (
     <div className="hub-layout">
@@ -313,9 +321,10 @@ function HubApp({ email, onLogout }) {
           {page === 'today' ? <TodayPage onGoto={setPage} />
             : page === 'table' ? <TablePage filters={filters} setFilters={setFilters} />
             : page === 'board' ? <BoardPage filters={filters} setFilters={setFilters} />
+            : page === 'roles' ? <RolesPage onScanForRole={scanForRole} />
             : page === 'templates' ? <TemplatesPage />
             : page === 'import' ? <ImportPage />
-            : page === 'sources' ? <SourcesPage />
+            : page === 'sources' ? <SourcesPage seed={scanSeed} clearSeed={() => setScanSeed(null)} />
             : page === 'metrics' ? <MetricsPage />
             : page === 'settings' ? <SettingsPage />
             : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}

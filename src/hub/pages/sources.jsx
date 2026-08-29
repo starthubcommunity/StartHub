@@ -39,6 +39,16 @@ const STATUS_OPTS = [
 
 const BLANK = { location: 'Turkey', language: 'TypeScript', minRepos: 3, minFollowers: 0, activeMonths: 6 };
 
+// Rolün skills[] alanından GitHub dilini çıkar (§12.4 — kullanıcı elle girmez).
+const KNOWN_LANGS = ['TypeScript', 'JavaScript', 'Python', 'Go', 'Rust', 'Swift', 'Kotlin', 'Java', 'C++', 'C#', 'Ruby', 'PHP', 'Dart', 'Scala', 'Elixir'];
+function langFromSkills(skills = []) {
+  for (const s of skills) {
+    const hit = KNOWN_LANGS.find((l) => l.toLowerCase() === String(s).toLowerCase());
+    if (hit) return hit;
+  }
+  return skills[0] || '';
+}
+
 function SignalGrid({ e }) {
   const cells = [
     ['Bitmiş proje', e.finished_projects],
@@ -60,9 +70,10 @@ function SignalGrid({ e }) {
   );
 }
 
-function GitHubScan() {
+function GitHubScan({ seed, clearSeed }) {
   const store = useHubStore();
-  const [params, setParams] = useState(BLANK);
+  const [params, setParams] = useState(() =>
+    seed?.skills?.length ? { ...BLANK, language: langFromSkills(seed.skills) } : BLANK);
   const [token, setToken] = useState('');   // yalnızca RAM — kaydedilmez
   const [limit, setLimit] = useState(12);
   const [deep, setDeep] = useState(false);
@@ -129,8 +140,9 @@ function GitHubScan() {
           university: null,                       // §8.6.4: üniversite gelmez
           eduStatus: r.company ? 'working' : 'unknown',
           roleType: 'technical',
+          openRoleId: seed?.roleId ?? null,       // §12.4 — rolden başlatıldıysa bağla
           source: 'github',
-          sourceDetail: 'GitHub taraması',
+          sourceDetail: seed?.roleTitle ? `GitHub taraması · ${seed.roleTitle}` : 'GitHub taraması',
           dataTrust: 'guess',                     // §8.6.4
           stage: 'pool',
           enrichment: r.enrichment,
@@ -144,7 +156,7 @@ function GitHubScan() {
           retainUntil,
         });
       }
-      setDone(`${take.length} aday havuza eklendi.`);
+      setDone(`${take.length} aday havuza eklendi${seed?.roleTitle ? ` ve "${seed.roleTitle}" rolüne bağlandı` : ''}.`);
       setRows(null);
     } catch (e) { setErr(e.message); }
     setBusy(false);
@@ -161,6 +173,14 @@ function GitHubScan() {
           </p>
         </div>
       </div>
+
+      {seed?.roleTitle && (
+        <div className="hub-ai" style={{ marginBottom: 12 }}>
+          <b>Rol için tarama:</b> {seed.roleTitle} · beceriler: {(seed.skills || []).join(', ') || '—'} ·
+          dil rolden çıkarıldı: <strong>{params.language || '—'}</strong>. Eklenen adaylar bu role bağlanır.
+          {clearSeed && <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 10 }} onClick={clearSeed}>Rol bağını kaldır</button>}
+        </div>
+      )}
 
       <UnknowablePanel />
 
@@ -381,11 +401,11 @@ function SourceRegistry() {
   );
 }
 
-export default function SourcesPage() {
+export default function SourcesPage({ seed = null, clearSeed }) {
   return (
     <div>
       <SourceRegistry />
-      <GitHubScan />
+      <GitHubScan seed={seed} clearSeed={clearSeed} />
     </div>
   );
 }
