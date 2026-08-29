@@ -99,8 +99,11 @@ export default function TodayPage({ onGoto }) {
 
   // ── Role göre bloklar (§12.5) ────────────────────────────────
   const roleRequests = (openRoles || []).filter((r) => r.status === 'requested');   // recruiter
+  // "Aday bekleyen roller": aranıyor ama üzerinde reddedilmemiş/arşivlenmemiş
+  // aday yok. Ret sonrası sourcing'e dönen rol de buraya düşer (§12.3).
   const rolesWaitingCands = (openRoles || []).filter(
-    (r) => r.status === 'sourcing' && candidates.every((c) => c.openRoleId !== r.id)   // recruiter — hiç aday yok
+    (r) => r.status === 'sourcing' &&
+      !candidates.some((c) => c.openRoleId === r.id && c.ownerDecision !== 'rejected' && c.stage !== 'archived')
   );
   const presentedToMe = candidates.filter(                                          // project_owner
     (c) => c.presentedAt && (!c.ownerDecision || c.ownerDecision === 'pending') &&

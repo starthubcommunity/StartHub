@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
 import { supabase } from '../lib/supabase';
 import { HUB_TABLES } from './hub-mappers';
+import { roleStatusAfterReject } from './hub-rules';
 
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
 // interviews tek aday için loadHistory() ile çekilir; touches/gates Bugün
@@ -314,13 +315,14 @@ export function HubStoreProvider({ children }) {
   }, [data, patchLocal, updateItem, logRoleStatus, currentMember]);
 
   // §12.3 adım 5: eşiği geçen adayı proje sahibine sun. Aday `presented_at` +
-  // owner_decision='pending' alır, açık role bağlanır, rol `shortlist` olur.
+  // owner_decision='pending' alır (eski karar/gerekçe SIFIRLANIR — reddedilen
+  // aday yeniden sunulabilir), açık role bağlanır, rol `shortlist` olur.
   // presentGate kontrolü çağıran tarafta (canPresent).
   const presentCandidate = useCallback(async (candidateId, roleId) => {
     const cand = data.candidates.find((c) => c.id === candidateId);
     if (!cand) return;
     const now = new Date().toISOString();
-    const patch = { presentedAt: now, ownerDecision: 'pending', openRoleId: roleId };
+    const patch = { presentedAt: now, ownerDecision: 'pending', ownerDecisionNote: null, openRoleId: roleId };
     patchLocal('candidates', candidateId, patch);
     await updateItem('candidates', candidateId, { ...cand, ...patch });
     const role = data.openRoles.find((r) => r.id === roleId);
@@ -329,9 +331,13 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, patchLocal, updateItem, advanceRole]);
 
-  // §12.3 adım 6-7: proje sahibi kararı. GEREKÇE ZORUNLU. Kabul → aday finalist
-  // + Kapı A başlar (kurucu hattı ilerisi Kapı A'da normal akar); rol shortlist'te
-  // kalır (aday joined olunca filled). Ret → aday olduğu yerde kalır.
+  // §12.3 adım 6-7: proje sahibi kararı. GEREKÇE ZORUNLU.
+  // Kabul → aday finalist + Kapı A başlar; rol shortlist'te kalır (aday joined
+  //   olunca filled).
+  // Ret → aday hatta kalır (recruiter arşivler veya başka role sunar). Rol
+  //   ASILI BIRAKILMAZ (§12.3): bu role bağlı başka `pending` sunulmuş aday
+  //   yoksa rol `sourcing`'e döner + hub_role_log'a not düşülür; varsa
+  //   `shortlist`'te kalır.
   const ownerDecide = useCallback(async (candidateId, decision, note) => {
     if (!note || !note.trim()) throw new Error('Karar gerekçesi zorunludur.');
     const cand = data.candidates.find((c) => c.id === candidateId);
@@ -353,8 +359,12 @@ export function HubStoreProvider({ children }) {
         patchLocal('openRoles', role.id, { acceptedAt: new Date().toISOString() });
         await updateItem('openRoles', role.id, { ...role, acceptedAt: new Date().toISOString() });
       }
+    } else if (decision === 'rejected' && role) {
+      if (roleStatusAfterReject(role, data.candidates, candidateId) === 'sourcing') {
+        await advanceRole(role.id, 'sourcing', { note: 'aday reddedildi, arama sürüyor' });
+      }
     }
-  }, [data, patchLocal, updateCandidate, updateItem, advanceStage, startGate]);
+  }, [data, patchLocal, updateCandidate, updateItem, advanceStage, advanceRole, startGate]);
 
   // ── İçe aktarma (§8.6.3) ───────────────────────────────────────
   // Ham metin hub_import_batches.raw_text'e saklanır. Kabul edilen her satır

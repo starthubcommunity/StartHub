@@ -177,6 +177,18 @@ export function presentGate(candidate, openRole) {
   return { ok: true };
 }
 
+// roleStatusAfterReject(role, roleCandidates, rejectedId) -> yeni durum
+// §12.3 "Ret asılı bırakılmaz": proje sahibi bir adayı reddettiğinde, o role
+// bağlı BAŞKA `pending` sunulmuş aday yoksa rol `sourcing`'e döner; varsa
+// `shortlist`'te kalır. Yalnızca `shortlist`'ten geri döndürür.
+export function roleStatusAfterReject(role, roleCandidates, rejectedId) {
+  if (!role || role.status !== 'shortlist') return role?.status ?? null;
+  const othersPending = (roleCandidates || []).some(
+    (c) => c.id !== rejectedId && c.openRoleId === role.id && c.ownerDecision === 'pending'
+  );
+  return othersPending ? 'shortlist' : 'sourcing';
+}
+
 // isStale(candidate, now) -> { stale, level: 'warn'|'critical'|null, days }
 // §9 tablosu: aşamaya göre sayaç referansı ve eşikler.
 //   contacted   → last_contact_at   (7 / 14 gün)

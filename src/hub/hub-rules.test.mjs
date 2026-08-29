@@ -1,7 +1,7 @@
 // hub-rules.test.mjs — kural motoru senaryoları.
 // Test kütüphanesi yok — düz node. Çalıştır: node src/hub/hub-rules.test.mjs
 import assert from 'node:assert/strict';
-import { canAdvance, thresholdMet, thresholdText, presentGate, isStale, gateStatus, rubricComplete } from './hub-rules.js';
+import { canAdvance, thresholdMet, thresholdText, presentGate, roleStatusAfterReject, isStale, gateStatus, rubricComplete } from './hub-rules.js';
 import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
 import { matchScore, suggestRolesFor } from './hub-match.js';
@@ -130,6 +130,24 @@ t('thresholdText hat bazında okunur', () => {
   assert.match(thresholdText('member'), /bitirmişlik ≥ 3 ve kapasite ≥ 3/);
   assert.match(thresholdText('member', { needsCommunication: true }), /iletişim ≥ 3/);
 });
+t('§12.3 ret asılı bırakılmaz: tek adaylı rolde ret → sourcing\'e döner', () => {
+  const role = { id: 'r1', status: 'shortlist' };
+  const cands = [{ id: 'c1', openRoleId: 'r1', ownerDecision: 'pending' }];
+  assert.equal(roleStatusAfterReject(role, cands, 'c1'), 'sourcing');
+});
+t('§12.3: iki adaylı rolde biri reddedilince rol shortlist\'te kalır', () => {
+  const role = { id: 'r1', status: 'shortlist' };
+  const cands = [
+    { id: 'c1', openRoleId: 'r1', ownerDecision: 'pending' },
+    { id: 'c2', openRoleId: 'r1', ownerDecision: 'pending' },
+  ];
+  assert.equal(roleStatusAfterReject(role, cands, 'c1'), 'shortlist');   // c2 hâlâ pending
+});
+t('roleStatusAfterReject: shortlist dışında dokunmaz', () => {
+  assert.equal(roleStatusAfterReject({ id: 'r1', status: 'sourcing' }, [], 'c1'), 'sourcing');
+  assert.equal(roleStatusAfterReject({ id: 'r1', status: 'filled' }, [], 'c1'), 'filled');
+});
+
 t('matchScore: role_type + beceri örtüşmesi + hat uyumu (§12.4)', () => {
   const role = { roleType: 'technical', skills: ['React', 'SQL'], track: 'member', status: 'sourcing' };
   const strong = { roleType: 'technical', skills: ['react', 'sql', 'go'], track: 'member' };
