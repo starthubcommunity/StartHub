@@ -242,3 +242,18 @@ export function gateStatus(gate, now = Date.now()) {
   if (nowT - due <= GATE_DUE_GRACE_MS) return 'due';
   return 'overdue';
 }
+
+// candidateVisible(candidate, ctx) -> bir üye bu adayı görebilir mi? (§12.7)
+// ctx.readAll  : candidates.read_all yetkisi (cofounder/recruiter) → her aday.
+// ctx.myStartupIds : üyenin proje kapsamı (startup_id listesi).
+// read_all yoksa: yalnızca KENDİ projesine SUNULMUŞ aday görünür.
+// SQL tarafındaki hub_sees_candidate() ile birebir aynı kural.
+export function candidateVisible(candidate, { readAll = false, myStartupIds = [] } = {}) {
+  if (readAll) return true;
+  if (!candidate) return false;
+  return (
+    candidate.presentedAt != null &&
+    candidate.startupId != null &&
+    (myStartupIds || []).includes(candidate.startupId)
+  );
+}

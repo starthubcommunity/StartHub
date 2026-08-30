@@ -71,9 +71,10 @@ insert into permission_keys (area, key, grp, label, sort_order) values
   ('admin','settings.write','Ayarlar','Site ayarlarını değiştir',110),
   ('admin','members.manage','Üyeler','Üye ve yetki yönetimi',120),
   ('hub','candidates.read','Adaylar','Adayları görüntüle',10),
-  ('hub','candidates.write','Adaylar','Aday oluştur / düzenle',11),
-  ('hub','candidates.archive','Adaylar','Aday arşivle',12),
-  ('hub','candidates.purge','Adaylar','Adayı tamamen sil (KVKK)',13),
+  ('hub','candidates.read_all','Adaylar','Tüm aday havuzunu görür',11),
+  ('hub','candidates.write','Adaylar','Aday oluştur / düzenle',12),
+  ('hub','candidates.archive','Adaylar','Aday arşivle',13),
+  ('hub','candidates.purge','Adaylar','Adayı tamamen sil (KVKK)',14),
   ('hub','stage.advance','Hat','Aşama ilerlet',20),
   ('hub','interview.score','Hat','Rubrik puanla',21),
   ('hub','flags.override','Hat','Kırmızı bayrak override',22),
@@ -120,7 +121,8 @@ insert into permission_presets (area, role, key)
      and key not in ('decide','flags.override','members.manage','settings.write','candidates.purge')
 on conflict do nothing;
 
--- hub/project_owner
+-- hub/project_owner — candidates.read VAR ama candidates.read_all YOK:
+-- yalnızca kendi projesine SUNULMUŞ adayı görür (§12.7, hc_read politikası).
 insert into permission_presets (area, role, key) values
   ('hub','project_owner','candidates.read'),('hub','project_owner','interview.score'),
   ('hub','project_owner','roles.read'),('hub','project_owner','roles.create'),
@@ -190,6 +192,21 @@ language sql stable security definer set search_path = public as $$
   from permission_keys pk cross join m
   where pk.area = p_area
   order by pk.sort_order, pk.key;
+$$;
+
+-- Bir adayı görme hakkı (§12.7): candidates.read_all olan HERKESİ görür;
+-- yoksa yalnızca KENDİ projesine SUNULMUŞ adayı. hub_candidates ve tüm
+-- alt kayıt tabloları (stage_log, touches, interviews, gates) bunu kullanır.
+create or replace function hub_sees_candidate(p_cand uuid) returns boolean
+language sql stable security definer set search_path = public, auth as $$
+  select has_perm('candidates.read_all')
+     or exists (
+       select 1 from hub_candidates c
+        where c.id = p_cand
+          and c.presented_at is not null
+          and c.startup_id is not null
+          and c.startup_id = any (hub_my_startups())
+     );
 $$;
 
 -- ── Kilitlenme koruması + günlük (VERİTABANI SEVİYESİNDE) ─────
@@ -398,18 +415,78 @@ begin
   end loop;
 end $$;
 
-create policy hc_read   on hub_candidates for select using (has_perm('candidates.read'));
+-- yeni politika adları da drop-if-exists (tekrar çalıştırılabilirlik)
+do $$
+declare p text; t text;
+begin
+  foreach p in array array[
+    'hc_read','hc_write','hc_update','hc_delete','hsl_read','hsl_ins',
+    'ht_read','ht_write','hi_read','hi_write','hg_read','hg_write','hv_all',
+    'hr_read','hr_ins','hr_update','hr_delete','hrl_read','hrl_ins',
+    'htpl_read','htpl_write','hsrc_read','hsrc_write','hib_read','hib_ins',
+    'ht_all','hi_all','hg_all'
+  ] loop
+    foreach t in array array[
+      'hub_candidates','hub_stage_log','hub_touches','hub_interviews','hub_gates',
+      'hub_views','hub_open_roles','hub_role_log','hub_templates',
+      'hub_source_registry','hub_import_batches'
+    ] loop
+      execute format('drop policy if exists %I on %I', p, t);
+    end loop;
+  end loop;
+end $$;
+
+-- ── Adaylar — §12.7: proje sahibi yalnızca KENDİ projesine SUNULMUŞ adayı ──
+-- candidates.read_all → tüm havuz (cofounder/recruiter).
+create policy hc_read on hub_candidates for select using (
+  has_perm('candidates.read_all')
+  or (
+    has_perm('candidates.read')
+    and presented_at is not null
+    and startup_id is not null
+    and startup_id = any (hub_my_startups())
+  )
+);
 create policy hc_write  on hub_candidates for insert with check (has_perm('candidates.write'));
-create policy hc_update on hub_candidates for update using (has_perm('candidates.write')) with check (has_perm('candidates.write'));
+-- Güncelleme: candidates.write olan her şeyi; proje sahibi (decide) yalnızca
+-- kendi projesine sunulmuş adayı (owner_decision / gerekçe yazabilsin — 0006).
+create policy hc_update on hub_candidates for update
+  using (
+    has_perm('candidates.write')
+    or (has_perm('decide') and presented_at is not null
+        and startup_id is not null and startup_id = any (hub_my_startups()))
+  )
+  with check (
+    has_perm('candidates.write')
+    or (has_perm('decide') and startup_id is not null
+        and startup_id = any (hub_my_startups()))
+  );
 create policy hc_delete on hub_candidates for delete using (has_perm('candidates.purge'));
 
-create policy hsl_read on hub_stage_log for select using (has_perm('candidates.read'));
+-- Alt kayıtlar aday görünürlüğünü izler (hub_sees_candidate).
+create policy hsl_read on hub_stage_log for select
+  using (has_perm('candidates.read') and hub_sees_candidate(candidate_id));
 create policy hsl_ins  on hub_stage_log for insert with check (has_perm('stage.advance'));
 
-create policy ht_all on hub_touches    for all using (has_perm('candidates.write')) with check (has_perm('candidates.write'));
-create policy hi_all on hub_interviews for all using (has_perm('interview.score')) with check (has_perm('interview.score'));
-create policy hg_all on hub_gates      for all using (has_perm('stage.advance'))   with check (has_perm('stage.advance'));
-create policy hv_all on hub_views      for all using (has_perm('candidates.read')) with check (has_perm('candidates.read'));
+create policy ht_read  on hub_touches for select
+  using (has_perm('candidates.read') and hub_sees_candidate(candidate_id));
+create policy ht_write on hub_touches for all
+  using (has_perm('candidates.write') and hub_sees_candidate(candidate_id))
+  with check (has_perm('candidates.write') and hub_sees_candidate(candidate_id));
+
+create policy hi_read  on hub_interviews for select
+  using (has_perm('interview.score') and hub_sees_candidate(candidate_id));
+create policy hi_write on hub_interviews for all
+  using (has_perm('interview.score') and hub_sees_candidate(candidate_id))
+  with check (has_perm('interview.score') and hub_sees_candidate(candidate_id));
+
+create policy hg_read  on hub_gates for select
+  using (has_perm('candidates.read') and hub_sees_candidate(candidate_id));
+create policy hg_write on hub_gates for all
+  using (has_perm('stage.advance') and hub_sees_candidate(candidate_id))
+  with check (has_perm('stage.advance') and hub_sees_candidate(candidate_id));
+
+create policy hv_all on hub_views for all using (has_perm('candidates.read')) with check (has_perm('candidates.read'));
 
 create policy hr_read   on hub_open_roles for select using (has_perm('roles.read'));
 create policy hr_ins    on hub_open_roles for insert with check (has_perm('roles.create'));

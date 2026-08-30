@@ -1,7 +1,7 @@
 // hub-rules.test.mjs — kural motoru senaryoları.
 // Test kütüphanesi yok — düz node. Çalıştır: node src/hub/hub-rules.test.mjs
 import assert from 'node:assert/strict';
-import { canAdvance, thresholdMet, thresholdText, presentGate, roleStatusAfterReject, inheritedTrack, isStale, gateStatus, rubricComplete } from './hub-rules.js';
+import { canAdvance, thresholdMet, thresholdText, presentGate, roleStatusAfterReject, inheritedTrack, isStale, gateStatus, rubricComplete, candidateVisible } from './hub-rules.js';
 import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
 import { matchScore, suggestRolesFor } from './hub-match.js';
@@ -458,6 +458,28 @@ t('"neden bu kişi": somut esere atıf, en fazla iki cümle', () => {
   assert.ok(w.includes('tid-ceviri'), 'repo adına atıf olmalı');
   assert.ok((w.match(/\./g) || []).length <= 2, 'en fazla iki cümle');
   assert.doesNotMatch(w, /yetenekli|başarılı|harika|etkileyici/i, 'sıfat kullanılmamalı');
+});
+
+// ── candidateVisible: §12.7 aday okuma kapsamı ─────────────────────
+t('project_owner: kendisine SUNULMAMIŞ adayı GÖREMİYOR', () => {
+  const c = { presentedAt: null, startupId: 7 };
+  assert.equal(candidateVisible(c, { readAll: false, myStartupIds: [7] }), false);
+});
+t('project_owner: sunulmuş ama BAŞKA projenin adayını göremiyor', () => {
+  const c = { presentedAt: ago(1), startupId: 9 };
+  assert.equal(candidateVisible(c, { readAll: false, myStartupIds: [7] }), false);
+});
+t('project_owner: sunulmuş VE kendi projesindeki adayı görüyor', () => {
+  const c = { presentedAt: ago(1), startupId: 7 };
+  assert.equal(candidateVisible(c, { readAll: false, myStartupIds: [7, 12] }), true);
+});
+t('project_owner: startup_id boş → görünmez (uydurma kapsam yok)', () => {
+  const c = { presentedAt: ago(1), startupId: null };
+  assert.equal(candidateVisible(c, { readAll: false, myStartupIds: [7] }), false);
+});
+t('cofounder/recruiter (read_all): sunulmamış adayı bile görür', () => {
+  const c = { presentedAt: null, startupId: null };
+  assert.equal(candidateVisible(c, { readAll: true }), true);
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);
