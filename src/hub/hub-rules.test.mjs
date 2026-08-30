@@ -103,10 +103,12 @@ t('üye hattı: iletişim yalnızca rol needs_communication ise zorunlu', () => 
   assert.equal(thresholdMet({ track: 'member', ...SC }, { needsCommunication: true }), false);   // comm 2 < 3
   assert.equal(thresholdMet({ track: 'member', ...SC, scoreCommunication: 3 }, { needsCommunication: true }), true);
 });
-t('üye hattı: görüşmeye geçiş için bitirmişlik+kapasite yeter (iletişim boş olabilir)', () => {
-  const c = cand({ track: 'member', stage: 'replied', scoreFinishing: 3, scoreCapacity: 3 });
-  assert.equal(canAdvance(c, 'interviewed').ok, true);
-  assert.equal(canAdvance(cand({ track: 'founder', stage: 'replied', scoreFinishing: 3, scoreCapacity: 3 }), 'interviewed').ok, false);
+t('üye hattı: FİNALİST için bitirmişlik+kapasite yeter; kurucu hattı üç eksen ister', () => {
+  const m = cand({ track: 'member', stage: 'interviewed', scoreFinishing: 3, scoreCapacity: 3 });
+  assert.equal(canAdvance(m, 'finalist').ok, true);   // iletişim boş — üye hattında sorun değil
+  const r = canAdvance(cand({ track: 'founder', stage: 'interviewed', scoreFinishing: 3, scoreCapacity: 3 }), 'finalist');
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /[Rr]ubrik/);               // "eşik" değil, "rubrik" der
 });
 t('üye hattında Kapı B İSTENMEZ (gate_a → joined tek adım)', () => {
   const r = canAdvance(cand({ track: 'member', stage: 'gate_a' }), 'gate_b');
@@ -174,13 +176,14 @@ t('matchScore: role_type + beceri örtüşmesi + hat uyumu (§12.4)', () => {
 });
 
 // ── canAdvance: interviewed / contacted / gates / archived ─────────
-t('rubrik dolmadan görüşme aşamasına geçilemez', () => {
-  const r = canAdvance(cand({ stage: 'replied', scoreFinishing: 3 }), 'interviewed');
-  assert.equal(r.ok, false);
-  assert.match(r.reason, /[Rr]ubrik/);
+t('§2.2: rubrik GİRİŞTE aranmaz — puansız aday da replied→interviewed GEÇER', () => {
+  assert.equal(canAdvance(cand({ stage: 'replied', scoreFinishing: 3 }), 'interviewed').ok, true);
+  assert.equal(canAdvance(cand({ stage: 'replied' }), 'interviewed').ok, true);   // hiç puan yok
 });
-t('rubrik dolunca görüşme aşamasına geçilebilir', () => {
-  assert.equal(canAdvance(cand({ stage: 'replied', scoreFinishing: 3, scoreCommunication: 3, scoreCapacity: 3 }), 'interviewed').ok, true);
+t('KABUL: puansız aday interviewed→finalist GEÇEMEZ, mesaj rubriği işaret eder', () => {
+  const r = canAdvance(cand({ stage: 'interviewed' }), 'finalist');
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /Rubrik doldurulmadan finalist/);
 });
 t('temas kaydı yokken contacted OLAMAZ', () => {
   assert.equal(canAdvance(cand({ stage: 'pool' }), 'contacted').ok, false);

@@ -11,9 +11,20 @@ const asTime = (v) => (v ? new Date(v).getTime() : null);
 const toMs = (now) => (typeof now === 'number' ? now : new Date(now).getTime());
 const filled = (v) => v !== null && v !== undefined && String(v).trim() !== '';
 
-// Rubriğin üç ekseni de girilmiş mi (§2.3).
+// Rubriğin üç ekseni de girilmiş mi (§2.3 — kurucu hattı).
 export function rubricComplete(c) {
   return c?.scoreFinishing != null && c?.scoreCommunication != null && c?.scoreCapacity != null;
+}
+
+// Bu HATTIN rubriği dolu mu? Kurucu: üç eksen. Üye: bitirmişlik + kapasite
+// (iletişim yalnızca rol needs_communication ise) — §12.1.
+export function rubricCompleteFor(c, openRole = null) {
+  if ((c?.track || 'founder') === 'member') {
+    if (c?.scoreFinishing == null || c?.scoreCapacity == null) return false;
+    if (openRole?.needsCommunication && c?.scoreCommunication == null) return false;
+    return true;
+  }
+  return rubricComplete(c);
 }
 
 // Puan eşiği — HAT BAZINDA (§12.1). İkinci parametre bağlı açık rol
@@ -62,21 +73,21 @@ function targetGate(c, toStage, ctx = {}) {
     }
 
     case 'interviewed': {
+      // §2.2 — "Cevap → Görüşme" geçişi "bu kişiyle konuştum" demek; rubrik
+      // GÖRÜŞMEDEN ÇIKIŞTA aranır, girişte değil. Rubrik kontrolü YOK.
       if (interviewCount != null && interviewCount < 1)
         return { ok: false, reason: 'Görüşme kaydı yok.' };
-      // Üye hattında iletişim ekseni boş olabilir (§12.1) — rubrik "dolu"
-      // sayılması için bitirmişlik + kapasite yeter.
-      const complete = track === 'member'
-        ? (c.scoreFinishing != null && c.scoreCapacity != null)
-        : rubricComplete(c);
-      return complete
-        ? { ok: true }
-        : { ok: false, reason: track === 'member'
-            ? 'Bitirmişlik ve kapasite girilmeden görüşme aşamasına geçilemez.'
-            : 'Rubrik doldurulmadan görüşme aşamasına geçilemez — üç eksen de girilmeli.' };
+      return { ok: true };
     }
 
     case 'finalist': {
+      // Rubrik eksikliğini önce ve NET mesajla bildir (thresholdMet zaten
+      // eksik puanda geçmez ama "eşik sağlanmadı" kullanıcıya neden söylemez).
+      if (!rubricCompleteFor(c, openRole))
+        return {
+          ok: false,
+          reason: 'Rubrik doldurulmadan finalist yapılamaz — üye hattında bitirmişlik ve kapasite, kurucu hattında üç eksen de girilmeli.',
+        };
       if (!thresholdMet(c, openRole))
         return {
           ok: false,
