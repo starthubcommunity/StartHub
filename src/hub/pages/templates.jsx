@@ -7,7 +7,7 @@
 import React, { useState, useMemo } from 'react';
 import { AIcon, Modal, Field, Input, Textarea, Select, ConfirmDialog } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
-import { useHubMember } from '../hub-member';
+import { usePerms } from '../../lib/use-perms';
 import { SOURCES } from '../hub-constants';
 
 export const TEMPLATE_TYPES = [
@@ -42,8 +42,8 @@ const BLANK = { name: '', sourceType: '', variant: 'A', subject: '', body: '', a
 
 export default function TemplatesPage() {
   const { templates, addItem, updateItem, deleteItem } = useHubStore();
-  const role = useHubMember();
-  const canWrite = role === 'cofounder';
+  const { can } = usePerms();
+  const canWrite = can('templates.manage');
 
   const [editing, setEditing] = useState(null); // {} (new) | row | null
   const [confirm, setConfirm] = useState(null);

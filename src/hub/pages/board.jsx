@@ -4,6 +4,7 @@
 import React, { useState, useMemo } from 'react';
 import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
+import { usePerms } from '../../lib/use-perms';
 import { STAGES, SOURCE_LABEL } from '../hub-constants';
 import { canAdvance, thresholdMet, isStale } from '../hub-rules';
 import { stageConversion } from '../hub-metrics';
@@ -13,12 +14,12 @@ import CandidatePanel from './candidate';
 const initials = (member) =>
   (member?.fullName || member?.email || '?').trim().slice(0, 2).toUpperCase();
 
-function BoardCard({ c, owner, onOpen, onDragStart, onDragEnd }) {
+function BoardCard({ c, owner, onOpen, onDragStart, onDragEnd, canDrag = true }) {
   const met = thresholdMet(c);
   const flags = (c.redFlags || []).length;
   const stale = isStale(c);
   return (
-    <div className="hub-card" draggable
+    <div className="hub-card" draggable={canDrag}
       onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onOpen}>
       <div className="hub-card__name">
         <span>{c.fullName}</span>
@@ -44,6 +45,8 @@ export default function BoardPage({ filters, setFilters }) {
   const store = useHubStore();
   const { candidates, members, stageLog } = store;
   const role = useHubMember();
+  const { can } = usePerms();
+  const canStage = can('stage.advance');
   const [openId, setOpenId] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [overStage, setOverStage] = useState(null);
@@ -73,6 +76,7 @@ export default function BoardPage({ filters, setFilters }) {
     const id = dragId;
     setDragId(null);
     if (!id) return;
+    if (!canStage) { flash('Aşama ilerletme yetkin yok.'); return; }
     const row = candidates.find((c) => c.id === id);
     if (!row || row.stage === toStage) return;
     const chk = canAdvance(row, toStage, { role, touchCount: row.lastContactAt ? 1 : 0 });
@@ -110,7 +114,7 @@ export default function BoardPage({ filters, setFilters }) {
               </div>
               <div className="hub-board__cards">
                 {list.map((c) => (
-                  <BoardCard key={c.id} c={c} owner={memberById[c.ownerId]}
+                  <BoardCard key={c.id} c={c} owner={memberById[c.ownerId]} canDrag={canStage}
                     onOpen={() => setOpenId(c.id)}
                     onDragStart={() => setDragId(c.id)}
                     onDragEnd={() => { setDragId(null); setOverStage(null); }} />

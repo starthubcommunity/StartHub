@@ -10,8 +10,9 @@ import { AnalyticsPage } from './admin-analytics';
 import { PeoplePage, SponsorsPage, TrashPage } from './admin-pages2';
 import { ApplicationsPage } from './admin-applications';
 import { SettingsPage } from './admin-settings';
-import { AdminMembersPage } from './admin-members';
+import PermissionsScreen from './permissions-screen';
 import { supabase, setRememberMe } from '../lib/supabase';
+import { PermsProvider, usePerms } from '../lib/use-perms';
 
 // Ortak kart kabuğu — giriş / şifremi unuttum / e-posta gönderildi ekranları
 // hepsi bu çerçeveyi paylaşır.
@@ -287,8 +288,6 @@ function NoAccessPage({ email, onLogout }) {
   );
 }
 
-const EDITOR_PAGES = ['posts', 'analytics'];
-
 // ─── MAIN APP ─────────────────────────────────────────────────────────
 function AdminApp() {
   const [session, setSession]         = useStateA(null);
@@ -299,6 +298,7 @@ function AdminApp() {
   const [page, setPage]               = useStateA(() => sessionStorage.getItem('sh_adm_page') || 'dashboard');
   const [mobileNavOpen, setMobileNavOpen] = useStateA(false);
   const { trash, saveError } = useAdmin();
+  const { can, loading: permsLoading } = usePerms();
 
   // Tüm hook'lar koşulsuz — early return'lardan önce
   useEffectA(() => {
@@ -339,31 +339,31 @@ function AdminApp() {
   if (authLoading) return <AuthLoading />;
   if (recovery)    return <SetNewPasswordPage onDone={() => setRecovery(false)} />;
   if (!session)    return <LoginPage />;
-  if (roleLoading) return <AuthLoading />;
+  if (roleLoading || permsLoading) return <AuthLoading />;
   if (!role)       return <NoAccessPage email={session.user.email || ''} onLogout={handleLogout} />;
 
   // Supabase session'dan kullanıcı bilgisi türet
   const email     = session.user.email || '';
   const initials  = email[0]?.toUpperCase() || 'A';
   const shortName = email.split('@')[0];
-  const isAdmin   = role === 'admin';
 
-  const nav = [
-    { id: 'dashboard',     label: 'Dashboard',       icon: 'dashboard' },
-    { id: 'projects',      label: 'Projeler',         icon: 'rocket' },
-    { id: 'posts',         label: 'Yazılar',          icon: 'layers' },
-    { id: 'analytics',     label: 'Analitik',         icon: 'trendingUp' },
-    { id: 'automation',    label: 'Otomasyon',        icon: 'zap' },
-    { id: 'people',        label: 'Ekip & Mentörler', icon: 'users' },
-    { id: 'sponsors',      label: 'Destekçiler',      icon: 'handshake' },
-    { id: 'applications',  label: 'Başvurular',       icon: 'penEdit' },
-    { id: 'members',       label: 'Üyeler',           icon: 'users', adminOnly: true },
-    { id: 'settings',      label: 'Site Ayarları',    icon: 'settings' },
-    { id: 'trash',         label: 'Son Silinenler',   icon: 'trash', badge: trash.length, adminOnly: true },
-  ].filter(n => isAdmin || (EDITOR_PAGES.includes(n.id) && !n.adminOnly));
-
-  // editor izinsiz bir sayfadaysa Yazılar'a düşür
-  const activePage = isAdmin ? page : (EDITOR_PAGES.includes(page) ? page : 'posts');
+  // Menü YETKİYE göre çizilir (rol adına göre değil). Yetkisi olmayan öğe
+  // menüde HİÇ görünmez. Asıl kapı RLS'tir; bu yalnızca kafa karışıklığını önler.
+  const NAV = [
+    { id: 'dashboard',     label: 'Dashboard',       icon: 'dashboard',  perm: null },
+    { id: 'projects',      label: 'Projeler',         icon: 'rocket',    perm: 'projects.read' },
+    { id: 'posts',         label: 'Yazılar',          icon: 'layers',    perm: 'posts.read' },
+    { id: 'analytics',     label: 'Analitik',         icon: 'trendingUp', perm: 'analytics.read' },
+    { id: 'automation',    label: 'Otomasyon',        icon: 'zap',       perm: 'automation.read' },
+    { id: 'people',        label: 'Ekip & Mentörler', icon: 'users',     perm: 'people.read' },
+    { id: 'sponsors',      label: 'Destekçiler',      icon: 'handshake', perm: 'sponsors.read' },
+    { id: 'applications',  label: 'Başvurular',       icon: 'penEdit',   perm: 'applications.read' },
+    { id: 'members',       label: 'Yetkiler',         icon: 'users',     perm: 'members.manage' },
+    { id: 'settings',      label: 'Site Ayarları',    icon: 'settings',  perm: 'settings.write' },
+    { id: 'trash',         label: 'Son Silinenler',   icon: 'trash', badge: trash.length, perm: 'trash.read' },
+  ];
+  const nav = NAV.filter(n => !n.perm || can(n.perm));
+  const activePage = nav.some(n => n.id === page) ? page : (nav[0]?.id || 'dashboard');
 
   const renderPage = () => {
     switch (activePage) {
@@ -374,7 +374,7 @@ function AdminApp() {
       case 'people':     return <PeoplePage />;
       case 'sponsors':      return <SponsorsPage />;
       case 'applications':  return <ApplicationsPage />;
-      case 'members':       return <AdminMembersPage />;
+      case 'members':       return <PermissionsScreen area="admin" />;
       case 'settings':      return <SettingsPage />;
       case 'trash':         return <TrashPage />;
       default:           return <DashboardPage />;
@@ -453,9 +453,11 @@ function AdminApp() {
 
 function AdminRoot() {
   return (
-    <AdminProvider>
-      <AdminApp />
-    </AdminProvider>
+    <PermsProvider area="admin">
+      <AdminProvider>
+        <AdminApp />
+      </AdminProvider>
+    </PermsProvider>
   );
 }
 

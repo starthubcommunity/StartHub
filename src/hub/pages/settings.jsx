@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { AIcon, Field, Input, Select, Modal, ConfirmDialog } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
-import { useHubMember } from '../hub-member';
+import { usePerms } from '../../lib/use-perms';
 import {
   HUB_ROLES, HUB_ROLE_LABEL, RUBRIC_AXES, RED_FLAGS, THRESHOLD, STALE, GATE,
 } from '../hub-constants';
@@ -35,7 +35,7 @@ function MemberForm({ value, onChange }) {
 export default function SettingsPage() {
   const store = useHubStore();
   const { members, candidates } = store;
-  const role = useHubMember();
+  const { can } = usePerms();
 
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -53,8 +53,8 @@ export default function SettingsPage() {
       .catch(() => {});
   }, [members.length]);
 
-  if (role !== 'cofounder') {
-    return <div className="adm-empty">Ayarlar yalnızca kurucu rolünde açıktır.</div>;
+  if (!can('settings.write')) {
+    return <div className="adm-empty">Ayarları düzenleme yetkin yok.</div>;
   }
 
   const fmtLogin = (v) => (v ? new Date(v).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
@@ -179,20 +179,22 @@ export default function SettingsPage() {
       )}
 
       {/* ── KVKK ── */}
-      <h3 className="hub-h4" style={{ marginTop: 28 }}>KVKK — adayı tamamen sil</h3>
-      <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 8 }}>
-        Aday + tüm temas / görüşme / kapı / aşama kaydı + (o partide başka aday kalmadıysa) ham yapıştırma metni. Geri alınamaz.
-      </p>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <select className="adm-input adm-select" style={{ maxWidth: 320 }} value={purgeTarget} onChange={(e) => setPurgeTarget(e.target.value)}>
-          <option value="">Aday seç…</option>
-          {[...candidates].sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'tr'))
-            .map((c) => <option key={c.id} value={c.id}>{c.fullName} — {c.email || c.github || '—'}</option>)}
-        </select>
-        <button className="adm-btn adm-btn--danger adm-btn--sm" disabled={!purgeTarget} onClick={() => setPurgeConfirm(true)}>
-          Tamamen sil
-        </button>
-      </div>
+      {can('candidates.purge') && (<>
+        <h3 className="hub-h4" style={{ marginTop: 28 }}>KVKK — adayı tamamen sil</h3>
+        <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 8 }}>
+          Aday + tüm temas / görüşme / kapı / aşama kaydı + (o partide başka aday kalmadıysa) ham yapıştırma metni. Geri alınamaz.
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select className="adm-input adm-select" style={{ maxWidth: 320 }} value={purgeTarget} onChange={(e) => setPurgeTarget(e.target.value)}>
+            <option value="">Aday seç…</option>
+            {[...candidates].sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'tr'))
+              .map((c) => <option key={c.id} value={c.id}>{c.fullName} — {c.email || c.github || '—'}</option>)}
+          </select>
+          <button className="adm-btn adm-btn--danger adm-btn--sm" disabled={!purgeTarget} onClick={() => setPurgeConfirm(true)}>
+            Tamamen sil
+          </button>
+        </div>
+      </>)}
 
       <Modal open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? 'Üyeyi düzenle' : 'Yeni üye'}>
         {editing && (

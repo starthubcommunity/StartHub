@@ -7,6 +7,8 @@ import { supabase, setRememberMe } from '../lib/supabase';
 import { AIcon } from '../admin/admin-ui';
 import { HubStoreProvider } from './hub-store';
 import { HubMemberContext, useHubMember } from './hub-member';
+import { PermsProvider, usePerms } from '../lib/use-perms';
+import PermissionsScreen from '../admin/permissions-screen';
 import { EMPTY_FILTERS } from './components/filter-bar';
 import TodayPage from './pages/today';
 import TablePage from './pages/table';
@@ -306,22 +308,31 @@ function NoAccessPage({ email, onLogout }) {
 // ─── Uygulama kabuğu (rol geçtikten sonra) ─────────────────────────────
 // Router yok: sayfa geçişi useState + sessionStorage (proje kuralı).
 // Bu adımda yalnızca "Tablo" bağlı; diğer sayfalar sonraki adımlarda.
+// Her menü öğesi bir has_perm anahtarına bağlı (PARÇA 5). perm null ise herkese açık.
+// Yetkisi olmayan öğe menüde HİÇ görünmez (gri değil, yok).
 const NAV = [
-  { id: 'today',     label: 'Bugün',       icon: 'dashboard',  ready: true },
-  { id: 'table',     label: 'Tablo',       icon: 'layers',     ready: true },
-  { id: 'board',     label: 'Hat',         icon: 'trendingUp', ready: true },
-  { id: 'roles',     label: 'Açık Roller', icon: 'rocket',     ready: true },
-  { id: 'templates', label: 'Şablonlar',   icon: 'penEdit',    ready: true },
-  { id: 'import',    label: 'Yetenek avı', icon: 'upload',     ready: true },
-  { id: 'sources',   label: 'GitHub tarama', icon: 'refresh',  ready: true },
-  { id: 'metrics',   label: 'Metrikler',   icon: 'trendingUp', ready: true },
-  { id: 'settings',  label: 'Ayarlar',     icon: 'settings',   ready: true, cofounderOnly: true },
+  { id: 'today',     label: 'Bugün',       icon: 'dashboard',  perm: null },
+  { id: 'table',     label: 'Tablo',       icon: 'layers',     perm: 'candidates.read' },
+  { id: 'board',     label: 'Hat',         icon: 'trendingUp', perm: 'candidates.read' },
+  { id: 'roles',     label: 'Açık Roller', icon: 'rocket',     perm: 'roles.read' },
+  { id: 'templates', label: 'Şablonlar',   icon: 'penEdit',    perm: 'templates.read' },
+  { id: 'import',    label: 'Yetenek avı', icon: 'upload',     perm: 'import.run' },
+  { id: 'sources',   label: 'GitHub tarama', icon: 'refresh',  perm: 'sources.read' },
+  { id: 'metrics',   label: 'Metrikler',   icon: 'trendingUp', perm: 'metrics.read' },
+  { id: 'members',   label: 'Yetkiler',    icon: 'users',      perm: 'members.manage' },
+  { id: 'settings',  label: 'Ayarlar',     icon: 'settings',   perm: 'settings.write' },
 ];
 
 function HubApp({ email, onLogout }) {
   const role = useHubMember();
+  const { can, loading: permsLoading } = usePerms();
   const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'today');
   useEffect(() => { sessionStorage.setItem('sh_hub_page', page); }, [page]);
+
+  const nav = NAV.filter((n) => !n.perm || can(n.perm));
+  const activePage = nav.some((n) => n.id === page) ? page : (nav[0]?.id || 'today');
+
+  if (permsLoading) return <AuthLoading />;
 
   // Tablo ve Hat aynı filtre durumunu paylaşır — sayfa değişince korunur (§8.3).
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
@@ -343,15 +354,12 @@ function HubApp({ email, onLogout }) {
           </div>
         </div>
         <nav className="hub-sidebar__nav">
-          {NAV.filter((n) => !n.cofounderOnly || role === 'cofounder').map((n) => (
+          {nav.map((n) => (
             <button key={n.id}
-              className={`hub-sidebar__link ${page === n.id ? 'hub-sidebar__link--active' : ''}`}
-              disabled={!n.ready}
-              title={n.ready ? '' : 'Sonraki adımda'}
-              onClick={() => n.ready && setPage(n.id)}>
+              className={`hub-sidebar__link ${activePage === n.id ? 'hub-sidebar__link--active' : ''}`}
+              onClick={() => setPage(n.id)}>
               <AIcon name={n.icon} size={17} />
               <span>{n.label}</span>
-              {!n.ready && <span style={{ marginLeft: 'auto', fontSize: 10, opacity: 0.6 }}>yakında</span>}
             </button>
           ))}
         </nav>
@@ -365,20 +373,21 @@ function HubApp({ email, onLogout }) {
       <div className="hub-main">
         <div className="hub-topbar">
           <span style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>
-            {NAV.find((n) => n.id === page)?.label}
+            {NAV.find((n) => n.id === activePage)?.label}
           </span>
           <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
         </div>
         <div className="hub-content">
-          {page === 'today' ? <TodayPage onGoto={setPage} />
-            : page === 'table' ? <TablePage filters={filters} setFilters={setFilters} />
-            : page === 'board' ? <BoardPage filters={filters} setFilters={setFilters} />
-            : page === 'roles' ? <RolesPage onScanForRole={scanForRole} />
-            : page === 'templates' ? <TemplatesPage />
-            : page === 'import' ? <ImportPage />
-            : page === 'sources' ? <SourcesPage seed={scanSeed} clearSeed={() => setScanSeed(null)} />
-            : page === 'metrics' ? <MetricsPage />
-            : page === 'settings' ? <SettingsPage />
+          {activePage === 'today' ? <TodayPage onGoto={setPage} />
+            : activePage === 'table' ? <TablePage filters={filters} setFilters={setFilters} />
+            : activePage === 'board' ? <BoardPage filters={filters} setFilters={setFilters} />
+            : activePage === 'roles' ? <RolesPage onScanForRole={scanForRole} />
+            : activePage === 'templates' ? <TemplatesPage />
+            : activePage === 'import' ? <ImportPage />
+            : activePage === 'sources' ? <SourcesPage seed={scanSeed} clearSeed={() => setScanSeed(null)} />
+            : activePage === 'metrics' ? <MetricsPage />
+            : activePage === 'members' ? <PermissionsScreen area="hub" />
+            : activePage === 'settings' ? <SettingsPage />
             : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}
         </div>
       </div>
@@ -438,10 +447,12 @@ export default function HubRoot() {
   if (!role)       return <NoAccessPage email={session.user.email || ''} onLogout={handleLogout} />;
 
   return (
-    <HubMemberContext.Provider value={role}>
-      <HubStoreProvider>
-        <HubApp email={session.user.email || ''} onLogout={handleLogout} />
-      </HubStoreProvider>
-    </HubMemberContext.Provider>
+    <PermsProvider area="hub">
+      <HubMemberContext.Provider value={role}>
+        <HubStoreProvider>
+          <HubApp email={session.user.email || ''} onLogout={handleLogout} />
+        </HubStoreProvider>
+      </HubMemberContext.Provider>
+    </PermsProvider>
   );
 }

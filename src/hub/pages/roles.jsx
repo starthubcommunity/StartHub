@@ -5,6 +5,7 @@ import { AIcon, Field, Input, Textarea, Select, Modal, ConfirmDialog } from '../
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
+import { usePerms } from '../../lib/use-perms';
 import { suggestCandidatesFor } from '../hub-match';
 import {
   ROLE_TYPES, ROLE_TYPE_LABEL, TRACKS, URGENCIES, URGENCY_LABEL,
@@ -33,6 +34,7 @@ export default function RolesPage({ onScanForRole }) {
   const store = useHubStore();
   const { openRoles, candidates, members, currentMember } = store;
   const role = useHubMember();
+  const { can } = usePerms();
 
   const [startups, setStartups] = useState([]);
   const [editing, setEditing] = useState(null);
@@ -43,9 +45,11 @@ export default function RolesPage({ onScanForRole }) {
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3200); };
 
   const myStartups = currentMember?.startupIds || [];
-  const isOwner = role === 'project_owner';
-  const canRequest = ['cofounder', 'recruiter', 'project_owner'].includes(role); // team lead de açar
-  const canClaim = role === 'cofounder' || role === 'recruiter';                 // recruiter arar
+  const isOwner = role === 'project_owner';   // §12.7 — proje kapsamı rol adına değil hâlâ role'e bağlı
+  const canRequest = can('roles.create');
+  const canClaim = can('roles.assign');
+  const canClose = can('roles.close');
+  const canScan = can('scan.run');
 
   useEffect(() => {
     supabase.from('startups').select('id, name').order('name').then(({ data }) => setStartups(data || [])).catch(() => setStartups([]));
@@ -175,7 +179,7 @@ export default function RolesPage({ onScanForRole }) {
                   {statusButtons(r).map(([to, label, kind]) => (
                     <button key={to + label} className={`adm-btn adm-btn--${kind} adm-btn--sm`} onClick={() => move(r, to)}>{label}</button>
                   ))}
-                  {['sourcing', 'shortlist'].includes(r.status) && canClaim && (
+                  {['sourcing', 'shortlist'].includes(r.status) && canScan && (
                     <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onScanForRole?.(r)}>
                       <AIcon name="refresh" size={13} /> Bu rol için tara
                     </button>
@@ -186,7 +190,7 @@ export default function RolesPage({ onScanForRole }) {
                     weeklyHours: r.weeklyHours ?? '', durationMonths: r.durationMonths ?? '', teamSize: r.teamSize ?? '',
                     startupId: r.startupId ?? '',
                   })}><AIcon name="edit" size={14} /></button>}
-                  {(role === 'cofounder') && <button className="adm-icon-btn adm-icon-btn--danger" title="Sil" onClick={() => setConfirm(r)}><AIcon name="trash" size={14} /></button>}
+                  {canClose && <button className="adm-icon-btn adm-icon-btn--danger" title="Sil" onClick={() => setConfirm(r)}><AIcon name="trash" size={14} /></button>}
                 </div>
               </div>
             );

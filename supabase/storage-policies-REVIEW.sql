@@ -1,0 +1,43 @@
+-- ══════════════════════════════════════════════════════════
+-- storage-policies-REVIEW.sql — GÖRSEL YÜKLEME için önerilen politikalar
+-- ⚠️  BU DOSYA OTOMATİK ÇALIŞTIRILMAZ (migrations/ dışında).
+--     Kadir'in mevcut storage.objects politikalarını görüp onaylamasından
+--     SONRA elle uygulanacak.
+-- ══════════════════════════════════════════════════════════
+--
+-- Görseller `post-images` kovasına gidiyor (src/admin/admin-ui.jsx, getPublicUrl
+-- ile okunuyor → okuma zaten herkese açık olmalı). Tablo RLS'i storage'ı
+-- KAPSAMAZ; storage.objects'in kendi politikaları var.
+--
+-- ── ÖNCE ŞUNU ÇALIŞTIR VE ÇIKTIYI KADİR'E GÖSTER ─────────────
+--   select policyname, cmd, roles, qual, with_check
+--     from pg_policies
+--    where schemaname = 'storage' and tablename = 'objects';
+--
+--   select id, name, public from storage.buckets where name = 'post-images';
+--
+-- ── HEDEF (onaylanınca) ─────────────────────────────────────
+-- Okuma: herkese açık (kova public ise politika gerekmez; değilse:)
+--   create policy "post-images public read"
+--     on storage.objects for select
+--     using (bucket_id = 'post-images');
+--
+-- Yazma (yükleme): has_perm('media.upload')
+--   drop policy if exists "post-images insert (auth)" on storage.objects;   -- varsa eski
+--   create policy "post-images upload"
+--     on storage.objects for insert to authenticated
+--     with check (bucket_id = 'post-images' and public.has_perm('media.upload'));
+--
+-- Güncelleme (üzerine yazma): has_perm('media.upload')
+--   create policy "post-images update"
+--     on storage.objects for update to authenticated
+--     using (bucket_id = 'post-images' and public.has_perm('media.upload'))
+--     with check (bucket_id = 'post-images' and public.has_perm('media.upload'));
+--
+-- Silme: has_perm('media.delete')
+--   create policy "post-images delete"
+--     on storage.objects for delete to authenticated
+--     using (bucket_id = 'post-images' and public.has_perm('media.delete'));
+--
+-- ⚠️  Mevcut bir "authenticated tüm yükleme" politikası varsa önce onu KALDIR,
+--     yoksa has_perm kısıtı işe yaramaz (politikalar OR'lanır).

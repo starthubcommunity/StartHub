@@ -6,6 +6,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { AIcon } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
+import { usePerms } from '../../lib/use-perms';
 import {
   ALL_STAGES, SOURCES, ROLE_TYPES, DATA_TRUST, ARCHIVE_REASONS,
   DATA_TRUST_MANUAL_DEFAULT, STAGE_LABEL,
@@ -85,6 +86,8 @@ export default function TablePage({ filters, setFilters }) {
   const store = useHubStore();
   const { candidates, members, loading } = store;
   const role = useHubMember();
+  const { can } = usePerms();
+  const canStage = can('stage.advance');
 
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [sort, setSort]       = useState([{ key: 'createdAt', dir: 'desc' }]);
@@ -136,6 +139,7 @@ export default function TablePage({ filters, setFilters }) {
     if (JSON.stringify(row[key]) === JSON.stringify(value)) return;
 
     if (key === 'stage') {
+      if (!canStage) { flash('Aşama ilerletme yetkin yok.'); return; }
       const chk = canAdvance(row, value, { role, touchCount: row.lastContactAt ? 1 : 0 });
       if (!chk.ok) { flash(chk.reason); return; }
       // Aşama değişimi store.advanceStage üzerinden: stage_changed_at = now()
@@ -197,6 +201,7 @@ export default function TablePage({ filters, setFilters }) {
   // ── toplu işlem ─────────────────────────────────────────────────
   const bulkStage = async (toStage) => {
     if (!toStage) return;
+    if (!canStage) { flash('Aşama ilerletme yetkin yok.'); return; }
     const ids = [...selected];
     let moved = 0; const skipped = [];
     for (const id of ids) {
@@ -222,6 +227,7 @@ export default function TablePage({ filters, setFilters }) {
 
   const bulkArchive = async (reason) => {
     if (!reason) return;
+    if (!canStage) { flash('Aşama ilerletme yetkin yok.'); return; }
     const ids = [...selected];
     for (const id of ids) {
       // Arşiv de bir aşama değişimi → advanceStage (stage_changed_at + log).

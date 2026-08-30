@@ -2,6 +2,7 @@
 import { useState as useStateP2, useMemo as useMemoP2 } from 'react';
 import { useAdmin, uid, nextId, COLLECTIONS } from './admin-store';
 import { AIcon, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, SearchBar, PageHead, ConfirmDialog, TagInput, PeoplePicker } from './admin-ui';
+import { usePerms } from '../lib/use-perms';
 
 // ============================================
 // PEOPLE — ekip / mentör / yazar
@@ -10,6 +11,7 @@ const PERSON_TYPES = { team: 'Ekip', project_member: 'Proje Üyesi', mentor: 'Me
 
 function PeoplePage() {
   const { data, addItem, updateItem, deleteItem } = useAdmin();
+  const { can } = usePerms();
   const [search, setSearch] = useStateP2('');
   const [filter, setFilter] = useStateP2('all');
   const [editing, setEditing] = useStateP2(null);
@@ -83,7 +85,7 @@ function PeoplePage() {
                 </div>
                 <div className="adm-person-card__actions">
                   <button className="adm-icon-btn" onClick={() => setEditing(p)}><AIcon name="edit" size={14} /></button>
-                  <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(p)}><AIcon name="trash" size={14} /></button>
+                  {can('people.write') && <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(p)}><AIcon name="trash" size={14} /></button>}
                 </div>
               </div>
             ))}
@@ -187,6 +189,7 @@ function PersonForm({ item, onClose, onSave }) {
 // ============================================
 function SponsorsPage() {
   const { data, addItem, updateItem, deleteItem } = useAdmin();
+  const { can } = usePerms();
   const [editing, setEditing] = useStateP2(null);
   const [deleting, setDeleting] = useStateP2(null);
 
@@ -215,7 +218,7 @@ function SponsorsPage() {
                 </div>
                 <div className="adm-person-card__actions">
                   <button className="adm-icon-btn" onClick={() => setEditing(s)}><AIcon name="edit" size={14} /></button>
-                  <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(s)}><AIcon name="trash" size={14} /></button>
+                  {can('sponsors.write') && <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(s)}><AIcon name="trash" size={14} /></button>}
                 </div>
               </div>
             ))}

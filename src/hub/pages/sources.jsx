@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AIcon, Field, Input, Select, Modal, ConfirmDialog } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
-import { useHubMember } from '../hub-member';
+import { usePerms } from '../../lib/use-perms';
 import { SOURCES, SOURCE_LABEL } from '../hub-constants';
 import { sourceFunnel, intervalToDays } from '../hub-metrics';
 import { searchUsers, enrichUser, requestsPerUser } from '../hub-github';
@@ -72,6 +72,8 @@ function SignalGrid({ e }) {
 
 function GitHubScan({ seed, clearSeed }) {
   const store = useHubStore();
+  const { can } = usePerms();
+  const canScan = can('scan.run');
   const [params, setParams] = useState(() =>
     seed?.skills?.length ? { ...BLANK, language: langFromSkills(seed.skills) } : BLANK);
   const [token, setToken] = useState('');   // yalnızca RAM — kaydedilmez
@@ -202,9 +204,13 @@ function GitHubScan({ seed, clearSeed }) {
         </Field>
       </div>
 
-      <button className="adm-btn adm-btn--primary" disabled={busy} onClick={run}>
-        <AIcon name="refresh" size={14} /> Taramayı çalıştır
-      </button>
+      {canScan ? (
+        <button className="adm-btn adm-btn--primary" disabled={busy} onClick={run}>
+          <AIcon name="refresh" size={14} /> Taramayı çalıştır
+        </button>
+      ) : (
+        <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Tarama çalıştırma yetkin yok.</div>
+      )}
 
       {prog && (
         <div style={{ marginTop: 14 }}>
@@ -259,8 +265,8 @@ const EIGHT_WEEKS = 56 * 86400000;
 function SourceRegistry() {
   const store = useHubStore();
   const { sources, candidates, stageLog, members, currentMember } = store;
-  const role = useHubMember();
-  const canWrite = role === 'cofounder' || role === 'recruiter';
+  const { can } = usePerms();
+  const canWrite = can('sources.manage');
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');

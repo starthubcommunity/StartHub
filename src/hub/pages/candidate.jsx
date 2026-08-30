@@ -5,6 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AIcon, Field } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
+import { usePerms } from '../../lib/use-perms';
 import {
   RUBRIC_AXES, RED_FLAGS, SCORE_MIN, SCORE_MAX, AI_PRESCORE_FINISHING,
   EDU_STATUSES, CLASS_YEARS, ROLE_TYPES, DATA_TRUST_LABEL,
@@ -143,6 +144,7 @@ const GATE_STAGES = ['finalist', 'gate_a', 'gate_b', 'joined'];
 
 // §12 — hat seçimi, bağlı açık rol, proje sahibine sunma, karar sonucu.
 function TrackRoleSection({ c, save, openRole, role, store, flash }) {
+  const { can } = usePerms();
   const [busy, setBusy] = useState(false);
   const myStartups = store.currentMember?.startupIds || [];
   // Bağlanabilecek roller: talep/arama/kısa liste durumunda; project_owner
@@ -154,7 +156,7 @@ function TrackRoleSection({ c, save, openRole, role, store, flash }) {
   });
 
   const chk = presentGate(c, openRole);
-  const canPresentNow = chk.ok && !c.presentedAt && openRole?.status === 'sourcing' && role !== 'project_owner';
+  const canPresentNow = can('present') && chk.ok && !c.presentedAt && openRole?.status === 'sourcing' && role !== 'project_owner';
 
   const present = async () => {
     setBusy(true);
@@ -165,7 +167,7 @@ function TrackRoleSection({ c, save, openRole, role, store, flash }) {
 
   // §12.3 adım 6 — proje sahibi kararı. GEREKÇE ZORUNLU. recruiter kabul/ret VEREMEZ (§12.7).
   const [note, setNote] = useState('');
-  const decidePending = role === 'project_owner' && c.presentedAt && (!c.ownerDecision || c.ownerDecision === 'pending');
+  const decidePending = can('decide') && c.presentedAt && (!c.ownerDecision || c.ownerDecision === 'pending');
   const decide = async (decision) => {
     if (!note.trim()) { flash?.('Karar gerekçesi zorunludur.'); return; }
     setBusy(true);

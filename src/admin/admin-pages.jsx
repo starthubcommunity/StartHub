@@ -3,6 +3,7 @@ import { useState as useStateP, useEffect as useEffectP, useMemo as useMemoP, us
 import { useAdmin, uid, nextId, COLLECTIONS } from './admin-store';
 import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper } from './admin-ui';
 import { ProjectPreview, PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
+import { usePerms } from '../lib/use-perms';
 import { people } from '../data';
 
 // ============================================
@@ -109,6 +110,7 @@ function DashboardPage() {
 // ============================================
 function ProjectsPage() {
   const { data, addItem, updateItem, deleteItem, clearFlagExcept } = useAdmin();
+  const { can } = usePerms();
   const [search, setSearch] = useStateP('');
   const [editing, setEditing] = useStateP(null);
   const [deleting, setDeleting] = useStateP(null);
@@ -153,7 +155,7 @@ function ProjectsPage() {
       <div className="adm-card">
         <div className="adm-card__header"><SearchBar value={search} onChange={setSearch} placeholder="Proje ara..." /></div>
         <div className="adm-card__body" style={{ padding: 0 }}>
-          <DataTable columns={columns} data={filtered} onEdit={setEditing} onDelete={setDeleting} />
+          <DataTable columns={columns} data={filtered} onEdit={setEditing} onDelete={can('projects.write') ? setDeleting : undefined} />
         </div>
       </div>
       {!!editing && <ProjectForm item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSave={handleSave} people={data.people} />}
@@ -399,6 +401,7 @@ function toSlug(str) {
 // ============================================
 function PostsPage() {
   const { data, addItem, updateItem, deleteItem, patchLocal, clearFlagExcept, countFlag } = useAdmin();
+  const { can } = usePerms();
   const [search, setSearch] = useStateP('');
   const [statusFilter, setStatusFilter] = useStateP('all');
   const [editing, setEditing] = useStateP(null);
@@ -603,7 +606,7 @@ function PostsPage() {
           </div>
         </div>
         <div className="adm-card__body" style={{ padding: 0 }}>
-          <DataTable columns={columns} data={filtered} onEdit={setEditing} onDelete={setDeleting} />
+          <DataTable columns={columns} data={filtered} onEdit={setEditing} onDelete={can('posts.delete') ? setDeleting : undefined} />
         </div>
       </div>
       {!!editing && <PostForm item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSave={handleSave} people={data.people} startups={data.startups} recCount={countFlag('posts', 'recommended', editing === 'new' ? undefined : editing.id)} />}

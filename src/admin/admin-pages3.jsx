@@ -2,6 +2,7 @@
 import { useState as useStateP3, useMemo as useMemoP3, useEffect as useEffectP3 } from 'react';
 import { useAdmin, uid } from './admin-store';
 import { AIcon, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PageHead, ConfirmDialog, TagInput } from './admin-ui';
+import { usePerms } from '../lib/use-perms';
 import { PostsPage } from './admin-pages';
 
 // ============================================
@@ -20,6 +21,7 @@ const EVENT_TYPES = {
 // ============================================
 function EventsPage() {
   const { data, addItem, updateItem, deleteItem } = useAdmin();
+  const { can } = usePerms();
   const [editing, setEditing] = useStateP3(null);
   const [deleting, setDeleting] = useStateP3(null);
 
@@ -73,7 +75,7 @@ function EventsPage() {
                     </div>
                     <div className="adm-table__actions">
                       <button className="adm-icon-btn" onClick={() => setEditing(ev)}><AIcon name="edit" size={14} /></button>
-                      <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(ev)}><AIcon name="trash" size={14} /></button>
+                      {can('events.write') && <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(ev)}><AIcon name="trash" size={14} /></button>}
                     </div>
                   </div>
                 );

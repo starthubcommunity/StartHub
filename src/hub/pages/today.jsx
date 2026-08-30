@@ -8,7 +8,6 @@ import { isStale } from '../hub-rules';
 import { thresholdMet } from '../hub-rules';
 import { intervalToDays } from '../hub-metrics';
 import { WEEKLY_TARGET, STAGE_LABEL, ROLE_STATUS_LABEL } from '../hub-constants';
-import { useHubMember } from '../hub-member';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -54,7 +53,6 @@ function Row({ onClick, main, meta, action }) {
 export default function TodayPage({ onGoto }) {
   const store = useHubStore();
   const { candidates, touches, gates, sources, openRoles, currentMember } = store;
-  const role = useHubMember();
   const [openId, setOpenId] = useState(null);
   const byId = useMemo(() => Object.fromEntries(candidates.map((c) => [c.id, c])), [candidates]);
   const now = Date.now();
