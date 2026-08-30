@@ -1,7 +1,7 @@
 // settings.jsx — Ayarlar (§15). YALNIZCA cofounder.
 // Üye yönetimi · rubrik/eşik (şimdilik salt okunur) · kırmızı bayrak listesi ·
 // KVKK "adayı tamamen sil" · hub-daily elle tetikleme.
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AIcon, Field, Input, Select, Modal, ConfirmDialog } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
@@ -44,11 +44,25 @@ export default function SettingsPage() {
   const [dailyOut, setDailyOut] = useState(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
+  const [accounts, setAccounts] = useState({});   // memberId -> { has_account, last_sign_in_at, email_confirmed }
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
+
+  useEffect(() => {
+    supabase.from('hub_member_accounts').select('*')
+      .then(({ data }) => setAccounts(Object.fromEntries((data || []).map((a) => [a.id, a]))))
+      .catch(() => {});
+  }, [members.length]);
 
   if (role !== 'cofounder') {
     return <div className="adm-empty">Ayarlar yalnızca kurucu rolünde açıktır.</div>;
   }
+
+  const fmtLogin = (v) => (v ? new Date(v).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+  const invite = async (email) => {
+    try { await supabase.functions.invoke('invite-member', { body: { email, area: 'hub' } }); }
+    catch (_) { /* yanıt her durumda aynı */ }
+    flash('Bağlantı gönderildi (yetkiliyse).');
+  };
 
   const saveMember = async () => {
     if (!editing.email.trim()) { flash('E-posta zorunlu.'); return; }
@@ -96,23 +110,35 @@ export default function SettingsPage() {
       </div>
       <div className="hub-grid-wrap" style={{ maxHeight: 'none' }}>
         <table className="adm-table" style={{ width: '100%' }}>
-          <thead><tr><th>E-posta</th><th>Ad</th><th>Rol</th><th>Kapsam</th><th>Durum</th><th></th></tr></thead>
+          <thead><tr>
+            <th>E-posta</th><th>Ad</th><th>Rol</th><th>Kapsam</th><th>Durum</th>
+            <th>Hesap</th><th>Son giriş</th><th>Doğr.</th><th style={{ width: 200 }}></th>
+          </tr></thead>
           <tbody>
-            {members.map((m) => (
+            {members.map((m) => {
+              const a = accounts[m.id] || {};
+              return (
               <tr key={m.id}>
-                <td>{m.email}{m.userId ? '' : ' (hesap yok)'}</td>
+                <td>{m.email}</td>
                 <td>{m.fullName || '—'}</td>
                 <td>{HUB_ROLE_LABEL[m.role] || m.role}</td>
                 <td>{(m.startupIds || []).join(', ') || '—'}</td>
                 <td>{m.active ? 'aktif' : 'pasif'}</td>
+                <td>{a.has_account ? '✓ var' : '— yok'}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>{fmtLogin(a.last_sign_in_at)}</td>
+                <td>{a.email_confirmed ? '✓' : '—'}</td>
                 <td>
-                  <div className="adm-table__actions">
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => invite(m.email)}>
+                      {a.has_account ? 'Sıfırlama linki' : 'Davet gönder'}
+                    </button>
                     <button className="adm-icon-btn" title="Düzenle" onClick={() => setEditing(m)}><AIcon name="edit" size={14} /></button>
                     <button className="adm-icon-btn adm-icon-btn--danger" title="Sil" onClick={() => setConfirm(m)}><AIcon name="trash" size={14} /></button>
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

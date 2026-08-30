@@ -10,6 +10,7 @@ import { AnalyticsPage } from './admin-analytics';
 import { PeoplePage, SponsorsPage, TrashPage } from './admin-pages2';
 import { ApplicationsPage } from './admin-applications';
 import { SettingsPage } from './admin-settings';
+import { AdminMembersPage } from './admin-members';
 import { supabase, setRememberMe } from '../lib/supabase';
 
 // Ortak kart kabuğu — giriş / şifremi unuttum / e-posta gönderildi ekranları
@@ -145,6 +146,57 @@ function SetNewPasswordPage({ onDone }) {
   );
 }
 
+// ─── HESAP OLUŞTUR ────────────────────────────────────────────────────
+// Kişi yalnızca e-postasını girer. invite-member yetkiyi kontrol eder;
+// yetkiliyse şifre-belirleme maili gider. Ekran her zaman aynı mesajı verir
+// (yetkili/yetkisiz ayırt edilemesin).
+function CreateAccountPage({ onBack, area }) {
+  const [email, setEmail]     = useStateA('');
+  const [loading, setLoading] = useStateA(false);
+  const [sent, setSent]       = useStateA(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try { await supabase.functions.invoke('invite-member', { body: { email: email.trim(), area } }); }
+    catch (_) { /* yanıt her durumda aynı — hatayı da yutuyoruz */ }
+    setLoading(false);
+    setSent(true);
+  };
+
+  if (sent) {
+    return (
+      <AuthShell title="İşlem alındı" desc="">
+        <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
+          Eğer bu e-posta yetkiliyse, şifre belirleme bağlantısı gönderildi. Gelen kutunu kontrol et.
+        </p>
+        <button onClick={onBack} style={{ width: '100%', padding: '11px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'none', color: 'var(--adm-text)', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+          Girişe dön
+        </button>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell title="Hesap oluştur" desc="Yetkili e-postanı gir; şifreni sen belirleyeceksin.">
+      <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>E-POSTA</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} type="email" required placeholder="ornek@starthub.com" style={adm_inputStyle} />
+        </div>
+        <button type="submit" disabled={loading}
+          style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+          {loading ? 'Gönderiliyor…' : 'Bağlantı gönder'}
+        </button>
+        <button type="button" onClick={onBack}
+          style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: 'var(--adm-text-dim)', cursor: 'pointer', textAlign: 'center' }}>
+          ← Girişe dön
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────
 function LoginPage() {
   const [email, setEmail]       = useStateA('');
@@ -153,6 +205,7 @@ function LoginPage() {
   const [loading, setLoading]   = useStateA(false);
   const [remember, setRemember] = useStateA(true);
   const [forgot, setForgot]     = useStateA(false);
+  const [signup, setSignup]     = useStateA(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -173,6 +226,7 @@ function LoginPage() {
   };
 
   if (forgot) return <ForgotPasswordPage onBack={() => setForgot(false)} />;
+  if (signup) return <CreateAccountPage area="admin" onBack={() => setSignup(false)} />;
 
   return (
     <AuthShell title="Giriş Yap" desc="Yetkili hesabınızla devam edin.">
@@ -201,6 +255,10 @@ function LoginPage() {
           style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, letterSpacing: '-0.01em' }}>
           {loading ? 'Giriş yapılıyor…' : 'Giriş Yap →'}
         </button>
+        <button type="button" onClick={() => setSignup(true)}
+          style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: 'var(--adm-text-dim)', cursor: 'pointer', textAlign: 'center' }}>
+          Hesap oluştur
+        </button>
       </form>
     </AuthShell>
   );
@@ -215,30 +273,63 @@ function AuthLoading() {
   );
 }
 
+// ─── ERİŞİM YOK ───────────────────────────────────────────────────────
+function NoAccessPage({ email, onLogout }) {
+  return (
+    <AuthShell title="Bu alana erişiminiz yok" desc="Hesabınız yönetim paneline tanımlı değil.">
+      <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
+        <strong style={{ color: 'var(--adm-text)' }}>{email}</strong> ile giriş yaptınız, ancak bu alana
+        erişim yetkiniz bulunmuyor. Yetkilendirme için bir yöneticiyle iletişime geçin.
+      </p>
+      <button onClick={onLogout} style={{ width: '100%', padding: '11px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'none', color: 'var(--adm-text)', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+        Çıkış
+      </button>
+    </AuthShell>
+  );
+}
+
+const EDITOR_PAGES = ['posts', 'analytics'];
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────
 function AdminApp() {
   const [session, setSession]         = useStateA(null);
   const [authLoading, setAuthLoading] = useStateA(true);
   const [recovery, setRecovery]       = useStateA(false); // şifre sıfırlama linkinden dönüldü mü
+  const [role, setRole]               = useStateA(null);  // 'admin' | 'editor' | null
+  const [roleLoading, setRoleLoading] = useStateA(false);
   const [page, setPage]               = useStateA(() => sessionStorage.getItem('sh_adm_page') || 'dashboard');
   const [mobileNavOpen, setMobileNavOpen] = useStateA(false);
   const { trash, saveError } = useAdmin();
 
   // Tüm hook'lar koşulsuz — early return'lardan önce
   useEffectA(() => {
+    let active = true;
     supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (!active) return;
       setSession(s);
       setAuthLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      if (!active) return;
+      if (event === 'PASSWORD_RECOVERY') { setRecovery(true); setSession(s); return; }
+      if (event === 'SIGNED_OUT') { setSession(null); setRole(null); setRecovery(false); return; }
       setSession(s);
-      // Kullanıcı e-postadaki sıfırlama bağlantısına tıklayıp geri döndüğünde
-      // Supabase geçici bir oturum kurup bu olayı tetikliyor — normal panele
-      // değil, yeni şifre belirleme ekranına yönlendiriyoruz.
-      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
     });
-    return () => subscription.unsubscribe();
+    return () => { active = false; subscription.unsubscribe(); };
   }, []);
+
+  // Rol her oturum açılışında bir kez RPC ile çekilir (hub §5.2 deseni).
+  useEffectA(() => {
+    if (!session) { setRole(null); return; }
+    let active = true;
+    setRoleLoading(true);
+    supabase.rpc('admin_role').then(({ data, error }) => {
+      if (!active) return;
+      setRole(error ? null : (data ?? null));
+      setRoleLoading(false);
+    });
+    return () => { active = false; };
+  }, [session?.user?.id]);
 
   useEffectA(() => { sessionStorage.setItem('sh_adm_page', page); }, [page]);
 
@@ -249,11 +340,14 @@ function AdminApp() {
   if (authLoading) return <AuthLoading />;
   if (recovery)    return <SetNewPasswordPage onDone={() => setRecovery(false)} />;
   if (!session)    return <LoginPage />;
+  if (roleLoading) return <AuthLoading />;
+  if (!role)       return <NoAccessPage email={session.user.email || ''} onLogout={handleLogout} />;
 
   // Supabase session'dan kullanıcı bilgisi türet
   const email     = session.user.email || '';
   const initials  = email[0]?.toUpperCase() || 'A';
   const shortName = email.split('@')[0];
+  const isAdmin   = role === 'admin';
 
   const nav = [
     { id: 'dashboard',     label: 'Dashboard',       icon: 'dashboard' },
@@ -264,12 +358,16 @@ function AdminApp() {
     { id: 'people',        label: 'Ekip & Mentörler', icon: 'users' },
     { id: 'sponsors',      label: 'Destekçiler',      icon: 'handshake' },
     { id: 'applications',  label: 'Başvurular',       icon: 'penEdit' },
+    { id: 'members',       label: 'Üyeler',           icon: 'users', adminOnly: true },
     { id: 'settings',      label: 'Site Ayarları',    icon: 'settings' },
     { id: 'trash',         label: 'Son Silinenler',   icon: 'trash', badge: trash.length },
-  ];
+  ].filter(n => isAdmin || (EDITOR_PAGES.includes(n.id) && !n.adminOnly));
+
+  // editor izinsiz bir sayfadaysa Yazılar'a düşür
+  const activePage = isAdmin ? page : (EDITOR_PAGES.includes(page) ? page : 'posts');
 
   const renderPage = () => {
-    switch (page) {
+    switch (activePage) {
       case 'projects':   return <ProjectsPage />;
       case 'posts':      return <ContentPage />;
       case 'analytics':  return <AnalyticsPage />;
@@ -277,6 +375,7 @@ function AdminApp() {
       case 'people':     return <PeoplePage />;
       case 'sponsors':      return <SponsorsPage />;
       case 'applications':  return <ApplicationsPage />;
+      case 'members':       return <AdminMembersPage />;
       case 'settings':      return <SettingsPage />;
       case 'trash':         return <TrashPage />;
       default:           return <DashboardPage />;
@@ -301,7 +400,7 @@ function AdminApp() {
         <nav className="adm-sidebar__nav">
           <div className="adm-sidebar__section">İçerik Yönetimi</div>
           {nav.map(n => (
-            <button key={n.id} className={`adm-sidebar__link ${page === n.id ? 'adm-sidebar__link--active' : ''}`} onClick={() => { setPage(n.id); setMobileNavOpen(false); }}>
+            <button key={n.id} className={`adm-sidebar__link ${activePage === n.id ? 'adm-sidebar__link--active' : ''}`} onClick={() => { setPage(n.id); setMobileNavOpen(false); }}>
               <AIcon name={n.icon} size={18} />
               <span>{n.label}</span>
               {n.badge > 0 && <span className="adm-sidebar__badge">{n.badge}</span>}
@@ -326,12 +425,12 @@ function AdminApp() {
             </button>
             <span className="adm-breadcrumb__root">Admin</span>
             <AIcon name="chevronRight" size={14} style={{ color: 'var(--adm-text-dim)' }} />
-            <span className="adm-breadcrumb__current">{nav.find(n => n.id === page)?.label || 'Dashboard'}</span>
+            <span className="adm-breadcrumb__current">{nav.find(n => n.id === activePage)?.label || 'Dashboard'}</span>
           </div>
           <div className="adm-topbar__right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--adm-text)' }}>{shortName}</div>
-              <div style={{ fontSize: 11, color: 'var(--adm-text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>admin</div>
+              <div style={{ fontSize: 11, color: 'var(--adm-text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{role}</div>
             </div>
             <div className="adm-avatar" style={{ background: '#DC2626' }}>{initials}</div>
             <button onClick={handleLogout} title="Çıkış Yap"
