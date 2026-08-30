@@ -141,6 +141,7 @@ function GitHubScan({ seed, clearSeed }) {
           eduStatus: r.company ? 'working' : 'unknown',
           roleType: 'technical',
           openRoleId: seed?.roleId ?? null,       // §12.4 — rolden başlatıldıysa bağla
+          track: seed?.roleId ? (seed.track || 'founder') : undefined,  // §12.1 — track rolden miras
           source: 'github',
           sourceDetail: seed?.roleTitle ? `GitHub taraması · ${seed.roleTitle}` : 'GitHub taraması',
           dataTrust: 'guess',                     // §8.6.4

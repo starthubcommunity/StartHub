@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
 import { supabase } from '../lib/supabase';
 import { HUB_TABLES } from './hub-mappers';
-import { roleStatusAfterReject } from './hub-rules';
+import { roleStatusAfterReject, inheritedTrack } from './hub-rules';
 
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
 // interviews tek aday için loadHistory() ile çekilir; touches/gates Bugün
@@ -141,6 +141,23 @@ export function HubStoreProvider({ children }) {
   const updateCandidate = useCallback((id, u) => updateItem('candidates', id, u), [updateItem]);
   const deleteCandidate = useCallback((id) => deleteItem('candidates', id), [deleteItem]);
   const patchCandidate  = useCallback((id, p) => patchLocal('candidates', id, p), [patchLocal]);
+
+  // Adayı açık role bağla/çöz. §12.1 — bağlarken track ROLDEN miras alınır
+  // (kullanıcı aday kartından sonra elle değiştirebilir). Bağlantı kaldırılınca
+  // track olduğu gibi kalır — geri alma yok.
+  const linkCandidateRole = useCallback(async (candidateId, roleId) => {
+    const cand = data.candidates.find((c) => c.id === candidateId);
+    if (!cand) return;
+    let patch;
+    if (!roleId) {
+      patch = { openRoleId: null };
+    } else {
+      const role = data.openRoles.find((r) => r.id === roleId);
+      patch = { openRoleId: roleId, track: inheritedTrack(role, cand.track) };
+    }
+    patchCandidate(candidateId, patch);
+    await updateCandidate(candidateId, { ...cand, ...patch });
+  }, [data, patchCandidate, updateCandidate]);
 
   // Aşama geçiş günlüğü (§3 — "kim, ne zaman" otomatik kaydı). Kural
   // kontrolü (canAdvance) çağıran tarafta; burada yalnızca DB işi.
@@ -321,11 +338,14 @@ export function HubStoreProvider({ children }) {
   const presentCandidate = useCallback(async (candidateId, roleId) => {
     const cand = data.candidates.find((c) => c.id === candidateId);
     if (!cand) return;
+    const role = data.openRoles.find((r) => r.id === roleId);
     const now = new Date().toISOString();
-    const patch = { presentedAt: now, ownerDecision: 'pending', ownerDecisionNote: null, openRoleId: roleId };
+    const patch = {
+      presentedAt: now, ownerDecision: 'pending', ownerDecisionNote: null,
+      openRoleId: roleId, track: inheritedTrack(role, cand.track),   // §12.1 miras
+    };
     patchLocal('candidates', candidateId, patch);
     await updateItem('candidates', candidateId, { ...cand, ...patch });
-    const role = data.openRoles.find((r) => r.id === roleId);
     if (role && role.status === 'sourcing') {
       await advanceRole(roleId, 'shortlist', { note: `${cand.fullName} sunuldu` });
     }
@@ -383,8 +403,12 @@ export function HubStoreProvider({ children }) {
       createdBy: currentMember?.id ?? null,
     });
     const retainUntil = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+    // §12.1 — bir role bağlanıyorsa track ROLDEN miras.
+    const batchRoleId = batchInfo.roleId ?? null;
     const created = [];
     for (const r of accepted) {
+      const roleId = r.roleId ?? batchRoleId;
+      const role = roleId ? data.openRoles.find((x) => x.id === roleId) : null;
       const c = await addItem('candidates', {
         fullName: r.fullName || '(isimsiz)',
         email: r.email || null,
@@ -397,6 +421,8 @@ export function HubStoreProvider({ children }) {
         sourceDetail: batchInfo.sourceDetail || null,
         sourceRef: r.sourceRef || null,
         batchId: batch?.id ?? null,
+        openRoleId: roleId,
+        track: role ? inheritedTrack(role) : undefined,
         evidence: r.evidence || [],
         dataTrust: r.dataTrust || 'guess',
         stage: 'pool',
@@ -408,7 +434,7 @@ export function HubStoreProvider({ children }) {
       created.push(c);
     }
     return { batch, created };
-  }, [addItem, currentMember]);
+  }, [addItem, currentMember, data]);
 
   // ── KVKK: adayı tamamen sil (§8.6.10 / §12) ───────────────────
   // Bağlı kayıtlar (touches / interviews / gates / stage_log) FK on delete
@@ -456,7 +482,7 @@ export function HubStoreProvider({ children }) {
     sendTouch, markReplied,
     startGate, markGate, moveToTeam,
     importCandidates, purgeCandidate,
-    logRoleStatus, advanceRole, presentCandidate, ownerDecide,
+    logRoleStatus, advanceRole, presentCandidate, ownerDecide, linkCandidateRole,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).

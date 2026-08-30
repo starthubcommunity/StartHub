@@ -177,6 +177,13 @@ export function presentGate(candidate, openRole) {
   return { ok: true };
 }
 
+// inheritedTrack(role, currentTrack) -> aday hattı (§12.1)
+// Bir aday açık role bağlandığında track ROLDEN miras alınır. Rol yoksa
+// mevcut track korunur — bağlantı kaldırılınca geri alma YOKTUR.
+export function inheritedTrack(role, currentTrack = 'founder') {
+  return role?.track || currentTrack || 'founder';
+}
+
 // roleStatusAfterReject(role, roleCandidates, rejectedId) -> yeni durum
 // §12.3 "Ret asılı bırakılmaz": proje sahibi bir adayı reddettiğinde, o role
 // bağlı BAŞKA `pending` sunulmuş aday yoksa rol `sourcing`'e döner; varsa

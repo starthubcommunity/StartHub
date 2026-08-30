@@ -329,7 +329,7 @@ function HubApp({ email, onLogout }) {
   // "Bu rol için tara" → GitHub taramasını rolün skills[] ile tohumlar (§12.4).
   const [scanSeed, setScanSeed] = useState(null);
   const scanForRole = (r) => {
-    setScanSeed({ roleId: r.id, roleTitle: r.title, skills: r.skills || [] });
+    setScanSeed({ roleId: r.id, roleTitle: r.title, skills: r.skills || [], track: r.track });
     setPage('sources');
   };
 

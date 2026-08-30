@@ -88,7 +88,14 @@ export default function CandidatePanel({ candidateId, onClose }) {
       <div className="hub-panel" onClick={(e) => e.stopPropagation()}>
         <div className="hub-panel__head">
           <div>
-            <div className="hub-panel__title">{candidate.fullName}</div>
+            <div className="hub-panel__title">
+              {candidate.fullName}{' '}
+              <span className="hub-pill" style={(candidate.track || 'founder') === 'member'
+                ? { background: 'var(--adm-blue-light)', color: 'var(--adm-blue)' }
+                : { background: 'var(--adm-purple-light)', color: 'var(--adm-purple)' }}>
+                {TRACK_LABEL[candidate.track || 'founder']} hattı
+              </span>
+            </div>
             <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginTop: 2 }}>
               {STAGE_LABEL[candidate.stage]} · {SOURCE_LABEL[candidate.source]}
             </div>
@@ -174,13 +181,13 @@ function TrackRoleSection({ c, save, openRole, role, store, flash }) {
     <div className="hub-gates" style={{ marginBottom: 16 }}>
       <h4 className="hub-h4">Hat & Rol</h4>
       <div className="adm-form-grid">
-        <Field label="Hat" hint="Eşik göstergesi buna göre hesaplanır (§12.1).">
+        <Field label="Hat" hint="Rol bağlanınca rolden gelir; yine de elle değiştirebilirsin (§12.1).">
           <select className="adm-input adm-select" value={c.track || 'founder'} onChange={(e) => save({ track: e.target.value })}>
             {TRACKS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </Field>
-        <Field label="Bağlı açık rol">
-          <select className="adm-input adm-select" value={c.openRoleId || ''} onChange={(e) => save({ openRoleId: e.target.value || null })}>
+        <Field label="Bağlı açık rol" hint="Bağlanınca hat rolden miras alınır.">
+          <select className="adm-input adm-select" value={c.openRoleId || ''} onChange={(e) => store.linkCandidateRole(c.id, e.target.value || null)}>
             <option value="">—</option>
             {linkable.map((r) => <option key={r.id} value={r.id}>{r.title}{r.track === 'member' ? ' · üye' : ' · kurucu'}</option>)}
             {c.openRoleId && !linkable.some((r) => r.id === c.openRoleId) && openRole && (
@@ -230,7 +237,7 @@ function TrackRoleSection({ c, save, openRole, role, store, flash }) {
             <strong>Uygun açık roller</strong> (öneri — atama değil):{' '}
             {sug.map(({ role: r }) => (
               <button key={r.id} className="hub-pill" style={{ border: 'none', cursor: 'pointer', marginRight: 4 }}
-                onClick={() => save({ openRoleId: r.id })}>{r.title}</button>
+                onClick={() => store.linkCandidateRole(c.id, r.id)}>{r.title} · {r.track === 'member' ? 'üye' : 'kurucu'}</button>
             ))}
           </div>
         );

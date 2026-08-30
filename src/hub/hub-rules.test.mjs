@@ -1,7 +1,7 @@
 // hub-rules.test.mjs — kural motoru senaryoları.
 // Test kütüphanesi yok — düz node. Çalıştır: node src/hub/hub-rules.test.mjs
 import assert from 'node:assert/strict';
-import { canAdvance, thresholdMet, thresholdText, presentGate, roleStatusAfterReject, isStale, gateStatus, rubricComplete } from './hub-rules.js';
+import { canAdvance, thresholdMet, thresholdText, presentGate, roleStatusAfterReject, inheritedTrack, isStale, gateStatus, rubricComplete } from './hub-rules.js';
 import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
 import { matchScore, suggestRolesFor } from './hub-match.js';
@@ -130,6 +130,22 @@ t('thresholdText hat bazında okunur', () => {
   assert.match(thresholdText('member'), /bitirmişlik ≥ 3 ve kapasite ≥ 3/);
   assert.match(thresholdText('member', { needsCommunication: true }), /iletişim ≥ 3/);
 });
+t('§12.1 aday hattı rolden miras: üye rolüne bağlanınca member track + gate_b istenmez', () => {
+  const memberRole = { id: 'r1', track: 'member', status: 'sourcing' };
+  const track = inheritedTrack(memberRole, 'founder');   // varsayılan founder'dan gelir
+  assert.equal(track, 'member');
+  const c = cand({ track, openRoleId: 'r1', stage: 'gate_a' });
+  assert.equal(canAdvance(c, 'gate_b').ok, false);        // üye hattında Kapı B yok
+  assert.match(canAdvance(c, 'gate_b').reason, /Kapı B yok/);
+  assert.equal(canAdvance(c, 'joined').ok, true);          // gate_a → joined bitişik
+  assert.equal(thresholdMet({ track, scoreFinishing: 3, scoreCapacity: 3 }), true);  // iki eksen yeter
+});
+t('§12.1 rol bağı kaldırılınca track korunur (geri alma yok)', () => {
+  assert.equal(inheritedTrack(null, 'member'), 'member');
+  assert.equal(inheritedTrack(undefined, 'founder'), 'founder');
+  assert.equal(inheritedTrack({ track: 'founder' }, 'member'), 'founder');  // rol varsa rolden
+});
+
 t('§12.3 ret asılı bırakılmaz: tek adaylı rolde ret → sourcing\'e döner', () => {
   const role = { id: 'r1', status: 'shortlist' };
   const cands = [{ id: 'c1', openRoleId: 'r1', ownerDecision: 'pending' }];
