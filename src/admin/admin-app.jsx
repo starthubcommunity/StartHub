@@ -359,7 +359,7 @@ function AdminApp() {
     { id: 'applications',  label: 'Başvurular',       icon: 'penEdit' },
     { id: 'members',       label: 'Üyeler',           icon: 'users', adminOnly: true },
     { id: 'settings',      label: 'Site Ayarları',    icon: 'settings' },
-    { id: 'trash',         label: 'Son Silinenler',   icon: 'trash', badge: trash.length },
+    { id: 'trash',         label: 'Son Silinenler',   icon: 'trash', badge: trash.length, adminOnly: true },
   ].filter(n => isAdmin || (EDITOR_PAGES.includes(n.id) && !n.adminOnly));
 
   // editor izinsiz bir sayfadaysa Yazılar'a düşür

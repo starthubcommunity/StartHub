@@ -29,16 +29,25 @@ function AdminMembersPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const save = async () => {
+  const save = async ({ thenInvite = false } = {}) => {
     const e = editing;
     if (!e.email.trim()) { flash('E-posta zorunlu.'); return; }
-    const payload = { email: e.email.trim().toLowerCase(), full_name: e.full_name || null, role: e.role, active: e.active };
+    const email = e.email.trim().toLowerCase();
+    const payload = { email, full_name: e.full_name || null, role: e.role, active: e.active };
     const res = e.id
       ? await supabase.from('admin_members').update(payload).eq('id', e.id)
       : await supabase.from('admin_members').insert(payload);
     if (res.error) { flash('Hata: ' + res.error.message); return; }
     setEditing(null);
-    flash('Kaydedildi.');
+    if (thenInvite) { await invite(email); }
+    else flash('Kaydedildi.');
+    load();
+  };
+
+  const toggleActive = async (m) => {
+    const res = await supabase.from('admin_members').update({ active: !m.active }).eq('id', m.id);
+    if (res.error) { flash('Hata: ' + res.error.message); return; }
+    flash(m.active ? 'Pasifleştirildi.' : 'Aktifleştirildi.');
     load();
   };
 
@@ -85,8 +94,11 @@ function AdminMembersPage() {
                       <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => invite(r.email)}>
                         {r.has_account ? 'Sıfırlama linki' : 'Davet gönder'}
                       </button>
+                      <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => toggleActive(r)}>
+                        {r.active ? 'Pasifleştir' : 'Aktifleştir'}
+                      </button>
                       <button className="adm-icon-btn" title="Düzenle" onClick={() => setEditing(r)}><AIcon name="edit" size={14} /></button>
-                      <button className="adm-icon-btn adm-icon-btn--danger" title="Sil" onClick={() => setConfirm(r)}><AIcon name="trash" size={14} /></button>
+                      <button className="adm-icon-btn adm-icon-btn--danger" title="Sil (kalıcı)" onClick={() => setConfirm(r)}><AIcon name="trash" size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -114,7 +126,14 @@ function AdminMembersPage() {
             </Field>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
               <button className="adm-btn adm-btn--ghost" onClick={() => setEditing(null)}>İptal</button>
-              <button className="adm-btn adm-btn--primary" onClick={save}>Kaydet</button>
+              {editing.id ? (
+                <button className="adm-btn adm-btn--primary" onClick={() => save()}>Kaydet</button>
+              ) : (
+                <>
+                  <button className="adm-btn adm-btn--ghost" onClick={() => save()}>Yalnızca kaydet</button>
+                  <button className="adm-btn adm-btn--primary" onClick={() => save({ thenInvite: true })}>Kaydet + Davet gönder</button>
+                </>
+              )}
             </div>
           </div>
         )}
