@@ -137,20 +137,19 @@ function ForgotPasswordPage({ onBack }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/hub/`,
-    });
+    // Markalı StartHub maili — invite-member 'recovery' linkini üretip
+    // send-mail ile gönderir. Yanıt her durumda aynı.
+    try { await supabase.functions.invoke('invite-member', { body: { email: email.trim(), area: 'hub', mode: 'recovery' } }); }
+    catch (_) { /* yanıt her durumda aynı */ }
     setLoading(false);
-    if (err) { setError('Bağlantı gönderilemedi: ' + err.message); return; }
     setSent(true);
   };
 
   if (sent) {
     return (
-      <AuthShell title="E-posta gönderildi" desc="Gelen kutunuzu kontrol edin.">
+      <AuthShell title="İşlem alındı" desc="">
         <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
-          <strong style={{ color: 'var(--adm-text)' }}>{email}</strong> adresine bir şifre sıfırlama
-          bağlantısı gönderdik. Bağlantıya tıklayıp yeni şifrenizi belirleyebilirsiniz.
+          Eğer bu e-posta yetkiliyse, şifre belirleme bağlantısı gönderildi. Gelen kutunuzu kontrol edin.
         </p>
         <button onClick={onBack} style={btnGhost}>Girişe dön</button>
       </AuthShell>
