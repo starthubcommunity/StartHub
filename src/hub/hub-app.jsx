@@ -305,6 +305,29 @@ function NoAccessPage({ email, onLogout }) {
   );
 }
 
+// ─── Yetkiler yüklenirken (uygulama kabuğu içindeyken) ─────────────────
+function HubLoading() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center', justifyContent: 'center', background: 'var(--adm-bg)', fontFamily: 'var(--font-body)' }}>
+      <div style={{ width: 36, height: 36, borderRadius: 10, background: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 16 }}>SH</div>
+      <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Yükleniyor…</div>
+    </div>
+  );
+}
+
+// ─── Hiçbir bölüme yetki yok (oturum + rol var, izin listesi boş) ──────
+function HubNoAccess({ email, onLogout }) {
+  return (
+    <AuthShell title="Bu alana erişim yetkiniz yok" desc="Kurucu Hattı'nda görebileceğiniz bir bölüm tanımlı değil.">
+      <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
+        <strong style={{ color: 'var(--adm-text)' }}>{email}</strong> hesabınıza henüz yetki
+        atanmamış. Bir kurucudan yetkilerinizi tanımlamasını isteyin.
+      </p>
+      <button onClick={onLogout} style={btnGhost}>Çıkış</button>
+    </AuthShell>
+  );
+}
+
 // ─── Uygulama kabuğu (rol geçtikten sonra) ─────────────────────────────
 // Router yok: sayfa geçişi useState + sessionStorage (proje kuralı).
 // Bu adımda yalnızca "Tablo" bağlı; diğer sayfalar sonraki adımlarda.
@@ -324,24 +347,28 @@ const NAV = [
 ];
 
 function HubApp({ email, onLogout }) {
+  // Rules of Hooks: TÜM hook'lar koşulsuz ve her erken return'den ÖNCE.
+  // Yükleniyor / yetkisiz durumları hook'lardan SONRA JSX dalı olarak.
   const role = useHubMember();
   const { can, loading: permsLoading } = usePerms();
   const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'today');
+  // Tablo ve Hat aynı filtre durumunu paylaşır — sayfa değişince korunur (§8.3).
+  const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
+  // "Bu rol için tara" → GitHub taramasını rolün skills[] ile tohumlar (§12.4).
+  const [scanSeed, setScanSeed] = useState(null);
   useEffect(() => { sessionStorage.setItem('sh_hub_page', page); }, [page]);
 
   const nav = NAV.filter((n) => !n.perm || can(n.perm));
   const activePage = nav.some((n) => n.id === page) ? page : (nav[0]?.id || 'today');
 
-  if (permsLoading) return <AuthLoading />;
-
-  // Tablo ve Hat aynı filtre durumunu paylaşır — sayfa değişince korunur (§8.3).
-  const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
-  // "Bu rol için tara" → GitHub taramasını rolün skills[] ile tohumlar (§12.4).
-  const [scanSeed, setScanSeed] = useState(null);
   const scanForRole = (r) => {
     setScanSeed({ roleId: r.id, roleTitle: r.title, skills: r.skills || [], track: r.track });
     setPage('sources');
   };
+
+  // Hook'ların HEPSİNDEN sonra: yükleniyor / erişim yok dalları.
+  if (permsLoading) return <HubLoading />;
+  if (nav.length === 0) return <HubNoAccess email={email} onLogout={onLogout} />;
 
   return (
     <div className="hub-layout">
@@ -395,6 +422,33 @@ function HubApp({ email, onLogout }) {
   );
 }
 
+// ─── Hata sınırı ──────────────────────────────────────────────────────
+// Render sırasında bir istisna olursa beyaz ekran yerine hatayı gösteren
+// bir kutu üretir (Rules of Hooks ihlali gibi durumlar dahil).
+class HubErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('HubErrorBoundary:', error, info); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--adm-bg)', fontFamily: 'var(--font-body)', padding: 20, boxSizing: 'border-box' }}>
+        <div style={{ maxWidth: 520, width: '100%', background: 'var(--adm-bg-card)', border: '1px solid #FECACA', borderRadius: 16, padding: 28 }}>
+          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 18, color: '#DC2626', marginBottom: 8 }}>Bir şeyler ters gitti</div>
+          <p style={{ fontSize: 13.5, color: 'var(--adm-text-dim)', lineHeight: 1.6, marginBottom: 14 }}>
+            Kurucu Hattı yüklenirken bir hata oluştu. Sayfayı yenilemek çoğu zaman yeterli olur;
+            sürerse bir kurucuya aşağıdaki mesajı iletin.
+          </p>
+          <pre style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--adm-bg)', border: '1px solid var(--adm-border-light)', borderRadius: 8, padding: '10px 12px', color: 'var(--adm-text)', marginBottom: 16 }}>
+            {String(this.state.error?.message || this.state.error)}
+          </pre>
+          <button onClick={() => window.location.reload()} style={btnPrimary}>Sayfayı yenile</button>
+        </div>
+      </div>
+    );
+  }
+}
+
 // ─── Kök: açılış akışı (HUB_SPEC §5.2) ─────────────────────────────────
 // 1) getSession → authLoading
 // 2) oturum yok → LoginPage
@@ -402,6 +456,14 @@ function HubApp({ email, onLogout }) {
 // 4) rol null → NoAccessPage
 // 5) rol var → HubApp
 export default function HubRoot() {
+  return (
+    <HubErrorBoundary>
+      <HubRootFlow />
+    </HubErrorBoundary>
+  );
+}
+
+function HubRootFlow() {
   const [session, setSession]         = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [recovery, setRecovery]       = useState(false);
