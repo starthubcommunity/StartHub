@@ -37,7 +37,7 @@ Inbound (site başvurusu) ve outbound (bizim bulduğumuz) aday **aynı boru hatt
 | 0 | `pool` — Havuz | Kaynak ve en az bir kanıt linki girilmiş |
 | 1 | `contacted` — Temas | İlk mesaj gönderildi, `hub_touches` kaydı var |
 | 2 | `replied` — Cevap | Aday döndü (olumsuzsa sebeple arşive) |
-| 3 | `interviewed` — Görüşme | `hub_interviews` kaydı var ve rubrik dolu |
+| 3 | `interviewed` — Görüşme | Rubrik dolduruldu (bu aşamadan **çıkmak** için) |
 | 4 | `finalist` — Finalist | Proje seçtirildi + şartlar/hisse konuşuldu |
 | 5 | `gate_a` — Kapı A | 72 saatlik ilk görev başlatıldı |
 | 6 | `gate_b` — Kapı B | 10 günlük ilk sprint başlatıldı |
@@ -45,6 +45,18 @@ Inbound (site başvurusu) ve outbound (bizim bulduğumuz) aday **aynı boru hatt
 
 Ayrıca `archived` — aşama değil, her aşamadan çıkış. **Sebep zorunlu:**
 `no_reply` / `not_interested` / `no_time` / `below_bar` / `we_passed`
+
+⚠️ **Tablodaki koşullar ÇIKIŞ koşullarıdır, giriş değil.** Sıralı hatta bir
+aşamanın çıkış koşulu, bir sonrakinin giriş koşuludur.
+
+Özellikle rubrik: `replied → interviewed` geçişi **serbesttir** — o geçiş
+"bu kişiyle konuştum" demektir, konuşma yeni bittiği için rubrik henüz yoktur.
+Rubrik **görüşme aşamasındayken** doldurulur ve `interviewed → finalist`
+geçişinde aranır. Rubriği `interviewed`'a *girmek* için şart koşmak, kullanıcıyı
+"önce puanla, sonra görüştüm de" gibi ters bir sıraya zorlar.
+
+Bu bir gevşeme değildir: `finalist` zaten `thresholdMet` istiyor, o da puanlar
+girilmeden sağlanmaz. Kapı kapalı kalır, yalnızca doğru yere taşınır.
 
 ### 2.3 Puanlama
 Üç eksen, her biri 1–5: **bitirmişlik**, **iletişim**, **kapasite**.
@@ -356,6 +368,9 @@ create table hub_candidates (
   stage         text not null default 'pool'
                 check (stage in ('pool','contacted','replied','interviewed',
                                  'finalist','gate_a','gate_b','joined','archived')),
+  -- Bayatlama sayacının referansı. updated_at KULLANILMAZ: herhangi bir alan
+  -- düzenlendiğinde sıfırlanır ve takip görevi hiç doğmaz (§9 bkz.).
+  stage_changed_at timestamptz not null default now(),
   archive_reason text check (archive_reason in
                 ('no_reply','not_interested','no_time','below_bar','we_passed')),
   owner_id      uuid references hub_members(id),
@@ -592,6 +607,45 @@ update hub_members m
    and m.user_id is null;
 ```
 
+### Ek migration — `supabase/migrations/0002_hub_stage_clock.sql`
+
+`0001` çalıştırıldıktan sonra eklendi. Bayatlama sayacı için ayrı zaman kolonu.
+
+```sql
+alter table hub_candidates
+  add column if not exists stage_changed_at timestamptz not null default now();
+
+-- Mevcut kayıtlar (varsa) için makul başlangıç
+update hub_candidates
+   set stage_changed_at = coalesce(updated_at, created_at)
+ where stage_changed_at is null;
+
+create index if not exists hub_cand_stageclock_idx
+  on hub_candidates(stage, stage_changed_at);
+```
+
+### Ek migration — `supabase/migrations/0003_hub_vesting.sql`
+
+Hak ediş başlangıcı hisseyi belirleyen tarihtir; log metnine gömülmez.
+Katılım tarihi de "90 günde hâlâ aktif" metriğinin dayanağıdır.
+
+```sql
+alter table hub_candidates
+  add column if not exists joined_at          timestamptz,
+  add column if not exists vesting_start_date date;
+
+comment on column hub_candidates.vesting_start_date is
+  'Hak ediş başlangıcı — Kapı A''nın ilk günü, geriye dönük.';
+
+create index if not exists hub_cand_joined_idx
+  on hub_candidates(joined_at) where joined_at is not null;
+```
+
+`moveToTeam` bu iki alanı doldurur: `joined_at = now()`,
+`vesting_start_date = min(hub_gates.started_at where gate='A')::date`.
+`hub_stage_log.reason`'a da insan okusun diye yazılmaya devam edilir, ama
+**kaynak artık kolondur**.
+
 ### Doğrulama sorguları
 ```sql
 -- 1) Üyeler ve bağlanma durumu
@@ -793,6 +847,17 @@ son aktiflik: son 6 ay içinde push
 
 **Her bulunan kullanıcı için çekilenler:** `login`, `name`, `bio`, `blog`, `company`, `location`, `public_repos`, `created_at`, ve en çok yıldız alan 5 reposunun `name / description / language / stargazers / pushed_at / has_pages / homepage / topics`.
 
+⚠️ **`pushed:` niteleyicisi sorguya KONMAZ.** GitHub'da `pushed:` yalnızca
+*repository* aramasında geçerlidir; *user* aramasında kullanılınca sorgu
+sessizce `total_count: 0` döner — filtre çalışmaz, tarama boş gelir ve hata
+da vermez.
+
+**Son aktiflik filtresi tarama sonrası uygulanır:** sorgu `location` +
+`language` + `repos` + `followers` ile çalışır, aktiflik ise zenginleştirmede
+hesaplanan `activity_recency` üzerinden sonuç kümesi filtrelenir. Repolar
+zaten çekildiği için ek API maliyeti yoktur. Arayüzde bu alanın yanına
+*"tarama sonrası filtrelenir"* notu yazılır.
+
 **Sınırlar (arayüzde açıkça yazılır):**
 - Arama API'si dakikada 30 istek — tarama kuyrukta ilerler, ilerleme çubuğu gösterilir
 - **Üniversite bilgisi gelmez** → `data_trust = 'guess'`, `edu_status = 'unknown'`
@@ -893,6 +958,38 @@ Her kaynak ölçülür: kaç aday üretti → kaçı cevap verdi → kaçı gör
 
 ---
 
+#### 8.6.9b "AI" ne demek — mevcut uygulama deterministik
+
+§8.6.3, §8.6.6 ve §8.6.7'de geçen "AI" ifadesi gevşek bir kelime seçimiydi.
+**İlk sürümde LLM çağrısı yok**; üçü de kod düzeyinde uygulanır:
+
+| Yer | Uygulama | LLM gerekir mi |
+|-----|----------|----------------|
+| Yapıştır-ayrıştır | Regex + sezgisel: e-posta, GitHub/LinkedIn URL, bilinen üniversite listesi, Türkçe liste kalıpları | Faydalı olur, şart değil |
+| Ön puan | §8.6.6 tablosunun birebir kod hali — enrichment sinyallerinden | **Hayır**, zaten kural tablosu |
+| "Neden bu kişi" | En güçlü kanıttan şablon (repo adı, yıldız, demo, son push) | **Hayır**, şablon kurallara daha uyumlu |
+
+**Değişim yeri (seam):** `parsePastedText()` ve `prescore()` saf, dışa
+aktarılan fonksiyonlardır — girdi metin/sinyal, çıktı yapılandırılmış veri,
+yan etki yok. İleride LLM'e geçilirse değişecek tek yer bunlardır.
+
+**Ayrıştırıcı kalıpları** (Türkçe kaynaklar için):
+- `1. Takım Adı — Üye1, Üye2, Üye3 (İTÜ)`
+- Satır başında sıra numarası / madde işareti
+- `Ad Soyad, Bölüm, Üniversite` virgüllü listeler
+- Metin içindeki `e-posta`, `github.com/…`, `linkedin.com/in/…`
+- Bilinen Türk üniversitesi adları ve kısaltmaları (`hub-constants.js`)
+
+⚠️ Kalıba uymayan satır **atlanmaz** — "ayrıştırılamadı" olarak ön izlemeye
+düşer, insan elle düzeltir. Sessizce kaybolmaz.
+
+⚠️ **Uydurma yok kuralı kod düzeyinde garanti:** bir alan ancak metinde
+bulunduysa doldurulur; bulunamayan alan boş kalır ve `data_trust='guess'`
+olur. Tahmin üretilmez.
+
+🔒 İleride LLM eklenirse API anahtarı **yalnızca Supabase edge function'da**
+durur — tarayıcıya asla konmaz.
+
 #### 8.6.10 KVKK ve etik sınırlar
 
 - Yalnızca **halka açık** veri işlenir
@@ -915,6 +1012,23 @@ Her kaynak ölçülür: kaç aday üretti → kaçı cevap verdi → kaçı gör
 
 Son satır asıl kalite ölçüsü, **ilk günden tutulmaya başlanır** — geriye dönük hesaplanamaz.
 
+### Dönüşüm oranı nasıl hesaplanır — kritik
+
+Oranlar **mevcut aşama dağılımından değil, `hub_stage_log`'dan** hesaplanır:
+bir aşamanın paydası, o aşamaya **hiç ulaşmış** benzersiz aday sayısıdır.
+
+⚠️ **Arşivlenenler paydadan çıkarılmaz.** Aksi halde oranlar yalan söyler:
+10 kişiyle görüşüp 8'ini arşivlersen ve 2'si finalist olursa, arşivlenenleri
+saymayan bir formül %100 dönüşüm gösterir. Doğrusu %20'dir.
+
+```
+görüşmeden finaliste = (finalist'e hiç ulaşmış aday sayısı)
+                     / (interviewed'a hiç ulaşmış aday sayısı)
+```
+
+Aynı kural Hat görünümündeki sütun başlığı oranları için de geçerlidir:
+oradaki **sayı** mevcut doluluk, **oran** ise `hub_stage_log`'dan gelir.
+
 ---
 
 ## 9. Kural motoru (`hub-rules.js`)
@@ -924,6 +1038,30 @@ Saf, test edilebilir fonksiyonlar. Arayüz bunları çağırır, mantığı kopy
 ```js
 canAdvance(candidate, toStage) -> { ok: boolean, reason?: string }
 ```
+
+### Sıra zorunluluğu — atlanamaz
+
+Aşamalar sıralıdır ve **ileri yönde yalnızca bir sonraki aşamaya** geçilebilir:
+
+```
+pool(0) → contacted(1) → replied(2) → interviewed(3)
+        → finalist(4) → gate_a(5) → gate_b(6) → joined(7)
+```
+
+| Hareket | İzin |
+|---------|------|
+| `index + 1` | ✅ serbest (hedef aşamanın kendi koşulu da sağlanmalı) |
+| `index + 2` ve fazlası | ❌ **reddedilir** — yalnızca `cofounder` + gerekçe ile |
+| Geri (`index - n`) | ✅ serbest, ama `hub_stage_log`'a yazılır |
+| `archived` | ✅ her aşamadan, `archive_reason` zorunlu |
+
+⚠️ **Neden katı:** puanlar elle doldurulabildiği için, sıra kontrolü olmadan
+bir aday `pool`'dan doğrudan `finalist`'e atlayabilir — görüşme hiç yapılmadan.
+Bu, elemenin bel kemiğini deler ve dönüşüm metriklerini de bozar
+(`interviewed`'a uğramayan bir finalist payı şişirir).
+
+Atlama gerçekten gerekiyorsa (örneğin zaten tanıdığın bir referans), yolu
+`cofounder` rolü + `override_reason` — sessizce değil, kayda geçerek.
 Kontroller:
 - `contacted` → en az bir `hub_touches` kaydı
 - `interviewed` → rubrik dolu (üç eksen de girilmiş)
@@ -936,6 +1074,27 @@ thresholdMet(c)  -> boolean
 isStale(c, now)  -> { stale: boolean, level: 'warn'|'critical', days: number }
 gateStatus(gate, now) -> 'running' | 'due' | 'overdue'
 ```
+
+### Bayatlama sayacının referans zamanı
+
+| Aşama | Sayaç neyden başlar | warn | critical |
+|-------|---------------------|------|----------|
+| `contacted` | `last_contact_at` | 7 gün | 14 gün |
+| `interviewed` | `stage_changed_at` | 5 gün | 10 gün |
+| `replied` | `stage_changed_at` | 3 gün | 7 gün |
+| `finalist` | `stage_changed_at` | 5 gün | 10 gün |
+| diğerleri | bayatlama uygulanmaz | — | — |
+
+⚠️ **`updated_at` referans olarak KULLANILMAZ.** Herhangi bir alan düzenlendiğinde
+sıfırlanır; 6. günde bir etiket değiştirmek 7 günlük takip görevini hiç
+doğurmamasına yol açar. Sayaç yalnızca `stage_changed_at` ve `last_contact_at`
+üzerinden işler.
+
+`stage_changed_at` **her aşama değişiminde** güncellenir — `logStage` çağrısıyla
+aynı işlemde, store katmanında.
+
+`gateStatus`: vade geçmemişse `running`, vade ile vade+24 saat arası `due`,
+sonrası `overdue`.
 
 ---
 
@@ -1017,7 +1176,167 @@ Yedi metrik, kaynak kırılımı.
 
 ---
 
-## 12. Yapılırken unutulmayacaklar
+## 12. Roller, talep akışı ve iki hat
+
+> Bu bölüm sistemin ikinci turudur. Amacı: **her şeyin hub'dan yürümesi.**
+> Rol açmak, aday aramak, sunmak ve karar vermek — hiçbiri Supabase'den ya da
+> sohbetten değil, arayüzden yapılır.
+
+### 12.1 İki hat
+
+Aynı boru hattı, adayda bir `track` alanı, ona göre değişen kurallar.
+
+| | **Kurucu** (`founder`) | **Üye** (`member`) |
+|---|---|---|
+| Eşik | toplam ≥ 10 **ve** hiçbir eksen ≤ 2 | bitirmişlik ≥ 3 **ve** kapasite ≥ 3 |
+| İletişim ekseni | zorunlu | rol gerektiriyorsa zorunlu (`needs_communication`) |
+| Kapılar | Kapı A (72s) **+** Kapı B (10g) | **yalnızca Kapı A** |
+| Teklif | kurucu ortaklık, hisse masada | projede rol, opsiyon havuzundan pay |
+| Kim yürütür | Starthub (cofounder / recruiter) | recruiter arar, **proje sahibi karar verir** |
+
+**Neden üyede tek kapı:** kötü bir üyenin maliyeti kötü bir kurucununkinin çok
+altında. Ayrıca üyenin 10 günlük sprinti zaten *işin kendisi* — aynı işi hem
+deneme hem görev diye iki kez yaptırmak gereksiz sürtünme yaratır.
+
+⚠️ Eşikler `hub-constants.js`'te **hat bazında** tanımlanır. `hub-rules.js`
+kuralları adayın `track` alanına göre uygular; hiçbir bileşen kendi eşiğini yazmaz.
+
+### 12.2 Açık rol — durum makinesi
+
+```
+draft → requested → sourcing → shortlist → filled
+                 ↘ paused ↗        ↘ cancelled
+```
+
+| Durum | Ne demek | Kim ilerletir |
+|-------|----------|---------------|
+| `draft` | Yazılıyor, henüz talep edilmedi | proje sahibi |
+| `requested` | Talep gönderildi, recruiter bekliyor | proje sahibi |
+| `sourcing` | Recruiter üstlendi, arıyor | recruiter |
+| `shortlist` | En az bir aday sunuldu | recruiter |
+| `filled` | Aday kabul edildi ve ekibe katıldı | sistem (aday `joined` olunca) |
+| `paused` / `cancelled` | Donduruldu / iptal | proje sahibi veya cofounder |
+
+### 12.3 Talep akışı — her adımda tek karar verici
+
+1. **Proje sahibi** rol açar ve `Talep gönder` der → `requested`
+2. Rol, **recruiter'ın Bugün ekranına** düşer
+3. Recruiter `Üstlen` der → `sourcing`, süre sayacı başlar
+4. Recruiter havuzu doldurur, temas kurar, görüşür, puanlar
+5. Eşiği geçen adayda `Proje sahibine sun` → aday `presented_at` alır,
+   rol `shortlist` olur, aday **proje sahibinin Bugün ekranına** düşer
+6. **Proje sahibi** görüşür ve **kabul veya ret** eder — karar burada,
+   gerekçe zorunlu
+7. Kabul → Kapı A → (kurucu hattıysa Kapı B) → `joined`, rol `filled`
+
+⚠️ **Ret durumu asılı bırakılmaz.** Proje sahibi reddettiğinde, o role bağlı
+başka `pending` sunulmuş aday kalmadıysa rol otomatik olarak `sourcing`'e
+döner ve `hub_role_log`'a *"aday reddedildi, arama sürüyor"* kaydı düşer.
+Aksi halde rol `shortlist`'te asılı kalır, recruiter'ın "aday bekleyen roller"
+bloğuna düşmez ve kimse aramaya devam etmesi gerektiğini görmez — rol sessizce
+ölür. Reddedilen aday hatta kalır; recruiter onu arşivleyebilir ya da başka
+bir role sunabilir.
+
+> **İlke:** ortak çalışma, aynı işi iki kişinin yapması demek değil. Her adımda
+> tek bir kişi beklenir ve kimin sırası olduğu ekranda görünür.
+
+### 12.4 Rolden arama — hat ihtiyaçtan başlar
+
+Rol, hattın **sonunda bir etiket değil, başlangıcı**dır.
+
+- Rolün `skills[]` alanı **GitHub taramasını besler** — dil ve anahtar
+  kelimeler elle girilmez, rolden gelir. Rol kartında `Bu rol için tara` butonu.
+- Rolün `profile` metni, mesaj taslağındaki kişiselleştirme bağlamını besler.
+- **Aday-rol eşleştirme önerisi:** havuzdaki adaylar `role_type` ve beceri
+  örtüşmesine göre açık rollerle eşleştirilir; aday kartında ve rol kartında
+  *"bu aday şu role uygun"* önerisi görünür. Öneri atama değildir; insan atar.
+
+### 12.5 Ekranlar
+
+**`roles.jsx` — Açık Roller** (yeni sayfa, sidebar'da)
+- Proje bazında gruplu liste, durum rozetleriyle
+- Rol oluşturma/düzenleme: proje, başlık, rol tipi, **hat** (kurucu/üye),
+  aranan profil, beceriler, haftalık saat, süre, ilk teslimat, ekip büyüklüğü,
+  `needs_communication`, aciliyet
+- Rol kartında: bağlı adaylar, huni durumu, `Bu rol için tara`, `Üstlen`,
+  `Aday sun`, `Kapat`
+- Kaç gündür açık olduğu görünür
+
+**Bugün ekranına yeni bloklar** (role göre):
+- *Recruiter:* `Yeni rol talepleri` · `Aday bekleyen roller` (N gündür açık,
+  hiç aday yok)
+- *Proje sahibi:* `Sana sunulan adaylar` (karar bekliyor) · `Açık rollerin`
+
+**Aday kartına eklenecekler:**
+- `track` seçimi (kurucu / üye) — eşik göstergesi buna göre hesaplanır
+- Bağlı olduğu açık rol ve `Proje sahibine sun` butonu
+- Sunulduysa: proje sahibinin kararı ve gerekçesi
+
+### 12.6 Migration — `supabase/migrations/0005_hub_roles.sql`
+
+```sql
+-- Açık roller: talep akışı ve arama girdileri
+alter table hub_open_roles
+  add column if not exists status text not null default 'draft'
+      check (status in ('draft','requested','sourcing','shortlist',
+                        'filled','paused','cancelled')),
+  add column if not exists track text not null default 'member'
+      check (track in ('founder','member')),
+  add column if not exists needs_communication boolean not null default false,
+  add column if not exists weekly_hours      int,
+  add column if not exists duration_months   int,
+  add column if not exists first_deliverable text,
+  add column if not exists team_size         int,
+  add column if not exists requested_by uuid references hub_members(id),
+  add column if not exists assigned_to uuid references hub_members(id),
+  add column if not exists requested_at timestamptz,
+  add column if not exists accepted_at  timestamptz,
+  add column if not exists filled_at    timestamptz;
+
+create index if not exists hub_role_status_idx on hub_open_roles(status);
+create index if not exists hub_role_assigned_idx on hub_open_roles(assigned_to);
+
+-- Adaylar: hat ve proje sahibi kararı
+alter table hub_candidates
+  add column if not exists track text not null default 'founder'
+      check (track in ('founder','member')),
+  add column if not exists presented_at timestamptz,
+  add column if not exists owner_decision text
+      check (owner_decision in ('pending','accepted','rejected')),
+  add column if not exists owner_decision_note text;
+
+create index if not exists hub_cand_presented_idx
+  on hub_candidates(presented_at) where presented_at is not null;
+
+-- Rol durum günlüğü (kim ne zaman ilerletti)
+create table if not exists hub_role_log (
+  id         uuid primary key default gen_random_uuid(),
+  role_id    uuid not null references hub_open_roles(id) on delete cascade,
+  from_status text,
+  to_status   text not null,
+  note        text,
+  actor_id    uuid references hub_members(id),
+  created_at  timestamptz not null default now()
+);
+
+alter table hub_role_log enable row level security;
+create policy hub_rolelog_all on hub_role_log for all
+  using (is_hub_member()) with check (is_hub_member());
+```
+
+### 12.7 Yetki
+
+- **cofounder** — her şey
+- **recruiter** — tüm roller; `üstlen`, ara, sun. **Kabul/ret veremez.**
+- **project_owner** — yalnızca kendi projesinin rolleri ve sunulan adayları;
+  rol açar, talep gönderir, **kabul/ret verir**
+
+`hub_cand_read` politikası `presented_at`'i de dikkate alır: proje sahibi
+kendisine **sunulmuş** adayı görebilir, havuzun tamamını göremez.
+
+---
+
+## 13. Yapılırken unutulmayacaklar
 
 - **KVKK** — aday kaydında `kvkk_consent`, `kvkk_at`, `retain_until` alanları ilk sürümde dolu tutulur. Silme talebini karşılayacak bir "adayı tamamen sil" aksiyonu Ayarlar'da bulunur.
 - **Arşiv sebebi zorunlu** — sebepsiz arşivleme UI'da engellenir.
