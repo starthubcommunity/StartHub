@@ -10,11 +10,12 @@ import React, { useState, useEffect, useCallback, useMemo, createContext, useCon
 import { supabase } from '../lib/supabase';
 import { HUB_TABLES } from './hub-mappers';
 import { roleStatusAfterReject, inheritedTrack } from './hub-rules';
+import { STAGE_ORDER } from './hub-constants';
 
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
-// interviews tek aday için loadHistory() ile çekilir; touches/gates Bugün
-// ekranı + akışları için, stageLog ise Hat dönüşüm oranları (§8.7) için global.
-const COLLECTIONS = ['candidates', 'members', 'openRoles', 'roleLog', 'views', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
+// v2: roleLog / views / sources düştü (menüde yok). interviews tek aday için
+// loadHistory() ile; touches/gates Bugün ekranı için; stageLog dönüşüm için.
+const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog'];
 
 const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
 
@@ -187,13 +188,10 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, patchLocal, updateItem, logStage]);
 
-  const STAGE_ORDER = ['pool', 'contacted', 'replied', 'interviewed', 'finalist', 'gate_a', 'gate_b', 'joined'];
-
-  // ── Mesaj gönderme akışı (§8.5b) ────────────────────────────────
+  // ── Mesaj gönderme akışı (v2 §9) ───────────────────────────────
   // Sistem mesajı GÖNDERMEZ. "Kopyala" anında: hub_touches kaydı + adayı
-  // contacted'a taşı (yalnızca contacted öncesindeyse) + 7 günlük follow_up_at
-  // + son temas tarihi + şablonun sent_count'unu artır. Panoya kopyalama
-  // çağıran tarafta (navigator.clipboard).
+  // Temas'a taşı (yalnızca Temas öncesindeyse) + 7 günlük follow_up_at
+  // + son temas tarihi + şablonun sent_count'unu artır.
   const sendTouch = useCallback(async (candidate, { templateId = null, variant = null, channel, personalization = null }) => {
     const now = new Date();
     const followUp = new Date(now.getTime() + 7 * 86400000).toISOString();
@@ -209,9 +207,9 @@ export function HubStoreProvider({ children }) {
       note: personalization,
     });
 
-    const beforeContacted = STAGE_ORDER.indexOf(candidate.stage) < STAGE_ORDER.indexOf('contacted');
-    if (beforeContacted) {
-      await advanceStage(candidate.id, 'contacted', { reason: 'ilk mesaj', extra: { lastContactAt: now.toISOString() } });
+    const beforeContact = STAGE_ORDER.indexOf(candidate.stage) < STAGE_ORDER.indexOf('contact');
+    if (beforeContact) {
+      await advanceStage(candidate.id, 'contact', { reason: 'ilk mesaj', extra: { lastContactAt: now.toISOString() } });
     } else {
       patchLocal('candidates', candidate.id, { lastContactAt: now.toISOString() });
       await updateItem('candidates', candidate.id, { ...candidate, lastContactAt: now.toISOString() });
@@ -227,8 +225,9 @@ export function HubStoreProvider({ children }) {
     return { advanced: beforeContacted };
   }, [addItem, advanceStage, updateItem, patchLocal, currentMember, data]);
 
-  // "Cevap geldi" — aşama replied, son temasın outcome'u replied, şablonun
-  // reply_count'u artar (§8.5b adım 7).
+  // "Cevap geldi" (v2 §2) — cevap durumu YALNIZCA hub_touches.outcome'da
+  // tutulur; ayrı bir "Cevap" aşaması YOK (Temas kapsar). Şablonun
+  // reply_count'u artar.
   const markReplied = useCallback(async (candidateId) => {
     const candidate = data.candidates.find((c) => c.id === candidateId);
     if (!candidate) return;
@@ -246,22 +245,20 @@ export function HubStoreProvider({ children }) {
         }
       }
     }
-    if (candidate.stage === 'contacted') {
-      await advanceStage(candidateId, 'replied', { reason: 'cevap geldi' });
-    }
-  }, [data, patchLocal, updateItem, advanceStage]);
+  }, [data, patchLocal, updateItem]);
 
-  // ── Kapılar (§2.5) ─────────────────────────────────────────────
-  // Team sistemine YALNIZCA referansla bağlanır (startup_id + person_id yazılır);
-  // app_state JSON bloğu okunmaz/yazılmaz (§4.6.2).
+  // ── Kapılar (v2 §2.1–2.2) ─────────────────────────────────────
+  // Kapı A/B ayrı AŞAMA değil — aday `trial`'da kalır, hub_gates satırı açılır.
+  // Team sistemine yalnızca referansla bağlanır (startup_id + person_id).
   const startGate = useCallback(async (candidate, gate, { taskText = null, dueAt, startupId = null, personId = null }) => {
     await addItem('gates', {
       candidateId: candidate.id, gate, startupId, personId,
-      taskText, startedAt: new Date().toISOString(), dueAt, result: 'pending',
+      taskText, startedAt: new Date().toISOString(), dueAt, extendedDays: 0, result: 'pending',
     });
-    const toStage = gate === 'A' ? 'gate_a' : 'gate_b';
-    const extra = gate === 'B' && startupId != null ? { startupId } : {};
-    await advanceStage(candidate.id, toStage, { reason: `Kapı ${gate} başlatıldı`, extra });
+    // Aday zaten trial'da; yalnızca ilk kez trial'a girecekse taşı.
+    if (STAGE_ORDER.indexOf(candidate.stage) < STAGE_ORDER.indexOf('trial')) {
+      await advanceStage(candidate.id, 'trial', { reason: `Kapı ${gate} başlatıldı` });
+    }
   }, [addItem, advanceStage]);
 
   const markGate = useCallback((gateId, patch) => {
@@ -270,6 +267,22 @@ export function HubStoreProvider({ children }) {
     patchLocal('gates', gateId, patch);
     return updateItem('gates', gateId, { ...g, ...patch }).catch((e) => { patchLocal('gates', gateId, g); throw e; });
   }, [data, patchLocal, updateItem]);
+
+  // Süre uzatma (v2 §2.2) — extended_days'e ekler, hub_stage_log'a OTOMATİK
+  // not düşer (kim, ne zaman, ne kadar). İnsan metni girmez.
+  const extendGate = useCallback(async (gateId, days) => {
+    const g = data.gates.find((x) => x.id === gateId);
+    if (!g) return;
+    const next = (g.extendedDays || 0) + Number(days);
+    patchLocal('gates', gateId, { extendedDays: next });
+    try {
+      await updateItem('gates', gateId, { ...g, extendedDays: next });
+      await logStage(g.candidateId, 'trial', 'trial', `Kapı ${g.gate} süresi +${days} gün uzatıldı`);
+    } catch (e) {
+      patchLocal('gates', gateId, { extendedDays: g.extendedDays || 0 });
+      throw e;
+    }
+  }, [data, patchLocal, updateItem, logStage]);
 
   // "Ekibe aktar" — aşama joined. joined_at + vesting_start_date KOLONLARI
   // doldurulur (§6/0003); stage_log.reason'a da insan okusun diye yazılır
@@ -281,11 +294,11 @@ export function HubStoreProvider({ children }) {
       .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
     const vestingStart = gatesA[0] ? String(gatesA[0].startedAt).slice(0, 10) : null;
     const joinedAt = new Date().toISOString();
-    await advanceStage(candidateId, 'joined', {
+    await advanceStage(candidateId, 'member', {
       reason: vestingStart ? `hak ediş başlangıcı: ${vestingStart} (Kapı A ilk günü)` : 'ekibe aktarıldı',
       extra: { joinedAt, vestingStartDate: vestingStart },
     });
-    // §12.3 adım 7: aday joined olunca bağlı rol `filled` olur.
+    // Aday `member` olunca bağlı rol `filled` olur.
     const cand = data.candidates.find((c) => c.id === candidateId);
     if (cand?.openRoleId) {
       const role = data.openRoles.find((r) => r.id === cand.openRoleId);
@@ -293,28 +306,17 @@ export function HubStoreProvider({ children }) {
         const patch = { status: 'filled', filledAt: joinedAt };
         patchLocal('openRoles', role.id, patch);
         await updateItem('openRoles', role.id, { ...role, ...patch });
-        await addItem('roleLog', { roleId: role.id, fromStatus: role.status, toStatus: 'filled', note: `${cand.fullName} ekibe katıldı`, actorId: currentMember?.id ?? null });
       }
     }
     return vestingStart;
-  }, [data, advanceStage, patchLocal, updateItem, addItem, currentMember]);
+  }, [data, advanceStage, patchLocal, updateItem]);
 
-  // ── Açık roller: durum makinesi (§12.2 / 12.3) ────────────────
-  const logRoleStatus = useCallback((roleId, fromStatus, toStatus, note = null) =>
-    addItem('roleLog', { roleId, fromStatus, toStatus, note, actorId: currentMember?.id ?? null }),
-    [addItem, currentMember]
-  );
-
-  // Rol durumunu ilerlet + günlüğe yaz + ilgili zaman damgaları (§12.6).
-  const advanceRole = useCallback(async (roleId, toStatus, { note = null, assignTo } = {}) => {
+  // ── Açık roller: durum makinesi (v2 §10.1 — talep akışı yok) ──
+  const advanceRole = useCallback(async (roleId, toStatus, { assignTo } = {}) => {
     const role = data.openRoles.find((r) => r.id === roleId);
     if (!role) return;
     const now = new Date().toISOString();
     const patch = { status: toStatus };
-    if (toStatus === 'requested') {
-      patch.requestedAt = role.requestedAt || now;
-      patch.requestedBy = role.requestedBy || currentMember?.id || null;
-    }
     if (toStatus === 'sourcing' && !role.assignedTo) {
       patch.assignedTo = assignTo || currentMember?.id || null;
     }
@@ -324,12 +326,11 @@ export function HubStoreProvider({ children }) {
     patchLocal('openRoles', roleId, patch);
     try {
       await updateItem('openRoles', roleId, { ...role, ...patch });
-      await logRoleStatus(roleId, role.status, toStatus, note);
     } catch (e) {
       patchLocal('openRoles', roleId, prev);
       throw e;
     }
-  }, [data, patchLocal, updateItem, logRoleStatus, currentMember]);
+  }, [data, patchLocal, updateItem, currentMember]);
 
   // §12.3 adım 5: eşiği geçen adayı proje sahibine sun. Aday `presented_at` +
   // owner_decision='pending' alır (eski karar/gerekçe SIFIRLANIR — reddedilen
@@ -347,17 +348,15 @@ export function HubStoreProvider({ children }) {
     patchLocal('candidates', candidateId, patch);
     await updateItem('candidates', candidateId, { ...cand, ...patch });
     if (role && role.status === 'sourcing') {
-      await advanceRole(roleId, 'shortlist', { note: `${cand.fullName} sunuldu` });
+      await advanceRole(roleId, 'shortlist');
     }
   }, [data, patchLocal, updateItem, advanceRole]);
 
-  // §12.3 adım 6-7: proje sahibi kararı. GEREKÇE ZORUNLU.
-  // Kabul → aday finalist + Kapı A başlar; rol shortlist'te kalır (aday joined
-  //   olunca filled).
-  // Ret → aday hatta kalır (recruiter arşivler veya başka role sunar). Rol
-  //   ASILI BIRAKILMAZ (§12.3): bu role bağlı başka `pending` sunulmuş aday
-  //   yoksa rol `sourcing`'e döner + hub_role_log'a not düşülür; varsa
-  //   `shortlist`'te kalır.
+  // Proje sahibi kararı (v2 §10.1). GEREKÇE ZORUNLU.
+  // Kabul → aday Deneme'ye (trial) + Kapı A başlar; rol shortlist'te kalır
+  //   (aday member olunca filled).
+  // Ret → aday hatta kalır. Rol ASILI BIRAKILMAZ: bu role bağlı başka
+  //   `pending` sunulmuş aday yoksa rol `sourcing`'e döner; varsa shortlist.
   const ownerDecide = useCallback(async (candidateId, decision, note) => {
     if (!note || !note.trim()) throw new Error('Karar gerekçesi zorunludur.');
     const cand = data.candidates.find((c) => c.id === candidateId);
@@ -370,40 +369,25 @@ export function HubStoreProvider({ children }) {
 
     if (decision === 'accepted') {
       const c2 = { ...cand, ...patch };
-      await advanceStage(candidateId, 'finalist', { reason: 'proje sahibi kabul etti' });
+      await advanceStage(candidateId, 'trial', { reason: 'proje sahibi kabul etti' });
       const due = new Date(Date.now() + 72 * 3600000).toISOString();
-      await startGate({ ...c2, stage: 'finalist' }, 'A', {
+      await startGate({ ...c2, stage: 'trial' }, 'A', {
         taskText: role?.firstDeliverable || null, dueAt: due, startupId: role?.startupId ?? null,
       });
-      if (role) {
-        patchLocal('openRoles', role.id, { acceptedAt: new Date().toISOString() });
-        await updateItem('openRoles', role.id, { ...role, acceptedAt: new Date().toISOString() });
-      }
     } else if (decision === 'rejected' && role) {
       if (roleStatusAfterReject(role, data.candidates, candidateId) === 'sourcing') {
-        await advanceRole(role.id, 'sourcing', { note: 'aday reddedildi, arama sürüyor' });
+        await advanceRole(role.id, 'sourcing');
       }
     }
-  }, [data, patchLocal, updateCandidate, updateItem, advanceStage, advanceRole, startGate]);
+  }, [data, patchLocal, updateCandidate, advanceStage, advanceRole, startGate]);
 
-  // ── İçe aktarma (§8.6.3) ───────────────────────────────────────
-  // Ham metin hub_import_batches.raw_text'e saklanır. Kabul edilen her satır
-  // pool'a yeni aday olur; kvkk alanları doldurulur. applications kaydı ASLA
-  // taşınmaz/değiştirilmez — kopyalanır, source_ref'e id yazılır (§4.6.3).
+  // ── İçe aktarma (v2 §6) — CSV/Excel, senkron ─────────────────
+  // Ayrı `hub_import_batches` tablosu YOK — kabul edilen her satır pool'a yeni
+  // aday olur, hepsine aynı serbest `importBatchLabel` yazılır (filtre amaçlı).
   const importCandidates = useCallback(async (batchInfo, rows) => {
     const accepted = rows.filter((r) => r._take);
-    const batch = await addItem('batches', {
-      method: batchInfo.method,
-      source: batchInfo.source,
-      sourceDetail: batchInfo.sourceDetail || null,
-      eventDate: batchInfo.eventDate || null,
-      rawText: batchInfo.rawText || null,
-      parsedCount: rows.length,
-      acceptedCount: accepted.length,
-      createdBy: currentMember?.id ?? null,
-    });
     const retainUntil = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
-    // §12.1 — bir role bağlanıyorsa track ROLDEN miras.
+    const label = batchInfo.importBatchLabel || batchInfo.sourceDetail || null;
     const batchRoleId = batchInfo.roleId ?? null;
     const created = [];
     for (const r of accepted) {
@@ -415,16 +399,15 @@ export function HubStoreProvider({ children }) {
         linkedin: r.linkedin || null,
         github: r.github || null,
         university: r.university || null,
-        department: r.department || null,
         roleType: r.roleType || batchInfo.roleType || null,
-        source: batchInfo.source,
-        sourceDetail: batchInfo.sourceDetail || null,
+        source: batchInfo.source || 'other',
+        sourceDetail: r.sourceDetail || batchInfo.sourceDetail || null,
         sourceRef: r.sourceRef || null,
-        batchId: batch?.id ?? null,
+        importBatchLabel: label,
         openRoleId: roleId,
         track: role ? inheritedTrack(role) : undefined,
+        whyThisOne: r.whyThisOne || null,
         evidence: r.evidence || [],
-        dataTrust: r.dataTrust || 'guess',
         stage: 'pool',
         createdBy: currentMember?.id ?? null,
         kvkkConsent: false,
@@ -433,25 +416,17 @@ export function HubStoreProvider({ children }) {
       });
       created.push(c);
     }
-    return { batch, created };
+    return { created, label };
   }, [addItem, currentMember, data]);
 
-  // ── KVKK: adayı tamamen sil (§8.6.10 / §12) ───────────────────
+  // ── KVKK: adayı tamamen sil (v2 §13) ─────────────────────────
   // Bağlı kayıtlar (touches / interviews / gates / stage_log) FK on delete
-  // cascade ile gider. Ham yapıştırma metni: batch'te başka aday kalmadıysa
-  // hub_import_batches satırı da silinir.
+  // cascade ile gider.
   const purgeCandidate = useCallback(async (id) => {
-    const cand = data.candidates.find((c) => c.id === id);
     const { error } = await supabase.from('hub_candidates').delete().eq('id', id);
     if (error) throw new Error(error.message);
     setData((prev) => ({ ...prev, candidates: prev.candidates.filter((c) => c.id !== id) }));
-    if (cand?.batchId) {
-      const { count } = await supabase
-        .from('hub_candidates').select('id', { count: 'exact', head: true })
-        .eq('batch_id', cand.batchId);
-      if (!count) await supabase.from('hub_import_batches').delete().eq('id', cand.batchId);
-    }
-  }, [data]);
+  }, []);
 
   // Tek adayın geçmişi — "Geçmiş" sekmesi için ihtiyaç anında.
   const loadHistory = useCallback(async (candidateId) => {
@@ -480,9 +455,9 @@ export function HubStoreProvider({ children }) {
     addCandidate, updateCandidate, deleteCandidate, patchCandidate,
     logStage, advanceStage, loadHistory,
     sendTouch, markReplied,
-    startGate, markGate, moveToTeam,
+    startGate, markGate, extendGate, moveToTeam,
     importCandidates, purgeCandidate,
-    logRoleStatus, advanceRole, presentCandidate, ownerDecide, linkCandidateRole,
+    advanceRole, presentCandidate, ownerDecide, linkCandidateRole,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).

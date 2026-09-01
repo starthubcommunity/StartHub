@@ -41,8 +41,10 @@ export function mapCandidateToDb(c) {
     source_detail: c.sourceDetail ?? null,
     source_ref:    c.sourceRef    ?? null,
     batch_id:      c.batchId      ?? null,
+    import_batch_label: c.importBatchLabel ?? null,   // v2 §4 — serbest etiket
     evidence:      c.evidence     || [],
     why_this_one:  c.whyThisOne   ?? null,
+    draft_text:    c.draftText    ?? null,            // v2 §7 — AI taslağı
     // zenginleştirme
     enrichment:  c.enrichment  || {},
     enriched_at: c.enrichedAt  ?? null,
@@ -115,8 +117,10 @@ export function mapCandidateFromDb(r) {
     sourceDetail: r.source_detail ?? null,
     sourceRef:    r.source_ref    ?? null,
     batchId:      r.batch_id      ?? null,
+    importBatchLabel: r.import_batch_label ?? null,
     evidence:     r.evidence      || [],
     whyThisOne:   r.why_this_one  ?? null,
+    draftText:    r.draft_text    ?? null,
     // zenginleştirme
     enrichment: r.enrichment  || {},
     enrichedAt: r.enriched_at ?? null,
@@ -193,9 +197,8 @@ export function mapOpenRoleToDb(o) {
     role_type:  o.roleType ?? null,
     profile:    o.profile ?? null,
     skills:     o.skills || [],
-    urgency:    o.urgency || 'normal',
     filled:     o.filled ?? false,
-    // §12 — talep akışı ve iki hat
+    // v2 §10 — talep akışı yok (requested_by/at, accepted_at düştü)
     status:              o.status || 'draft',
     track:               o.track || 'member',
     needs_communication: o.needsCommunication ?? false,
@@ -203,10 +206,7 @@ export function mapOpenRoleToDb(o) {
     duration_months:     o.durationMonths ?? null,
     first_deliverable:   o.firstDeliverable ?? null,
     team_size:           o.teamSize ?? null,
-    requested_by:        o.requestedBy ?? null,
     assigned_to:         o.assignedTo ?? null,
-    requested_at:        o.requestedAt ?? null,
-    accepted_at:         o.acceptedAt ?? null,
     filled_at:           o.filledAt ?? null,
   };
 }
@@ -218,7 +218,6 @@ export function mapOpenRoleFromDb(r) {
     roleType:  r.role_type ?? null,
     profile:   r.profile ?? null,
     skills:    r.skills || [],
-    urgency:   r.urgency || 'normal',
     filled:    r.filled ?? false,
     status:              r.status || 'draft',
     track:               r.track || 'member',
@@ -227,34 +226,9 @@ export function mapOpenRoleFromDb(r) {
     durationMonths:      r.duration_months ?? null,
     firstDeliverable:    r.first_deliverable ?? null,
     teamSize:            r.team_size ?? null,
-    requestedBy:         r.requested_by ?? null,
     assignedTo:          r.assigned_to ?? null,
-    requestedAt:         r.requested_at ?? null,
-    acceptedAt:          r.accepted_at ?? null,
     filledAt:            r.filled_at ?? null,
     createdAt: r.created_at ?? null,
-  };
-}
-
-// ══ hub_role_log (§12.6) ══════════════════════════════════════════════
-export function mapRoleLogToDb(l) {
-  return {
-    role_id:     l.roleId,
-    from_status: l.fromStatus ?? null,
-    to_status:   l.toStatus || '',
-    note:        l.note ?? null,
-    actor_id:    l.actorId ?? null,
-  };
-}
-export function mapRoleLogFromDb(r) {
-  return {
-    id:         r.id,
-    roleId:     r.role_id,
-    fromStatus: r.from_status ?? null,
-    toStatus:   r.to_status || '',
-    note:       r.note ?? null,
-    actorId:    r.actor_id ?? null,
-    createdAt:  r.created_at ?? null,
   };
 }
 
@@ -344,6 +318,7 @@ export function mapGateToDb(g) {
     task_text:    g.taskText ?? null,
     started_at:   orUndef(g.startedAt),
     due_at:       g.dueAt,                // NOT NULL, default yok
+    extended_days: g.extendedDays ?? 0,   // v2 §2.2 — süre uzatma
     delivered:    g.delivered ?? null,
     evaluation:   g.evaluation ?? null,
     result:       orUndef(g.result),
@@ -359,6 +334,7 @@ export function mapGateFromDb(r) {
     taskText:    r.task_text ?? null,
     startedAt:   r.started_at ?? null,
     dueAt:       r.due_at ?? null,
+    extendedDays: r.extended_days ?? 0,
     delivered:   r.delivered ?? null,
     evaluation:  r.evaluation ?? null,
     result:      r.result || 'pending',
@@ -395,31 +371,7 @@ export function mapTemplateFromDb(r) {
   };
 }
 
-// ══ hub_views ═════════════════════════════════════════════════════════
-export function mapViewToDb(v) {
-  return {
-    name:     v.name || '',
-    owner_id: v.ownerId ?? null,
-    filters:  v.filters || {},
-    columns:  v.columns || [],
-    sort:     v.sort || {},
-    shared:   v.shared ?? true,
-  };
-}
-export function mapViewFromDb(r) {
-  return {
-    id:        r.id,
-    name:      r.name || '',
-    ownerId:   r.owner_id ?? null,
-    filters:   r.filters || {},
-    columns:   r.columns || [],
-    sort:      r.sort || {},
-    shared:    r.shared ?? true,
-    createdAt: r.created_at ?? null,
-  };
-}
-
-// ══ hub_source_registry ══════════════════════════════════════════════
+// ══ hub_source_registry (v2 dışı — deferred, tablo duruyor) ══════════
 export function mapSourceToDb(s) {
   return {
     name:         s.name || '',
@@ -447,46 +399,18 @@ export function mapSourceFromDb(r) {
   };
 }
 
-// ══ hub_import_batches ═══════════════════════════════════════════════
-export function mapBatchToDb(b) {
-  return {
-    method:         b.method,             // 'paste' | 'csv' | 'github' | 'inbound'
-    source:         b.source || 'other',
-    source_detail:  b.sourceDetail ?? null,
-    event_date:     b.eventDate ?? null,
-    raw_text:       b.rawText ?? null,
-    parsed_count:   b.parsedCount ?? 0,
-    accepted_count: b.acceptedCount ?? 0,
-    created_by:     b.createdBy ?? null,
-  };
-}
-export function mapBatchFromDb(r) {
-  return {
-    id:            r.id,
-    method:        r.method,
-    source:        r.source || 'other',
-    sourceDetail:  r.source_detail ?? null,
-    eventDate:     r.event_date ?? null,
-    rawText:       r.raw_text ?? null,
-    parsedCount:   r.parsed_count ?? 0,
-    acceptedCount: r.accepted_count ?? 0,
-    createdBy:     r.created_by ?? null,
-    createdAt:     r.created_at ?? null,
-  };
-}
-
 // ══ Tablo kaydı — store bu haritayı kullanır (admin DB_TABLE deseni) ══
+// v2: roleLog / views / batches DÜŞTÜ (tablolar 0010'da drop edildi).
+// interviews / sources tabloları duruyor ama v2 akışında yazılmıyor
+// (loadHistory yine interviews okuyabilir).
 export const HUB_TABLES = {
   candidates: { table: 'hub_candidates',      toDb: mapCandidateToDb, fromDb: mapCandidateFromDb },
   members:    { table: 'hub_members',         toDb: mapMemberToDb,    fromDb: mapMemberFromDb    },
   openRoles:  { table: 'hub_open_roles',      toDb: mapOpenRoleToDb,  fromDb: mapOpenRoleFromDb  },
-  roleLog:    { table: 'hub_role_log',        toDb: mapRoleLogToDb,   fromDb: mapRoleLogFromDb   },
   stageLog:   { table: 'hub_stage_log',       toDb: mapStageLogToDb,  fromDb: mapStageLogFromDb  },
   touches:    { table: 'hub_touches',         toDb: mapTouchToDb,     fromDb: mapTouchFromDb     },
   interviews: { table: 'hub_interviews',      toDb: mapInterviewToDb, fromDb: mapInterviewFromDb },
   gates:      { table: 'hub_gates',           toDb: mapGateToDb,      fromDb: mapGateFromDb      },
   templates:  { table: 'hub_templates',       toDb: mapTemplateToDb,  fromDb: mapTemplateFromDb  },
-  views:      { table: 'hub_views',           toDb: mapViewToDb,      fromDb: mapViewFromDb      },
   sources:    { table: 'hub_source_registry', toDb: mapSourceToDb,    fromDb: mapSourceFromDb    },
-  batches:    { table: 'hub_import_batches',  toDb: mapBatchToDb,     fromDb: mapBatchFromDb     },
 };
