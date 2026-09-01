@@ -1,26 +1,13 @@
-// filter-bar.jsx — aday tablosu filtre çubuğu (§8.2).
-// Altı grup: Aşama · Kaynak · Sorumlu · Rol tipi · Puan durumu · Kırmızı bayrak
-// + metin araması (ad / üniversite / etiket). Filtre state'i hub_views.filters
-// JSON'una olduğu gibi kaydedilir.
+// filter-bar.jsx — aday listesi filtre çubuğu (v2 §5).
+// Üç chip grubu: Aşama · Kaynak · Sorumlu + metin araması (ad / etiket).
 import React from 'react';
 import { SearchBar } from '../../admin/admin-ui';
-import { ALL_STAGES, SOURCES, ROLE_TYPES } from '../hub-constants';
+import { ALL_STAGES, SOURCES } from '../hub-constants';
 import { thresholdMet, rubricComplete } from '../hub-rules';
 
 export const EMPTY_FILTERS = {
   q: '', stage: [], source: [], ownerId: [], roleType: [], score: [], flags: [],
 };
-
-const SCORE_OPTS = [
-  { value: 'threshold', label: 'Eşiği geçen' },
-  { value: 'scored',    label: 'Puanlanmış' },
-  { value: 'unscored',  label: 'Puanlanmamış' },
-];
-const FLAG_OPTS = [
-  { value: '0',  label: 'Bayrak yok' },
-  { value: '1',  label: '1 bayrak' },
-  { value: '2+', label: '2+ bayrak' },
-];
 
 // Saf: aday listesini filtrelere göre süzer. Tablo ve CSV dışa aktarma
 // aynı fonksiyonu kullanır ki "aktif filtre" tek yerde tanımlı olsun.
@@ -92,13 +79,10 @@ export default function FilterBar({ filters, onChange, members = [] }) {
 
   return (
     <div className="hub-filterbar">
-      <SearchBar value={f.q} onChange={(v) => set('q', v)} placeholder="Ad, üniversite, etiket…" />
+      <SearchBar value={f.q} onChange={(v) => set('q', v)} placeholder="Ad, etiket…" />
       <Group label="Aşama"   options={ALL_STAGES}  selected={f.stage}    onToggle={(v) => toggle('stage', v)} />
       <Group label="Kaynak"  options={SOURCES}     selected={f.source}   onToggle={(v) => toggle('source', v)} />
       <Group label="Sorumlu" options={memberOpts}  selected={f.ownerId}  onToggle={(v) => toggle('ownerId', v)} />
-      <Group label="Rol tipi" options={ROLE_TYPES} selected={f.roleType} onToggle={(v) => toggle('roleType', v)} />
-      <Group label="Puan durumu" options={SCORE_OPTS} selected={f.score} onToggle={(v) => toggle('score', v)} />
-      <Group label="Bayrak"  options={FLAG_OPTS}   selected={f.flags}    onToggle={(v) => toggle('flags', v)} />
       {countActiveFilters(f) > 0 && (
         <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onChange({ ...EMPTY_FILTERS })}>
           Temizle

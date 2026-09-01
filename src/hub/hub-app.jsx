@@ -11,11 +11,8 @@ import { PermsProvider, usePerms } from '../lib/use-perms';
 import PermissionsScreen from '../admin/permissions-screen';
 import { EMPTY_FILTERS } from './components/filter-bar';
 import TodayPage from './pages/today';
-import TablePage from './pages/table';
-import BoardPage from './pages/board';
+import CandidatesListPage from './pages/candidates-list';
 import TemplatesPage from './pages/templates';
-import ImportPage from './pages/import';
-import SourcesPage from './pages/sources';
 import MetricsPage from './pages/metrics';
 import SettingsPage from './pages/settings';
 import RolesPage from './pages/roles';
@@ -328,47 +325,50 @@ function HubNoAccess({ email, onLogout }) {
   );
 }
 
-// ─── Uygulama kabuğu (rol geçtikten sonra) ─────────────────────────────
-// Router yok: sayfa geçişi useState + sessionStorage (proje kuralı).
-// Bu adımda yalnızca "Tablo" bağlı; diğer sayfalar sonraki adımlarda.
-// Her menü öğesi bir has_perm anahtarına bağlı (PARÇA 5). perm null ise herkese açık.
-// Yetkisi olmayan öğe menüde HİÇ görünmez (gri değil, yok).
-const NAV = [
-  { id: 'today',     label: 'Bugün',       icon: 'dashboard',  perm: null },
-  { id: 'table',     label: 'Tablo',       icon: 'layers',     perm: 'candidates.read' },
-  { id: 'board',     label: 'Hat',         icon: 'trendingUp', perm: 'candidates.read' },
-  { id: 'roles',     label: 'Açık Roller', icon: 'rocket',     perm: 'roles.read' },
-  { id: 'templates', label: 'Şablonlar',   icon: 'penEdit',    perm: 'templates.read' },
-  { id: 'import',    label: 'Yetenek avı', icon: 'upload',     perm: 'import.run' },
-  { id: 'sources',   label: 'GitHub tarama', icon: 'refresh',  perm: 'sources.read' },
-  { id: 'metrics',   label: 'Metrikler',   icon: 'trendingUp', perm: 'metrics.read' },
-  { id: 'members',   label: 'Yetkiler',    icon: 'users',      perm: 'members.manage' },
-  { id: 'settings',  label: 'Ayarlar',     icon: 'settings',   perm: 'settings.write' },
+// ─── Uygulama kabuğu (v2 §1) ──────────────────────────────────────────
+// Sol menü ÜÇ madde: Bugün · Adaylar · Roller. "Yönetim" altında: Şablonlar,
+// Metrikler, Yetkiler, Ayarlar. Her öğe bir has_perm anahtarına bağlı;
+// yetkisi olmayan öğe menüde HİÇ görünmez.
+const MAIN_NAV = [
+  { id: 'today',      label: 'Bugün',   icon: 'dashboard', perm: null },
+  { id: 'candidates', label: 'Adaylar', icon: 'layers',    perm: 'candidates.read' },
+  { id: 'roles',      label: 'Roller',  icon: 'rocket',    perm: 'roles.read' },
 ];
+const GEAR_NAV = [
+  { id: 'templates', label: 'Şablonlar', icon: 'penEdit',    perm: 'templates.read' },
+  { id: 'metrics',   label: 'Metrikler', icon: 'trendingUp', perm: 'metrics.read' },
+  { id: 'members',   label: 'Yetkiler',  icon: 'users',      perm: 'members.manage' },
+  { id: 'settings',  label: 'Ayarlar',   icon: 'settings',   perm: 'settings.write' },
+];
+const ALL_NAV = [...MAIN_NAV, ...GEAR_NAV];
 
 function HubApp({ email, onLogout }) {
   // Rules of Hooks: TÜM hook'lar koşulsuz ve her erken return'den ÖNCE.
-  // Yükleniyor / yetkisiz durumları hook'lardan SONRA JSX dalı olarak.
   const role = useHubMember();
   const { can, loading: permsLoading } = usePerms();
   const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'today');
-  // Tablo ve Hat aynı filtre durumunu paylaşır — sayfa değişince korunur (§8.3).
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
-  // "Bu rol için tara" → GitHub taramasını rolün skills[] ile tohumlar (§12.4).
-  const [scanSeed, setScanSeed] = useState(null);
+  const [gearOpen, setGearOpen] = useState(false);
   useEffect(() => { sessionStorage.setItem('sh_hub_page', page); }, [page]);
 
-  const nav = NAV.filter((n) => !n.perm || can(n.perm));
+  const mainNav = MAIN_NAV.filter((n) => !n.perm || can(n.perm));
+  const gearNav = GEAR_NAV.filter((n) => !n.perm || can(n.perm));
+  const nav = [...mainNav, ...gearNav];
   const activePage = nav.some((n) => n.id === page) ? page : (nav[0]?.id || 'today');
-
-  const scanForRole = (r) => {
-    setScanSeed({ roleId: r.id, roleTitle: r.title, skills: r.skills || [], track: r.track });
-    setPage('sources');
-  };
 
   // Hook'ların HEPSİNDEN sonra: yükleniyor / erişim yok dalları.
   if (permsLoading) return <HubLoading />;
   if (nav.length === 0) return <HubNoAccess email={email} onLogout={onLogout} />;
+
+  const NavLink = (n) => (
+    <button key={n.id}
+      className={`hub-sidebar__link ${activePage === n.id ? 'hub-sidebar__link--active' : ''}`}
+      onClick={() => setPage(n.id)}>
+      <AIcon name={n.icon} size={17} />
+      <span>{n.label}</span>
+    </button>
+  );
+  const gearActive = gearNav.some((n) => n.id === activePage);
 
   return (
     <div className="hub-layout">
@@ -381,14 +381,17 @@ function HubApp({ email, onLogout }) {
           </div>
         </div>
         <nav className="hub-sidebar__nav">
-          {nav.map((n) => (
-            <button key={n.id}
-              className={`hub-sidebar__link ${activePage === n.id ? 'hub-sidebar__link--active' : ''}`}
-              onClick={() => setPage(n.id)}>
-              <AIcon name={n.icon} size={17} />
-              <span>{n.label}</span>
-            </button>
-          ))}
+          {mainNav.map(NavLink)}
+          {gearNav.length > 0 && (
+            <>
+              <button className="hub-sidebar__link" onClick={() => setGearOpen((v) => !v)} style={{ marginTop: 8, opacity: 0.85 }}>
+                <AIcon name="settings" size={17} />
+                <span>Yönetim</span>
+                <AIcon name={(gearOpen || gearActive) ? 'chevronDown' : 'chevronRight'} size={14} style={{ marginLeft: 'auto' }} />
+              </button>
+              {(gearOpen || gearActive) && <div style={{ paddingLeft: 12 }}>{gearNav.map(NavLink)}</div>}
+            </>
+          )}
         </nav>
         <div className="hub-sidebar__foot">
           <button className="hub-sidebar__link" onClick={onLogout}>
@@ -400,22 +403,19 @@ function HubApp({ email, onLogout }) {
       <div className="hub-main">
         <div className="hub-topbar">
           <span style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>
-            {NAV.find((n) => n.id === activePage)?.label}
+            {ALL_NAV.find((n) => n.id === activePage)?.label}
           </span>
           <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
         </div>
         <div className="hub-content">
           {activePage === 'today' ? <TodayPage onGoto={setPage} />
-            : activePage === 'table' ? <TablePage filters={filters} setFilters={setFilters} />
-            : activePage === 'board' ? <BoardPage filters={filters} setFilters={setFilters} />
-            : activePage === 'roles' ? <RolesPage onScanForRole={scanForRole} />
+            : activePage === 'candidates' ? <CandidatesListPage filters={filters} setFilters={setFilters} />
+            : activePage === 'roles' ? <RolesPage />
             : activePage === 'templates' ? <TemplatesPage />
-            : activePage === 'import' ? <ImportPage />
-            : activePage === 'sources' ? <SourcesPage seed={scanSeed} clearSeed={() => setScanSeed(null)} />
             : activePage === 'metrics' ? <MetricsPage />
             : activePage === 'members' ? <PermissionsScreen area="hub" />
             : activePage === 'settings' ? <SettingsPage />
-            : <div className="adm-empty">Bu ekran sonraki adımda gelecek.</div>}
+            : <div className="adm-empty">Bu ekran yok.</div>}
         </div>
       </div>
     </div>
