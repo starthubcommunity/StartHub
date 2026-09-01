@@ -65,23 +65,24 @@ export function sourceFunnel(candidates = [], stageLog = []) {
   // stage_log'da hiç kaydı olmayan (yeni, pool'da) adaylar da pool'a "ulaşmış" sayılır
   for (const c of candidates) if (!maxIdx.has(c.id)) maxIdx.set(c.id, 0);
 
+  const blank = () => Object.fromEntries(STAGE_ORDER.map((s) => [s, 0]));
   const out = {};
   for (const [cid, idx] of maxIdx) {
     const src = srcOf.get(cid) || 'other';
-    if (!out[src]) out[src] = { pool: 0, contacted: 0, replied: 0, interviewed: 0, finalist: 0, gate_a: 0, gate_b: 0, joined: 0 };
+    if (!out[src]) out[src] = blank();
     STAGE_ORDER.forEach((stage, i) => { if (idx >= i) out[src][stage]++; });
   }
   return out;
 }
 
-// "90 günde hâlâ aktif" (§8.7) — GERİYE DÖNÜK HESAPLANAMAZ. hub_stage_log'dan:
-// 90+ gün önce joined'a ulaşmış adaylardan bugün hâlâ joined olanların oranı.
+// "90 günde hâlâ aktif" (v2 §11) — GERİYE DÖNÜK HESAPLANAMAZ. hub_stage_log'dan:
+// 90+ gün önce `member`'a ulaşmış adaylardan bugün hâlâ `member` olanların oranı.
 // Henüz 90 günü dolan aday yoksa rate=null (uydurma sayı yok).
 export function active90(candidates = [], stageLog = [], now = Date.now()) {
   const CUT = now - 90 * 86400000;
-  const joinedAt = new Map(); // candidateId -> ilk joined stage_log zamanı
+  const joinedAt = new Map(); // candidateId -> ilk member stage_log zamanı
   for (const r of stageLog) {
-    if (r.toStage !== 'joined' || !r.createdAt) continue;
+    if (r.toStage !== 'member' || !r.createdAt) continue;
     const t = Date.parse(r.createdAt);
     if (!joinedAt.has(r.candidateId) || t < joinedAt.get(r.candidateId)) joinedAt.set(r.candidateId, t);
   }
@@ -90,7 +91,7 @@ export function active90(candidates = [], stageLog = [], now = Date.now()) {
   for (const [cid, t] of joinedAt) {
     if (t > CUT) continue;
     eligible++;
-    if (stageNow.get(cid) === 'joined') active++;
+    if (stageNow.get(cid) === 'member') active++;
   }
   return { eligible, active, rate: eligible ? Math.round((100 * active) / eligible) : null };
 }

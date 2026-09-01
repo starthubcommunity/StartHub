@@ -1,9 +1,12 @@
-// hub-rules.js — Kurucu Hattı kural motoru (HUB_SPEC §9).
+// hub-rules.js — Kurucu Hattı kural motoru (HUB_SPEC v2 §2, §13).
 //
 // Saf, yan etkisiz fonksiyonlar. Arayüz bunları ÇAĞIRIR; eşik / aşama-geçiş /
-// bayatlama mantığı BAŞKA HİÇBİR YERDE tekrarlanmaz. Hiçbir bileşen kendi
-// eşik kontrolünü yazmaz.
-import { THRESHOLD, STALE, STAGE_LABEL, stageOrderFor } from './hub-constants.js';
+// bayatlama mantığı BAŞKA HİÇBİR YERDE tekrarlanmaz.
+//
+// v2: 5 aşama (pool → contact → interview → trial → member) + archived.
+// Kapı A/B ayrı aşama DEĞİL — trial içinde hub_gates.gate ile. Üye hattında
+// Kapı B yoktur; bu tek fark, ayrı sıra (stageOrderFor) gerektirmez.
+import { THRESHOLD, STALE, STAGE_LABEL, STAGE_ORDER } from './hub-constants.js';
 
 const DAY_MS = 86400000;
 const daysBetween = (from, to) => Math.floor((to - from) / DAY_MS);
@@ -11,13 +14,13 @@ const asTime = (v) => (v ? new Date(v).getTime() : null);
 const toMs = (now) => (typeof now === 'number' ? now : new Date(now).getTime());
 const filled = (v) => v !== null && v !== undefined && String(v).trim() !== '';
 
-// Rubriğin üç ekseni de girilmiş mi (§2.3 — kurucu hattı).
+// Rubriğin üç ekseni de girilmiş mi (kurucu hattı).
 export function rubricComplete(c) {
   return c?.scoreFinishing != null && c?.scoreCommunication != null && c?.scoreCapacity != null;
 }
 
 // Bu HATTIN rubriği dolu mu? Kurucu: üç eksen. Üye: bitirmişlik + kapasite
-// (iletişim yalnızca rol needs_communication ise) — §12.1.
+// (iletişim yalnızca rol needs_communication ise).
 export function rubricCompleteFor(c, openRole = null) {
   if ((c?.track || 'founder') === 'member') {
     if (c?.scoreFinishing == null || c?.scoreCapacity == null) return false;
@@ -27,9 +30,7 @@ export function rubricCompleteFor(c, openRole = null) {
   return rubricComplete(c);
 }
 
-// Puan eşiği — HAT BAZINDA (§12.1). İkinci parametre bağlı açık rol
-// (member hattında needs_communication için). Kırmızı bayrak kuralı ayrı —
-// bkz. canAdvance('finalist'). Eşik sayıları yalnızca hub-constants'tan.
+// Puan eşiği — HAT BAZINDA. Kırmızı bayrak kuralı ayrı — bkz. canAdvance('trial').
 export function thresholdMet(c, openRole = null) {
   if (!c) return false;
   if ((c.track || 'founder') === 'member') {
@@ -48,7 +49,7 @@ export function thresholdMet(c, openRole = null) {
   return total >= THRESHOLD.founder.minTotal && Math.min(...axes) >= THRESHOLD.founder.minAxis;
 }
 
-// İnsan-okunur eşik açıklaması (reason metinleri + arayüz için).
+// İnsan-okunur eşik açıklaması — ham formül değil, cümle (v2 §2.3).
 export function thresholdText(track = 'founder', openRole = null) {
   if (track === 'member') {
     const t = THRESHOLD.member;
@@ -59,34 +60,31 @@ export function thresholdText(track = 'founder', openRole = null) {
   return `toplam ≥ ${t.minTotal} ve hiçbir eksen ≤ ${t.minAxis - 1}`;
 }
 
-// Hedefin kendi çıkış koşulu (§9 "Kontroller"). Sıra kontrolü ayrı — canAdvance.
+// Hedefin kendi çıkış koşulu. Sıra kontrolü ayrı — canAdvance.
 function targetGate(c, toStage, ctx = {}) {
-  const { role = null, touchCount = null, interviewCount = null, gates = null, openRole = null } = ctx;
+  const { role = null, touchCount = null, openRole = null } = ctx;
   const track = c.track || 'founder';
 
   switch (toStage) {
-    case 'contacted': {
+    case 'contact': {
       const hasTouch = touchCount != null ? touchCount > 0 : filled(c.lastContactAt);
       return hasTouch
         ? { ok: true }
         : { ok: false, reason: 'Önce bir temas kaydı olmalı — mesaj gönderilmeli.' };
     }
 
-    case 'interviewed': {
-      // §2.2 — "Cevap → Görüşme" geçişi "bu kişiyle konuştum" demek; rubrik
-      // GÖRÜŞMEDEN ÇIKIŞTA aranır, girişte değil. Rubrik kontrolü YOK.
-      if (interviewCount != null && interviewCount < 1)
-        return { ok: false, reason: 'Görüşme kaydı yok.' };
+    case 'interview': {
+      // "Bu kişiyle konuştum" demek — rubrik GÖRÜŞMEDEN ÇIKIŞTA (trial'a geçişte)
+      // aranır, girişte değil. Kısıt yok.
       return { ok: true };
     }
 
-    case 'finalist': {
-      // Rubrik eksikliğini önce ve NET mesajla bildir (thresholdMet zaten
-      // eksik puanda geçmez ama "eşik sağlanmadı" kullanıcıya neden söylemez).
+    case 'trial': {
+      // Görüşmenin "geçme kararı": rubrik + eşik + kırmızı bayrak kilidi.
       if (!rubricCompleteFor(c, openRole))
         return {
           ok: false,
-          reason: 'Rubrik doldurulmadan finalist yapılamaz — üye hattında bitirmişlik ve kapasite, kurucu hattında üç eksen de girilmeli.',
+          reason: 'Rubrik doldurulmadan Deneme\'ye geçilemez — üye hattında bitirmişlik ve kapasite, kurucu hattında üç eksen de girilmeli.',
         };
       if (!thresholdMet(c, openRole))
         return {
@@ -106,34 +104,21 @@ function targetGate(c, toStage, ctx = {}) {
       return { ok: true };
     }
 
-    case 'gate_a':
-    case 'gate_b': {
-      const g = toStage === 'gate_a' ? 'A' : 'B';
-      const open = Array.isArray(gates)
-        ? gates.some((x) => x.gate === g)
-        : ctx[g === 'A' ? 'hasGateA' : 'hasGateB'] === true;
-      return open
-        ? { ok: true }
-        : { ok: false, reason: `Kapı ${g} başlatılmadan bu aşamaya geçilemez.` };
-    }
-
     default:
-      // pool / replied / joined ve tanımsız hedefler: §9'da makine kısıtı yok.
+      // pool / member ve tanımsız hedefler: makine kısıtı yok. member'a geçiş
+      // Deneme'deki kapı kartı (GateCard) tarafından sürülür.
       return { ok: true };
   }
 }
 
 // canAdvance(candidate, toStage, ctx?) -> { ok, reason? }
-// §9 "Sıra zorunluluğu" + §12.1 iki hat: ileri yönde yalnızca (hattın kendi
-// sırasında) bir adım serbest. Fazlası reddedilir; yalnızca role==='cofounder'
-// ve overrideReason dolu ise geçer. Geri gitmek serbest (stage_log'a yazılır).
-// Üye hattında Kapı B YOKTUR — gate_a → joined tek adımdır, atlama sayılmaz.
-// archived her aşamadan, archive_reason zorunlu.
-// ctx: { role, touchCount, interviewCount, gates, openRole }.
+// Sıra zorunluluğu: ileri yönde yalnızca bir adım serbest. Fazlası reddedilir;
+// yalnızca role==='cofounder' ve overrideReason dolu ise geçer. Geri gitmek
+// serbest. archived her aşamadan, archive_reason zorunlu.
+// ctx: { role, touchCount, openRole }.
 export function canAdvance(candidate, toStage, ctx = {}) {
   const c = candidate || {};
   const { role = null } = ctx;
-  const track = c.track || 'founder';
 
   // archived — her aşamadan, sebep zorunlu
   if (toStage === 'archived') {
@@ -142,12 +127,7 @@ export function canAdvance(candidate, toStage, ctx = {}) {
       : { ok: false, reason: 'Arşivleme sebebi zorunludur.' };
   }
 
-  // Üye hattında Kapı B yok (§12.1)
-  if (toStage === 'gate_b' && track === 'member') {
-    return { ok: false, reason: 'Üye hattında Kapı B yoktur (finalist → Kapı A → Ekipte).' };
-  }
-
-  const order = stageOrderFor(track);
+  const order = STAGE_ORDER;
   const fromIdx = order.indexOf(c.stage);
   const toIdx = order.indexOf(toStage);
 
@@ -172,8 +152,8 @@ export function canAdvance(candidate, toStage, ctx = {}) {
 }
 
 // presentGate(candidate, openRole) -> { ok, reason? }
-// §12.3 adım 5: aday proje sahibine SUNULABİLİR mi — hat eşiği sağlandı mı,
-// kırmızı bayrak < eşik mi, bir açık role bağlı mı.
+// Aday proje sahibine SUNULABİLİR mi — hat eşiği sağlandı mı, kırmızı bayrak
+// < eşik mi, bir açık role bağlı mı.
 export function presentGate(candidate, openRole) {
   const c = candidate || {};
   if (!openRole) return { ok: false, reason: 'Aday bir açık role bağlanmalı.' };
@@ -188,7 +168,7 @@ export function presentGate(candidate, openRole) {
   return { ok: true };
 }
 
-// inheritedTrack(role, currentTrack) -> aday hattı (§12.1)
+// inheritedTrack(role, currentTrack) -> aday hattı (§10)
 // Bir aday açık role bağlandığında track ROLDEN miras alınır. Rol yoksa
 // mevcut track korunur — bağlantı kaldırılınca geri alma YOKTUR.
 export function inheritedTrack(role, currentTrack = 'founder') {
@@ -196,8 +176,8 @@ export function inheritedTrack(role, currentTrack = 'founder') {
 }
 
 // roleStatusAfterReject(role, roleCandidates, rejectedId) -> yeni durum
-// §12.3 "Ret asılı bırakılmaz": proje sahibi bir adayı reddettiğinde, o role
-// bağlı BAŞKA `pending` sunulmuş aday yoksa rol `sourcing`'e döner; varsa
+// "Ret asılı bırakılmaz": proje sahibi bir adayı reddettiğinde, o role bağlı
+// BAŞKA `pending` sunulmuş aday yoksa rol `sourcing`'e döner; varsa
 // `shortlist`'te kalır. Yalnızca `shortlist`'ten geri döndürür.
 export function roleStatusAfterReject(role, roleCandidates, rejectedId) {
   if (!role || role.status !== 'shortlist') return role?.status ?? null;
@@ -208,14 +188,12 @@ export function roleStatusAfterReject(role, roleCandidates, rejectedId) {
 }
 
 // isStale(candidate, now) -> { stale, level: 'warn'|'critical'|null, days }
-// §9 tablosu: aşamaya göre sayaç referansı ve eşikler.
-//   contacted   → last_contact_at   (7 / 14 gün)
-//   interviewed → stage_changed_at  (5 / 10)
-//   replied     → stage_changed_at  (3 / 7)
-//   finalist    → stage_changed_at  (5 / 10)
-//   diğerleri   → bayatlama uygulanmaz
-// ⚠️ updated_at ASLA referans DEĞİLDİR — herhangi bir alan düzenlenince
-// sıfırlanır ve takip görevi hiç doğmaz.
+// v2 §12: bayatlama istemcide. Aşamaya göre sayaç referansı ve eşikler:
+//   contact   → lastContactAt   (7 / 14 gün)
+//   interview → stageChangedAt  (5 / 10)
+//   trial     → stageChangedAt  (5 / 10)
+//   diğerleri → bayatlama uygulanmaz
+// ⚠️ updatedAt ASLA referans DEĞİLDİR.
 export function isStale(candidate, now = Date.now()) {
   const c = candidate || {};
   const rule = STALE[c.stage];
@@ -230,12 +208,20 @@ export function isStale(candidate, now = Date.now()) {
   return { stale: false, level: null, days };
 }
 
-// 'due' penceresi: vade + 24 saat. §9 bu aralığı sabitlemiyor — hub varsayılanı.
+// gateDueAt(gate) -> efektif vade (ms). Taban vade + uzatma günleri (v2 §2.2).
+// Taban vade `baseDueAt` yoksa `dueAt`'tir; `extendedDays` birikimlidir.
+export function gateDueAt(gate) {
+  const base = asTime(gate?.baseDueAt) ?? asTime(gate?.dueAt);
+  if (base == null) return null;
+  return base + (Number(gate?.extendedDays) || 0) * DAY_MS;
+}
+
+// 'due' penceresi: vade + 24 saat.
 const GATE_DUE_GRACE_MS = DAY_MS;
 
-// gateStatus(gate, now) -> 'running' | 'due' | 'overdue'
+// gateStatus(gate, now) -> 'running' | 'due' | 'overdue' — efektif vadeye göre.
 export function gateStatus(gate, now = Date.now()) {
-  const due = asTime(gate?.dueAt);
+  const due = gateDueAt(gate);
   if (due == null) return 'running';
   const nowT = toMs(now);
   if (nowT < due) return 'running';
@@ -243,11 +229,21 @@ export function gateStatus(gate, now = Date.now()) {
   return 'overdue';
 }
 
-// candidateVisible(candidate, ctx) -> bir üye bu adayı görebilir mi? (§12.7)
-// ctx.readAll  : candidates.read_all yetkisi (cofounder/recruiter) → her aday.
-// ctx.myStartupIds : üyenin proje kapsamı (startup_id listesi).
-// read_all yoksa: yalnızca KENDİ projesine SUNULMUŞ aday görünür.
-// SQL tarafındaki hub_sees_candidate() ile birebir aynı kural.
+// canDraftAI(candidate) -> boolean (v2 §7)
+// AI, adayın somut verisi (kaynak detayı, "neden bu kişi", kanıt linki) boşsa
+// taslak üretmez — UI "Veri yetersiz, elle yaz" uyarısı gösterir.
+export function canDraftAI(candidate) {
+  const c = candidate || {};
+  return (
+    filled(c.sourceDetail) ||
+    filled(c.whyThisOne) ||
+    (Array.isArray(c.evidence) && c.evidence.length > 0)
+  );
+}
+
+// candidateVisible(candidate, ctx) -> bir üye bu adayı görebilir mi? (§10.2)
+// ctx.readAll: candidates.read_all (cofounder/recruiter) → her aday.
+// yoksa: yalnızca KENDİ projesine SUNULMUŞ aday. SQL hub_sees_candidate() ile aynı.
 export function candidateVisible(candidate, { readAll = false, myStartupIds = [] } = {}) {
   if (readAll) return true;
   if (!candidate) return false;

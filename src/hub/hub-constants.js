@@ -1,70 +1,70 @@
 // hub-constants.js — Kurucu Hattı sabit listeleri ve eşik değerleri.
 //
-// Bu dosya HUB_SPEC §2 (+ §6 check kısıtları) temelli sabit listelerin TEK
-// kaynağıdır. Hiçbir bileşen kendi aşama / kaynak / bayrak / rubrik listesini
-// tanımlamaz — hepsi buradan gelir. UI metni Türkçe, tanımlayıcılar İngilizce.
+// HUB_SPEC v2 temelli. TEK kaynak: hiçbir bileşen kendi aşama / kaynak /
+// bayrak / rubrik listesini tanımlamaz. UI metni Türkçe, tanımlayıcılar İngilizce.
 
-// value → label eşlemesi üretir (bileşenlerde <Select> ve rozet metni için).
+// value → label eşlemesi üretir (<Select> ve rozet metni için).
 const toLabelMap = (list) => Object.fromEntries(list.map((x) => [x.value, x.label]));
 
-// ─── Aşamalar (§2.2) ────────────────────────────────────────────────────
-// Sıra anlamlıdır: pipeline ilerleyişi bu diziye göre. `archived` aşama
-// değildir — her aşamadan çıkış (§2.2), bu yüzden PIPELINE_STAGES dışında.
+// ─── Aşamalar (v2 §2) ──────────────────────────────────────────────────
+// Sıra: Havuz → Temas → Görüşme → Deneme (Kapı A → Kapı B*) → Ekipte.
+// `contact` eski contacted+replied'ı kapsar (cevap durumu hub_touches.outcome'da).
+// `trial` eski finalist+gate_a+gate_b'yi kapsar — Kapı A/B ayrımı hub_gates.gate
+// ile, ayrı stage değeri DEĞİL. `archived` aşama değil, her aşamadan çıkış.
 export const STAGES = [
-  { value: 'pool',        label: 'Havuz',    exit: 'Kaynak ve en az bir kanıt linki girilmiş' },
-  { value: 'contacted',   label: 'Temas',    exit: 'İlk mesaj gönderildi, hub_touches kaydı var' },
-  { value: 'replied',     label: 'Cevap',    exit: 'Aday döndü (olumsuzsa sebeple arşive)' },
-  { value: 'interviewed', label: 'Görüşme',  exit: 'hub_interviews kaydı var ve rubrik dolu' },
-  { value: 'finalist',    label: 'Finalist', exit: 'Proje seçtirildi + şartlar/hisse konuşuldu' },
-  { value: 'gate_a',      label: 'Kapı A',   exit: '72 saatlik ilk görev başlatıldı' },
-  { value: 'gate_b',      label: 'Kapı B',   exit: '10 günlük ilk sprint başlatıldı' },
-  { value: 'joined',      label: 'Ekipte',   exit: 'Sözleşme imzalandı, hak ediş başladı' },
+  { value: 'pool',      label: 'Havuz',    exit: 'Kaynak ve en az bir link girilmiş' },
+  { value: 'contact',   label: 'Temas',    exit: 'İlk mesaj gönderildi (hub_touches kaydı)' },
+  { value: 'interview', label: 'Görüşme',  exit: 'Rubrik dolu, eşik kontrolü yapıldı' },
+  { value: 'trial',     label: 'Deneme',   exit: 'Aktif kapı (A ya da B) başlatıldı' },
+  { value: 'member',    label: 'Ekipte',   exit: 'Sözleşme imzalandı, hak ediş başladı' },
 ];
 
 export const ARCHIVED_STAGE = { value: 'archived', label: 'Arşiv' };
 
-// Tüm geçerli `stage` değerleri (DB check kısıtıyla birebir).
 export const ALL_STAGES = [...STAGES, ARCHIVED_STAGE];
 export const STAGE_ORDER = STAGES.map((s) => s.value);
-// Üye hattında Kapı B YOKTUR (§12.1): finalist → gate_a → joined. Bu bir
-// "atlama" değil, hattın kendi sırasıdır.
-export const MEMBER_STAGE_ORDER = STAGE_ORDER.filter((s) => s !== 'gate_b');
-export const stageOrderFor = (track) => (track === 'member' ? MEMBER_STAGE_ORDER : STAGE_ORDER);
 export const STAGE_LABEL = toLabelMap(ALL_STAGES);
 
 // Bir aşamanın pipeline sırasındaki indexi (archived → -1).
 export const stageIndex = (stage) => STAGE_ORDER.indexOf(stage);
 
-// ─── Kaynaklar (§6 check — 14 değer, §8.6.1 bağlam) ────────────────────
+// ─── Kaynaklar (v2 §6 — 14→6) ─────────────────────────────────────────
+// Eski değerler (tubitak, club, bootcamp, competition, content, open_source,
+// dead_startup, event) `source_detail` serbest metnine taşınır.
 export const SOURCES = [
-  { value: 'hackathon',    label: 'Hackathon' },
-  { value: 'github',       label: 'GitHub' },
-  { value: 'dead_startup', label: 'Kapanmış girişim' },
-  { value: 'incubator',    label: 'Kuluçka / hızlandırıcı' },
-  { value: 'tubitak',      label: 'TÜBİTAK / TEKNOFEST' },
-  { value: 'club',         label: 'Üniversite kulübü' },
-  { value: 'bootcamp',     label: 'Bootcamp' },
-  { value: 'competition',  label: 'Yarışma' },
-  { value: 'content',      label: 'Teknik içerik üreticisi' },
-  { value: 'open_source',  label: 'Açık kaynak katkıcısı' },
-  { value: 'referral',     label: 'Referans' },
-  { value: 'inbound',      label: 'Inbound (site başvurusu)' },
-  { value: 'event',        label: 'Etkinlik' },
-  { value: 'other',        label: 'Diğer' },
+  { value: 'referral',  label: 'Referans' },
+  { value: 'hackathon', label: 'Hackathon' },
+  { value: 'github',    label: 'GitHub' },
+  { value: 'incubator', label: 'Kuluçka / hızlandırıcı' },
+  { value: 'inbound',   label: 'Inbound (site başvurusu)' },
+  { value: 'other',     label: 'Diğer' },
 ];
 export const SOURCE_LABEL = toLabelMap(SOURCES);
 
-// ─── Arşiv sebepleri (§2.2 — zorunlu) ─────────────────────────────────
+// ─── Sonraki aksiyon (v2 §3 — 6 seçenek) ─────────────────────────────
+// Serbest metin DEĞİL: sabit liste.
+export const NEXT_ACTIONS = [
+  { value: 'message',            label: 'Mesaj at' },
+  { value: 'follow_up',          label: 'Takip et' },
+  { value: 'schedule_interview', label: 'Görüşme ayarla' },
+  { value: 'interview',          label: 'Görüş' },
+  { value: 'decide',             label: 'Karar ver' },
+  { value: 'start_gate',         label: 'Kapı başlat' },
+];
+export const NEXT_ACTION_LABEL = toLabelMap(NEXT_ACTIONS);
+
+// ─── Arşiv sebepleri (v2 §2 — zorunlu) ───────────────────────────────
 export const ARCHIVE_REASONS = [
   { value: 'no_reply',       label: 'Cevap yok' },
   { value: 'not_interested', label: 'İlgilenmedi' },
   { value: 'no_time',        label: 'Vakti yok' },
   { value: 'below_bar',      label: 'Çıtanın altında' },
   { value: 'we_passed',      label: 'Biz geçtik' },
+  { value: 'gate_failed',    label: 'Görevi teslim etmedi' },
 ];
 export const ARCHIVE_REASON_LABEL = toLabelMap(ARCHIVE_REASONS);
 
-// ─── Rol tipleri (§6 check) ───────────────────────────────────────────
+// ─── Rol tipleri ─────────────────────────────────────────────────────
 export const ROLE_TYPES = [
   { value: 'technical',  label: 'Teknik' },
   { value: 'business',   label: 'İş geliştirme' },
@@ -73,49 +73,17 @@ export const ROLE_TYPES = [
 ];
 export const ROLE_TYPE_LABEL = toLabelMap(ROLE_TYPES);
 
-// ─── Veri güveni (§6 check, §8.6.3–8.6.4) ─────────────────────────────
-// Elle girilen kayıtta varsayılan 'declared' (§8.2); DB default 'guess'.
-export const DATA_TRUST = [
-  { value: 'verified', label: 'Doğrulanmış' },
-  { value: 'declared', label: 'Beyan' },
-  { value: 'guess',    label: 'Tahmin' },
-];
-export const DATA_TRUST_LABEL = toLabelMap(DATA_TRUST);
-export const DATA_TRUST_MANUAL_DEFAULT = 'declared';
-
-// ─── Eğitim durumu (§6 check) ─────────────────────────────────────────
-export const EDU_STATUSES = [
-  { value: 'student',  label: 'Öğrenci' },
-  { value: 'new_grad', label: 'Yeni mezun' },
-  { value: 'working',  label: 'Çalışıyor' },
-  { value: 'unknown',  label: 'Bilinmiyor' },
-];
-export const EDU_STATUS_LABEL = toLabelMap(EDU_STATUSES);
-
-// Sınıf (§6 kolon yorumu: '1','2','3','4','yl','dr')
-export const CLASS_YEARS = [
-  { value: '1',  label: '1. sınıf' },
-  { value: '2',  label: '2. sınıf' },
-  { value: '3',  label: '3. sınıf' },
-  { value: '4',  label: '4. sınıf' },
-  { value: 'yl', label: 'Yüksek lisans' },
-  { value: 'dr', label: 'Doktora' },
-];
-export const CLASS_YEAR_LABEL = toLabelMap(CLASS_YEARS);
-
-// ─── Kırmızı bayraklar (§2.4 — sabit 6 madde) ────────────────────────
-// Her bayrağın altında serbest not (candidate.flag_notes[key]).
+// ─── Kırmızı bayraklar (v2 §2.3 — 6→4) ──────────────────────────────
+// Her bayrağın altında serbest not (candidate.flagNotes[key]).
 export const RED_FLAGS = [
-  { value: 'blame',           label: 'Sorumluluk atma',            hint: 'Geçmiş başarısızlıkları hep başkasına/duruma bağlıyor' },
-  { value: 'no_i',            label: 'Katkı belirsiz',             hint: 'Hep "biz" diyor, kendi payını ayırt edemiyor' },
-  { value: 'no_capacity',     label: 'Kapasite belirsiz',          hint: 'Bu iş için neyi bırakacağını söyleyemiyor' },
-  { value: 'no_terms',        label: 'Şart sormadı',               hint: 'Hisse / şartlar / beklentiler hiç konuşulmadı' },
-  { value: 'only_experience', label: 'Sadece deneyim beklentisi',  hint: 'Ortaklık değil, CV\'ye satır arıyor' },
-  { value: 'never_finished',  label: 'Hiçbir işi bitmemiş',        hint: 'Başlanmış çok, bitirilmiş hiç iş yok' },
+  { value: 'blame',       label: 'Sorumluluk atma',  hint: 'Geçmiş başarısızlıkları hep başkasına/duruma bağlıyor' },
+  { value: 'no_terms',    label: 'Şart sormadı',      hint: 'Hisse / şartlar / beklentiler hiç konuşulmadı' },
+  { value: 'unrealistic', label: 'Gerçekçi değil',    hint: 'Zaman planı, beklenti veya vaatler gerçekçi değil' },
+  { value: 'disrespect',  label: 'Saygısızlık',       hint: 'Görüşmede küçümseyen / saygısız tavır' },
 ];
 export const RED_FLAG_LABEL = toLabelMap(RED_FLAGS);
 
-// ─── Rubrik (§2.3) — üç eksen, her biri 1–5 ─────────────────────────
+// ─── Rubrik (v2 §2.3) — üç eksen, her biri 1–5 ─────────────────────
 export const SCORE_MIN = 1;
 export const SCORE_MAX = 5;
 
@@ -126,8 +94,8 @@ export const RUBRIC_AXES = [
 ];
 export const RUBRIC_AXIS_LABEL = toLabelMap(RUBRIC_AXES);
 
-// AI ön puanı yalnızca `bitirmişlik` eksenini tahmin eder (§8.6.6).
-// Salt okunur, "öneri" etiketiyle gösterilir; insan puanının üstüne yazmaz.
+// AI ön puanı yalnızca `bitirmişlik` eksenini tahmin eder. Rubrik butonları
+// 1–5 rakamı yerine bu cümleyi gösterir (v2 §2.3).
 export const AI_PRESCORE_FINISHING = [
   { value: 5, when: '≥ 2 bitmiş proje ve en az biri canlı/kullanıcılı görünüyor' },
   { value: 4, when: '1 bitmiş proje + son 6 ayda aktif' },
@@ -136,49 +104,40 @@ export const AI_PRESCORE_FINISHING = [
   { value: 1, when: 'Boş veya yalnızca fork' },
 ];
 
-// ─── Hatlar (§12.1) ─────────────────────────────────────────────────
-// Aday `track` alanı: kurallar buna göre değişir.
+// ─── Hatlar (v2 §0) ────────────────────────────────────────────────
 export const TRACKS = [
   { value: 'founder', label: 'Kurucu' },
   { value: 'member',  label: 'Üye' },
 ];
 export const TRACK_LABEL = toLabelMap(TRACKS);
 
-// ─── Eşik değerleri — HAT BAZINDA (§12.1 + §2.3 + §2.4 + §9) ────────
-// Kurucu hattı: toplam ≥ minTotal VE hiçbir eksen ≤ 2 (her eksen ≥ minAxis),
-//               iletişim ekseni zorunlu (rubricComplete).
-// Üye hattı:    bitirmişlik ≥ minFinishing VE kapasite ≥ minCapacity.
-//               İletişim yalnızca rol needs_communication ise zorunlu; o
-//               durumda eşik minCommunication (şartname sayı vermiyor → 3).
-// Ortak: kırmızı bayrak sayısı < blockAtRedFlags (ya da cofounder + override).
+// ─── Eşik değerleri — HAT BAZINDA (v2 §2.3) ────────────────────────
+// Kurucu: toplam ≥ minTotal VE her eksen ≥ minAxis, iletişim ekseni zorunlu.
+// Üye: bitirmişlik ≥ minFinishing VE kapasite ≥ minCapacity; iletişim yalnızca
+//      rol needs_communication ise (eşik minCommunication).
+// Ortak: kırmızı bayrak < blockAtRedFlags (ya da cofounder + override).
 export const THRESHOLD = {
   blockAtRedFlags: 2,
   founder: { minTotal: 10, minAxis: 3 },
   member:  { minFinishing: 3, minCapacity: 3, minCommunication: 3 },
 };
 
-// ─── Açık rol durum makinesi (§12.2) ──────────────────────────────
+// ─── Açık rol durum makinesi (v2 §10.1 — 7→4) ─────────────────────
+// Talep/onay el sıkışması yok: rol doğrudan 'sourcing'e düşer.
 export const ROLE_STATUSES = [
   { value: 'draft',     label: 'Taslak' },
-  { value: 'requested', label: 'Talep edildi' },
   { value: 'sourcing',  label: 'Aranıyor' },
   { value: 'shortlist', label: 'Kısa liste' },
   { value: 'filled',    label: 'Dolduruldu' },
-  { value: 'paused',    label: 'Donduruldu' },
-  { value: 'cancelled', label: 'İptal' },
 ];
 export const ROLE_STATUS_LABEL = toLabelMap(ROLE_STATUSES);
 
-// Durumdan hangi geçişler serbest (§12.2 şeması). paused/cancelled her
-// aktif durumdan yapılabilir; filled sisteme aittir (aday joined olunca).
+// filled sisteme aittir (aday `member` olunca otomatik).
 export const ROLE_STATUS_NEXT = {
-  draft:     ['requested', 'cancelled'],
-  requested: ['sourcing', 'paused', 'cancelled'],
-  sourcing:  ['shortlist', 'paused', 'cancelled'],
-  shortlist: ['sourcing', 'paused', 'cancelled'],  // filled otomatik
-  paused:    ['requested', 'sourcing', 'cancelled'],
+  draft:     ['sourcing'],
+  sourcing:  ['shortlist', 'draft'],
+  shortlist: ['sourcing'],   // filled otomatik
   filled:    [],
-  cancelled: ['draft'],
 };
 
 export const OWNER_DECISIONS = [
@@ -188,30 +147,34 @@ export const OWNER_DECISIONS = [
 ];
 export const OWNER_DECISION_LABEL = toLabelMap(OWNER_DECISIONS);
 
-// ─── Bayatlama sayacı (§9 tablosu) ─────────────────────────────────
-// Her aşama için: sayaç HANGİ zamandan başlar + warn/critical (gün).
-// ⚠️ updated_at ASLA referans değildir — herhangi bir alan düzenlenince
-// sıfırlanır ve takip görevi hiç doğmaz. Sayaç yalnızca stage_changed_at
-// ve last_contact_at üzerinden işler. Listede olmayan aşamada bayatlama yok.
+// ─── Bayatlama sayacı (v2 §12 — istemcide isStale()) ──────────────
+// ⚠️ updated_at ASLA referans değildir. Yalnızca stageChangedAt ve
+// lastContactAt. Listede olmayan aşamada bayatlama yok.
 export const STALE = {
-  contacted:   { ref: 'lastContactAt',  warn: 7, critical: 14 },
-  interviewed: { ref: 'stageChangedAt', warn: 5, critical: 10 },
-  replied:     { ref: 'stageChangedAt', warn: 3, critical: 7 },
-  finalist:    { ref: 'stageChangedAt', warn: 5, critical: 10 },
+  contact:   { ref: 'lastContactAt',  warn: 7, critical: 14 },
+  interview: { ref: 'stageChangedAt', warn: 5, critical: 10 },
+  trial:     { ref: 'stageChangedAt', warn: 5, critical: 10 },
 };
 
-// ─── Kapılar (§2.5) ─────────────────────────────────────────────────
+// ─── Kapılar (v2 §2.1) ────────────────────────────────────────────
 export const GATE = { aHours: 72, bDays: 10, totalDays: 13 };
 
-// ─── Haftalık hedefler (§8.6.8 / §8.1) ─────────────────────────────
-export const WEEKLY_TARGET = { pool: 30, contacts: 15 };
+// Süre uzatma seçenekleri (v2 §2.2) — gün.
+export const GATE_EXTENSIONS = [
+  { value: 1, label: '+1 gün' },
+  { value: 3, label: '+3 gün' },
+  { value: 7, label: '+1 hafta' },
+];
 
-// ─── Bağlı tablo enum'ları (§6 check kısıtları) ────────────────────
+// ─── Haftalık hedefler (v2 §11 — gerçekçileştirildi) ──────────────
+export const WEEKLY_TARGET = { pool: 10, contacts: 6 };
+
+// ─── Bağlı tablo enum'ları ───────────────────────────────────────
+// Kanal 4→3 (v2 §9).
 export const TOUCH_CHANNELS = [
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'email',    label: 'E-posta' },
   { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'other',    label: 'Diğer' },
 ];
 export const TOUCH_CHANNEL_LABEL = toLabelMap(TOUCH_CHANNELS);
 
@@ -223,13 +186,6 @@ export const TOUCH_OUTCOMES = [
 ];
 export const TOUCH_OUTCOME_LABEL = toLabelMap(TOUCH_OUTCOMES);
 
-export const INTERVIEW_DECISIONS = [
-  { value: 'finalist', label: 'Finalist' },
-  { value: 'archive',  label: 'Arşiv' },
-  { value: 'hold',     label: 'Beklet' },
-];
-export const INTERVIEW_DECISION_LABEL = toLabelMap(INTERVIEW_DECISIONS);
-
 export const GATE_RESULTS = [
   { value: 'pending', label: 'Sürüyor' },
   { value: 'passed',  label: 'Geçti' },
@@ -237,14 +193,7 @@ export const GATE_RESULTS = [
 ];
 export const GATE_RESULT_LABEL = toLabelMap(GATE_RESULTS);
 
-export const URGENCIES = [
-  { value: 'low',    label: 'Düşük' },
-  { value: 'normal', label: 'Normal' },
-  { value: 'high',   label: 'Yüksek' },
-];
-export const URGENCY_LABEL = toLabelMap(URGENCIES);
-
-// ─── Roller (§5) ───────────────────────────────────────────────────
+// ─── Roller (§5) ─────────────────────────────────────────────────
 export const HUB_ROLES = [
   { value: 'cofounder',     label: 'Kurucu' },
   { value: 'recruiter',     label: 'İşe alım' },
