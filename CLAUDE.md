@@ -13,12 +13,19 @@ Vite 6 + React 18 + Supabase (auth + Postgres), Vercel'de barındırılıyor.
 
 ## Kurucu Hattı (`/hub`)
 
-Yapım şartnamesi: **`HUB_SPEC.md`** — bağlayıcıdır.
+Yapım şartnamesi: **`HUB_SPEC.md`** — artık **v2** (sadeleştirilmiş: 3 ekran,
+aşamaya göre 6–8 alan, 7 tablo). Bağlayıcıdır. v1 arşivi: `HUB_SPEC_v1_archive.md`.
 Şartnamedeki bir karar belirsizse veya yanlış görünüyorsa **kod yazmadan önce sor**;
 sessizce kendi tasarımını uygulama.
 
-Görev sırası şartnamenin §11'inde, 15 adım halinde. Aynı anda tek adım yapılır,
-adım sonunda kabul kriterinin sağlandığı doğrulanır ve onay beklenir.
+Görev sırası **`PROMPT_S.md`**'de, 12 adım halinde (Prompt A–D uygulandı; v2
+onların bir kısmını geri sarıyor). Aynı anda tek adım yapılır, adım sonunda
+`node src/hub/hub-rules.test.mjs` yeşil kalır ve onay beklenir.
+
+v2 dışı, bağlantısı kesilecek dosyalar (silinmez): `src/hub/hub-parse.js`,
+`hub-github.js`, `hub-enrich.js`, `hub-match.js`, `src/hub/pages/sources.jsx`,
+`src/hub/pages/board.jsx`, eski `table.jsx`, `import.jsx`. v2'de gelen yeni
+dosyalar: `candidates-list.jsx`, `import-simple.jsx`, `hub-ai-draft.js`.
 
 ## Proje kuralları
 
