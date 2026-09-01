@@ -38,7 +38,7 @@ export function fillTemplate(body, candidate, extra = {}) {
 
 const rate = (t) => (t.sentCount ? Math.round((100 * (t.replyCount || 0)) / t.sentCount) : null);
 
-const BLANK = { name: '', sourceType: '', variant: 'A', subject: '', body: '', active: true };
+const BLANK = { name: '', sourceType: '', subject: '', body: '', active: true };
 
 export default function TemplatesPage() {
   const { templates, addItem, updateItem, deleteItem } = useHubStore();
@@ -50,10 +50,9 @@ export default function TemplatesPage() {
   const [toast, setToast] = useState(null);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 3000); };
 
-  // İsme göre grupla → varyantlar yan yana.
   const groups = useMemo(() => {
     const g = new Map();
-    [...templates].sort((a, b) => a.name.localeCompare(b.name, 'tr') || (a.variant || '').localeCompare(b.variant || ''))
+    [...templates].sort((a, b) => a.name.localeCompare(b.name, 'tr'))
       .forEach((t) => {
         if (!g.has(t.name)) g.set(t.name, []);
         g.get(t.name).push(t);
@@ -107,7 +106,6 @@ export default function TemplatesPage() {
           <table className="adm-table" style={{ width: '100%' }}>
             <thead>
               <tr>
-                <th style={{ width: 70 }}>Varyant</th>
                 <th>Konu</th>
                 <th style={{ width: 80 }}>Gönderim</th>
                 <th style={{ width: 80 }}>Cevap</th>
@@ -119,7 +117,6 @@ export default function TemplatesPage() {
             <tbody>
               {variants.map((t) => (
                 <tr key={t.id}>
-                  <td><span className="hub-pill">{t.variant || '—'}</span></td>
                   <td style={{ color: 'var(--adm-text-secondary)' }}>{t.subject || <span style={{ color: 'var(--adm-text-dim)' }}>—</span>}</td>
                   <td>{t.sentCount || 0}</td>
                   <td>{t.replyCount || 0}</td>
@@ -149,7 +146,6 @@ export default function TemplatesPage() {
             <div className="adm-form-grid">
               <Field label="Ad" required><Input value={editing.name} onChange={(v) => setEditing({ ...editing, name: v })} placeholder="Hackathon ilk temas" /></Field>
               <Field label="Tür"><Select value={editing.sourceType || ''} onChange={(v) => setEditing({ ...editing, sourceType: v })} options={TEMPLATE_TYPES} /></Field>
-              <Field label="Varyant"><Select value={editing.variant || 'A'} onChange={(v) => setEditing({ ...editing, variant: v })} options={[{ value: 'A', label: 'A' }, { value: 'B', label: 'B' }]} /></Field>
               <Field label="Aktif"><Select value={editing.active ? '1' : '0'} onChange={(v) => setEditing({ ...editing, active: v === '1' })} options={[{ value: '1', label: 'Evet' }, { value: '0', label: 'Hayır' }]} /></Field>
             </div>
             <Field label="Konu (e-posta için)"><Input value={editing.subject || ''} onChange={(v) => setEditing({ ...editing, subject: v })} /></Field>
@@ -169,7 +165,7 @@ export default function TemplatesPage() {
 
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)}
         onConfirm={() => { deleteItem('templates', confirm.id).then(() => { setConfirm(null); flash('Şablon silindi.'); }); }}
-        title="Şablonu sil?" message={`“${confirm?.name}” (${confirm?.variant}) kalıcı olarak silinecek.`} />
+        title="Şablonu sil?" message={`“${confirm?.name}” kalıcı olarak silinecek.`} />
 
       {toast && <div className="hub-toast">{toast}</div>}
     </div>

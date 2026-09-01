@@ -453,8 +453,13 @@ Push etme. Dört parçanın kabul kriterini tek tek nasıl doğruladığını ya
 
 > Prompt D'nin yerini alır. Kaynak şartname artık `HUB_SPEC.md` (v2);
 > çelişki olursa o dosya kazanır. Tam 12 adımlı metin ayrı dosyada:
-> **`PROMPT_S.md`** — sırayla uygulanır, her adımdan sonra
-> `node src/hub/hub-rules.test.mjs` yeşil kalmalı.
+> **`PROMPT_S.md`**.
+>
+> **Durum:** `hub-simplify-v2` dalında uygulandı. Adım 1 (şema) · 2–3
+> (sabitler + kural motoru, 66 test) · store+mappers · 4–11 (UI, build yeşil)
+> · 12 (dok: `HUB_TEST.md`, `CLAUDE.md`). **Bekleyen:** `0010_hub_simplify.sql`
+> canlıda çalıştırılacak; `hub-ai-draft` edge function deploy edilecek
+> (`ANTHROPIC_API_KEY` secret); dal `main`'e merge edilmedi.
 
 Özet:
 

@@ -18,14 +18,23 @@ aşamaya göre 6–8 alan, 7 tablo). Bağlayıcıdır. v1 arşivi: `HUB_SPEC_v1_
 Şartnamedeki bir karar belirsizse veya yanlış görünüyorsa **kod yazmadan önce sor**;
 sessizce kendi tasarımını uygulama.
 
-Görev sırası **`PROMPT_S.md`**'de, 12 adım halinde (Prompt A–D uygulandı; v2
-onların bir kısmını geri sarıyor). Aynı anda tek adım yapılır, adım sonunda
-`node src/hub/hub-rules.test.mjs` yeşil kalır ve onay beklenir.
+Görev sırası **`PROMPT_S.md`**'de, 12 adım halinde. Kabul testleri:
+**`HUB_TEST.md`** (aşama başına bir uçtan uca test) + `node
+src/hub/hub-rules.test.mjs` (66 senaryo).
 
-v2 dışı, bağlantısı kesilecek dosyalar (silinmez): `src/hub/hub-parse.js`,
-`hub-github.js`, `hub-enrich.js`, `hub-match.js`, `src/hub/pages/sources.jsx`,
-`src/hub/pages/board.jsx`, eski `table.jsx`, `import.jsx`. v2'de gelen yeni
-dosyalar: `candidates-list.jsx`, `import-simple.jsx`, `hub-ai-draft.js`.
+**v2 hub sayfaları:** `today.jsx` · `candidates-list.jsx` · `candidate.jsx`
+(+`GateCard`) · `roles.jsx` · `templates.jsx` · `metrics.jsx` · `settings.jsx`.
+Yeni destek dosyaları: `new-candidate.jsx`, `import-simple.jsx` (CSV; .xlsx için
+SheetJS eklenecek), `hub-ai-draft.js` + `supabase/functions/hub-ai-draft/`.
+
+**v2 dışı, bağlantısı kesik (silinmez, `hub-app.jsx`'ten import edilmez):**
+`src/hub/hub-parse.js`, `hub-github.js`, `hub-enrich.js`, `hub-match.js`,
+`src/hub/pages/{sources,board,table,import}.jsx`,
+`src/hub/components/{saved-views,unknowable}.jsx`. Hacim gelince geri gelir.
+
+**Düşen tablolar (0010):** `hub_views`, `hub_import_batches`. **Ölü ama duruyor:**
+`hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). `0004_hub_cron.sql`
+→ `supabase/migrations/_deferred/` (deploy edilmez).
 
 ## Proje kuralları
 

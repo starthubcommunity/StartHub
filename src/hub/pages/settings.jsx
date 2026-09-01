@@ -154,8 +154,8 @@ export default function SettingsPage() {
         <li>Kurucu hattı eşiği: toplam ≥ {THRESHOLD.founder.minTotal}, her eksen ≥ {THRESHOLD.founder.minAxis}</li>
         <li>Üye hattı eşiği: bitirmişlik ≥ {THRESHOLD.member.minFinishing}, kapasite ≥ {THRESHOLD.member.minCapacity} (iletişim yalnızca rol gerektiriyorsa ≥ {THRESHOLD.member.minCommunication})</li>
         <li>Ortak: kırmızı bayrak &lt; {THRESHOLD.blockAtRedFlags} (ya da kurucu + override)</li>
-        <li>Bayatlama: contacted {STALE.contacted.warn}/{STALE.contacted.critical}g · interviewed {STALE.interviewed.warn}/{STALE.interviewed.critical}g · replied {STALE.replied.warn}/{STALE.replied.critical}g · finalist {STALE.finalist.warn}/{STALE.finalist.critical}g</li>
-        <li>Kapılar: A {GATE.aHours} saat · B {GATE.bDays} gün</li>
+        <li>Bayatlama (istemcide isStale): {Object.entries(STALE).map(([k, v]) => `${k} ${v.warn}/${v.critical}g`).join(' · ')}</li>
+        <li>Kapılar: A {GATE.aHours} saat · B {GATE.bDays} gün · uzatma +1/+3/+7 gün</li>
       </ul>
 
       <h3 className="hub-h4" style={{ marginTop: 24 }}>Kırmızı bayrak listesi</h3>
@@ -166,8 +166,8 @@ export default function SettingsPage() {
       {/* ── Otomasyon ── */}
       <h3 className="hub-h4" style={{ marginTop: 28 }}>Otomasyon</h3>
       <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 8 }}>
-        <code>hub-daily</code> her gece 03:00'te çalışır (pg_cron). Elle tetikleyip sonucu görebilirsin.
-        Otomatik arşivleme yalnızca <code>no_reply</code> içindir.
+        v2'de gece işi (pg_cron) yok — bayatlama istemcide <code>isStale()</code> ile hesaplanır.
+        <code>hub-daily</code> edge function'ı duruyor; elle tetikleyip sonucu görebilirsin.
       </p>
       <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={runDaily}>
         <AIcon name="refresh" size={14} /> hub-daily'yi şimdi çalıştır
