@@ -1,7 +1,5 @@
 // candidates-list.jsx — Adaylar listesi (v2 §5). table.jsx'in yerine.
-// Tek liste, konfigürasyonsuz. 7 sabit sütun. Kayıtlı görünüm / sütun
-// sürükleme / hücre içi düzenleme / CSV export / çoklu seçim YOK.
-// Satıra tıklama → aday kartı.
+// Kart satırları (team app dili). Satıra tıklama → aday kartı.
 import React, { useMemo, useState } from 'react';
 import { AIcon, PageHead } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
@@ -13,19 +11,14 @@ import CandidatePanel from './candidate';
 import ImportSimple from './import-simple';
 import NewCandidateModal from './new-candidate';
 
-function ScoreCell({ c }) {
-  if (!rubricComplete(c) && (c.track || 'founder') === 'founder') {
-    return <span style={{ color: 'var(--adm-text-dim)', fontSize: 12 }}>—</span>;
-  }
+const STAGE_COLOR = { pool: '#A29D94', contact: '#2563EB', interview: '#7C3AED', trial: '#EA580C', member: '#16A34A', archived: '#E7E0D2' };
+const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+function ScorePill({ c }) {
+  if (!rubricComplete(c) && (c.track || 'founder') === 'founder') return null;
   const met = thresholdMet(c);
   const total = (c.scoreFinishing ?? 0) + (c.scoreCommunication ?? 0) + (c.scoreCapacity ?? 0);
-  return (
-    <span className="hub-pill" style={met
-      ? { background: 'var(--adm-green-light)', color: 'var(--adm-green)' }
-      : { background: 'var(--adm-border-light)', color: 'var(--adm-text-dim)' }}>
-      {total || '—'}{met ? ' ✓' : ''}
-    </span>
-  );
+  return <span className={`hub-pill ${met ? 'hub-pill--ok' : ''}`}>puan {total || '—'}{met ? ' ✓' : ''}</span>;
 }
 
 export default function CandidatesListPage({ filters, setFilters }) {
@@ -47,10 +40,10 @@ export default function CandidatesListPage({ filters, setFilters }) {
       <PageHead title="Adaylar" desc={`${rows.length} / ${candidates.length} aday`} actions={
         can('candidates.write') ? (
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setAdding('import')}>
-              <AIcon name="upload" size={14} /> CSV / Excel
+            <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('import')}>
+              <AIcon name="upload" size={14} /> CSV
             </button>
-            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => setAdding('one')}>
+            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAdding('one')}>
               <AIcon name="plus" size={14} /> Aday ekle
             </button>
           </div>
@@ -59,40 +52,37 @@ export default function CandidatesListPage({ filters, setFilters }) {
 
       <FilterBar filters={filters} onChange={setFilters} members={members} />
 
-      <div className="adm-card" style={{ marginTop: 12 }}>
-        <div className="adm-card__body" style={{ padding: 0, overflowX: 'auto' }}>
-          <table className="adm-table">
-            <thead>
-              <tr>
-                <th>Ad</th><th>Aşama</th><th>Kaynak</th><th>Sorumlu</th>
-                <th>Puan</th><th>Bayrak</th><th>Sonraki aksiyon</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && <tr><td colSpan={7} style={{ padding: 20, color: 'var(--adm-text-dim)' }}>Yükleniyor…</td></tr>}
-              {!loading && rows.length === 0 && (
-                <tr><td colSpan={7} style={{ padding: 20, color: 'var(--adm-text-dim)' }}>Aday yok.</td></tr>
-              )}
-              {rows.map((c) => (
-                <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => setOpenId(c.id)}>
-                  <td style={{ fontWeight: 600 }}>{c.fullName}</td>
-                  <td><span className="hub-pill">{STAGE_LABEL[c.stage] || c.stage}</span></td>
-                  <td>{SOURCE_LABEL[c.source] || c.source}</td>
-                  <td>{memberName(c.ownerId)}</td>
-                  <td><ScoreCell c={c} /></td>
-                  <td>
-                    {(c.redFlags || []).length === 0
-                      ? <span style={{ color: 'var(--adm-text-dim)' }}>—</span>
-                      : <span title={(c.redFlags || []).map((k) => RED_FLAG_LABEL[k] || k).join(', ')}
-                          style={{ color: 'var(--adm-red)', fontWeight: 700 }}>⚑ {(c.redFlags || []).length}</span>}
-                  </td>
-                  <td>{c.nextAction ? (NEXT_ACTION_LABEL[c.nextAction] || c.nextAction) : <span style={{ color: 'var(--adm-text-dim)' }}>—</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {loading ? (
+        <div className="adm-empty">Yükleniyor…</div>
+      ) : rows.length === 0 ? (
+        <div className="adm-empty">İlk adayını ekle — sağ üstteki “Aday ekle”.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          {rows.map((c) => (
+            <div key={c.id} className="hub-c hub-c--tight hub-c--lead"
+              style={{ '--hub-lead': STAGE_COLOR[c.stage] || '#E7E0D2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
+              onClick={() => setOpenId(c.id)}>
+              <div className="hub-av">{initials(c.fullName)}</div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: 14, color: '#1C1917' }}>{c.fullName}</strong>
+                  <span className="hub-pill hub-pill--stage">{STAGE_LABEL[c.stage] || c.stage}</span>
+                  {(c.redFlags || []).length > 0 && (
+                    <span className="hub-pill hub-pill--flag" title={(c.redFlags || []).map((k) => RED_FLAG_LABEL[k] || k).join(', ')}>
+                      ⚑ {(c.redFlags || []).length}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: '#A29D94', marginTop: 3 }}>
+                  {SOURCE_LABEL[c.source] || c.source} · {memberName(c.ownerId)}
+                  {c.nextAction ? ` · ${NEXT_ACTION_LABEL[c.nextAction] || c.nextAction}` : ''}
+                </div>
+              </div>
+              <ScorePill c={c} />
+            </div>
+          ))}
         </div>
-      </div>
+      )}
 
       {openId && <CandidatePanel candidateId={openId} onClose={() => setOpenId(null)} />}
       {adding === 'one' && <NewCandidateModal onClose={() => setAdding(null)} />}

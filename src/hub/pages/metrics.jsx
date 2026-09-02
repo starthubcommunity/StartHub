@@ -10,14 +10,19 @@ const pct = (n, d) => (d > 0 ? Math.round((100 * n) / d) : null);
 function Metric({ label, value, target, hint }) {
   const has = value != null;
   const ok = has && target != null && value >= target;
+  const pctFill = has && target ? Math.min(100, Math.round((value / target) * 100)) : 0;
   return (
-    <div style={{ border: '1px solid var(--adm-border)', borderRadius: 'var(--adm-r)', padding: 16, background: 'var(--adm-bg-card)' }}>
-      <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{label}</div>
-      <div style={{ fontFamily: 'var(--font-heading)', fontSize: 26, fontWeight: 700, color: ok ? 'var(--adm-green)' : 'var(--adm-text)' }}>
+    <div className="hub-c">
+      <div style={{ fontSize: 12, color: '#A29D94' }}>{label}</div>
+      <div style={{ fontFamily: 'Space Grotesk, system-ui, sans-serif', fontSize: 27, fontWeight: 700, color: ok ? '#16A34A' : '#1C1917', margin: '2px 0 8px' }}>
         {has ? `%${value}` : '—'}
       </div>
-      {target != null && <div style={{ fontSize: 11, color: 'var(--adm-text-dim)' }}>Hedef: %{target}+</div>}
-      {hint && <div style={{ fontSize: 11, color: 'var(--adm-text-dim)', marginTop: 2 }}>{hint}</div>}
+      {target != null && (
+        <div className="hub-bar"><i style={{ width: `${pctFill}%`, background: ok ? '#16A34A' : '#DC2626' }} /></div>
+      )}
+      <div style={{ fontSize: 11, color: '#A29D94', marginTop: 6 }}>
+        {target != null ? `Hedef %${target}+` : ''}{hint ? ` · ${hint}` : ''}
+      </div>
     </div>
   );
 }
@@ -62,7 +67,7 @@ export default function MetricsPage() {
       </div>
 
       <h3 className="hub-h4">Kaynak başına cevap oranı</h3>
-      <div style={{ overflowX: 'auto' }}>
+      <div className="adm-card" style={{ overflowX: 'auto' }}>
         <table className="adm-table" style={{ width: '100%' }}>
           <thead>
             <tr>

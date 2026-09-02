@@ -79,16 +79,15 @@ export default function CandidatePanel({ candidateId, onClose }) {
       <div className="hub-panel" onClick={(e) => e.stopPropagation()}>
         <div className="hub-panel__head">
           <div>
-            <div className="hub-panel__title">
-              {c.fullName}{' '}
-              <span className="hub-pill" style={(c.track || 'founder') === 'member'
-                ? { background: 'var(--adm-blue-light)', color: 'var(--adm-blue)' }
-                : { background: 'var(--adm-purple-light)', color: 'var(--adm-purple)' }}>
+            <div className="hub-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {c.fullName}
+              <span className={`hub-pill hub-pill--track-${(c.track || 'founder') === 'member' ? 'member' : 'founder'}`}>
                 {TRACK_LABEL[c.track || 'founder']} hattı
               </span>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginTop: 2 }}>
-              {STAGE_LABEL[stage]} · {SOURCE_LABEL[c.source] || c.source}
+            <div style={{ fontSize: 12, color: '#A29D94', marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span className="hub-pill hub-pill--stage">{STAGE_LABEL[stage]}</span>
+              <span className="hub-pill hub-pill--source">{SOURCE_LABEL[c.source] || c.source}</span>
             </div>
           </div>
           <button className="adm-icon-btn" onClick={onClose}><AIcon name="x" size={18} /></button>

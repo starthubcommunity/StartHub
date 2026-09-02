@@ -6,7 +6,7 @@
 // .csv yerel ayrıştırılır. .xlsx için: Excel'de "Farklı kaydet → CSV UTF-8".
 // (SheetJS bağımlılığı eklenince .xlsx doğrudan okunabilir — bkz. PROMPT_S §7.)
 import React, { useMemo, useState } from 'react';
-import { AIcon, Modal, Field, Input, Select } from '../../admin/admin-ui';
+import { Field, Input, Select } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { SOURCES } from '../hub-constants';
@@ -131,85 +131,97 @@ export default function ImportSimple({ onClose }) {
   if (!can('candidates.write')) return null;
 
   return (
-    <Modal open onClose={onClose} title="CSV / Excel içe aktar" wide>
-      <div className="adm-form">
+    <div className="hub-wz-overlay" onClick={busy ? undefined : onClose}>
+      <div className="hub-wz hub-wz--wide" onClick={(e) => e.stopPropagation()}>
         {done != null ? (
-          <div style={{ textAlign: 'center', padding: '10px 0 4px' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{done} aday havuza eklendi.</div>
-            <button className="adm-btn adm-btn--primary" onClick={onClose}>Kapat</button>
+          <div className="hub-wz__done">
+            <h3>{done} aday havuza eklendi.</h3>
+            <button className="hub-wz__next" style={{ margin: '0 auto' }} onClick={onClose}>Kapat</button>
           </div>
         ) : (<>
-          <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', marginBottom: 12 }}>Adım {step} / 3</div>
-
-          {step === 1 && (
-            <Field label="CSV dosyası seç" hint="Excel için: Farklı kaydet → CSV UTF-8">
-              <input type="file" accept=".csv,text/csv" onChange={(e) => e.target.files[0] && onFile(e.target.files[0])} />
-              {err && <div className="adm-form__err" style={{ marginTop: 6 }}>{err}</div>}
-            </Field>
-          )}
-
-          {step === 2 && grid && (
-            <>
-              <div style={{ fontSize: 13, color: 'var(--adm-text-secondary)', marginBottom: 10 }}>
-                {body.length} satır. Sütunları eşle — sistem tahmin etti, düzeltebilirsin.
+          <div className="hub-wz__head">
+            <div className="hub-wz__headrow">
+              <div className="hub-wz__dots">
+                {[1, 2, 3].map((s) => <span key={s} className={`hub-wz__dot ${s === step ? 'hub-wz__dot--on' : ''}`} />)}
               </div>
-              {TARGETS.map((t) => (
-                <div key={t.key} className="adm-form-grid adm-form-grid--2" style={{ marginBottom: 6 }}>
-                  <div style={{ fontSize: 13, alignSelf: 'center' }}>{t.label}{t.key === 'fullName' && ' *'}</div>
-                  <Select value={map[t.key] ?? ''} onChange={(v) => setMap((m) => ({ ...m, [t.key]: v === '' ? undefined : Number(v) }))}
-                    placeholder="— (yok) —"
-                    options={headers.map((h, i) => ({ value: String(i), label: h || `Sütun ${i + 1}` }))} />
+              <button className="hub-wz__x" onClick={onClose} disabled={busy}>✕</button>
+            </div>
+          </div>
+
+          <div className="hub-wz__body">
+            {step === 1 && (
+              <div className="hub-wz__step">
+                <div className="hub-wz__kicker">ADIM 1/3</div>
+                <div className="hub-wz__q hub-wz__q--tight">CSV dosyası seç</div>
+                <div className="hub-wz__sub">Excel için: Farklı kaydet → CSV UTF-8</div>
+                <input type="file" accept=".csv,text/csv" onChange={(e) => e.target.files[0] && onFile(e.target.files[0])} />
+              </div>
+            )}
+
+            {step === 2 && grid && (
+              <div className="hub-wz__step">
+                <div className="hub-wz__kicker">ADIM 2/3</div>
+                <div className="hub-wz__q hub-wz__q--tight">Sütunları eşle</div>
+                <div className="hub-wz__sub">{body.length} satır. Sistem tahmin etti — düzeltebilirsin.</div>
+                {TARGETS.map((t) => (
+                  <div key={t.key} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{t.label}{t.key === 'fullName' && ' *'}</div>
+                    <Select value={map[t.key] ?? ''} onChange={(v) => setMap((m) => ({ ...m, [t.key]: v === '' ? undefined : Number(v) }))}
+                      placeholder="— (yok) —"
+                      options={headers.map((h, i) => ({ value: String(i), label: h || `Sütun ${i + 1}` }))} />
+                  </div>
+                ))}
+                <div className="adm-form-grid" style={{ marginTop: 12 }}>
+                  <Field label="Kaynak"><Select value={meta.source} onChange={(v) => setMeta((m) => ({ ...m, source: v }))}
+                    options={SOURCES.map((s) => ({ value: s.value, label: s.label }))} /></Field>
+                  <Field label="Parti etiketi" hint="Örn. Ekim hackathon listesi">
+                    <Input value={meta.importBatchLabel} onChange={(v) => setMeta((m) => ({ ...m, importBatchLabel: v }))} />
+                  </Field>
                 </div>
-              ))}
-              <div className="adm-form-grid" style={{ marginTop: 10 }}>
-                <Field label="Kaynak"><Select value={meta.source} onChange={(v) => setMeta((m) => ({ ...m, source: v }))}
-                  options={SOURCES.map((s) => ({ value: s.value, label: s.label }))} /></Field>
-                <Field label="Parti etiketi" hint="Örn. Ekim hackathon listesi">
-                  <Input value={meta.importBatchLabel} onChange={(v) => setMeta((m) => ({ ...m, importBatchLabel: v }))} />
-                </Field>
               </div>
-              <div className="adm-form__footer">
-                {err && <span className="adm-form__err">{err}</span>}
-                <button className="adm-btn adm-btn--ghost" onClick={() => setStep(1)}>Geri</button>
-                <button className="adm-btn adm-btn--primary" onClick={goPreview}>İleri →</button>
-              </div>
-            </>
-          )}
+            )}
 
-          {step === 3 && grid && (
-            <>
-              <div style={{ fontSize: 13, marginBottom: 8 }}>
-                {take.filter(Boolean).length} / {body.length} satır alınacak.
+            {step === 3 && grid && (
+              <div className="hub-wz__step">
+                <div className="hub-wz__kicker">ADIM 3/3</div>
+                <div className="hub-wz__q hub-wz__q--tight">Önizle ve onayla</div>
+                <div className="hub-wz__sub">{take.filter(Boolean).length} / {body.length} satır alınacak.</div>
+                <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #F0EADE', borderRadius: 10 }}>
+                  <table className="adm-table">
+                    <thead><tr><th></th><th>Ad</th><th>Link</th><th>Neden bu kişi</th></tr></thead>
+                    <tbody>
+                      {body.map((r, i) => {
+                        const val = (k) => (map[k] != null ? String(r[map[k]] || '').trim() : '');
+                        return (
+                          <tr key={i} style={{ opacity: take[i] ? 1 : 0.4 }}>
+                            <td><input type="checkbox" checked={!!take[i]} onChange={(e) => setTake((t) => t.map((x, j) => (j === i ? e.target.checked : x)))} /></td>
+                            <td>{val('fullName') || <em style={{ color: '#A29D94' }}>isimsiz</em>}</td>
+                            <td style={{ fontSize: 12 }}>{val('link')}</td>
+                            <td style={{ fontSize: 12 }}>{val('whyThisOne')}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid var(--adm-border-light)', borderRadius: 8 }}>
-                <table className="adm-table">
-                  <thead><tr><th></th><th>Ad</th><th>Link</th><th>Neden bu kişi</th></tr></thead>
-                  <tbody>
-                    {body.map((r, i) => {
-                      const val = (k) => (map[k] != null ? String(r[map[k]] || '').trim() : '');
-                      return (
-                        <tr key={i} style={{ opacity: take[i] ? 1 : 0.4 }}>
-                          <td><input type="checkbox" checked={!!take[i]} onChange={(e) => setTake((t) => t.map((x, j) => (j === i ? e.target.checked : x)))} /></td>
-                          <td>{val('fullName') || <em style={{ color: 'var(--adm-text-dim)' }}>isimsiz</em>}</td>
-                          <td style={{ fontSize: 12 }}>{val('link')}</td>
-                          <td style={{ fontSize: 12 }}>{val('whyThisOne')}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="adm-form__footer">
-                {err && <span className="adm-form__err">{err}</span>}
-                <button className="adm-btn adm-btn--ghost" onClick={() => setStep(2)} disabled={busy}>Geri</button>
-                <button className="adm-btn adm-btn--primary" onClick={commit} disabled={busy || take.every((x) => !x)}>
-                  <AIcon name="save" size={15} /> {busy ? 'Ekleniyor…' : `${take.filter(Boolean).length} adayı ekle`}
-                </button>
-              </div>
-            </>
-          )}
+            )}
+          </div>
+
+          {err && <div className="hub-wz__err">{err}</div>}
+
+          <div className="hub-wz__foot">
+            {step > 1 && <button className="hub-wz__back" onClick={() => setStep(step - 1)} disabled={busy}>← Geri</button>}
+            {step === 1 && <button className="hub-wz__next" disabled>İleri →</button>}
+            {step === 2 && <button className="hub-wz__next" onClick={goPreview}>İleri →</button>}
+            {step === 3 && (
+              <button className="hub-wz__next" onClick={commit} disabled={busy || take.every((x) => !x)}>
+                {busy ? 'Ekleniyor…' : `${take.filter(Boolean).length} adayı ekle`}
+              </button>
+            )}
+          </div>
         </>)}
       </div>
-    </Modal>
+    </div>
   );
 }

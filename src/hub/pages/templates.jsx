@@ -83,7 +83,7 @@ export default function TemplatesPage() {
         </div>
         {canWrite && (
           <div className="adm-page-head__actions">
-            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => setEditing({ ...BLANK })}>
+            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setEditing({ ...BLANK })}>
               <AIcon name="edit" size={14} /> Yeni şablon
             </button>
           </div>
@@ -96,12 +96,13 @@ export default function TemplatesPage() {
         </div>
       )}
 
-      {groups.length === 0 && <div className="adm-empty">Henüz şablon yok.</div>}
+      {groups.length === 0 && <div className="adm-empty">İlk şablonunu ekle — sağ üstteki “Yeni şablon”.</div>}
 
       {groups.map(([name, variants]) => (
-        <div key={name} style={{ border: '1px solid var(--adm-border)', borderRadius: 'var(--adm-r)', marginBottom: 12, background: 'var(--adm-bg-card)' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--adm-border-light)', fontWeight: 700, fontFamily: 'var(--font-heading)', fontSize: 14 }}>
-            {name} <span style={{ color: 'var(--adm-text-dim)', fontWeight: 400, fontSize: 12 }}>· {typeLabel(variants[0].sourceType)}</span>
+        <div key={name} className="adm-card" style={{ marginBottom: 12 }}>
+          <div className="adm-card__header">
+            <span style={{ fontWeight: 700, fontFamily: 'var(--font-heading)', fontSize: 14 }}>{name}</span>
+            <span className="hub-pill hub-pill--source">{typeLabel(variants[0].sourceType)}</span>
           </div>
           <table className="adm-table" style={{ width: '100%' }}>
             <thead>

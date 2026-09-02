@@ -10,12 +10,8 @@ import { usePerms } from '../../lib/use-perms';
 import { ROLE_TYPES, ROLE_TYPE_LABEL, TRACKS, ROLE_STATUS_LABEL, ROLE_STATUS_NEXT, STAGE_LABEL, STAGE_ORDER } from '../hub-constants';
 import HubWizard from '../components/wizard';
 
-const STATUS_STYLE = {
-  draft:     { background: '#F0EBE0', color: 'var(--adm-text-secondary)' },
-  sourcing:  { background: 'var(--adm-purple-light)', color: 'var(--adm-purple)' },
-  shortlist: { background: 'var(--adm-amber)', color: '#fff' },
-  filled:    { background: 'var(--adm-green-light)', color: 'var(--adm-green)' },
-};
+const STATUS_PILL = { draft: '', sourcing: 'hub-pill--stage', shortlist: 'hub-pill--warn', filled: 'hub-pill--ok' };
+const STATUS_LEAD = { draft: '#A29D94', sourcing: '#7C3AED', shortlist: '#EA580C', filled: '#16A34A' };
 
 const BLANK = {
   startupId: '', title: '', roleType: 'technical', track: 'member',
@@ -116,14 +112,14 @@ export default function RolesPage() {
         </div>
         {canManage && (
           <div className="adm-page-head__actions">
-            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => setEditing({ ...BLANK })}>
+            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setEditing({ ...BLANK })}>
               <AIcon name="plus" size={14} /> Rol oluştur
             </button>
           </div>
         )}
       </div>
 
-      {groups.length === 0 && <div className="adm-empty">Görebileceğin açık rol yok.</div>}
+      {groups.length === 0 && <div className="adm-empty">İlk açık rolünü oluştur — sağ üstteki “Rol oluştur”.</div>}
 
       {groups.map(([sid, list]) => (
         <div key={sid} style={{ marginBottom: 20 }}>
@@ -132,13 +128,13 @@ export default function RolesPage() {
             const cs = linkedCands(r.id);
             const funnel = STAGE_ORDER.map((s) => [s, cs.filter((c) => c.stage === s).length]).filter(([, n]) => n > 0);
             return (
-              <div key={r.id} style={{ border: '1px solid var(--adm-border)', borderRadius: 'var(--adm-r)', background: 'var(--adm-bg-card)', padding: 14, marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <div key={r.id} className="hub-c hub-c--lead" style={{ '--hub-lead': STATUS_LEAD[r.status] || '#E7E0D2', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                   <strong style={{ fontSize: 15, fontFamily: 'var(--font-heading)' }}>{r.title}</strong>
-                  <span className="hub-pill" style={STATUS_STYLE[r.status]}>{ROLE_STATUS_LABEL[r.status]}</span>
-                  <span className="hub-pill">{r.track === 'founder' ? 'Kurucu hattı' : 'Üye hattı'}</span>
+                  <span className={`hub-pill ${STATUS_PILL[r.status] || ''}`}>{ROLE_STATUS_LABEL[r.status]}</span>
+                  <span className={`hub-pill hub-pill--track-${r.track === 'founder' ? 'founder' : 'member'}`}>{r.track === 'founder' ? 'Kurucu hattı' : 'Üye hattı'}</span>
                   <span className="hub-pill">{ROLE_TYPE_LABEL[r.roleType] || r.roleType}</span>
-                  <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginLeft: 'auto' }}>{daysSince(r.createdAt)} gündür açık</span>
+                  <span style={{ fontSize: 12, color: '#A29D94', marginLeft: 'auto' }}>{daysSince(r.createdAt)} gündür açık</span>
                 </div>
                 {r.profile && <div style={{ fontSize: 13, color: 'var(--adm-text-secondary)', margin: '6px 0' }}>{r.profile}</div>}
                 <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
