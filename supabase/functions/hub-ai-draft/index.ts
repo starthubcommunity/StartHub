@@ -2,16 +2,21 @@
 // Frontend: supabase.functions.invoke("hub-ai-draft", { body: { fullName, sourceDetail, whyThisOne, link, evidence } })
 // Dönüş: { text: "<tek satır kişiselleştirme cümlesi>" }
 //
-// Anthropic API anahtarını asla buraya yazma; project secret olarak sakla:
-//   supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxx
+// Admin panelin içerik otomasyonundaki Gemini desenini izler
+// (automation/generate.py — gemini-2.5-flash, Generative Language API), ama
+// AYRI bir secret kullanır. Admin panelin GEMINI_API_KEY'ine DOKUNMAZ.
+//
+//   supabase secrets set HUB_GEMINI_API_KEY=<anahtar>
+//   # ops.: supabase secrets set HUB_GEMINI_MODEL=gemini-2.5-flash
 //
 // v2 §7: AI YALNIZCA ilk taslağı yazar. Gönderim her zaman insanla. Somut veri
-// yoksa istemci zaten canDraftAI() ile engelliyor; burada da kısa kontrol var.
+// yoksa istemci canDraftAI() ile engelliyor; burada da kısa kontrol var.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const MODEL = Deno.env.get("HUB_AI_MODEL") || "claude-sonnet-5";
+const GEMINI_API_KEY = Deno.env.get("HUB_GEMINI_API_KEY");
+const GEMINI_MODEL = Deno.env.get("HUB_GEMINI_MODEL") || "gemini-2.5-flash";
+const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,8 +50,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY secret'i tanimli degil" }), {
+    if (!GEMINI_API_KEY) {
+      return new Response(JSON.stringify({ error: "HUB_GEMINI_API_KEY secret'i tanimli degil" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -60,18 +65,14 @@ serve(async (req) => {
       Array.isArray(evidence) && evidence.length ? `Kanıt: ${evidence.join(", ")}` : null,
     ].filter(Boolean).join("\n");
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const url = `${API_BASE}/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+    const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 200,
-        system: SYSTEM,
-        messages: [{ role: "user", content: userMsg }],
+        system_instruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: "user", parts: [{ text: userMsg }] }],
+        generationConfig: { maxOutputTokens: 200, temperature: 0.7 },
       }),
     });
 
@@ -83,7 +84,9 @@ serve(async (req) => {
       });
     }
     const data = await res.json();
-    const text = (data?.content?.[0]?.text || "").trim().replace(/^["']|["']$/g, "");
+    const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
 
     return new Response(JSON.stringify({ text }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

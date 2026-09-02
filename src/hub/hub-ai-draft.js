@@ -2,10 +2,13 @@
 //
 // Tek senkron çağrı: `hub-ai-draft` edge function'ına POST. Function, adayın
 // somut alanlarını (ad, kaynak detayı, "neden bu kişi", link) bir sistem
-// promptuyla modele verir; dönen tek satırlık kişiselleştirme cümlesi
-// `draft_text`'e yazılır. İnsan düzenler; gönderen HER ZAMAN insan.
+// promptuyla Gemini'ye (gemini-2.5-flash) verir; dönen tek satırlık
+// kişiselleştirme cümlesi `draft_text`'e yazılır. İnsan düzenler; gönderen
+// HER ZAMAN insan.
 //
-// ⚠️ Edge function ayrıca deploy edilmeli: supabase/functions/hub-ai-draft/
+// ⚠️ Edge function deploy edilmeli + ayrı secret:
+//    supabase secrets set HUB_GEMINI_API_KEY=<anahtar>
+//    (admin panelin GEMINI_API_KEY'ine dokunmaz)
 import { supabase } from '../lib/supabase';
 import { canDraftAI } from './hub-rules';
 

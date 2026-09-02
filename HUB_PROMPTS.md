@@ -459,7 +459,8 @@ Push etme. Dört parçanın kabul kriterini tek tek nasıl doğruladığını ya
 > (sabitler + kural motoru, 66 test) · store+mappers · 4–11 (UI, build yeşil)
 > · 12 (dok: `HUB_TEST.md`, `CLAUDE.md`). **Bekleyen:** `0010_hub_simplify.sql`
 > canlıda çalıştırılacak; `hub-ai-draft` edge function deploy edilecek
-> (`ANTHROPIC_API_KEY` secret); dal `main`'e merge edilmedi.
+> (`HUB_GEMINI_API_KEY` secret — admin panelin `GEMINI_API_KEY`'ine dokunmadan,
+> gemini-2.5-flash); dal `main`'e merge edilmedi.
 
 Özet:
 
