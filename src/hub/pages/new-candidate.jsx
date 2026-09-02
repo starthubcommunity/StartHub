@@ -1,8 +1,8 @@
-// new-candidate.jsx — elle tek aday ekleme (v2 §6). Modal, 4 alan.
-import React, { useState } from 'react';
-import { AIcon, Modal, Field, Input, Select } from '../../admin/admin-ui';
+// new-candidate.jsx — elle tek aday ekleme (v2 §6). Wizard: 4 soru.
+import React, { useMemo } from 'react';
 import { useHubStore } from '../hub-store';
 import { SOURCES } from '../hub-constants';
+import HubWizard from '../components/wizard';
 
 // Tek "Link" alanı — tip otomatik algılanır (v2 §4).
 function linkFields(v) {
@@ -17,48 +17,33 @@ function linkFields(v) {
 export default function NewCandidateModal({ onClose }) {
   const store = useHubStore();
   const { members, currentMember } = store;
-  const [f, setF] = useState({ fullName: '', link: '', source: 'referral', ownerId: currentMember?.id || '' });
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
-  const save = async () => {
-    if (!f.fullName.trim()) { setErr('Ad zorunlu.'); return; }
-    setBusy(true); setErr('');
-    try {
-      await store.addCandidate({
-        fullName: f.fullName.trim(),
-        ...linkFields(f.link),
-        source: f.source,
-        ownerId: f.ownerId || null,
-        stage: 'pool',
-      });
-      onClose();
-    } catch (e) { setErr(e.message || 'Eklenemedi.'); setBusy(false); }
+  const steps = useMemo(() => [
+    { key: 'fullName', type: 'text', q: 'Adayın adı soyadı?', ph: 'Ada Yılmaz' },
+    { key: 'link', type: 'text', q: 'Tek link (GitHub / LinkedIn / e-posta)?', ph: 'github.com/adayilmaz', optional: true, sub: 'Tip otomatik algılanır.' },
+    { key: 'source', type: 'options', q: 'Kaynak?', options: SOURCES.map((s) => ({ value: s.value, label: s.label })) },
+    { key: 'ownerId', type: 'options', q: 'Kim sorumlu?', options: members.map((m) => ({ value: m.id, label: m.fullName || m.email })) },
+  ], [members]);
+
+  const submit = async (a) => {
+    if (!String(a.fullName || '').trim()) throw new Error('Ad zorunlu.');
+    await store.addCandidate({
+      fullName: a.fullName.trim(),
+      ...linkFields(a.link),
+      source: a.source || 'referral',
+      ownerId: a.ownerId || null,
+      stage: 'pool',
+    });
   };
 
   return (
-    <Modal open onClose={onClose} title="Yeni aday">
-      <div className="adm-form">
-        <Field label="Ad" required><Input value={f.fullName} onChange={(v) => set('fullName', v)} placeholder="Ada Yılmaz" /></Field>
-        <Field label="Link" hint="GitHub / LinkedIn / e-posta — tip otomatik algılanır">
-          <Input value={f.link} onChange={(v) => set('link', v)} placeholder="github.com/adayilmaz" />
-        </Field>
-        <div className="adm-form-grid">
-          <Field label="Kaynak"><Select value={f.source} onChange={(v) => set('source', v)} options={SOURCES.map((s) => ({ value: s.value, label: s.label }))} /></Field>
-          <Field label="Sorumlu">
-            <Select value={f.ownerId} onChange={(v) => set('ownerId', v)} placeholder="Seç…"
-              options={members.map((m) => ({ value: m.id, label: m.fullName || m.email }))} />
-          </Field>
-        </div>
-        <div className="adm-form__footer">
-          {err && <span className="adm-form__err">{err}</span>}
-          <button className="adm-btn adm-btn--ghost" onClick={onClose} disabled={busy}>İptal</button>
-          <button className="adm-btn adm-btn--primary" onClick={save} disabled={busy}>
-            <AIcon name="save" size={15} /> {busy ? 'Ekleniyor…' : 'Ekle'}
-          </button>
-        </div>
-      </div>
-    </Modal>
+    <HubWizard
+      title="Yeni aday"
+      steps={steps}
+      initial={{ source: 'referral', ownerId: currentMember?.id || '' }}
+      submitLabel="Ekle"
+      onComplete={submit}
+      onCancel={onClose}
+    />
   );
 }

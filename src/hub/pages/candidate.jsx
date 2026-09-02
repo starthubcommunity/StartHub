@@ -16,6 +16,7 @@ import { thresholdMet, thresholdText, canAdvance, presentGate, gateStatus, gateD
 import { supabase } from '../../lib/supabase';
 import { fillTemplate } from './templates';
 import { generateDraft } from '../hub-ai-draft';
+import HubWizard from '../components/wizard';
 
 const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunication', capacity: 'scoreCapacity' };
 const PRESCORE_LABEL = Object.fromEntries(AI_PRESCORE_FINISHING.map((x) => [x.value, x.when]));
@@ -406,25 +407,22 @@ function TrialSection({ c }) {
   const gateA = gates.filter((g) => g.gate === 'A').sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))[0];
   const gateB = gates.filter((g) => g.gate === 'B').sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
   const founder = (c.track || 'founder') === 'founder';
-  const [taskText, setTaskText] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [wiz, setWiz] = useState(null);   // 'startA' | 'startB' | { extend: gateId }
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
-  const startA = async () => {
-    setBusy(true);
-    try {
-      await store.startGate(c, 'A', { taskText: taskText.trim() || null, dueAt: new Date(Date.now() + GATE.aHours * 3600000).toISOString() });
-      setTaskText('');
-    } catch (e) { flash('Başlatılamadı: ' + e.message); }
-    setBusy(false);
+  const startA = async (a) => {
+    await store.startGate(c, 'A', {
+      taskText: String(a.taskText || '').trim() || null,
+      dueAt: new Date(Date.now() + GATE.aHours * 3600000).toISOString(),
+    });
   };
   const startB = async () => {
-    setBusy(true);
-    try {
-      await store.startGate(c, 'B', { dueAt: new Date(Date.now() + GATE.bDays * 86400000).toISOString(), startupId: c.startupId || null });
-    } catch (e) { flash('Başlatılamadı: ' + e.message); }
-    setBusy(false);
+    await store.startGate(c, 'B', {
+      dueAt: new Date(Date.now() + GATE.bDays * 86400000).toISOString(),
+      startupId: c.startupId || null,
+    });
   };
   const toTeam = async () => {
     setBusy(true);
@@ -439,32 +437,45 @@ function TrialSection({ c }) {
 
       {!gateA && (
         <div className="hub-gate">
-          <strong>Kapı A başlat</strong>
-          <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '2px 0 6px' }}>72 saatlik tek çıktılı görev.</div>
-          <textarea className="adm-input adm-textarea" rows={2} value={taskText} onChange={(e) => setTaskText(e.target.value)}
-            placeholder="Ör. Sektörden 3 kişiyle konuş, kısa notlarını getir." />
-          <button className="adm-btn adm-btn--primary adm-btn--sm" style={{ marginTop: 6 }} disabled={busy} onClick={startA}>
-            Kapı A başlat (72 saat)
-          </button>
+          <strong>Kapı A</strong>
+          <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '2px 0 8px' }}>72 saatlik tek çıktılı görev.</div>
+          <button className="hub-wz__next" style={{ margin: 0 }} onClick={() => setWiz('startA')}>Kapı A başlat</button>
         </div>
       )}
-      {gateA && <GateCard gate={gateA} onMark={(p) => store.markGate(gateA.id, p)} onExtend={(d) => store.extendGate(gateA.id, d)} />}
+      {gateA && <GateCard gate={gateA} onMark={(p) => store.markGate(gateA.id, p)} onExtend={() => setWiz({ extend: gateA.id })} />}
 
       {founder && gateA?.result === 'passed' && !gateB && (
         <div className="hub-gate">
-          <strong>Kapı B başlat</strong>
-          <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '2px 0 6px' }}>10 günlük ilk sprint.</div>
-          <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={startB}>Kapı B başlat (10 gün)</button>
+          <strong>Kapı B</strong>
+          <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '2px 0 8px' }}>10 günlük ilk sprint.</div>
+          <button className="hub-wz__next" style={{ margin: 0 }} onClick={() => setWiz('startB')}>Kapı B başlat</button>
         </div>
       )}
-      {gateB && <GateCard gate={gateB} onMark={(p) => store.markGate(gateB.id, p)} onExtend={(d) => store.extendGate(gateB.id, d)} />}
+      {gateB && <GateCard gate={gateB} onMark={(p) => store.markGate(gateB.id, p)} onExtend={() => setWiz({ extend: gateB.id })} />}
 
       {((founder && gateB?.result === 'passed') || (!founder && gateA?.result === 'passed')) && (
-        <button className="adm-btn adm-btn--primary adm-btn--sm" style={{ marginTop: 4 }} disabled={busy} onClick={toTeam}>
+        <button className="hub-wz__next" style={{ margin: '4px 0 0' }} disabled={busy} onClick={toTeam}>
           Ekibe aktar
         </button>
       )}
       {msg && <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginTop: 8 }}>{msg}</div>}
+
+      {wiz === 'startA' && (
+        <HubWizard title="Kapı A" onCancel={() => setWiz(null)} submitLabel="Başlat (72 saat)"
+          steps={[{ key: 'taskText', type: 'textarea', q: 'Kapı A görevi nedir?', ph: 'Ör. Sektörden 3 kişiyle konuş, kısa notlarını getir.', optional: true, sub: 'Metin adaya olduğu gibi gider.' }]}
+          onComplete={startA} />
+      )}
+      {wiz === 'startB' && (
+        <HubWizard title="Kapı B" onCancel={() => setWiz(null)} submitLabel="Başlat (10 gün)"
+          steps={[{ key: 'ok', type: 'options', q: '10 günlük ilk sprint başlasın mı?', options: [{ value: 'yes', label: 'Evet, Kapı B\'yi başlat' }] }]}
+          onComplete={startB} />
+      )}
+      {wiz && wiz.extend && (
+        <HubWizard title="Süre uzat" onCancel={() => setWiz(null)} submitLabel="Uzat"
+          steps={[{ key: 'days', type: 'options', q: 'Ne kadar uzatılsın?', sub: 'Sistem otomatik not düşer.',
+            options: GATE_EXTENSIONS.map((e) => ({ value: e.value, label: e.label })) }]}
+          onComplete={(a) => store.extendGate(wiz.extend, Number(a.days))} />
+      )}
     </div>
   );
 }
@@ -481,7 +492,6 @@ function remaining(gate) {
 
 function GateCard({ gate, onMark, onExtend }) {
   const st = gateStatus(gate);
-  const [extOpen, setExtOpen] = useState(false);
   return (
     <div className="hub-gate">
       <div className="hub-gate__head">
@@ -496,21 +506,11 @@ function GateCard({ gate, onMark, onExtend }) {
         {gate.extendedDays > 0 ? ` · +${gate.extendedDays} gün uzatıldı` : ''}
       </div>
       {gate.result === 'pending' ? (
-        <>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onMark({ delivered: true, result: 'passed' })}>Teslim etti</button>
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onMark({ delivered: false, result: 'failed' })}>Teslim etmedi</button>
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setExtOpen((v) => !v)}>Süre yetmedi mi?</button>
-          </div>
-          {extOpen && (
-            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-              {GATE_EXTENSIONS.map((e) => (
-                <button key={e.value} className="adm-btn adm-btn--ghost adm-btn--sm"
-                  onClick={() => { onExtend(e.value); setExtOpen(false); }}>{e.label}</button>
-              ))}
-            </div>
-          )}
-        </>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="hub-wz__next" style={{ margin: 0, padding: '9px 16px' }} onClick={() => onMark({ delivered: true, result: 'passed' })}>Teslim etti</button>
+          <button className="hub-wz__back" onClick={() => onMark({ delivered: false, result: 'failed' })}>Teslim etmedi</button>
+          <button className="hub-wz__back" onClick={() => onExtend()}>Süre yetmedi mi?</button>
+        </div>
       ) : (
         <div className="hub-pill" style={gate.result === 'passed'
           ? { background: 'var(--adm-green-light)', color: 'var(--adm-green)' }

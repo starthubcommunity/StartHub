@@ -2,12 +2,13 @@
 // makinesi (draft → sourcing → shortlist → filled). Talep/onay el sıkışması
 // YOK: rol doğrudan "sourcing"e düşer. Buton görünürlüğü has_perm() ile.
 import React, { useState, useEffect, useMemo } from 'react';
-import { AIcon, Field, Input, Textarea, Select, Modal, ConfirmDialog } from '../../admin/admin-ui';
+import { AIcon, ConfirmDialog } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
 import { usePerms } from '../../lib/use-perms';
 import { ROLE_TYPES, ROLE_TYPE_LABEL, TRACKS, ROLE_STATUS_LABEL, ROLE_STATUS_NEXT, STAGE_LABEL, STAGE_ORDER } from '../hub-constants';
+import HubWizard from '../components/wizard';
 
 const STATUS_STYLE = {
   draft:     { background: '#F0EBE0', color: 'var(--adm-text-secondary)' },
@@ -63,26 +64,42 @@ export default function RolesPage() {
 
   const linkedCands = (roleId) => candidates.filter((c) => c.openRoleId === roleId && c.stage !== 'archived');
 
-  const save = async () => {
-    const e = editing;
-    if (!e.title.trim()) { flash('Başlık zorunlu.'); return; }
+  const wizSteps = useMemo(() => [
+    { key: 'startupId', type: 'options', q: 'Hangi proje?', options: [
+      { value: '', label: 'Proje atanmamış' },
+      ...startups.filter((s) => !isOwner || myStartups.includes(s.id)).map((s) => ({ value: String(s.id), label: s.name })),
+    ] },
+    { key: 'title', type: 'text', q: 'Rol başlığı nedir?', ph: 'ör. Flutter Geliştirici' },
+    { key: 'roleType', type: 'options', q: 'Rol tipi?', options: ROLE_TYPES.map((t) => ({ value: t.value, label: t.label })) },
+    { key: 'track', type: 'options', q: 'Hangi hat?', options: TRACKS.map((t) => ({ value: t.value, label: t.label, hint: t.value === 'founder' ? 'ortaklık' : 'projede rol' })) },
+    { key: 'assignedTo', type: 'options', q: 'Kim arayacak?', options: [
+      { value: '', label: '— (henüz belli değil)' },
+      ...members.map((m) => ({ value: m.id, label: m.fullName || m.email })),
+    ] },
+    { key: 'needsCommunication', type: 'options', q: 'İletişim ekseni zorunlu mu? (üye hattı)', options: [
+      { value: '0', label: 'Hayır' }, { value: '1', label: 'Evet' },
+    ] },
+    { key: 'profile', type: 'textarea', q: 'Aranan profil?', ph: 'Kişiselleştirme bağlamını besler.', optional: true },
+    { key: 'skills', type: 'text', q: 'Beceriler (virgülle)?', ph: 'React, SQL, Go', optional: true },
+    { key: 'firstDeliverable', type: 'text', q: 'İlk teslimat (Kapı A görev metni)?', optional: true },
+  ], [startups, members, isOwner, myStartups]);
+
+  const saveRole = async (a) => {
+    if (!String(a.title || '').trim()) throw new Error('Başlık zorunlu.');
     const payload = {
-      startupId: e.startupId ? Number(e.startupId) : null,
-      title: e.title.trim(),
-      roleType: e.roleType,
-      track: e.track,
-      profile: e.profile,
-      skills: e.skills,
-      firstDeliverable: e.firstDeliverable,
-      needsCommunication: e.needsCommunication,
-      assignedTo: e.assignedTo || null,
-      status: e.status || 'sourcing',
+      startupId: a.startupId ? Number(a.startupId) : null,
+      title: a.title.trim(),
+      roleType: a.roleType || 'technical',
+      track: a.track || 'member',
+      profile: a.profile || '',
+      skills: String(a.skills || '').split(',').map((x) => x.trim()).filter(Boolean),
+      firstDeliverable: a.firstDeliverable || '',
+      needsCommunication: a.needsCommunication === '1' || a.needsCommunication === true,
+      assignedTo: a.assignedTo || null,
+      status: editing?.status || 'sourcing',
     };
-    try {
-      if (e.id) await store.updateItem('openRoles', e.id, payload);
-      else await store.addItem('openRoles', payload);
-      setEditing(null);
-    } catch (err) { flash('Hata: ' + err.message); }
+    if (editing?.id) await store.updateItem('openRoles', editing.id, payload);
+    else await store.addItem('openRoles', payload);
   };
 
   const move = async (r, to) => {
@@ -153,44 +170,27 @@ export default function RolesPage() {
         </div>
       ))}
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? 'Rolü düzenle' : 'Yeni rol'} wide>
-        {editing && (
-          <div>
-            <div className="adm-form-grid">
-              <Field label="Proje">
-                <select className="adm-input adm-select" value={editing.startupId} onChange={(e) => setEditing({ ...editing, startupId: e.target.value })}>
-                  <option value="">—</option>
-                  {startups.filter((s) => !isOwner || myStartups.includes(s.id)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Başlık" required><Input value={editing.title} onChange={(v) => setEditing({ ...editing, title: v })} /></Field>
-              <Field label="Rol tipi"><Select value={editing.roleType} onChange={(v) => setEditing({ ...editing, roleType: v })} options={ROLE_TYPES} /></Field>
-              <Field label="Hat" hint="Kurucu = ortaklık; Üye = projede rol.">
-                <Select value={editing.track} onChange={(v) => setEditing({ ...editing, track: v })} options={TRACKS} />
-              </Field>
-              <Field label="Sorumlu (arayacak kişi)">
-                <select className="adm-input adm-select" value={editing.assignedTo} onChange={(e) => setEditing({ ...editing, assignedTo: e.target.value })}>
-                  <option value="">—</option>
-                  {members.map((m) => <option key={m.id} value={m.id}>{m.fullName || m.email}</option>)}
-                </select>
-              </Field>
-              <Field label="İletişim ekseni zorunlu (üye hattı)">
-                <Select value={editing.needsCommunication ? '1' : '0'} onChange={(v) => setEditing({ ...editing, needsCommunication: v === '1' })}
-                  options={[{ value: '0', label: 'Hayır' }, { value: '1', label: 'Evet' }]} />
-              </Field>
-            </div>
-            <Field label="Aranan profil"><Textarea value={editing.profile} onChange={(v) => setEditing({ ...editing, profile: v })} /></Field>
-            <Field label="Beceriler (virgülle)">
-              <Input value={(editing.skills || []).join(', ')} onChange={(v) => setEditing({ ...editing, skills: v.split(',').map((x) => x.trim()).filter(Boolean) })} />
-            </Field>
-            <Field label="İlk teslimat"><Input value={editing.firstDeliverable} onChange={(v) => setEditing({ ...editing, firstDeliverable: v })} placeholder="Kapı A görev metni" /></Field>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
-              <button className="adm-btn adm-btn--ghost" onClick={() => setEditing(null)}>İptal</button>
-              <button className="adm-btn adm-btn--primary" onClick={save}>Kaydet</button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {editing && (
+        <HubWizard
+          title={editing.id ? 'Rolü düzenle' : 'Yeni rol'}
+          steps={wizSteps}
+          initial={{
+            startupId: editing.startupId != null ? String(editing.startupId) : '',
+            title: editing.title || '',
+            roleType: editing.roleType || 'technical',
+            track: editing.track || 'member',
+            assignedTo: editing.assignedTo || '',
+            needsCommunication: editing.needsCommunication ? '1' : '0',
+            profile: editing.profile || '',
+            skills: (editing.skills || []).join(', '),
+            firstDeliverable: editing.firstDeliverable || '',
+          }}
+          submitLabel={editing.id ? 'Kaydet' : 'Rolü oluştur'}
+          onComplete={saveRole}
+          onCancel={() => setEditing(null)}
+          wide
+        />
+      )}
 
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)}
         onConfirm={() => { store.deleteItem('openRoles', confirm.id).then(() => setConfirm(null)); }}
