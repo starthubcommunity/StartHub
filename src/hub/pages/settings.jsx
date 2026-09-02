@@ -104,11 +104,11 @@ export default function SettingsPage() {
       {/* ── Üyeler ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 className="hub-h4">Üyeler</h3>
-        <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => setEditing({ ...BLANK_MEMBER })}>
+        <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setEditing({ ...BLANK_MEMBER })}>
           <AIcon name="edit" size={14} /> Üye ekle
         </button>
       </div>
-      <div className="hub-grid-wrap" style={{ maxHeight: 'none' }}>
+      <div className="adm-card" style={{ overflowX: 'auto' }}>
         <table className="adm-table" style={{ width: '100%' }}>
           <thead><tr>
             <th>E-posta</th><th>Ad</th><th>Rol</th><th>Kapsam</th><th>Durum</th>

@@ -344,11 +344,14 @@ function InterviewSection({ c, save, role, openRole }) {
         {track === 'member' ? 'Üye' : 'Kurucu'} hattı eşiği: {thresholdText(track, openRole)}.
       </p>
       {RUBRIC_AXES.map((ax) => {
-        const optional = track === 'member' && ax.value === 'communication' && !openRole?.needsCommunication;
+        // Üye hattında iletişim ekseni yalnızca rol needsCommunication ise istenir;
+        // aksi halde eksen tamamen gizlenir (eşik zaten yoksayar).
+        const hidden = track === 'member' && ax.value === 'communication' && !openRole?.needsCommunication;
+        if (hidden) return null;
         const cur = c[AXIS_FIELD[ax.value]];
         return (
-          <div key={ax.value} style={{ marginBottom: 14, opacity: optional ? 0.55 : 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{ax.label}{optional ? ' · isteğe bağlı (üye hattı)' : ''}</div>
+          <div key={ax.value} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{ax.label}</div>
             <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginBottom: 6 }}>{ax.hint}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[1, 2, 3, 4, 5].map((n) => (
@@ -363,6 +366,11 @@ function InterviewSection({ c, save, role, openRole }) {
           </div>
         );
       })}
+      {track === 'member' && !openRole?.needsCommunication && (
+        <div style={{ fontSize: 12, color: '#A29D94', marginBottom: 8 }}>
+          İletişim ekseni bu rolde istenmiyor — bitirmişlik ve kapasite yeterli.
+        </div>
+      )}
 
       <div className={`hub-threshold ${trialChk.ok ? 'hub-threshold--ok' : 'hub-threshold--no'}`}>
         <AIcon name={trialChk.ok ? 'check' : 'x'} size={16} />
