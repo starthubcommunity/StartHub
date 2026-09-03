@@ -7,7 +7,7 @@ import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
 import { usePerms } from '../../lib/use-perms';
 import {
-  RUBRIC_AXES, RED_FLAGS, AI_PRESCORE_FINISHING, ROLE_TYPES,
+  RUBRIC_AXES, RED_FLAGS, AI_PRESCORE_FINISHING, ROLE_TYPES, ARCHIVE_REASONS,
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
   GATE_RESULT_LABEL, THRESHOLD, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
   GATE, GATE_EXTENSIONS,
@@ -113,15 +113,11 @@ function NextStepCard({ c, store, openRole, role, onComposer, afterAdvance, flas
           await store.advanceStage(c.id, 'trial', { reason: 'görüşme geçti' });
           afterAdvance(); flash?.('Aşama: Deneme.');
         } },
-        { label: 'Arşivle', hint: 'çıtanın altında', run: async () => {
-          await store.advanceStage(c.id, 'archived', { reason: 'görüşme sonrası', extra: { archiveReason: 'below_bar' } });
-          afterAdvance(); flash?.('Arşivlendi.');
-        } },
       ]} />
     );
   }
 
-  return null;   // trial → TrialSection/GateCard, member → bitti
+  return null;   // trial → TrialSection/GateCard, member → bitti. Arşivleme üstteki butonla.
 }
 
 // blur'da işleyen metin/textarea alanı
@@ -155,6 +151,7 @@ export default function CandidatePanel({ candidateId, onClose }) {
   const [showHistory, setShowHistory] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [composing, setComposing] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [toast, setToast] = useState(null);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 3500); };
 
@@ -204,6 +201,17 @@ export default function CandidatePanel({ candidateId, onClose }) {
             <button className="adm-btn adm-btn--ghost adm-btn--sm"
               onClick={() => store.markReplied(candidateId).then(() => { setHistory(null); flash('Cevap işaretlendi.'); })}>
               <AIcon name="check" size={13} /> Cevap geldi
+            </button>
+          )}
+          {stage !== 'member' && stage !== 'archived' && (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }} onClick={() => setArchiving(true)}>
+              <AIcon name="trash" size={13} /> Arşivle
+            </button>
+          )}
+          {stage === 'archived' && (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }}
+              onClick={() => store.advanceStage(candidateId, 'pool', { reason: 'arşivden geri alındı' }).then(() => { setHistory(null); flash('Havuz\'a geri alındı.'); })}>
+              <AIcon name="refresh" size={13} /> Havuz'a geri al
             </button>
           )}
         </div>
@@ -263,6 +271,15 @@ export default function CandidatePanel({ candidateId, onClose }) {
         <MessageComposer candidate={c}
           onDone={(msg) => { setComposing(false); setHistory(null); flash(msg); }}
           onCancel={() => setComposing(false)} />
+      )}
+      {archiving && (
+        <HubWizard title="Arşivle" submitLabel="Arşivle" onCancel={() => setArchiving(false)}
+          steps={[{ key: 'reason', type: 'options', q: 'Neden arşivleniyor?',
+            options: ARCHIVE_REASONS.map((r) => ({ value: r.value, label: r.label })) }]}
+          onComplete={async (a) => {
+            await store.advanceStage(candidateId, 'archived', { reason: 'arşivlendi', extra: { archiveReason: a.reason } });
+            setHistory(null); flash('Arşivlendi.');
+          }} />
       )}
       {toast && <div className="hub-toast">{toast}</div>}
     </div>
