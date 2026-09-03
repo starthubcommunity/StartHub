@@ -107,6 +107,28 @@ export default function RolesPage() {
     catch (e) { flash('Hata: ' + e.message); }
   };
 
+  // Rol silme: önce bağlı adayları çöz (0012 migration'ı yoksa FK ihlali
+  // rol silmeyi bloklar), sonra sil. Hata olursa diyalog KAPANIR + reload.
+  const [deleting, setDeleting] = useState(false);
+  const doDelete = async (r) => {
+    setDeleting(true);
+    try {
+      const linked = candidates.filter((c) => c.openRoleId === r.id);
+      for (const c of linked) {
+        // eslint-disable-next-line no-await-in-loop
+        await store.updateItem('candidates', c.id, { ...c, openRoleId: null });
+      }
+      await store.deleteItem('openRoles', r.id);
+      flash(linked.length ? `Rol silindi · ${linked.length} aday çözüldü.` : 'Rol silindi.');
+    } catch (e) {
+      flash('Silinemedi: ' + (e.message || 'bilinmeyen hata'));
+      store.reload();
+    } finally {
+      setDeleting(false);
+      setConfirm(null);
+    }
+  };
+
   return (
     <div>
       <div className="adm-page-head">
@@ -192,9 +214,10 @@ export default function RolesPage() {
         />
       )}
 
-      <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)}
-        onConfirm={() => { store.deleteItem('openRoles', confirm.id).then(() => setConfirm(null)); }}
-        title="Rolü sil?" message={confirm?.title} />
+      <ConfirmDialog open={!!confirm} onClose={() => !deleting && setConfirm(null)}
+        onConfirm={() => confirm && !deleting && doDelete(confirm)}
+        title="Rolü sil?"
+        message={`${confirm?.title || ''}${confirm ? ` · ${candidates.filter((c) => c.openRoleId === confirm.id).length} bağlı aday çözülecek` : ''}`} />
 
       {toast && <div className="hub-toast">{toast}</div>}
     </div>
