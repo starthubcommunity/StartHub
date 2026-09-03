@@ -1,6 +1,6 @@
 // settings.jsx — Ayarlar (§15). YALNIZCA cofounder.
 // Üye yönetimi · rubrik/eşik (şimdilik salt okunur) · kırmızı bayrak listesi ·
-// KVKK "adayı tamamen sil" · hub-daily elle tetikleme.
+// KVKK "adayı tamamen sil". v2: cron / gece işi yok.
 import React, { useState, useEffect } from 'react';
 import { AIcon, Field, Input, Select, Modal, ConfirmDialog } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
@@ -41,8 +41,6 @@ export default function SettingsPage() {
   const [confirm, setConfirm] = useState(null);
   const [purgeTarget, setPurgeTarget] = useState('');
   const [purgeConfirm, setPurgeConfirm] = useState(false);
-  const [dailyOut, setDailyOut] = useState(null);
-  const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
   const [accounts, setAccounts] = useState({});   // memberId -> { has_account, last_sign_in_at, email_confirmed }
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
@@ -73,15 +71,6 @@ export default function SettingsPage() {
     } catch (e) { flash('Hata: ' + e.message); }
   };
 
-  const runDaily = async () => {
-    setBusy(true); setDailyOut(null);
-    try {
-      const { data, error } = await supabase.functions.invoke('hub-daily');
-      if (error) throw error;
-      setDailyOut(data);
-    } catch (e) { setDailyOut({ error: e.message }); }
-    setBusy(false);
-  };
 
   const purge = async () => {
     setPurgeConfirm(false);
@@ -166,17 +155,9 @@ export default function SettingsPage() {
       {/* ── Otomasyon ── */}
       <h3 className="hub-h4" style={{ marginTop: 28 }}>Otomasyon</h3>
       <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 8 }}>
-        v2'de gece işi (pg_cron) yok — bayatlama istemcide <code>isStale()</code> ile hesaplanır.
-        <code>hub-daily</code> edge function'ı duruyor; elle tetikleyip sonucu görebilirsin.
+        v2'de gece işi / cron yok — bayatlama <code>isStale()</code> ile istemcide,
+        aşama geçişleri senkron. Elle tetiklenecek bir şey yok.
       </p>
-      <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={runDaily}>
-        <AIcon name="refresh" size={14} /> hub-daily'yi şimdi çalıştır
-      </button>
-      {dailyOut && (
-        <pre style={{ fontSize: 12, background: 'var(--adm-bg-hover)', padding: 10, borderRadius: 6, marginTop: 8, overflowX: 'auto' }}>
-          {JSON.stringify(dailyOut, null, 2)}
-        </pre>
-      )}
 
       {/* ── KVKK ── */}
       {can('candidates.purge') && (<>

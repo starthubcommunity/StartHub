@@ -27,7 +27,7 @@ export default function RolesPage() {
   const role = useHubMember();
   const { can } = usePerms();
 
-  const [startups, setStartups] = useState([]);
+  const [startups, setStartups] = useState(null);   // null = yükleniyor
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');
@@ -41,7 +41,11 @@ export default function RolesPage() {
   useEffect(() => {
     supabase.from('startups').select('id, name').order('name').then(({ data }) => setStartups(data || [])).catch(() => setStartups([]));
   }, []);
-  const startupName = (id) => startups.find((s) => s.id === id)?.name || (id ? `#${id}` : '—');
+  // §7 — startups gelene kadar ham ID render etme; kısa bir iskelet göster.
+  const startupName = (id) => {
+    if (startups == null) return '…';
+    return startups.find((s) => s.id === id)?.name || (id ? 'Proje' : '—');
+  };
   const memberName = (id) => members.find((m) => m.id === id)?.fullName || members.find((m) => m.id === id)?.email || '—';
 
   const visible = useMemo(() =>
@@ -63,7 +67,7 @@ export default function RolesPage() {
   const wizSteps = useMemo(() => [
     { key: 'startupId', type: 'options', q: 'Hangi proje?', options: [
       { value: '', label: 'Proje atanmamış' },
-      ...startups.filter((s) => !isOwner || myStartups.includes(s.id)).map((s) => ({ value: String(s.id), label: s.name })),
+      ...(startups || []).filter((s) => !isOwner || myStartups.includes(s.id)).map((s) => ({ value: String(s.id), label: s.name })),
     ] },
     { key: 'title', type: 'text', q: 'Rol başlığı nedir?', ph: 'ör. Flutter Geliştirici' },
     { key: 'roleType', type: 'options', q: 'Rol tipi?', options: ROLE_TYPES.map((t) => ({ value: t.value, label: t.label })) },

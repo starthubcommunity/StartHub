@@ -166,9 +166,14 @@ export default function ImportSimple({ onClose }) {
                 {TARGETS.map((t) => (
                   <div key={t.key} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center', marginBottom: 8 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{t.label}{t.key === 'fullName' && ' *'}</div>
-                    <Select value={map[t.key] ?? ''} onChange={(v) => setMap((m) => ({ ...m, [t.key]: v === '' ? undefined : Number(v) }))}
-                      placeholder="— (yok) —"
-                      options={headers.map((h, i) => ({ value: String(i), label: h || `Sütun ${i + 1}` }))} />
+                    {/* §3 — 0. kolonun da eşlenebilmesi için ham <select>; String(idx)
+                        ile karşılaştırılır, admin-ui Select'in `value || ''` falsy hatası yok. */}
+                    <select className="adm-input adm-select"
+                      value={map[t.key] == null ? '' : String(map[t.key])}
+                      onChange={(e) => { const v = e.target.value; setMap((m) => ({ ...m, [t.key]: v === '' ? undefined : Number(v) })); }}>
+                      <option value="">— (yok) —</option>
+                      {headers.map((h, i) => <option key={i} value={String(i)}>{h || `Sütun ${i + 1}`}</option>)}
+                    </select>
                   </div>
                 ))}
                 <div className="adm-form-grid" style={{ marginTop: 12 }}>

@@ -28,8 +28,9 @@ LinkedIn/e-posta ile atılacak ilk mesajın SADECE kişiselleştirme cümlesini 
 
 Kurallar:
 - TEK cümle, en fazla 30 kelime. Türkçe.
-- Adayın SOMUT bir eserine atıf yap (proje, repo, yarışma, yazı). Verilen bilgide
-  somut bir şey yoksa "" (boş string) döndür.
+- Adayın SOMUT bir eserine atıf yap ve mümkünse verilen sayısal ayrıntıyı
+  kullan (repo adı + yıldız sayısı, kullanılan dil, ne kadar güncel olduğu,
+  bitmiş proje sayısı). Verilen bilgide somut bir şey yoksa "" (boş string) döndür.
 - Sıfat kullanma ("yetenekli", "başarılı", "etkileyici" YASAK). Ne yaptığını söyle.
 - Şablon hissi verme. "Profilinizi inceledim" gibi klişe yok.
 - Selamlama, imza, "merhaba" YOK — yalnızca o tek cümle.
@@ -39,12 +40,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { fullName, sourceDetail, whyThisOne, link, evidence } = await req.json();
+    const { fullName, sourceDetail, whyThisOne, link, evidence, signals, aiScoreNote } = await req.json();
 
     const hasConcrete =
       (whyThisOne && String(whyThisOne).trim()) ||
       (sourceDetail && String(sourceDetail).trim()) ||
-      (Array.isArray(evidence) && evidence.length > 0);
+      (Array.isArray(evidence) && evidence.length > 0) ||
+      (Array.isArray(signals) && signals.length > 0);
     if (!hasConcrete) {
       return new Response(JSON.stringify({ text: "" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -62,7 +64,13 @@ serve(async (req) => {
       sourceDetail ? `Kaynak detayı: ${sourceDetail}` : null,
       whyThisOne ? `Neden bu kişi: ${whyThisOne}` : null,
       link ? `Link: ${link}` : null,
-      Array.isArray(evidence) && evidence.length ? `Kanıt: ${evidence.join(", ")}` : null,
+      Array.isArray(evidence) && evidence.length
+        ? `Kanıt (link — not: yıldız / dil / güncellik):\n${evidence.map((e: string) => `  - ${e}`).join("\n")}`
+        : null,
+      Array.isArray(signals) && signals.length
+        ? `GitHub sinyalleri: ${signals.join(" · ")}`
+        : null,
+      aiScoreNote ? `AI ön puan notu: ${aiScoreNote}` : null,
     ].filter(Boolean).join("\n");
 
     const url = `${API_BASE}/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;

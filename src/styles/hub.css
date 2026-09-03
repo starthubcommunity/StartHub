@@ -450,3 +450,31 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 /* Arama kutusu */
 .adm-search { border-radius: 999px; border: 1px solid #E7E0D2; background: #fff; height: 40px; }
 .adm-search:focus-within { border-color: #DC2626; }
+
+/* ── Asama seridi (aday karti ustu) ── */
+.hub-stripe { display: flex; align-items: center; gap: 0; margin-bottom: 16px; }
+.hub-stripe__node { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+.hub-stripe__dot {
+  width: 26px; height: 26px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; border: 2px solid #E7E0D2;
+  background: #fff; color: #A29D94; transition: all .2s;
+}
+.hub-stripe__lbl { font-size: 10px; font-weight: 700; color: #A29D94; letter-spacing: 0.02em; }
+.hub-stripe__node--done .hub-stripe__dot { background: #DC2626; border-color: #DC2626; color: #fff; }
+.hub-stripe__node--done .hub-stripe__lbl { color: #57534E; }
+.hub-stripe__node--now .hub-stripe__dot { border-color: #DC2626; color: #DC2626; width: 30px; height: 30px; font-size: 13px; box-shadow: 0 0 0 3px rgba(220,38,38,0.12); }
+.hub-stripe__node--now .hub-stripe__lbl { color: #DC2626; }
+.hub-stripe__line { flex: 1; height: 2px; background: #E7E0D2; margin: -14px 4px 0; }
+.hub-stripe__line--on { background: #DC2626; }
+
+/* ── Asama-aksiyon karti ── */
+.hub-stageaction { border: 1px solid #E7E0D2; border-radius: 16px; padding: 16px; margin-bottom: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); }
+.hub-stageaction__q { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 15px; font-weight: 700; color: #1C1917; margin-bottom: 12px; }
+
+/* ── Toast (team dili) ── */
+.hub-toast { background: #1C1917; color: #FAF8F3; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.18); font-weight: 600; }
+
+/* ── Form / hata metni (team dili) ── */
+.adm-form__err { color: #DC2626; font-size: 12.5px; font-weight: 600; }
+.hub-wz__err { color: #DC2626; }

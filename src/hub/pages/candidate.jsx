@@ -10,7 +10,7 @@ import {
   RUBRIC_AXES, RED_FLAGS, AI_PRESCORE_FINISHING, ROLE_TYPES,
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
   GATE_RESULT_LABEL, THRESHOLD, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
-  NEXT_ACTIONS, NEXT_ACTION_LABEL, GATE, GATE_EXTENSIONS,
+  GATE, GATE_EXTENSIONS,
 } from '../hub-constants';
 import { thresholdMet, thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI } from '../hub-rules';
 import { supabase } from '../../lib/supabase';
@@ -20,6 +20,109 @@ import HubWizard from '../components/wizard';
 
 const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunication', capacity: 'scoreCapacity' };
 const PRESCORE_LABEL = Object.fromEntries(AI_PRESCORE_FINISHING.map((x) => [x.value, x.when]));
+
+// ── Aşama şeridi (§Ek) ───────────────────────────────────────────
+const STRIPE = [
+  { value: 'pool', label: 'Havuz' },
+  { value: 'contact', label: 'Temas' },
+  { value: 'interview', label: 'Görüşme' },
+  { value: 'trial', label: 'Deneme' },
+  { value: 'member', label: 'Ekipte' },
+];
+function StageStripe({ stage }) {
+  const idx = STRIPE.findIndex((s) => s.value === stage);   // archived → -1
+  return (
+    <div className="hub-stripe">
+      {STRIPE.map((s, i) => {
+        const state = idx < 0 ? 'future' : i < idx ? 'done' : i === idx ? 'now' : 'future';
+        return (
+          <React.Fragment key={s.value}>
+            {i > 0 && <span className={`hub-stripe__line ${idx >= 0 && i <= idx ? 'hub-stripe__line--on' : ''}`} />}
+            <div className={`hub-stripe__node hub-stripe__node--${state}`}>
+              <span className="hub-stripe__dot">{state === 'done' ? '✓' : i + 1}</span>
+              <span className="hub-stripe__lbl">{s.label}</span>
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Genelleştirilmiş aşama-aksiyon kartı (§1 + §Ek) ──────────────
+// Tek soru başlıkta, altta 1-2 büyük seçenek butonu. Seçilince ilgili
+// GERÇEK store fonksiyonu / canAdvance() çağrılır.
+function StageActionCard({ question, options }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const pick = async (o) => {
+    setBusy(true); setErr('');
+    try { await o.run(); } catch (e) { setErr(e?.message || 'İşlem başarısız.'); }
+    setBusy(false);
+  };
+  return (
+    <div className="hub-stageaction">
+      <div className="hub-stageaction__q">{question}</div>
+      <div className="hub-wz__opts">
+        {options.map((o, i) => (
+          <button key={i} type="button" className="hub-wz__opt" disabled={busy || o.disabled}
+            title={o.disabled ? (o.disabledHint || '') : ''} onClick={() => pick(o)}>
+            <span className="hub-wz__opt-l">{o.label}</span>
+            {o.hint != null && <span className="hub-wz__opt-r">{o.hint}</span>}
+          </button>
+        ))}
+      </div>
+      {err && <div className="hub-wz__err" style={{ padding: '6px 0 0' }}>{err}</div>}
+    </div>
+  );
+}
+
+// Aşamaya göre "sıradaki adım" kartını kurar — her seçenek GERÇEK bir
+// store fn / canAdvance() çağırır (cron / hub-daily bağımlılığı YOK).
+function NextStepCard({ c, store, openRole, role, onComposer, afterAdvance, flash }) {
+  const stage = c.stage;
+
+  if (stage === 'pool') {
+    return (
+      <StageActionCard question="Bu kişiye ulaşalım mı?" options={[
+        { label: 'Mesaj taslağı hazırla', hint: 'kopyalayınca Temas\'a geçer', run: async () => { onComposer(); } },
+      ]} />
+    );
+  }
+
+  if (stage === 'contact') {
+    return (
+      <StageActionCard question="Aday şu an ne durumda?" options={[
+        { label: 'Cevap geldi', hint: 'olumlu dönüş', run: async () => { await store.markReplied(c.id); afterAdvance(); flash?.('Cevap işaretlendi.'); } },
+        { label: 'Görüştüm — Görüşme\'ye al', run: async () => {
+          const chk = canAdvance(c, 'interview', { touchCount: 1 });
+          if (!chk.ok) throw new Error(chk.reason);
+          await store.advanceStage(c.id, 'interview', { reason: 'görüşüldü' });
+          afterAdvance(); flash?.('Aşama: Görüşme.');
+        } },
+      ]} />
+    );
+  }
+
+  if (stage === 'interview') {
+    return (
+      <StageActionCard question="Görüşme sonrası ne olacak?" options={[
+        { label: 'Deneme\'ye geçir (Kapı A)', hint: 'eşik + rubrik kontrol edilir', run: async () => {
+          const chk = canAdvance(c, 'trial', { role, openRole });
+          if (!chk.ok) throw new Error(chk.reason);
+          await store.advanceStage(c.id, 'trial', { reason: 'görüşme geçti' });
+          afterAdvance(); flash?.('Aşama: Deneme.');
+        } },
+        { label: 'Arşivle', hint: 'çıtanın altında', run: async () => {
+          await store.advanceStage(c.id, 'archived', { reason: 'görüşme sonrası', extra: { archiveReason: 'below_bar' } });
+          afterAdvance(); flash?.('Arşivlendi.');
+        } },
+      ]} />
+    );
+  }
+
+  return null;   // trial → TrialSection/GateCard, member → bitti
+}
 
 // blur'da işleyen metin/textarea alanı
 function LField({ label, value, onCommit, textarea, type = 'text', hint, options }) {
@@ -106,7 +209,13 @@ export default function CandidatePanel({ candidateId, onClose }) {
         </div>
 
         <div className="hub-panel__body">
+          <StageStripe stage={stage} />
+
           <TrackRoleSection c={c} openRole={openRole} role={role} store={store} flash={flash} />
+
+          {/* §1 + §Ek — gerçek aksiyon tetikleyen aşama kartı */}
+          <NextStepCard c={c} store={store} openRole={openRole} role={role}
+            onComposer={() => setComposing(true)} afterAdvance={() => setHistory(null)} flash={flash} />
 
           {stage === 'pool' && <PoolSection c={c} save={save} flash={flash} />}
           {stage === 'contact' && <ContactSection c={c} save={save} history={history} />}
@@ -114,26 +223,13 @@ export default function CandidatePanel({ candidateId, onClose }) {
           {stage === 'trial' && <TrialSection c={c} />}
           {stage === 'member' && <MemberSection c={c} />}
 
-          {/* Sonraki aksiyon — havuz dışında */}
+          {/* Planlanan görüşme / takip — bilgi amaçlı */}
           {stage !== 'pool' && stage !== 'member' && (
-            <>
-              <h4 className="hub-h4">Sonraki aksiyon</h4>
-              <div className="hub-score-row" style={{ flexWrap: 'wrap' }}>
-                {NEXT_ACTIONS.map((a) => (
-                  <button key={a.value}
-                    className={`hub-score-btn ${c.nextAction === a.value ? 'hub-score-btn--on' : ''}`}
-                    style={{ width: 'auto', padding: '0 10px' }}
-                    onClick={() => save({ nextAction: c.nextAction === a.value ? null : a.value })}>
-                    {a.label}
-                  </button>
-                ))}
-              </div>
-              <div className="adm-form-grid" style={{ marginTop: 8 }}>
-                <LField label="Tarih" type="date" value={c.nextActionAt ? String(c.nextActionAt).slice(0, 10) : ''}
-                  onCommit={(v) => save({ nextActionAt: v || null })} />
-                <LField label="Bağlantı" value={c.nextActionLink} onCommit={(v) => save({ nextActionLink: v })} />
-              </div>
-            </>
+            <div className="adm-form-grid" style={{ marginTop: 12 }}>
+              <LField label="Planlanan tarih" type="date" value={c.nextActionAt ? String(c.nextActionAt).slice(0, 10) : ''}
+                onCommit={(v) => save({ nextActionAt: v || null })} />
+              <LField label="Bağlantı (takvim)" value={c.nextActionLink} onCommit={(v) => save({ nextActionLink: v })} />
+            </div>
           )}
 
           {/* Detay akordeonu */}
@@ -275,6 +371,8 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
 function PoolSection({ c, save, flash }) {
   const [busy, setBusy] = useState(false);
   const runDraft = async () => {
+    // §4 — API'ye gitmeden önce koruma. Geçmiyorsa hiçbir istek çıkmaz.
+    if (!canDraftAI(c)) { flash('Veri yetersiz, elle yaz. Kaynak detayı / "neden bu kişi" / kanıt linki gerekli.'); return; }
     setBusy(true);
     try { const { text } = await generateDraft(c); await save({ draftText: text }); flash('Taslak oluşturuldu.'); }
     catch (e) { flash(e.message); }
@@ -619,7 +717,14 @@ function MessageComposer({ candidate, onDone, onCancel }) {
   useEffect(() => { setBody(tpl ? fillTemplate(tpl.body, candidate) : ''); }, [tplId]); // eslint-disable-line
 
   const canCopy = personalization.trim().length > 0 && !busy && active.length > 0;
-  const fullText = `${personalization.trim()}\n\n${body}`.trim();
+  // §5 — {{kisisellestirme}} / {{kişiselleştirme}} placeholder'ını gerçek metinle
+  // değiştir. Şablonda yoksa personalization'ı başa ekle (eski davranış).
+  const PH_RE = /\{\{\s*ki[şs]iselle[şs]tirme\s*\}\}/gi;
+  const hasPH = PH_RE.test(body);
+  const fullText = (hasPH
+    ? body.replace(/\{\{\s*ki[şs]iselle[şs]tirme\s*\}\}/gi, personalization.trim())
+    : `${personalization.trim()}\n\n${body}`
+  ).trim();
 
   const copy = async () => {
     if (!canCopy) return;
