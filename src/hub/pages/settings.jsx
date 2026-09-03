@@ -190,7 +190,16 @@ export default function SettingsPage() {
       </Modal>
 
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)}
-        onConfirm={() => { store.deleteItem('members', confirm.id).then(() => setConfirm(null)); }}
+        onConfirm={() => {
+          store.deleteItem('members', confirm.id)
+            .then(() => { setConfirm(null); flash('Üye silindi.'); })
+            .catch((e) => {
+              setConfirm(null);
+              flash(/foreign key|violates|constraint/i.test(e.message || '')
+                ? 'Bu üyenin geçmiş aktivitesi var — silmek yerine pasifleştir (Yetkiler ekranı).'
+                : 'Silinemedi: ' + e.message);
+            });
+        }}
         title="Üyeyi sil?" message={`${confirm?.email} kütükten çıkarılacak.`} />
       <ConfirmDialog open={purgeConfirm} onClose={() => setPurgeConfirm(false)} onConfirm={purge}
         title="Adayı tamamen sil?" message="Bu işlem tüm bağlı kayıtları ve ham metni siler. Geri alınamaz." />

@@ -165,7 +165,11 @@ export default function TemplatesPage() {
       </Modal>
 
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)}
-        onConfirm={() => { deleteItem('templates', confirm.id).then(() => { setConfirm(null); flash('Şablon silindi.'); }); }}
+        onConfirm={() => {
+          deleteItem('templates', confirm.id)
+            .then(() => { setConfirm(null); flash('Şablon silindi.'); })
+            .catch((e) => { setConfirm(null); flash('Silinemedi: ' + e.message); });
+        }}
         title="Şablonu sil?" message={`“${confirm?.name}” kalıcı olarak silinecek.`} />
 
       {toast && <div className="hub-toast">{toast}</div>}

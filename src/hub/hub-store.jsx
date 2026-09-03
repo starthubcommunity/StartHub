@@ -114,14 +114,16 @@ export function HubStoreProvider({ children }) {
   const deleteItem = useCallback((collection, id) => {
     const entry = HUB_TABLES[collection];
     if (!entry) return Promise.reject(new Error(`Bilinmeyen koleksiyon: ${collection}`));
-    if (collection in data) {
-      setData((prev) => ({ ...prev, [collection]: prev[collection].filter((it) => it.id !== id) }));
-    }
+    // ÖNCE DB, sonra yerel. Optimistik silme YOK: FK ihlali / RLS reddinde
+    // satır ekranda kaybolup DB'de kalmasın (çağıran .catch ile mesaj gösterir).
     return supabase.from(entry.table).delete().eq('id', id)
       .then(({ error }) => {
         if (error) {
           console.error(`[Hub] ${entry.table} silinemedi:`, error.message);
           throw new Error(error.message);
+        }
+        if (collection in data) {
+          setData((prev) => ({ ...prev, [collection]: prev[collection].filter((it) => it.id !== id) }));
         }
       });
   }, [data]);

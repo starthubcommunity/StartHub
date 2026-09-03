@@ -199,7 +199,7 @@ export default function CandidatePanel({ candidateId, onClose }) {
           </button>
           {stage === 'contact' && (
             <button className="adm-btn adm-btn--ghost adm-btn--sm"
-              onClick={() => store.markReplied(candidateId).then(() => { setHistory(null); flash('Cevap işaretlendi.'); })}>
+              onClick={() => store.markReplied(candidateId).then(() => { setHistory(null); flash('Cevap işaretlendi.'); }).catch((e) => flash('Hata: ' + e.message))}>
               <AIcon name="check" size={13} /> Cevap geldi
             </button>
           )}
@@ -210,7 +210,7 @@ export default function CandidatePanel({ candidateId, onClose }) {
           )}
           {stage === 'archived' && (
             <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }}
-              onClick={() => store.advanceStage(candidateId, 'pool', { reason: 'arşivden geri alındı' }).then(() => { setHistory(null); flash('Havuz\'a geri alındı.'); })}>
+              onClick={() => store.advanceStage(candidateId, 'pool', { reason: 'arşivden geri alındı', extra: { archiveReason: null } }).then(() => { setHistory(null); flash('Havuz\'a geri alındı.'); }).catch((e) => flash('Hata: ' + e.message))}>
               <AIcon name="refresh" size={13} /> Havuz'a geri al
             </button>
           )}
