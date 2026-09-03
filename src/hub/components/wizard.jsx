@@ -1,7 +1,10 @@
 // wizard.jsx — tek-soru-tek-ekran sihirbaz (public/team/index.html deseni).
 // FLOW_DEFS: [{ key, type, q, ph?, sub?, optional?, options? }]
 //   type: 'text' | 'textarea' | 'date' | 'options'
-// options: [{ value, label, hint? }] — seçince otomatik ilerler.
+// options: [{ value, label, hint? }]
+//   - ARA adımlarda seçince otomatik ilerler
+//   - SON adımda seçmek yalnızca işaretler; işlem için "Uygula"ya basılır
+//     (yıkıcı aksiyonlarda yanlışlıkla tetiklenmesin diye).
 //
 // SADECE görsel/markup katmanı. onComplete(answers) çağıranın store işini yapar;
 // bu bileşen hiçbir store/kural çağrısı bilmez.
@@ -56,7 +59,8 @@ export default function HubWizard({
   const isLast = i === total - 1;
   const val = answers[def?.key];
   const filled = val != null && String(val).trim() !== '';
-  const canNext = def?.optional || filled || def?.type === 'options';
+  // Son adımda "İleri/Uygula" ancak bir değer seçili/girilmişse aktif.
+  const canNext = def?.optional || filled || (def?.type === 'options' && !isLast);
 
   const set = (v) => setAnswers((a) => ({ ...a, [def.key]: v }));
 
@@ -111,7 +115,7 @@ export default function HubWizard({
                 {def.sub && <div className="hub-wz__sub">{def.sub}</div>}
                 <StepBody def={def} value={val}
                   onChange={set}
-                  onPick={(v) => { set(v); next(v); }} />
+                  onPick={(v) => { set(v); if (!isLast) next(v); }} />
               </div>
             </div>
 
