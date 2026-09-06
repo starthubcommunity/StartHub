@@ -216,6 +216,43 @@ export function gateStatus(gate, now = Date.now()) {
   return 'overdue';
 }
 
+// undoPlan(candidate, stageLog) -> { toStage, label, affectsMany } | null
+// (PROMPT_V3 A3 + Blok A düzeltmeleri 2-3)
+//
+// "Geri al" HER ZAMAN adayın gerçekten geldiği son GERÇEK ilerlemeyi hedefler.
+// hub_stage_log'da gürültü var:
+//   - extendGate  → from_stage === to_stage ('trial'→'trial')  → atla
+//   - önceki geri almalar (reason: 'geri alındı' / 'ekibe alma geri alındı' /
+//     'arşivden geri alındı')                                    → atla
+// En yeni "gerçek geçiş" satırının to_stage'i adayın ŞU ANKİ aşamasıyla
+// uyuşmuyorsa (bu arada başka şey olmuş) geri alma sunulmaz.
+// O satırın from_stage'i 'archived' ise ve kart artık arşivde değilse, geri
+// alma = "yeniden arşivle" olur — bu bir geri alma değil, sunulmaz.
+export const UNDO_REASONS = new Set(['geri alındı', 'ekibe alma geri alındı', 'arşivden geri alındı']);
+
+export function undoPlan(candidate, stageLog = []) {
+  const c = candidate || {};
+  const rows = (stageLog || [])
+    .filter((l) => l.candidateId === c.id)
+    .slice()
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const eff = rows.find(
+    (l) => l.fromStage && l.toStage && l.fromStage !== l.toStage && !UNDO_REASONS.has(l.reason)
+  );
+  if (!eff) return null;
+  if (eff.toStage !== c.stage) return null;               // pipeline bu arada kaymış
+
+  const toStage = eff.fromStage;
+  if (toStage === 'archived' && c.stage !== 'archived') return null;   // "yeniden arşivle" değil
+
+  return {
+    toStage,
+    label: STAGE_LABEL[toStage] || 'Havuz',
+    affectsMany: c.stage === 'member',   // rol + hak ediş alanları da geri alınır
+  };
+}
+
 // nextAction(candidate, touches, gates) -> { key, label } | null   (PROMPT_V3 A7)
 // v3: elle seçilen `next_action` alanı kaldırıldı. Sıradaki adım aşamadan +
 // temas/kapı durumundan TÜRETİLİR. Saf fonksiyon; UI ve liste bunu çağırır.

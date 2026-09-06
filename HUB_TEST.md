@@ -46,8 +46,35 @@
 1. Bir adayı yanlışlıkla bir sonraki aşamaya ilerlet.
 2. Kartta **"Geri al (<önceki aşama>)"** düğmesine bas.
 3. **Beklenen:** aday önceki aşamaya döner; `hub_stage_log` iki satır içerir
-   (ileri + `reason: 'geri alındı'`). Ekipte aday için düğme yok, "geri alınamaz"
-   ipucu görünür.
+   (ileri + `reason: 'geri alındı'`).
+
+## T3c — Geri al: Deneme kartı Görüşme'yi gösterir (Arşiv'i DEĞİL)
+
+1. Bir adayı Görüşme → Deneme'ye ilerlet, Kapı A başlat, "Süre yetmedi mi?" →
+   +3 gün ile süreyi uzat.
+2. **Beklenen:** kartta "Geri al" düğmesi **"Geri al (Görüşme)"** yazar —
+   "Arşiv" değil. Basınca aday Görüşme'ye döner (kapı satırı `hub_stage_log`
+   hedefini bozmaz).
+3. Adayı arşivle, sonra "Geri al" ile Deneme'ye döndür. **Beklenen:** artık
+   Deneme'deki kartta "Geri al" düğmesi **görünmez** (yeniden arşivleme sunulmaz).
+
+## T3d — Ekibe almayı geri al (Hata 2 / C4 öncesi)
+
+1. Bir adayı kapıları geçirip "Ekibe al" ile **Ekipte**'ye taşı — bağlı rol
+   `filled` olur.
+2. Kartta **"Geri al (Deneme)"** düğmesi var; basınca **onay diyaloğu** çıkar.
+3. Onayla. **Beklenen (hiçbir hata çıkmadan):** aday **Deneme**'ye döner,
+   `joined_at` ve `vesting_start_date` null olur, bağlı rol `filled → shortlist`
+   + `filled_at` null olur, `hub_stage_log`'a `reason: 'ekibe alma geri alındı'`
+   satırı düşer.
+
+## T3e — Rol / hat üst şeritte etiket (Hata 1)
+
+1. Bir adayı Havuz → Ekipte boyunca gezdir.
+2. **Beklenen:** hat ve rol yalnızca kart başlığında `.adm-chip` etiketi olarak
+   görünür; hiçbir aşamada açıkta `<select>` alanı durmaz. Kartta katlanmış
+   "Rol / hat düzenle" menüsü vardır (varsayılan kapalı); açılınca rol seçimi
+   herkeste, hat seçimi yalnızca cofounder'da görünür.
 
 ## T4 — Deneme: Kapı A + süre uzatma
 

@@ -2,7 +2,7 @@
 // Kart, adayın bulunduğu aşamanın alanlarını gösterir; "Detay" ve "Geçmiş"
 // akordeonları kapalı. Alanlar optimistic kaydedilir.
 import React, { useState, useEffect, useMemo } from 'react';
-import { AIcon, Field } from '../../admin/admin-ui';
+import { AIcon, Field, ConfirmDialog } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
 import { usePerms } from '../../lib/use-perms';
@@ -12,7 +12,7 @@ import {
   GATE_RESULT_LABEL, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
   GATE, GATE_EXTENSIONS,
 } from '../hub-constants';
-import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI, nextAction } from '../hub-rules';
+import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI, nextAction, undoPlan } from '../hub-rules';
 import { fillTemplate } from './templates';
 import { generateDraft } from '../hub-ai-draft';
 import HubWizard from '../components/wizard';
@@ -147,17 +147,18 @@ export default function CandidatePanel({ candidateId, onClose }) {
   const [showHistory, setShowHistory] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [confirmUndo, setConfirmUndo] = useState(false);
   const [toast, setToast] = useState(null);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 3500); };
 
-  // A3 — son aşama değişikliği geri alınabilir mi? (kapı/ekibe-alma hariç)
-  const lastLog = [...store.stageLog]
-    .filter((l) => l.candidateId === candidateId)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-  const canUndo = !!lastLog && lastLog.toStage === candidate?.stage && candidate?.stage !== 'member';
-  const doUndo = () => store.undoLastStage(candidateId)
-    .then(() => { setHistory(null); flash(`Geri alındı → ${STAGE_LABEL[lastLog.fromStage] || 'Havuz'}.`); })
-    .catch((e) => flash('Geri alınamadı: ' + e.message));
+  // A3 (+ Blok A düzeltmeleri 2-3) — geri alma planı SAF fonksiyondan gelir;
+  // extendGate / önceki geri-alma satırları atlanır, hedef daima gerçek bir
+  // önceki aşamadır. member → çoklu kayıt etkiler, onay istenir.
+  const undo = candidate ? undoPlan(candidate, store.stageLog) : null;
+  const runUndo = () => store.undoLastStage(candidateId)
+    .then(() => { setHistory(null); setConfirmUndo(false); flash(`Geri alındı → ${undo?.label || 'önceki aşama'}.`); })
+    .catch((e) => { setConfirmUndo(false); flash('Geri alınamadı: ' + e.message); });
+  const doUndo = () => { if (undo?.affectsMany) setConfirmUndo(true); else runUndo(); };
 
   useEffect(() => {
     if (showHistory && !history && candidate) {
@@ -201,13 +202,10 @@ export default function CandidatePanel({ candidateId, onClose }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--adm-border)', background: 'var(--adm-bg-card)', flexWrap: 'wrap' }}>
-          {canUndo && (
+          {undo && (
             <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={doUndo}>
-              <AIcon name="refresh" size={13} /> Geri al ({STAGE_LABEL[lastLog.fromStage] || 'Havuz'})
+              <AIcon name="refresh" size={13} /> Geri al ({undo.label})
             </button>
-          )}
-          {stage === 'member' && (
-            <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Ekibe alma geri alınamaz.</span>
           )}
           {stage !== 'member' && stage !== 'archived' && (
             <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }} onClick={() => setArchiving(true)}>
@@ -276,6 +274,9 @@ export default function CandidatePanel({ candidateId, onClose }) {
             setHistory(null); flash('Arşivlendi.');
           }} />
       )}
+      <ConfirmDialog open={confirmUndo} onClose={() => setConfirmUndo(false)} onConfirm={runUndo}
+        title="Ekibe almayı geri al?"
+        message="Aday Deneme aşamasına döner; katılım / hak ediş tarihleri silinir ve bağlı rol yeniden açılır. Bu işlem birden fazla kaydı etkiler." />
       {toast && <div className="hub-toast">{toast}</div>}
     </div>
   );
@@ -324,29 +325,42 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
     setBusy(false);
   };
 
+  // A5 (+ Blok A düzeltmesi 1): rol ve hat kartın ÜST ŞERİDİNDE etiket (bkz.
+  // CandidatePanel başlığı). Hiçbir aşamada form alanı olarak render EDİLMEZ —
+  // düzenleme yalnızca kartta KATLANMIŞ küçük bir menüde. Rol bağlama yazma
+  // yetkisi olan herkeste (sunma akışı buna bağlı); hat geçersiz kılma yalnızca
+  // cofounder'da.
+  const isCofounder = can('members.manage');
+  const canEditLink = can('candidates.write');
+
   return (
     <div className="hub-gates" style={{ marginBottom: 16 }}>
-      <h4 className="hub-h4">Rol</h4>
-      <div className="adm-form-grid">
-        <Field label="Bağlı açık rol" hint="Hat bağlı rolden miras alınır; ayrıca sorulmaz.">
-          <select className="adm-input adm-select" value={c.openRoleId || ''} onChange={(e) => store.linkCandidateRole(c.id, e.target.value || null)}>
-            <option value="">—</option>
-            {linkable.map((r) => <option key={r.id} value={r.id}>{r.title}{r.track === 'member' ? ' · üye' : ' · kurucu'}</option>)}
-            {c.openRoleId && !linkable.some((r) => r.id === c.openRoleId) && openRole && (
-              <option value={openRole.id}>{openRole.title} (mevcut)</option>
+      {canEditLink && (
+        <details style={{ marginBottom: 10 }}>
+          <summary style={{ fontSize: 12, color: 'var(--adm-text-dim)', cursor: 'pointer' }}>
+            Rol / hat düzenle
+          </summary>
+          <div className="adm-form-grid" style={{ marginTop: 8 }}>
+            <Field label="Bağlı açık rol" hint="Hat bu rolden miras alınır.">
+              <select className="adm-input adm-select" value={c.openRoleId || ''} onChange={(e) => store.linkCandidateRole(c.id, e.target.value || null)}>
+                <option value="">—</option>
+                {linkable.map((r) => <option key={r.id} value={r.id}>{r.title}{r.track === 'member' ? ' · üye' : ' · kurucu'}</option>)}
+                {c.openRoleId && !linkable.some((r) => r.id === c.openRoleId) && openRole && (
+                  <option value={openRole.id}>{openRole.title} (mevcut)</option>
+                )}
+              </select>
+            </Field>
+            {isCofounder && (
+              <Field label="Hat (geçersiz kıl · kurucu)">
+                <select className="adm-input adm-select" value={c.track || 'founder'}
+                  onChange={(e) => store.updateCandidate(c.id, { ...c, track: e.target.value }).then(() => flash?.('Hat değişti.')).catch((err) => flash?.(err.message))}>
+                  {TRACKS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </Field>
             )}
-          </select>
-        </Field>
-        {/* A5 — track elle değişimi YALNIZCA cofounder; küçük menü, form alanı değil */}
-        {can('members.manage') && (
-          <Field label="Hat (kurucu geçersiz kılabilir)">
-            <select className="adm-input adm-select" value={c.track || 'founder'}
-              onChange={(e) => store.updateCandidate(c.id, { ...c, track: e.target.value }).then(() => flash?.('Hat değişti.')).catch((err) => flash?.(err.message))}>
-              {TRACKS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </Field>
-        )}
-      </div>
+          </div>
+        </details>
+      )}
 
       {decidePending && (
         <div className="hub-threshold hub-threshold--no" style={{ display: 'block', marginTop: 8 }}>

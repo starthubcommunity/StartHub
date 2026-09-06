@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   canAdvance, thresholdMet, thresholdText, presentGate, roleStatusAfterReject,
   inheritedTrack, isStale, gateStatus, gateDueAt, canDraftAI, rubricComplete,
-  candidateVisible, nextAction,
+  candidateVisible, nextAction, undoPlan,
 } from './hub-rules.js';
 import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
@@ -262,6 +262,66 @@ t('nextAction: Deneme + kapı yok → kapı başlat; kapı sürüyor → sonucu 
 t('nextAction: Ekipte / arşiv → null', () => {
   assert.equal(nextAction({ id: 'c1', stage: 'member' }), null);
   assert.equal(nextAction({ id: 'c1', stage: 'archived' }), null);
+});
+
+// ── undoPlan: geri alma hedefi (Blok A düzeltmeleri 2-3) ────────
+const log = (o) => ({ candidateId: 'c1', createdAt: o.at, fromStage: o.f, toStage: o.t, reason: o.r ?? null });
+
+t('undoPlan: Deneme kartı → Görüşme (arşiv DEĞİL)', () => {
+  const rows = [
+    log({ at: ago(5), f: 'pool', t: 'contact' }),
+    log({ at: ago(3), f: 'contact', t: 'interview' }),
+    log({ at: ago(1), f: 'interview', t: 'trial', r: 'görüşme geçti' }),
+  ];
+  const p = undoPlan({ id: 'c1', stage: 'trial' }, rows);
+  assert.equal(p.toStage, 'interview');
+  assert.equal(p.label, 'Görüşme');
+  assert.equal(p.affectsMany, false);
+});
+
+t('undoPlan: extendGate\'in trial→trial satırı hedefi bozmaz', () => {
+  const rows = [
+    log({ at: ago(3), f: 'interview', t: 'trial', r: 'görüşme geçti' }),
+    log({ at: ago(1), f: 'trial', t: 'trial', r: 'Kapı A süresi +3 gün uzatıldı' }),
+  ];
+  assert.equal(undoPlan({ id: 'c1', stage: 'trial' }, rows).toStage, 'interview');
+});
+
+t('undoPlan: arşivden geri alınmış Deneme kartında BUTON YOK (yeniden arşivleme değil)', () => {
+  const rows = [
+    log({ at: ago(3), f: 'trial', t: 'archived', r: 'arşivlendi' }),
+    log({ at: ago(1), f: 'archived', t: 'trial', r: 'geri alındı' }),
+  ];
+  assert.equal(undoPlan({ id: 'c1', stage: 'trial' }, rows), null);
+});
+
+t('undoPlan: arşiv kartı → arşivlendiği aşamaya döner', () => {
+  const rows = [
+    log({ at: ago(3), f: 'interview', t: 'trial', r: 'görüşme geçti' }),
+    log({ at: ago(1), f: 'trial', t: 'archived', r: 'arşivlendi' }),
+  ];
+  const p = undoPlan({ id: 'c1', stage: 'archived' }, rows);
+  assert.equal(p.toStage, 'trial');
+});
+
+t('undoPlan: Ekipte kartı → Deneme, affectsMany=true', () => {
+  const rows = [
+    log({ at: ago(3), f: 'interview', t: 'trial', r: 'görüşme geçti' }),
+    log({ at: ago(1), f: 'trial', t: 'member', r: 'hak ediş başlangıcı' }),
+  ];
+  const p = undoPlan({ id: 'c1', stage: 'member' }, rows);
+  assert.equal(p.toStage, 'trial');
+  assert.equal(p.affectsMany, true);
+});
+
+t('undoPlan: son geçiş adayın şu anki aşamasıyla uyuşmuyorsa null', () => {
+  const rows = [log({ at: ago(1), f: 'interview', t: 'trial', r: 'görüşme geçti' })];
+  assert.equal(undoPlan({ id: 'c1', stage: 'interview' }, rows), null);
+});
+
+t('undoPlan: hiç gerçek geçiş yoksa null', () => {
+  assert.equal(undoPlan({ id: 'c1', stage: 'pool' }, []), null);
+  assert.equal(undoPlan({ id: 'c1', stage: 'pool' }, [log({ at: ago(1), f: null, t: 'pool' })]), null);
 });
 
 // ── candidateVisible: §10.2 aday okuma kapsamı ──────────────────

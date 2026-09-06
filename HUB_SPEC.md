@@ -114,14 +114,30 @@ Eşik metni ham formül değil cümle: *"Kapasite puanı düşük."* Rubrik buto
 
 ### 2.4 Geri alma (undo) — v3'te yeni
 
-`hub_stage_log` zaten `from_stage` tutuyor; v3 arayüzünü ekler.
+`hub_stage_log` zaten `from_stage` tutuyor; v3 arayüzünü ekler. Hedef **saf
+fonksiyondan** gelir (`undoPlan(candidate, stageLog)`): en yeni **gerçek
+ilerleme** satırı bulunur; `extendGate`'in `trial→trial` satırları ve önceki
+geri-alma satırları (`reason` ∈ {`geri alındı`, `ekibe alma geri alındı`,
+`arşivden geri alındı`}) atlanır. Bu satırın `to_stage`'i adayın şu anki
+aşamasıyla uyuşmuyorsa geri alma sunulmaz.
 
-- Aşama değişikliğinden sonra kartta **"Geri al"** görünür.
-- Geri alma: adayı `from_stage`'e döndürür, `hub_stage_log`'a
-  `reason: 'geri alındı'` ile **yeni satır** yazar (eski satır silinmez).
-- Arşivleme de geri alınabilir (`archive_reason` → null).
-- **Geri alınamaz:** kapı sonucu (`passed`/`failed`) ve `moveToTeam`. Bu ikisi
-  için düğme gösterilmez; sebebi kısa bir ipucuyla belirtilir.
+- Aşama değişikliğinden sonra kartta **"Geri al (<önceki aşama>)"** görünür.
+- Geri alma: adayı `from_stage`'e döndürür, `hub_stage_log`'a **yeni satır** yazar
+  (eski satır silinmez).
+- **Arşiv kartı** → arşivlendiği aşamaya döner, `archive_reason` → null.
+  Zaten arşivden çıkmış bir kartta "Geri al" **görünmez** (yeniden arşivleme
+  değildir).
+- **Ekibe alma (`member`) geri alınabilir** — C4 (Team entegrasyonu) henüz yok,
+  etki Hub içinde: aşama `trial`'a döner, `joined_at` + `vesting_start_date`
+  temizlenir, bağlı rol `filled → shortlist` + `filled_at` null olur,
+  `hub_stage_log`'a `reason: 'ekibe alma geri alındı'`. **Onay diyaloğu**
+  gösterilir (birden çok kayıt etkilenir).
+  > **C4 notu:** `moveToTeam` C4'te `people` kaydı açıp davet maili gönderecek.
+  > O noktada bu geri alma yetersiz kalır — C4 yapılırken ya geri alma "davet
+  > gönderilmeden önce" ile sınırlanır, ya da Team tarafını da geri alacak
+  > şekilde genişletilir.
+- **Geri alınamaz:** kapı sonucu (`passed`/`failed`) — bu bir aşama değişikliği
+  değil (`hub_gates` satırında tutulur), geri alma hedefi üretmez.
 
 ---
 
@@ -129,9 +145,12 @@ Eşik metni ham formül değil cümle: *"Kapasite puanı düşük."* Rubrik buto
 
 Sekme yok. Kart, adayın bulunduğu aşamanın alanlarını gösterir.
 
-**Üst şerit (her aşamada, form değil, etiket):** ad · **rol** · **hat** ·
-kaynak · sorumlu · aşama. Rol ve hat burada birer `.adm-chip` — aşama değiştikçe
-tekrar sorulmaz.
+**Üst şerit (her aşamada, form değil, etiket):** ad · aşama · **hat** · **rol** ·
+kaynak · türetilen sonraki aksiyon. Rol ve hat burada birer `.adm-chip` — hiçbir
+aşamada seçim alanı olarak render **edilmez**, aşama değiştikçe tekrar sorulmaz.
+Düzenleme kartta **katlanmış küçük bir menüde** ("Rol / hat düzenle", varsayılan
+kapalı): rol bağlama yazma yetkisi olan herkeste (sunma akışı buna bağlı), hat
+geçersiz kılma yalnızca **cofounder**'da.
 
 - **Havuz:** tek link, kaynak detayı, **"neden bu kişi"** (zorunlu).
 - **Temas:** mesaj alanı (§9), takip tarihi, **"Cevap geldi, görüşmeye geç"** tek düğme.
@@ -338,7 +357,8 @@ başlar). Mail gönderilmeden de kapı başlatılabilir (elden iletildiyse).
 
 **Team tablo yapısı varsayılmaz — önce incelenir.** Adımlardan biri patlarsa
 kısmi durum kullanıcıya gösterilir ("hesap açıldı, takıma eklenemedi"), sessizce
-yutulmaz. `moveToTeam` geri alınamaz (§2.4).
+yutulmaz. `moveToTeam` C4 öncesi geri alınabilir (§2.4); C4 sonrası geri alma
+kapsamı C4 ile birlikte gözden geçirilir.
 
 ### 9.5 Inbound bağlantısı
 
@@ -514,5 +534,5 @@ gerçek drop ayrı migration'da ve teyitle.
 | `next_action` | elle | türetilir |
 | Kırmızı bayrak | 4, 2'sinde kilit | yok (serbest not) |
 | Ana içe aktarma | CSV | yapıştır-ayrıştır |
-| Geri alma | yok | var (kapı/team hariç) |
+| Geri alma | yok | var — ekibe alma dâhil (C4 öncesi); kapı sonucu hariç |
 | Team entegrasyonu | yok (sahte) | gerçek (`people` + `invite-member`) |

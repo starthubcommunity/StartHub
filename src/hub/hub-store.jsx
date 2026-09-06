@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
 import { supabase } from '../lib/supabase';
 import { HUB_TABLES } from './hub-mappers';
-import { roleStatusAfterReject, inheritedTrack } from './hub-rules';
+import { roleStatusAfterReject, inheritedTrack, undoPlan } from './hub-rules';
 import { STAGE_ORDER } from './hub-constants';
 
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
@@ -260,23 +260,41 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, markReplied, advanceStage]);
 
-  // Geri alma (PROMPT_V3 A3) — son aşama değişikliğini geri sarar. hub_stage_log
-  // zaten from_stage tutuyor. Eski satır SİLİNMEZ; reason:'geri alındı' ile YENİ
-  // satır yazılır. Kapı sonucu ve moveToTeam (stage=member) geri alınamaz.
+  // Geri alma (PROMPT_V3 A3 + Blok A düzeltmeleri) — son GERÇEK ilerlemeyi geri
+  // sarar (bkz. undoPlan: extendGate ve önceki geri-alma satırları atlanır).
+  // Eski satır SİLİNMEZ; yeni satır yazılır.
+  //   - arşivden geri alma → archive_reason temizlenir
+  //   - ekibe alma geri alma → aşama trial'a, joined_at + vesting_start_date
+  //     temizlenir, bağlı rol filled → shortlist + filled_at null olur, log
+  //     reason'ı 'ekibe alma geri alındı'. (C4 öncesi Hub-içi etki olduğu için
+  //     güvenli — HUB_SPEC v3 §2.4 notu.)
   const undoLastStage = useCallback(async (candidateId) => {
     const cand = data.candidates.find((c) => c.id === candidateId);
     if (!cand) return;
-    const logs = data.stageLog
-      .filter((l) => l.candidateId === candidateId)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    const last = logs[0];
-    if (!last) throw new Error('Geri alınacak bir aşama değişikliği yok.');
-    if (last.toStage !== cand.stage) throw new Error('Aşama bu arada başka bir işlemle değişmiş — geri alınamıyor.');
-    if (cand.stage === 'member') throw new Error('Ekibe alma geri alınamaz.');
-    const target = last.fromStage || 'pool';
-    const extra = cand.stage === 'archived' ? { archiveReason: null } : {};
-    await advanceStage(candidateId, target, { reason: 'geri alındı', extra });
-  }, [data, advanceStage]);
+    const plan = undoPlan(cand, data.stageLog);
+    if (!plan) throw new Error('Geri alınacak bir aşama değişikliği yok.');
+
+    const wasMember = cand.stage === 'member';
+    const extra = {};
+    if (cand.stage === 'archived') extra.archiveReason = null;
+    let reason = 'geri alındı';
+    if (wasMember) {
+      reason = 'ekibe alma geri alındı';
+      extra.joinedAt = null;
+      extra.vestingStartDate = null;
+    }
+
+    await advanceStage(candidateId, plan.toStage, { reason, extra });
+
+    if (wasMember && cand.openRoleId) {
+      const roleRow = data.openRoles.find((r) => r.id === cand.openRoleId);
+      if (roleRow && roleRow.status === 'filled') {
+        const patch = { status: 'shortlist', filledAt: null };
+        patchLocal('openRoles', roleRow.id, patch);
+        await updateItem('openRoles', roleRow.id, { ...roleRow, ...patch });
+      }
+    }
+  }, [data, advanceStage, patchLocal, updateItem]);
 
   // ── Kapılar (v2 §2.1–2.2) ─────────────────────────────────────
   // Kapı A/B ayrı AŞAMA değil — aday `trial`'da kalır, hub_gates satırı açılır.
