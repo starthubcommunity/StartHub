@@ -8,6 +8,7 @@ import {
 } from './hub-rules.js';
 import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
+import { applyFilters, chipPredicate, countActiveFilters } from './hub-filter.js';
 import { matchScore, suggestRolesFor } from './hub-match.js';
 import { computeEnrichment, prescoreFinishing, whyThisOne } from './hub-enrich.js';
 
@@ -322,6 +323,52 @@ t('undoPlan: son geçiş adayın şu anki aşamasıyla uyuşmuyorsa null', () =>
 t('undoPlan: hiç gerçek geçiş yoksa null', () => {
   assert.equal(undoPlan({ id: 'c1', stage: 'pool' }, []), null);
   assert.equal(undoPlan({ id: 'c1', stage: 'pool' }, [log({ at: ago(1), f: null, t: 'pool' })]), null);
+});
+
+// ── hub-filter: hazır çipler + applyFilters (PROMPT_V3 B1-B2) ───
+const fcands = [
+  { id: 'p1', stage: 'pool', ownerId: 'm1', source: 'hackathon' },
+  { id: 'p2', stage: 'pool', ownerId: 'm2', source: 'referral' },
+  { id: 'k1', stage: 'contact', ownerId: 'm1', source: 'hackathon' },
+  { id: 'i1', stage: 'interview', ownerId: 'm2', scoreFinishing: 4, scoreCommunication: 4, scoreCapacity: 4 },
+  { id: 'a1', stage: 'archived', ownerId: 'm1', archiveReason: 'no_reply' },
+];
+const ftouches = {
+  k1: [{ candidateId: 'k1', outcome: 'pending', sentAt: ago(2) }],
+  p1: [{ candidateId: 'p1', outcome: 'pending', sentAt: ago(1) }],   // pool ama mesaj atılmış
+};
+const fctx = { currentMemberId: 'm1', touchesByCand: ftouches, now: Date.now() };
+
+t('applyFilters: archived HER ZAMAN elenir (B1)', () => {
+  assert.equal(applyFilters(fcands, {}, fctx).some((c) => c.id === 'a1'), false);
+  assert.equal(applyFilters(fcands, {}, fctx).length, 4);
+});
+t('çip "mine": ownerId === currentMember', () => {
+  const r = applyFilters(fcands, { chip: 'mine' }, fctx).map((c) => c.id);
+  assert.deepEqual(r.sort(), ['k1', 'p1']);
+});
+t('çip "no_message": Havuz + hiç touch yok', () => {
+  const r = applyFilters(fcands, { chip: 'no_message' }, fctx).map((c) => c.id);
+  assert.deepEqual(r, ['p2']);   // p1 pool ama mesajı var
+});
+t('çip "awaiting_reply": Temas + son touch pending', () => {
+  assert.deepEqual(applyFilters(fcands, { chip: 'awaiting_reply' }, fctx).map((c) => c.id), ['k1']);
+});
+t('çip "awaiting_decision": Görüşme + rubrik tam', () => {
+  assert.deepEqual(applyFilters(fcands, { chip: 'awaiting_decision' }, fctx).map((c) => c.id), ['i1']);
+});
+t('applyFilters: stage + source dropdown kesişimi', () => {
+  const r = applyFilters(fcands, { stage: ['pool'], source: ['hackathon'] }, fctx).map((c) => c.id);
+  assert.deepEqual(r, ['p1']);
+});
+t('applyFilters: q araması ad/okul/kaynak-detayı', () => {
+  const cs = [{ id: 'x', stage: 'pool', fullName: 'Ada Yılmaz', sourceDetail: 'Teknofest 2026' }];
+  assert.equal(applyFilters(cs, { q: 'teknofest' }, {}).length, 1);
+  assert.equal(applyFilters(cs, { q: 'ODTÜ' }, {}).length, 0);
+});
+t('countActiveFilters: çip + dropdown + arama sayılır', () => {
+  assert.equal(countActiveFilters({ chip: 'mine', stage: ['pool'], q: 'x' }), 3);
+  assert.equal(countActiveFilters({}), 0);
 });
 
 // ── candidateVisible: §10.2 aday okuma kapsamı ──────────────────

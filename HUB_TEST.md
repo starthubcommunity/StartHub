@@ -94,10 +94,35 @@
 3. Metrikler: 3 kart (cevap oranı / görüşme→deneme / 90 gün aktif) + kaynak
    kırılımı tablosu. Hepsi gerçek veriden, sabit değer yok.
 
+## T6 — Arşiv ayrı sayfa (Blok B — B1)
+
+1. Bir adayı arşivle (karttan ya da listeden).
+2. **Beklenen:** aday **Adaylar** listesinde artık görünmez; sayaç "N / M
+   aktif aday" yalnızca aktifleri sayar. Sol menüde **Arşiv** maddesi var.
+3. Arşiv sayfası: arşiv sebebine göre çipler (sayı gösterir). Bir satırda
+   **"Geri al (<aşama>)"** → aday arşivlendiği aşamaya döner, Adaylar'a geri
+   girer, `archive_reason` null olur.
+
+## T7 — Hızlı filtreler (B2)
+
+1. Adaylar listesi üstünde çipler: Benim adaylarım · Cevap bekleyenler · Karar
+   bekleyenler · Hiç mesaj atılmamış · Bayatlamış — her biri **sayı** gösterir.
+2. Bir çipe tıkla → liste süzülür; sayaç doğru. Tekrar tıkla → temizlenir.
+3. Alt sırada arama + Aşama / Kaynak / Rol açılır menüleri.
+4. **Beklenen:** çip + menü seçimi `sessionStorage`'da; sayfa yenilenince korunur.
+
+## T8 — Satır sağ sütunu aşamaya göre (B3)
+
+1. Farklı aşamalarda adaylar oluştur.
+2. **Beklenen:** her satırın sağında aşamaya uygun tek bilgi:
+   Havuz → "mesaj yok/var" · Temas → "takip GG.AA" · Görüşme → puan rozeti ·
+   Deneme → "Kapı A · Ns/Ng kaldı" (süresi geçmişse kırmızı) · Ekipte →
+   "katıldı GG.AA".
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı
-- [ ] Sol menü 3 madde + "Yönetim" (Şablonlar / Metrikler / Yetkiler / Ayarlar)
+- [ ] Sol menü 4 madde (Bugün / Adaylar / Arşiv / Roller) + "Yönetim"
 - [ ] `hub-rules.test.mjs` tümü yeşil
 - [ ] `npm run build` hatasız
 - [ ] `0004_hub_cron.sql` deploy edilmemiş; `hub_import_batches` / `hub_views` yok

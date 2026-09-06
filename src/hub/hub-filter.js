@@ -1,0 +1,68 @@
+// hub-filter.js — aday listesi filtre mantığı (SAF, yan etkisiz).
+// filter-bar.jsx yalnızca görsel katman; kural burada, node testinden geçer.
+import { rubricComplete, isStale } from './hub-rules.js';
+
+export const EMPTY_FILTERS = {
+  q: '', stage: [], source: [], openRoleId: [], chip: '',
+};
+
+// Hazır çipler (HUB_SPEC v3 §5). Tek seçim; sessionStorage'da kalır.
+export const QUICK_CHIPS = [
+  { key: 'mine',              label: 'Benim adaylarım' },
+  { key: 'awaiting_reply',    label: 'Cevap bekleyenler' },
+  { key: 'awaiting_decision', label: 'Karar bekleyenler' },
+  { key: 'no_message',        label: 'Hiç mesaj atılmamış' },
+  { key: 'stale',             label: 'Bayatlamış' },
+];
+
+// chipPredicate(key, ctx) -> (candidate) => boolean
+// ctx: { currentMemberId, touchesByCand: { [id]: touches[] (sent_at desc) }, now }
+export function chipPredicate(key, ctx = {}) {
+  const { currentMemberId = null, touchesByCand = {}, now = Date.now() } = ctx;
+  switch (key) {
+    case 'mine':
+      return (c) => !!c.ownerId && c.ownerId === currentMemberId;
+    case 'awaiting_reply':
+      return (c) => {
+        if (c.stage !== 'contact') return false;
+        const last = (touchesByCand[c.id] || [])[0];
+        return !!last && last.outcome === 'pending';
+      };
+    case 'awaiting_decision':
+      return (c) =>
+        (c.stage === 'interview' && rubricComplete(c)) ||
+        (!!c.presentedAt && (!c.ownerDecision || c.ownerDecision === 'pending'));
+    case 'no_message':
+      return (c) => c.stage === 'pool' && (touchesByCand[c.id] || []).length === 0;
+    case 'stale':
+      return (c) => isStale(c, now).stale;
+    default:
+      return () => true;
+  }
+}
+
+// Saf: aday listesini filtrelere göre süzer. archived HER ZAMAN elenir
+// (arşiv ayrı sayfa — B1).
+export function applyFilters(candidates, filters, ctx = {}) {
+  const f = { ...EMPTY_FILTERS, ...(filters || {}) };
+  const q = f.q.trim().toLowerCase();
+  const chipFn = f.chip ? chipPredicate(f.chip, ctx) : null;
+  return (candidates || []).filter((c) => {
+    if (c.stage === 'archived') return false;
+    if (q) {
+      const hay = [c.fullName, c.university, c.sourceDetail].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (f.stage.length && !f.stage.includes(c.stage)) return false;
+    if (f.source.length && !f.source.includes(c.source)) return false;
+    if (f.openRoleId.length && !f.openRoleId.includes(c.openRoleId || '')) return false;
+    if (chipFn && !chipFn(c)) return false;
+    return true;
+  });
+}
+
+export function countActiveFilters(filters) {
+  const f = { ...EMPTY_FILTERS, ...(filters || {}) };
+  return ['stage', 'source', 'openRoleId'].reduce((n, k) => n + f[k].length, 0)
+    + (f.q.trim() ? 1 : 0) + (f.chip ? 1 : 0);
+}

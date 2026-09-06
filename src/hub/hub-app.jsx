@@ -12,6 +12,7 @@ import PermissionsScreen from '../admin/permissions-screen';
 import { EMPTY_FILTERS } from './components/filter-bar';
 import TodayPage from './pages/today';
 import CandidatesListPage from './pages/candidates-list';
+import ArchivePage from './pages/archive';
 import TemplatesPage from './pages/templates';
 import MetricsPage from './pages/metrics';
 import SettingsPage from './pages/settings';
@@ -332,6 +333,7 @@ function HubNoAccess({ email, onLogout }) {
 const MAIN_NAV = [
   { id: 'today',      label: 'Bugün',   icon: 'dashboard', perm: null },
   { id: 'candidates', label: 'Adaylar', icon: 'layers',    perm: 'candidates.read' },
+  { id: 'archive',    label: 'Arşiv',   icon: 'trash',     perm: 'candidates.read' },
   { id: 'roles',      label: 'Roller',  icon: 'rocket',    perm: 'roles.read' },
 ];
 const GEAR_NAV = [
@@ -347,9 +349,16 @@ function HubApp({ email, onLogout }) {
   const role = useHubMember();
   const { can, loading: permsLoading } = usePerms();
   const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'today');
-  const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
+  // B2 — çip/filtre seçimi sayfa yenilenince korunur.
+  const [filters, setFilters] = useState(() => {
+    try { return { ...EMPTY_FILTERS, ...JSON.parse(sessionStorage.getItem('sh_hub_filters') || '{}') }; }
+    catch { return { ...EMPTY_FILTERS }; }
+  });
   const [gearOpen, setGearOpen] = useState(false);
   useEffect(() => { sessionStorage.setItem('sh_hub_page', page); }, [page]);
+  useEffect(() => {
+    try { sessionStorage.setItem('sh_hub_filters', JSON.stringify(filters)); } catch { /* yoksay */ }
+  }, [filters]);
 
   const mainNav = MAIN_NAV.filter((n) => !n.perm || can(n.perm));
   const gearNav = GEAR_NAV.filter((n) => !n.perm || can(n.perm));
@@ -410,6 +419,7 @@ function HubApp({ email, onLogout }) {
         <div className="hub-content">
           {activePage === 'today' ? <TodayPage onGoto={setPage} />
             : activePage === 'candidates' ? <CandidatesListPage filters={filters} setFilters={setFilters} />
+            : activePage === 'archive' ? <ArchivePage />
             : activePage === 'roles' ? <RolesPage />
             : activePage === 'templates' ? <TemplatesPage />
             : activePage === 'metrics' ? <MetricsPage />

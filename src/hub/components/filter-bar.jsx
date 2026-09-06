@@ -1,49 +1,15 @@
-// filter-bar.jsx — aday listesi filtre çubuğu (v2 §5).
-// Üç chip grubu: Aşama · Kaynak · Sorumlu + metin araması (ad / etiket).
+// filter-bar.jsx — aday listesi filtre çubuğu (HUB_SPEC v3 §5). GÖRSEL katman.
+// Kural/predikat mantığı `../hub-filter.js`'te (saf, node testli).
+// Üstte SAYI GÖSTEREN hazır çipler (tek seçim, sessionStorage'da kalır),
+// altında serbest arama + üç açılır menü (aşama · kaynak · rol).
 import React from 'react';
 import { SearchBar } from '../../admin/admin-ui';
-import { ALL_STAGES, SOURCES } from '../hub-constants';
-import { thresholdMet, rubricComplete } from '../hub-rules';
+import { STAGES, SOURCES } from '../hub-constants';
+import {
+  EMPTY_FILTERS, QUICK_CHIPS, chipPredicate, applyFilters, countActiveFilters,
+} from '../hub-filter';
 
-export const EMPTY_FILTERS = {
-  q: '', stage: [], source: [], ownerId: [], roleType: [], score: [], flags: [],
-};
-
-// Saf: aday listesini filtrelere göre süzer. Tablo ve CSV dışa aktarma
-// aynı fonksiyonu kullanır ki "aktif filtre" tek yerde tanımlı olsun.
-export function applyFilters(candidates, filters, members = []) {
-  const f = { ...EMPTY_FILTERS, ...(filters || {}) };
-  const q = f.q.trim().toLowerCase();
-  return candidates.filter((c) => {
-    if (q) {
-      const hay = [c.fullName, c.university, ...(c.tags || [])].join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    if (f.stage.length && !f.stage.includes(c.stage)) return false;
-    if (f.source.length && !f.source.includes(c.source)) return false;
-    if (f.ownerId.length && !f.ownerId.includes(c.ownerId || '')) return false;
-    if (f.roleType.length && !f.roleType.includes(c.roleType || '')) return false;
-    if (f.score.length) {
-      const ok = f.score.some((s) =>
-        s === 'threshold' ? thresholdMet(c)
-        : s === 'scored'  ? rubricComplete(c)
-        : /* unscored */    !rubricComplete(c));
-      if (!ok) return false;
-    }
-    if (f.flags.length) {
-      const n = (c.redFlags || []).length;
-      const bucket = n === 0 ? '0' : n === 1 ? '1' : '2+';
-      if (!f.flags.includes(bucket)) return false;
-    }
-    return true;
-  });
-}
-
-export function countActiveFilters(filters) {
-  const f = { ...EMPTY_FILTERS, ...(filters || {}) };
-  return ['stage', 'source', 'ownerId', 'roleType', 'score', 'flags']
-    .reduce((n, k) => n + f[k].length, 0) + (f.q.trim() ? 1 : 0);
-}
+export { EMPTY_FILTERS, QUICK_CHIPS, applyFilters, countActiveFilters };
 
 function Group({ label, options, selected, onToggle }) {
   return (
@@ -53,13 +19,10 @@ function Group({ label, options, selected, onToggle }) {
         {selected.length > 0 && <span className="hub-filter__count">{selected.length}</span>}
       </summary>
       <div className="hub-filter__pop">
+        {options.length === 0 && <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', padding: '4px 6px' }}>—</div>}
         {options.map((o) => (
           <label key={o.value} className="hub-filter__opt">
-            <input
-              type="checkbox"
-              checked={selected.includes(o.value)}
-              onChange={() => onToggle(o.value)}
-            />
+            <input type="checkbox" checked={selected.includes(o.value)} onChange={() => onToggle(o.value)} />
             {o.label}
           </label>
         ))}
@@ -68,26 +31,41 @@ function Group({ label, options, selected, onToggle }) {
   );
 }
 
-export default function FilterBar({ filters, onChange, members = [] }) {
+export default function FilterBar({ filters, onChange, candidates = [], openRoles = [], ctx = {} }) {
   const f = { ...EMPTY_FILTERS, ...(filters || {}) };
   const set = (key, value) => onChange({ ...f, [key]: value });
   const toggle = (key, value) => {
     const cur = f[key];
     set(key, cur.includes(value) ? cur.filter((x) => x !== value) : [...cur, value]);
   };
-  const memberOpts = members.map((m) => ({ value: m.id, label: m.fullName || m.email }));
+
+  const active = candidates.filter((c) => c.stage !== 'archived');
+  const counts = {};
+  QUICK_CHIPS.forEach((ch) => { counts[ch.key] = active.filter(chipPredicate(ch.key, ctx)).length; });
+  const roleOpts = openRoles.map((r) => ({ value: r.id, label: r.title }));
 
   return (
-    <div className="hub-filterbar">
-      <SearchBar value={f.q} onChange={(v) => set('q', v)} placeholder="Ad, etiket…" />
-      <Group label="Aşama"   options={ALL_STAGES}  selected={f.stage}    onToggle={(v) => toggle('stage', v)} />
-      <Group label="Kaynak"  options={SOURCES}     selected={f.source}   onToggle={(v) => toggle('source', v)} />
-      <Group label="Sorumlu" options={memberOpts}  selected={f.ownerId}  onToggle={(v) => toggle('ownerId', v)} />
-      {countActiveFilters(f) > 0 && (
-        <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onChange({ ...EMPTY_FILTERS })}>
-          Temizle
-        </button>
-      )}
+    <div className="hub-filterbar" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {QUICK_CHIPS.map((ch) => (
+          <button key={ch.key} type="button"
+            className={`adm-chip ${f.chip === ch.key ? 'adm-chip--on' : ''}`}
+            onClick={() => set('chip', f.chip === ch.key ? '' : ch.key)}>
+            {ch.label} <span className="hub-filter__count">{counts[ch.key]}</span>
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <SearchBar value={f.q} onChange={(v) => set('q', v)} placeholder="Ad, okul, kaynak detayı…" />
+        <Group label="Aşama"  options={STAGES}   selected={f.stage}      onToggle={(v) => toggle('stage', v)} />
+        <Group label="Kaynak" options={SOURCES}  selected={f.source}     onToggle={(v) => toggle('source', v)} />
+        <Group label="Rol"    options={roleOpts} selected={f.openRoleId} onToggle={(v) => toggle('openRoleId', v)} />
+        {countActiveFilters(f) > 0 && (
+          <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onChange({ ...EMPTY_FILTERS })}>
+            Temizle
+          </button>
+        )}
+      </div>
     </div>
   );
 }

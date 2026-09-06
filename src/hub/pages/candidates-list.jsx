@@ -1,30 +1,60 @@
-// candidates-list.jsx — Adaylar listesi (v2 §5). table.jsx'in yerine.
-// Kart satırları (team app dili). Satıra tıklama → aday kartı.
+// candidates-list.jsx — Adaylar listesi (HUB_SPEC v3 §5). table.jsx'in yerine.
+// Kart satırları (team app dili). Satıra tıklama → aday kartı. archived burada
+// GÖSTERİLMEZ — ayrı Arşiv sayfası (B1). Sağ sütun aşamaya göre değişir (B3).
 import React, { useMemo, useState } from 'react';
 import { AIcon, PageHead } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS } from '../hub-constants';
-import { thresholdMet, rubricComplete, nextAction } from '../hub-rules';
+import { thresholdMet, rubricComplete, nextAction, gateDueAt } from '../hub-rules';
 import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
 import ImportSimple from './import-simple';
 import NewCandidateModal from './new-candidate';
 import HubWizard from '../components/wizard';
 
-const STAGE_COLOR = { pool: '#A29D94', contact: '#2563EB', interview: '#7C3AED', trial: '#EA580C', member: '#16A34A', archived: '#E7E0D2' };
+const STAGE_COLOR = { pool: '#A29D94', contact: '#2563EB', interview: '#7C3AED', trial: '#EA580C', member: '#16A34A' };
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+const fmtDate = (v) => (v ? new Date(v).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }) : '—');
 
-function ScorePill({ c }) {
-  if (!rubricComplete(c) && (c.track || 'founder') === 'founder') return null;
-  const met = thresholdMet(c);
-  const total = (c.scoreFinishing ?? 0) + (c.scoreCommunication ?? 0) + (c.scoreCapacity ?? 0);
-  return <span className={`hub-pill ${met ? 'hub-pill--ok' : ''}`}>puan {total || '—'}{met ? ' ✓' : ''}</span>;
+// B3 — satırın sağında aşamaya göre TEK anlamlı bilgi.
+function RowRight({ c, touchesByCand, gatesByCand }) {
+  if (c.stage === 'pool') {
+    const has = (touchesByCand[c.id] || []).length > 0;
+    return <span className="hub-pill" style={{ color: 'var(--adm-text-dim)' }}>{has ? 'mesaj var' : 'mesaj yok'}</span>;
+  }
+  if (c.stage === 'contact') {
+    const last = (touchesByCand[c.id] || [])[0];
+    return <span className="hub-pill">takip {fmtDate(last?.followUpAt)}</span>;
+  }
+  if (c.stage === 'interview') {
+    if (!rubricComplete(c) && (c.track || 'founder') === 'founder') {
+      return <span className="hub-pill" style={{ color: 'var(--adm-text-dim)' }}>puan bekliyor</span>;
+    }
+    const met = thresholdMet(c);
+    const total = (c.scoreFinishing ?? 0) + (c.scoreCommunication ?? 0) + (c.scoreCapacity ?? 0);
+    return <span className={`hub-pill ${met ? 'hub-pill--ok' : ''}`}>puan {total || '—'}{met ? ' ✓' : ''}</span>;
+  }
+  if (c.stage === 'trial') {
+    const g = (gatesByCand[c.id] || []).filter((x) => x.result === 'pending')
+      .sort((a, b) => (gateDueAt(a) || 0) - (gateDueAt(b) || 0))[0];
+    if (!g) return <span className="hub-pill" style={{ color: 'var(--adm-text-dim)' }}>kapı yok</span>;
+    const due = gateDueAt(g);
+    const ms = due ? due - Date.now() : null;
+    if (ms == null) return <span className="hub-pill">Kapı {g.gate}</span>;
+    if (ms <= 0) return <span className="hub-pill" style={{ background: 'var(--adm-red-light)', color: 'var(--adm-red)' }}>Kapı {g.gate} · süre doldu</span>;
+    const h = Math.round(ms / 3600000);
+    return <span className="hub-pill">Kapı {g.gate} · {h < 48 ? `${h}s` : `${Math.round(h / 24)}g`} kaldı</span>;
+  }
+  if (c.stage === 'member') {
+    return <span className="hub-pill hub-pill--ok">katıldı {fmtDate(c.joinedAt)}</span>;
+  }
+  return null;
 }
 
 export default function CandidatesListPage({ filters, setFilters }) {
   const store = useHubStore();
-  const { candidates, members, touches, gates, loading } = store;
+  const { candidates, members, openRoles, touches, gates, currentMember, loading } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(null);   // 'one' | 'import' | null
@@ -34,14 +64,37 @@ export default function CandidatesListPage({ filters, setFilters }) {
 
   const memberName = (id) => members.find((m) => m.id === id)?.fullName || members.find((m) => m.id === id)?.email || '—';
 
+  // candidateId -> touches (sent_at desc) / gates — çip sayımı + sağ sütun için.
+  const touchesByCand = useMemo(() => {
+    const m = {};
+    [...touches].sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt))
+      .forEach((t) => { (m[t.candidateId] = m[t.candidateId] || []).push(t); });
+    return m;
+  }, [touches]);
+  const gatesByCand = useMemo(() => {
+    const m = {};
+    gates.forEach((g) => { (m[g.candidateId] = m[g.candidateId] || []).push(g); });
+    return m;
+  }, [gates]);
+
+  const ctx = useMemo(
+    () => ({ currentMemberId: currentMember?.id ?? null, touchesByCand, now: Date.now() }),
+    [currentMember, touchesByCand]
+  );
+
+  const activeCount = useMemo(() => candidates.filter((c) => c.stage !== 'archived').length, [candidates]);
+
+  const rows = useMemo(
+    () => applyFilters(candidates, filters, ctx).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
+    [candidates, filters, ctx]
+  );
+
   const rowActionSteps = [{
     key: 'op', type: 'options', q: 'Bu adaya ne yapılsın?',
     options: [
-      ...(actOn && actOn.stage === 'archived'
-        ? [{ value: 'unarch', label: 'Havuz\'a geri al' }]
-        : actOn && actOn.stage !== 'member'
-          ? ARCHIVE_REASONS.map((r) => ({ value: `arch:${r.value}`, label: `Arşivle — ${r.label}` }))
-          : []),
+      ...(actOn && actOn.stage !== 'member'
+        ? ARCHIVE_REASONS.map((r) => ({ value: `arch:${r.value}`, label: `Arşivle — ${r.label}` }))
+        : []),
       ...(can('candidates.purge') ? [{ value: 'purge', label: 'Kalıcı sil (geri alınamaz)', hint: 'KVKK' }] : []),
     ],
   }];
@@ -50,23 +103,15 @@ export default function CandidatesListPage({ filters, setFilters }) {
     if (a.op === 'purge') {
       await store.purgeCandidate(c.id);
       flash('Aday ve tüm kayıtları silindi.');
-    } else if (a.op === 'unarch') {
-      await store.advanceStage(c.id, 'pool', { reason: 'arşivden geri alındı', extra: { archiveReason: null } });
-      flash('Havuz\'a geri alındı.');
     } else if (String(a.op).startsWith('arch:')) {
       await store.advanceStage(c.id, 'archived', { reason: 'listeden arşivlendi', extra: { archiveReason: a.op.slice(5) } });
-      flash('Arşivlendi.');
+      flash('Arşivlendi — Arşiv sayfasında.');
     }
   };
 
-  const rows = useMemo(
-    () => applyFilters(candidates, filters, members).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
-    [candidates, filters, members]
-  );
-
   return (
     <div>
-      <PageHead title="Adaylar" desc={`${rows.length} / ${candidates.length} aday`} actions={
+      <PageHead title="Adaylar" desc={`${rows.length} / ${activeCount} aktif aday`} actions={
         can('candidates.write') ? (
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('import')}>
@@ -79,12 +124,12 @@ export default function CandidatesListPage({ filters, setFilters }) {
         ) : null
       } />
 
-      <FilterBar filters={filters} onChange={setFilters} members={members} />
+      <FilterBar filters={filters} onChange={setFilters} candidates={candidates} openRoles={openRoles} ctx={ctx} />
 
       {loading ? (
         <div className="adm-empty">Yükleniyor…</div>
       ) : rows.length === 0 ? (
-        <div className="adm-empty">İlk adayını ekle — sağ üstteki “Aday ekle”.</div>
+        <div className="adm-empty">{activeCount === 0 ? 'İlk adayını ekle — sağ üstteki “Aday ekle”.' : 'Bu filtreyle eşleşen aktif aday yok.'}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
           {rows.map((c) => (
@@ -102,7 +147,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
                   {(() => { const na = nextAction(c, touches, gates); return na ? ` · ${na.label}` : ''; })()}
                 </div>
               </div>
-              <ScorePill c={c} />
+              <RowRight c={c} touchesByCand={touchesByCand} gatesByCand={gatesByCand} />
               {can('candidates.write') && (
                 <button className="adm-icon-btn adm-icon-btn--danger" title="Arşivle / sil"
                   onClick={(e) => {
