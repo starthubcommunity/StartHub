@@ -773,6 +773,45 @@ function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
   );
 }
 
+// ── "Ekibe al" onayı — projesiz adayda güçlü uyarı + inline rol seçimi (C4 düz. 2)
+function TeamMoveConfirm({ c, store, busy, onCancel, onConfirm }) {
+  const linkable = store.openRoles.filter(
+    (r) => ['sourcing', 'shortlist'].includes(r.status) || r.id === c.openRoleId
+  );
+  const [roleId, setRoleId] = useState(c.openRoleId || '');
+  const roleTitle = store.openRoles.find((r) => r.id === roleId)?.title || null;
+
+  return (
+    <div className="hub-ai" style={{ marginTop: 8 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>Ekibe al</div>
+      {!roleId ? (
+        <div className="hub-threshold hub-threshold--no" style={{ display: 'block', marginBottom: 8 }}>
+          <strong>Bu aday bir projeye bağlı değil.</strong> Ekibe alırsan hesabı açılır ve davet maili gider,
+          ama <b>hiçbir takımı göremez</b>. Aşağıdan bir açık rol seçersen bağlanır.
+        </div>
+      ) : (
+        <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginBottom: 8 }}>
+          Aday <b>{roleTitle || '—'}</b> rolüne bağlı olarak ekibe alınacak; hesabı açılır, davet maili gider.
+        </div>
+      )}
+      <Field label="Açık rol">
+        <select className="adm-input adm-select" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+          <option value="">— (projesiz) —</option>
+          {linkable.map((r) => (
+            <option key={r.id} value={r.id}>{r.title}{r.track === 'member' ? ' · üye' : ' · kurucu'}</option>
+          ))}
+        </select>
+      </Field>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={() => onConfirm(roleId || null)}>
+          {busy ? '…' : (roleId ? 'Ekibe al' : 'Yine de devam et')}
+        </button>
+        <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={onCancel}>Vazgeç</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Deneme (Kapı A / B) ───────────────────────────────────────────
 function TrialSection({ c }) {
   const store = useHubStore();
@@ -783,11 +822,13 @@ function TrialSection({ c }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [wiz, setWiz] = useState(null);   // 'startA' | 'startB' | { extend: gateId }
+  const [teamConfirm, setTeamConfirm] = useState(false);
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
-  const toTeam = async () => {
+  const toTeam = async (roleId) => {
     setBusy(true);
     try {
+      if (roleId && roleId !== c.openRoleId) await store.linkCandidateRole(c.id, roleId);
       const r = await store.moveToTeam(c.id);
       if (r.warnings?.length) {
         flash('Kısmen aktarıldı — ' + r.warnings.join(' · '));
@@ -797,6 +838,7 @@ function TrialSection({ c }) {
           : 'Ekibe alındı · hesap açıldı, davet gönderildi.');
       }
     } catch (e) { flash('Aktarılamadı: ' + e.message); }
+    setTeamConfirm(false);
     setBusy(false);
   };
 
@@ -827,9 +869,11 @@ function TrialSection({ c }) {
       {gateB && <GateCard gate={gateB} onMark={(p) => store.markGate(gateB.id, p)} onExtend={() => setWiz({ extend: gateB.id })} />}
 
       {((founder && gateB?.result === 'passed') || (!founder && gateA?.result === 'passed')) && (
-        <button className="hub-wz__next" style={{ margin: '4px 0 0' }} disabled={busy} onClick={toTeam}>
-          Ekibe aktar
-        </button>
+        teamConfirm
+          ? <TeamMoveConfirm c={c} store={store} busy={busy} onCancel={() => setTeamConfirm(false)} onConfirm={toTeam} />
+          : <button className="hub-wz__next" style={{ margin: '4px 0 0' }} disabled={busy} onClick={() => setTeamConfirm(true)}>
+              Ekibe al
+            </button>
       )}
       {msg && <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginTop: 8 }}>{msg}</div>}
 

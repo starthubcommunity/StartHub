@@ -378,6 +378,19 @@ Yetki: fonksiyon çağıranın JWT'siyle `hub_role()` kontrol eder (cofounder/re
 Kısmi durum kullanıcıya gösterilir ("Kısmen aktarıldı — …"), sessizce yutulmaz.
 Env: `SUPABASE_ANON_KEY` / `SERVICE_ROLE_KEY` / `SUPABASE_URL` platformdan gelir.
 
+**"Ekibe al" onayı (`TeamMoveConfirm`):** düğme doğrudan tetiklemez; bir onay
+paneli açılır. Aday bir açık role **bağlı değilse** güçlü uyarı gösterilir
+("Bu aday bir projeye bağlı değil. Ekibe alırsan hesabı açılır ama hiçbir
+takımı göremez.") + aynı panelde açık rol seçimi (`sourcing`/`shortlist`).
+Kullanıcı rol seçerse önce `linkCandidateRole`, sonra `moveToTeam`. Rol
+seçmeden **"Yine de devam et"** ile ilerleyebilir — engelleme yok, uyarı var.
+
+> **`/team/` boş durumu (repo dışı):** `public/team/index.html` bundler
+> çıktısı — kaynağı repoda YOK, minified. Takımı olmayan bir kullanıcı giriş
+> yapınca panel çöküyor ("Bir sorun oluştu"). Boş durum ("Henüz bir projeye
+> atanmadınız…" + Çıkış) o bundle'ın kaynağında düzeltilmeli; Hub tarafından
+> yapılamaz.
+
 ### 9.5 Inbound bağlantısı
 
 Admin panelindeki Başvurular ekranı → başvuru detay panelinde

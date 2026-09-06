@@ -173,9 +173,17 @@
    `people`'da `type='project_member'`, `project_id`=startup kaydı;
    `startups.member_ids`'te o `people.id`; adaya **markalı davet maili** gider,
    linkten şifre belirleyip `/team/`'e girip takımını görebiliyor.
-3. Bir adım patlarsa "Kısmen aktarıldı — …" uyarısı (sessiz yutma yok). Rolü
-   olmayan adayda "bağlı proje yok — takım üyeliği atlandı" uyarısı, hesap yine açılır.
+3. Bir adım patlarsa "Kısmen aktarıldı — …" uyarısı (sessiz yutma yok).
 4. Yetkisiz (project_owner) çağrıda fonksiyon 403 döner.
+
+## T13b — "Ekibe al" onayı: projesiz aday uyarısı (C4 düz. 2)
+
+1. Bir açık role **bağlı olmayan** bir adayda "Ekibe al".
+2. **Beklenen:** onay paneli açılır, kırmızı uyarı: "Bu aday bir projeye bağlı
+   değil… hiçbir takımı göremez." Panelde açık rol seçimi var.
+3. Rol seçip "Ekibe al" → aday role bağlanır (`linkCandidateRole`), sonra
+   ekibe alınır. Rol seçmeden "Yine de devam et" → engellenmez, uyarı verilmişti.
+4. Zaten role bağlı adayda panel sakin bilgi metni gösterir, "Ekibe al" ilerler.
 
 ## Regresyon
 
