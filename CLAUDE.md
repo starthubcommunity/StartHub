@@ -13,28 +13,34 @@ Vite 6 + React 18 + Supabase (auth + Postgres), Vercel'de barındırılıyor.
 
 ## Kurucu Hattı (`/hub`)
 
-Yapım şartnamesi: **`HUB_SPEC.md`** — artık **v2** (sadeleştirilmiş: 3 ekran,
-aşamaya göre 6–8 alan, 7 tablo). Bağlayıcıdır. v1 arşivi: `HUB_SPEC_v1_archive.md`.
+Yapım şartnamesi: **`HUB_SPEC.md`** — artık **v3** (v2'nin canlı kullanımından
+sonra: aday kartı sadeleştirmesi, yapıştır-ayrıştır ana giriş yöntemi, arşiv ayrı
+sayfa, gerçek team entegrasyonu; 5 aşama ve 7 tablo korunur). Bağlayıcıdır.
+Arşivler: `HUB_SPEC_v2_archive.md`, `HUB_SPEC_v1_archive.md`.
 Şartnamedeki bir karar belirsizse veya yanlış görünüyorsa **kod yazmadan önce sor**;
 sessizce kendi tasarımını uygulama.
 
-Görev sırası **`PROMPT_S.md`**'de, 12 adım halinde. Kabul testleri:
-**`HUB_TEST.md`** (aşama başına bir uçtan uca test) + `node
-src/hub/hub-rules.test.mjs` (66 senaryo).
+Görev sırası: v1–v2 için **`PROMPT_S.md`** (12 adım, tamamlandı), v3 için
+**`PROMPT_V3.md`** (Blok 0 + A–E). Kabul testleri: **`HUB_TEST.md`** (aşama başına
+bir uçtan uca test) + `node src/hub/hub-rules.test.mjs`.
 
-**v2 hub sayfaları:** `today.jsx` · `candidates-list.jsx` · `candidate.jsx`
-(+`GateCard`) · `roles.jsx` · `templates.jsx` · `metrics.jsx` · `settings.jsx`.
-Yeni destek dosyaları: `new-candidate.jsx`, `import-simple.jsx` (CSV; .xlsx için
-SheetJS eklenecek), `hub-ai-draft.js` + `supabase/functions/hub-ai-draft/`.
+**Hub sayfaları:** `today.jsx` · `candidates-list.jsx` · `candidate.jsx`
+(+`GateCard`) · `archive.jsx` · `roles.jsx` · `templates.jsx` · `metrics.jsx` ·
+`settings.jsx`. Destek dosyaları: `new-candidate.jsx`, `import-simple.jsx` (CSV),
+`paste-import.jsx` (yapıştır-ayrıştır — v3 ana yöntem), `triage.jsx` (hızlı eleme),
+`hub-ai-draft.js` + `supabase/functions/hub-ai-draft/`.
 
-**v2 dışı, bağlantısı kesik (silinmez, `hub-app.jsx`'ten import edilmez):**
-`src/hub/hub-parse.js`, `hub-github.js`, `hub-enrich.js`, `hub-match.js`,
-`src/hub/pages/{sources,board,table,import}.jsx`,
-`src/hub/components/{saved-views,unknowable}.jsx`. Hacim gelince geri gelir.
+**v3'te geri bağlanan (v2'de bağlantısı kesikti):** `src/hub/hub-parse.js` (§6.2),
+`src/hub/pages/sources.jsx` + `hub_source_registry` (§11), `hub-github.js` +
+`hub-enrich.js` (§12.5, opsiyonel), `hub-match.js` (§12.4, havuz 100+ olunca).
+
+**Hâlâ bağlantısı kesik:** `src/hub/pages/{board,table,import}.jsx`,
+`src/hub/components/{saved-views,unknowable}.jsx`.
 
 **Düşen tablolar (0010):** `hub_views`, `hub_import_batches`. **Ölü ama duruyor:**
 `hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). `0004_hub_cron.sql`
-→ `supabase/migrations/_deferred/` (deploy edilmez).
+→ `supabase/migrations/_deferred/` — v3 §12.1'de deploy edilir. v3 migration'ları
+`0013`'ten devam eder; `drop column` yapılmaz (kolon UI'dan gizlenir).
 
 ## Proje kuralları
 
