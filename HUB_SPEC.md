@@ -513,6 +513,33 @@ Team'deki tamamlanan görev sayısı ve CTO onayları Hub'a akar. "90 günde hâ
 aktif" metriği `stage_log` yerine gerçek üretim verisinden hesaplanır. §9.4
 kurulmadan yapılamaz.
 
+### 12.7 `/team/` paneli — boş üyelik durumu  *(repo dışı, Fix 1)*
+
+> `public/team/index.html` bir **build artefaktıdır**; kaynağı bu repoda **yok**.
+> Bu bölüm, o bundle'ın kaynağı bulunduğunda uygulanacak değişikliğin
+> şartnamesidir — Hub tarafından yapılamaz.
+
+**Sorun:** Panel, giriş yapan kullanıcının bir takıma bağlı olduğunu varsayıyor.
+C4 ile ekibe alınan ama henüz bir projeye bağlanmamış kullanıcı (veya
+`startups.member_ids`'te id'si olmayan herhangi biri) girişte boş/eksik veri
+alıyor ve panel çöküyor ("Bir sorun oluştu, tekrar dene").
+
+**Değişiklik:**
+1. **Kaldırılacak varsayım:** "giriş yapan kullanıcının en az bir takım
+   üyeliği/projesi vardır". Üyelik sorgusu boş dönebilir — bu bir hata değil,
+   geçerli bir durum.
+2. **Boş durumda gösterilecek** (çökme yerine): sakin bir ekran —
+   *"Henüz bir projeye atanmadınız. Bir kurucu sizi bir takıma eklediğinde
+   projeniz burada görünecek."* + **Çıkış** düğmesi. Panelin geri kalanı
+   (proje seçici, görev listesi, vb.) render edilmez.
+3. **Sonradan eklenince:** kullanıcı bir takıma eklendikten sonra **yeniden
+   giriş** ya da **sayfa yenileme** ile normal panel açılmalı — ekstra bir adım,
+   davet veya elle işlem gerekmemeli. (Üyelik verisi her açılışta yeniden
+   sorgulandığı için otomatik düzelir.)
+
+Kapsam dışı: gerçek zamanlı güncelleme (kullanıcı açıkken eklenirse anında
+görme) gerekmez; yenileme yeterli.
+
 ---
 
 ## 13. Veritabanı

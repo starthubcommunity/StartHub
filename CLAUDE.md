@@ -74,6 +74,11 @@ Hub tabloları `hub_` önekiyle gelir — şema `supabase/migrations/0001_hub.sq
 
 ## Dikkat
 
-`public/team/index.html` tüm durumunu `app_state` tablosunda tek bir JSON bloğunda
-tutuyor. Buraya derin bağlanma yapılmaz; hub, team sistemine yalnızca referansla
-(`startup_id`, `person_id`) bağlanır.
+`public/team/index.html` **bir build artefaktıdır** (bundler çıktısı, ~700 KB,
+asset'ler base64 gömülü) — **kaynağı bu repoda yoktur, doğrudan düzenlenmez.**
+Değişiklik gerekiyorsa o bundle'ı üreten kaynakta yapılır (bkz. HUB_SPEC §12.7).
+Team roster/üyelik modeli: `people` (`type='project_member'`, `project_id` →
+`startups.id`) + `startups.member_ids` (text[]). `app_state` (id `text`, data
+`jsonb`) şu an boş; buna derin bağlanma yapılmaz. Hub, team sistemine yalnızca
+referansla (`startup_id`, `person_id`) bağlanır. **Blok E'deki Team→Hub geri
+beslemesi (E6) de bu repo-dışı kaynağa bağımlıdır.**
