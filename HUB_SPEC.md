@@ -244,13 +244,16 @@ boşsa kaydet pasif)**. Rol seçimi opsiyonel.
 ### 6.2 Yapıştır-ayrıştır — **v3'te ana giriş yöntemi**
 
 `hub-parse.js` (regex + TR üniversite listesi, LLM yok, bulamadığı alanı boş
-bırakır) geri bağlanır. Akış:
+bırakır) `paste-import.jsx`'e bağlandı (Adaylar → **"Yapıştır ve ekle"**, birincil
+aksiyon). Akış:
 
 1. Yapıştır (hackathon sonuç sayfası, etkinlik listesi, tablo)
-2. Ayrıştırılmış satırlar tabloda görünür — satır bazlı al/atla
-3. Kaynak + parti etiketi + **tüm partiye uygulanacak ortak "neden bu kişi" cümlesi**
-   (ör. "Teknofest 2026 ulaşım kategorisi finalisti")
-4. Onayla → Havuz
+2. Ayrıştırılmış satırlar tabloda görünür — satır bazlı al/atla. **Adı
+   çıkarılamayan satır** (`_unparsed`) kırmızı zeminli ve seçimi **kapalı** gelir
+   (boş satır sessizce havuza girmesin).
+3. Kaynak + parti etiketi + **tüm partiye uygulanacak ortak "neden bu kişi"
+   cümlesi** (zorunlu) + opsiyonel açık rol
+4. Onayla → Havuz (`store.importCandidates`, hepsine aynı `import_batch_label`)
 
 **Tekilleştirme** (önizlemede ve elle eklerken):
 - E-posta tam eşleşme → kesin tekrar

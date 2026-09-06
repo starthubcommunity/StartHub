@@ -185,6 +185,18 @@
    ekibe alınır. Rol seçmeden "Yine de devam et" → engellenmez, uyarı verilmişti.
 4. Zaten role bağlı adayda panel sakin bilgi metni gösterir, "Ekibe al" ilerler.
 
+## T14 — Yapıştır ve ekle (Blok D — D1)
+
+1. Adaylar → **"Yapıştır ve ekle"** → bir hackathon sonuç / etkinlik listesini
+   yapıştır → "Ayrıştır".
+2. **Beklenen:** satırlar tabloda; ad/link/okul/bağlantı sütunları. Bulunamayan
+   alan **boş** (uydurulmuyor). Adı çıkarılamayan satır kırmızı + seçimi kapalı.
+3. Satırları gözden geçir → İleri → Kaynak + parti etiketi + **ortak "Neden bu
+   kişi"** (boşsa "Ekle" pasif) + opsiyonel rol → "N adayı ekle".
+4. **Beklenen:** seçili adaylar Havuz'a düşer, hepsinde aynı `import_batch_label`,
+   `source` seçilen değer, `why_this_one` = ortak cümle. `hub-rules.test.mjs`
+   yapıştırma senaryoları yeşil.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

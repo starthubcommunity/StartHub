@@ -463,6 +463,14 @@ t('metinde olmayan alan BOŞ kalır (uydurulmuyor)', () => {
   assert.equal(rows[1].university, '');
   assert.equal(rows[1].email, '');
 });
+t('D1: adı çıkarılamayan satır _unparsed + _take varsayılan KAPALI', () => {
+  const { rows } = parsePastedText('Ada Yılmaz — github.com/ada\n#### başlık satırı ####\n2024 sonuçları');
+  const named = rows.find((r) => r.fullName === 'Ada Yılmaz');
+  assert.equal(named._take, true);
+  const junk = rows.filter((r) => !r.fullName);
+  assert.ok(junk.length >= 1);
+  assert.ok(junk.every((r) => r._unparsed === true && r._take === false));
+});
 t('findDuplicate: github / e-posta eşleşmesi', () => {
   const { rows } = parsePastedText('Ada Yılmaz - ada@ornek.com - github.com/ada');
   const existing = [{ id: 'e1', fullName: 'X', github: 'https://github.com/ada', email: null, linkedin: null }];

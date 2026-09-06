@@ -10,6 +10,7 @@ import { thresholdMet, rubricComplete, nextAction, gateDueAt } from '../hub-rule
 import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
 import ImportSimple from './import-simple';
+import PasteImport from './paste-import';
 import NewCandidateModal from './new-candidate';
 import HubWizard from '../components/wizard';
 
@@ -114,11 +115,14 @@ export default function CandidatesListPage({ filters, setFilters }) {
       <PageHead title="Adaylar" desc={`${rows.length} / ${activeCount} aktif aday`} actions={
         can('candidates.write') ? (
           <div style={{ display: 'flex', gap: 8 }}>
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setAdding('one')}>
+              <AIcon name="plus" size={14} /> Tek aday
+            </button>
             <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('import')}>
               <AIcon name="upload" size={14} /> CSV
             </button>
-            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAdding('one')}>
-              <AIcon name="plus" size={14} /> Aday ekle
+            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAdding('paste')}>
+              <AIcon name="edit" size={14} /> Yapıştır ve ekle
             </button>
           </div>
         ) : null
@@ -166,6 +170,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
       {openId && <CandidatePanel candidateId={openId} onClose={() => setOpenId(null)} />}
       {adding === 'one' && <NewCandidateModal onClose={() => setAdding(null)} />}
       {adding === 'import' && <ImportSimple onClose={() => setAdding(null)} />}
+      {adding === 'paste' && <PasteImport onClose={() => setAdding(null)} />}
       {actOn && (
         <HubWizard title={actOn.fullName} submitLabel="Uygula" onCancel={() => setActOn(null)}
           steps={rowActionSteps} onComplete={runRowAction} />
