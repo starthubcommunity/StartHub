@@ -69,7 +69,7 @@ function shell(inner: string): string {
     ${inner}
   </td></tr>
   <tr><td style="padding:16px 28px;background:#fafaf9;border-top:1px solid #eeeeee;color:#78716c;font-size:12px;line-height:1.5;">
-    Bu e-posta <b>no-reply@starthub-community.com</b> adresinden otomatik gönderildi. Lütfen yanıtlamayın.
+    Bu e-posta <b>no-reply@mail.starthub-community.com</b> adresinden otomatik gönderildi. Lütfen yanıtlamayın.
   </td></tr>
 </table>
 </td></tr></table>

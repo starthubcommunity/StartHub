@@ -144,6 +144,20 @@
    ekle → `0015_hub_cron.sql` çalıştır → `select jobname,active from cron.job
    where jobname like 'hub-%'` iki aktif job göstermeli.
 
+## T11 — Görüşme kararı maili (Blok C — C2)
+
+1. Görüşme aşamasındaki bir kartta rubriği doldur (eşik geçsin). Altta
+   **"Görüşme kararı"** → **Olumlu — denemeye davet**.
+2. **Beklenen:** hazır mail metni görünür (`{{ad}}` dolu). Gönder'e basmadan
+   mail gitmez. "Gönder ve Deneme'ye al" → mail adaya ulaşır (gerçek kontrol),
+   aday **Deneme**'ye geçer, `hub_touches`'a `channel='email'` kaydı düşer.
+3. E-postası olmayan bir adayda mail kutucuğu kapalı; "Mailsiz Deneme'ye al"
+   ile karar yine verilebilir.
+4. Başka bir adayda **Olumsuz — nazik ret** → ret metni + arşiv sebebi seçimi →
+   "Gönder ve arşivle" → mail gider, aday **Arşiv**'e düşer, `hub_touches`'a
+   `channel='email'` kaydı.
+5. Eşik sağlanmayan adayda "Olumlu" düğmesi pasif, sebep görünür.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

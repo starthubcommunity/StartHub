@@ -296,6 +296,28 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, advanceStage, patchLocal, updateItem]);
 
+  // C2 — görüşme kararı maili. OTOMATİK DEĞİL: kullanıcı metni onaylayıp bu
+  // fonksiyonu çağırır. send-mail (Resend) üzerinden gider; gönderilen mail
+  // hub_touches'a channel:'email' kaydı olarak düşer (ret + davet ikisi de).
+  const sendDecisionMail = useCallback(async (candidate, { subject, body }) => {
+    if (!candidate?.email) throw new Error('Adayın e-postası yok.');
+    const { data, error } = await supabase.functions.invoke('send-mail', {
+      body: { to: candidate.email, subject, body },
+    });
+    if (error || data?.error) {
+      throw new Error(error?.message || (data?.error ? JSON.stringify(data.error) : 'Mail gönderilemedi.'));
+    }
+    await addItem('touches', {
+      candidateId: candidate.id,
+      channel: 'email',
+      senderId: currentMember?.id ?? null,
+      sentAt: new Date().toISOString(),
+      outcome: 'pending',
+      note: subject,
+    });
+    return data;
+  }, [addItem, currentMember]);
+
   // ── Kapılar (v2 §2.1–2.2) ─────────────────────────────────────
   // Kapı A/B ayrı AŞAMA değil — aday `trial`'da kalır, hub_gates satırı açılır.
   // Team sistemine yalnızca referansla bağlanır (startup_id + person_id).
@@ -503,7 +525,7 @@ export function HubStoreProvider({ children }) {
     addItem, updateItem, deleteItem, patchLocal,
     addCandidate, updateCandidate, deleteCandidate, patchCandidate,
     logStage, advanceStage, loadHistory,
-    sendTouch, markReplied, replyAndAdvance, undoLastStage,
+    sendTouch, markReplied, replyAndAdvance, undoLastStage, sendDecisionMail,
     startGate, markGate, extendGate, moveToTeam,
     importCandidates, purgeCandidate,
     advanceRole, presentCandidate, ownerDecide, linkCandidateRole,

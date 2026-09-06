@@ -100,19 +100,7 @@ function NextStepCard({ c, store, openRole, role, afterAdvance, flash }) {
     );
   }
 
-  if (stage === 'interview') {
-    return (
-      <StageActionCard question="Görüşme sonrası ne olacak?" options={[
-        { label: 'Deneme\'ye geçir (Kapı A)', hint: 'eşik + rubrik kontrol edilir', run: async () => {
-          const chk = canAdvance(c, 'trial', { role, openRole });
-          if (!chk.ok) throw new Error(chk.reason);
-          await store.advanceStage(c.id, 'trial', { reason: 'görüşme geçti' });
-          afterAdvance(); flash?.('Aşama: Deneme.');
-        } },
-      ]} />
-    );
-  }
-
+  // interview → karar + mail InterviewSection'da (C2).
   return null;   // pool → MessageArea, trial → TrialSection/GateCard, member → bitti.
 }
 
@@ -234,7 +222,7 @@ export default function CandidatePanel({ candidateId, onClose }) {
             <MessageArea c={c} save={save} flash={flash} onSent={() => setHistory(null)} />
           )}
           {stage === 'contact' && <ContactSection c={c} history={history} />}
-          {stage === 'interview' && <InterviewSection c={c} save={save} role={role} openRole={openRole} />}
+          {stage === 'interview' && <InterviewSection c={c} save={save} role={role} openRole={openRole} flash={flash} onDone={() => setHistory(null)} />}
           {stage === 'trial' && <TrialSection c={c} />}
           {stage === 'member' && <MemberSection c={c} />}
 
@@ -524,10 +512,117 @@ function ContactSection({ c, history }) {
   );
 }
 
+// ── Görüşme kararı maili (C2) — OTOMATİK DEĞİL, kullanıcı onaylayıp gönderir ──
+const DECISION_DEFAULT = {
+  invite: {
+    subject: 'Start-Hub — denemeye davet',
+    body: 'Merhaba {{ad}},\n\nGörüşmemiz için teşekkürler. Seninle sınırlı süreli, küçük bir deneme adımına geçmek istiyoruz. Görev detaylarını ayrıca paylaşacağız.\n\nUygun musun? Kısa bir "evet" yeterli.\n\nStart-Hub',
+  },
+  reject: {
+    subject: 'Start-Hub — görüşme sonucu',
+    body: 'Merhaba {{ad}},\n\nAyırdığın zaman ve ilgin için teşekkürler. Bu aşamada birlikte ilerlememe kararı aldık — kararımız yeteneklerinle ilgili değil; şu anki ihtiyaç ve zamanlama örtüşmedi.\n\nYolun açık olsun.\n\nStart-Hub',
+  },
+};
+const REJECT_REASONS = [
+  { value: 'we_passed', label: 'Biz geçtik' },
+  { value: 'below_bar', label: 'Çıtanın altında' },
+];
+
+function DecisionMail({ kind, c, role, openRole, onCancel, onDone, flash }) {
+  const store = useHubStore();
+  const tpl = useMemo(
+    () => store.templates.find((t) => t.active && t.sourceType === kind) || null,
+    [store.templates, kind]
+  );
+  const base = DECISION_DEFAULT[kind];
+  const [subject, setSubject] = useState(tpl?.subject || base.subject);
+  const [body, setBody] = useState(fillTemplate(tpl?.body || base.body, c));
+  const [reason, setReason] = useState('we_passed');
+  const [sendMail, setSendMail] = useState(!!c.email);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const trialChk = kind === 'invite' ? canAdvance({ ...c, stage: 'interview' }, 'trial', { role, openRole }) : { ok: true };
+
+  const run = async () => {
+    if (kind === 'invite' && !trialChk.ok) { setErr(trialChk.reason || 'Eşik sağlanmıyor.'); return; }
+    setBusy(true); setErr('');
+    try {
+      if (sendMail && c.email) await store.sendDecisionMail(c, { subject: subject.trim(), body: body.trim() });
+      if (kind === 'invite') {
+        await store.advanceStage(c.id, 'trial', { reason: 'görüşme geçti — denemeye davet' });
+      } else {
+        await store.advanceStage(c.id, 'archived', { reason: 'görüşme sonrası ret', extra: { archiveReason: reason } });
+      }
+      onDone?.();
+      flash?.(kind === 'invite'
+        ? (sendMail && c.email ? 'Denemeye alındı · davet maili gönderildi.' : 'Denemeye alındı.')
+        : (sendMail && c.email ? 'Ret · mail gönderildi.' : 'Ret · arşivlendi.'));
+      onCancel();
+    } catch (e) { setErr(e.message || 'İşlem başarısız.'); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="hub-ai" style={{ marginTop: 12 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>
+        {kind === 'invite' ? 'Denemeye davet' : 'Nazik ret'} — mail hazır, gönderen sensin
+      </div>
+
+      {!c.email && (
+        <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginBottom: 8 }}>
+          Adayın e-postası yok — mail gönderilemez, karar yine verilebilir.
+        </div>
+      )}
+
+      {c.email && (
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, marginBottom: 8 }}>
+          <input type="checkbox" checked={sendMail} onChange={(e) => setSendMail(e.target.checked)} />
+          {c.email} adresine mail gönder
+        </label>
+      )}
+
+      {sendMail && c.email && (
+        <>
+          <Field label="Konu">
+            <input className="adm-input" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          </Field>
+          <Field label="Metin" hint="Düzenleyebilirsin. Gönder'e basılmadan mail gitmez.">
+            <textarea className="adm-input adm-textarea" rows={8} value={body} onChange={(e) => setBody(e.target.value)} />
+          </Field>
+        </>
+      )}
+
+      {kind === 'reject' && (
+        <Field label="Arşiv sebebi">
+          <select className="adm-input adm-select" value={reason} onChange={(e) => setReason(e.target.value)}>
+            {REJECT_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
+        </Field>
+      )}
+
+      {kind === 'invite' && !trialChk.ok && (
+        <div style={{ fontSize: 12, color: 'var(--adm-red)', marginBottom: 8 }}>{trialChk.reason}</div>
+      )}
+      {err && <div style={{ fontSize: 12, color: 'var(--adm-red)', marginBottom: 8 }}>{err}</div>}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || (kind === 'invite' && !trialChk.ok)} onClick={run}>
+          {busy ? '…' : kind === 'invite'
+            ? (sendMail && c.email ? 'Gönder ve Deneme\'ye al' : 'Mailsiz Deneme\'ye al')
+            : (sendMail && c.email ? 'Gönder ve arşivle' : 'Mailsiz arşivle')}
+        </button>
+        <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={onCancel}>Vazgeç</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Görüşme (rubrik + serbest not) — v3: kırmızı bayrak YOK ────────
-function InterviewSection({ c, save, role, openRole }) {
+function InterviewSection({ c, save, role, openRole, flash, onDone }) {
   const track = c.track || 'founder';
   const trialChk = canAdvance({ ...c, stage: 'interview' }, 'trial', { role, openRole });
+  const [decision, setDecision] = useState(null);   // 'invite' | 'reject' | null
 
   // Puanlar KİLİTLENMEZ — aynı butona tekrar basmak sıfırlar, farklıya basmak değiştirir.
   const setScore = (axisKey, n) => { const f = AXIS_FIELD[axisKey]; save({ [f]: c[f] === n ? null : n }); };
@@ -576,6 +671,25 @@ function InterviewSection({ c, save, role, openRole }) {
       <LField label="Görüşme notu" textarea value={c.interviewNote}
         onCommit={(v) => save({ interviewNote: v })}
         hint="Endişeler, izlenimler, açık sorular — serbest metin. İlerlemeyi engellemez." />
+
+      {/* C2 — görüşme kararı + hazır mail */}
+      <h4 className="hub-h4" style={{ marginTop: 16 }}>Görüşme kararı</h4>
+      {decision ? (
+        <DecisionMail kind={decision} c={c} role={role} openRole={openRole} flash={flash}
+          onDone={onDone} onCancel={() => setDecision(null)} />
+      ) : (
+        <div className="hub-wz__opts">
+          <button type="button" className="hub-wz__opt" disabled={!trialChk.ok}
+            title={trialChk.ok ? '' : (trialChk.reason || '')} onClick={() => setDecision('invite')}>
+            <span className="hub-wz__opt-l">Olumlu — denemeye davet</span>
+            <span className="hub-wz__opt-r">mail hazır gelir</span>
+          </button>
+          <button type="button" className="hub-wz__opt" onClick={() => setDecision('reject')}>
+            <span className="hub-wz__opt-l">Olumsuz — nazik ret</span>
+            <span className="hub-wz__opt-r">mail hazır gelir · arşive</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

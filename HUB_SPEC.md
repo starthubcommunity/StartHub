@@ -329,16 +329,20 @@ Kanal: LinkedIn · E-posta · WhatsApp. Şablon A/B varyantı yok.
 - **Kopyalama artık hiçbir şeyi tetiklemez** — sadece panoya kopyalar.
 - `hub_touches` kaydında `channel` doğru, `template_id` null olabilir.
 
-### 9.2 Görüşme kararı maili
+### 9.2 Görüşme kararı maili  *(C2)*
 
-Görüşme sonrası karar verilince ilgili mail **hazır gelir, kullanıcı onaylayıp
-gönderir** (otomatik gitmez — aday iletişimi):
-- Olumlu → denemeye davet
-- Olumsuz → nazik ret
+Görüşme aşamasındaki kartta **"Görüşme kararı"** bloğu (rubrik + notun altında):
+- **Olumlu — denemeye davet** → mail metni hazır gelir (şablon `sourceType='invite'`
+  varsa o, yoksa gömülü varsayılan; `{{ad}}` doldurulur). Onaylanınca aday
+  `trial`'a geçer (rubrik/eşik kapısı geçerli).
+- **Olumsuz — nazik ret** → hazır ret metni; onaylanınca aday arşive (`we_passed`
+  / `below_bar` seçilir).
 
-`send-mail` (Resend) üzerinden. Adayın e-postası yoksa düğme "e-posta yok" der,
-karar yine verilebilir. Gönderilen ret maili `hub_touches`'a `channel: 'email'`
-kaydı olarak düşer.
+`send-mail` (Resend) üzerinden, **otomatik değil** — kullanıcı metni düzenleyip
+Gönder'e basar. Adayın e-postası yoksa mail kutucuğu kapalı gelir, karar yine
+verilebilir. Gönderilen mail (davet **veya** ret) `hub_touches`'a
+`channel: 'email'`, `outcome: 'pending'`, `note: <konu>` kaydı olarak düşer.
+Aşama değişmeden önce mail gönderilir — mail patlarsa aşama değişmez.
 
 ### 9.3 Kapı A/B görev maili
 
