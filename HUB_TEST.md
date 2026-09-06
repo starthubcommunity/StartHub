@@ -119,6 +119,18 @@
    Deneme → "Kapı A · Ns/Ng kaldı" (süresi geçmişse kırmızı) · Ekipte →
    "katıldı GG.AA".
 
+## T9 — Inbound: başvuru → aday (Blok C — C5)
+
+1. Admin panel → Başvurular → bir başvuru seç. (Kullanıcı hub'da
+   cofounder/recruiter olmalı; değilse düğme görünmez.)
+2. **"Kurucu Hattı'na aday olarak aktar"** → "Neden bu kişi" başvuru metninden
+   ön-dolu gelir, düzenle → Aktar.
+3. **Beklenen:** Hub → Adaylar'da yeni aday, aşama **Havuz**, kaynak **Inbound
+   (site başvurusu)**, `source_ref` = başvuru id'si.
+4. Aynı başvuruya dön → düğme yerine **"Aktarıldı ✓"** yazar; tekrar aktarılamaz.
+5. Aynı e-posta Hub'da zaten varsa → "Bu e-posta zaten Hub'da bir adayda kayıtlı"
+   uyarısı, kayıt açılmaz.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

@@ -3,6 +3,25 @@ import React from 'react';
 import { useState as useStateA, useEffect as useEffectA } from 'react';
 import { supabase } from '../lib/supabase';
 import { AIcon } from './admin-ui';
+import { mapCandidateToDb } from '../hub/hub-mappers';
+
+// Başvuru metninden "neden bu kişi" ön-doldurması (kullanıcı düzeltir).
+function inboundWhy(app) {
+  return [app.intent, app.project_name && `Proje: ${app.project_name}`, app.skills && `Beceriler: ${app.skills}`, app.bio]
+    .map((x) => (x || '').trim())
+    .filter(Boolean)
+    .join(' — ')
+    .slice(0, 500);
+}
+
+function inboundLink(app) {
+  const s = (app.linkedin || app.portfolio || '').trim();
+  if (!s) return {};
+  if (/github\.com/i.test(s)) return { github: s };
+  if (/linkedin\.com/i.test(s)) return { linkedin: s };
+  if (/@/.test(s) && !/^https?:/i.test(s)) return { email: s };
+  return { linkedin: s };
+}
 
 const STATUS_CFG = {
   new:      { label: 'Yeni',       color: '#2563EB', bg: '#EFF6FF' },
@@ -27,6 +46,15 @@ function ApplicationsPage() {
   const [filter, setFilter] = useStateA('all');
   const [updating, setUpdating] = useStateA(false);
 
+  // C5 — Kurucu Hattı'na aktarım. hubRole yalnızca cofounder/recruiter'da yazma
+  // yetkisi verir (RLS ile aynı kapı). transferred: zaten aktarılmış app id'leri.
+  const [hubRole, setHubRole] = useStateA(null);
+  const [transferred, setTransferred] = useStateA(() => new Set());
+  const [openRoles, setOpenRoles] = useStateA([]);
+  const [xfer, setXfer] = useStateA(null);   // { why, roleId, busy, err }
+
+  const canInbound = hubRole === 'cofounder' || hubRole === 'recruiter';
+
   const load = async () => {
     setLoading(true);
     try {
@@ -43,7 +71,62 @@ function ApplicationsPage() {
     }
   };
 
-  useEffectA(() => { load(); }, []);
+  const loadHubContext = async () => {
+    const { data: role } = await supabase.rpc('hub_role');
+    setHubRole(role ?? null);
+    if (role === 'cofounder' || role === 'recruiter') {
+      const [{ data: cands }, { data: roles }] = await Promise.all([
+        supabase.from('hub_candidates').select('source_ref').eq('source', 'inbound'),
+        supabase.from('hub_open_roles').select('id,title,status').in('status', ['sourcing', 'shortlist']),
+      ]);
+      setTransferred(new Set((cands || []).map((c) => c.source_ref).filter(Boolean)));
+      setOpenRoles(roles || []);
+    }
+  };
+
+  useEffectA(() => { load(); loadHubContext(); }, []);
+  // Başka bir başvuruya geçince açık aktarım formunu kapat.
+  useEffectA(() => { setXfer(null); }, [selected?.id]);
+
+  const startXfer = (app) => setXfer({ why: inboundWhy(app), roleId: '', busy: false, err: '' });
+
+  const doXfer = async (app) => {
+    setXfer((x) => ({ ...x, busy: true, err: '' }));
+    try {
+      // Mükerrer kontrolü — source_ref (applications.id) daha önce aktarılmış mı?
+      const { data: dup } = await supabase
+        .from('hub_candidates').select('id')
+        .eq('source', 'inbound').eq('source_ref', String(app.id)).limit(1);
+      if (dup && dup.length) {
+        setTransferred((s) => new Set(s).add(String(app.id)));
+        setXfer((x) => ({ ...x, busy: false, err: 'Bu başvuru zaten aktarılmış.' }));
+        return;
+      }
+      const row = mapCandidateToDb({
+        fullName: app.name || '(isimsiz)',
+        email: app.email || null,
+        ...inboundLink(app),
+        university: [app.university, app.department].filter(Boolean).join(' · ') || null,
+        source: 'inbound',
+        sourceRef: String(app.id),
+        whyThisOne: (xfer.why || '').trim() || null,
+        openRoleId: xfer.roleId || null,
+        stage: 'pool',
+      });
+      const { error } = await supabase.from('hub_candidates').insert(row);
+      if (error) {
+        const msg = /hub_cand_email_uq|duplicate key/i.test(error.message)
+          ? 'Bu e-posta zaten Hub\'da bir adayda kayıtlı.'
+          : error.message;
+        setXfer((x) => ({ ...x, busy: false, err: msg }));
+        return;
+      }
+      setTransferred((s) => new Set(s).add(String(app.id)));
+      setXfer(null);
+    } catch (e) {
+      setXfer((x) => ({ ...x, busy: false, err: e.message || 'Aktarılamadı.' }));
+    }
+  };
 
   const updateStatus = async (id, status) => {
     setUpdating(true);
@@ -192,6 +275,48 @@ function ApplicationsPage() {
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--adm-text-dim)', marginBottom: 3 }}>Bio</div>
               <div style={{ fontSize: 14, color: 'var(--adm-text)', lineHeight: 1.6 }}>{selected.bio}</div>
+            </div>
+          )}
+
+          {/* C5 — Kurucu Hattı'na aday olarak aktar */}
+          {canInbound && (
+            <div style={{ marginTop: 20, borderTop: '1px solid var(--adm-border-light)', paddingTop: 16 }}>
+              {transferred.has(String(selected.id)) ? (
+                <div style={{ fontSize: 13, color: 'var(--adm-green, #16A34A)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AIcon name="check" size={15} /> Kurucu Hattı'na aktarıldı
+                </div>
+              ) : xfer ? (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--adm-text-dim)', marginBottom: 6 }}>
+                    Kurucu Hattı'na aktar
+                  </div>
+                  <label style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Neden bu kişi? (düzeltebilirsin)</label>
+                  <textarea value={xfer.why} onChange={(e) => setXfer((x) => ({ ...x, why: e.target.value }))}
+                    rows={3} style={{ width: '100%', boxSizing: 'border-box', marginTop: 4, marginBottom: 8, padding: 8, borderRadius: 7, border: '1px solid var(--adm-border-light)', fontFamily: 'var(--font-body)', fontSize: 13 }} />
+                  <label style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Açık rol (opsiyonel)</label>
+                  <select value={xfer.roleId} onChange={(e) => setXfer((x) => ({ ...x, roleId: e.target.value }))}
+                    style={{ width: '100%', marginTop: 4, marginBottom: 10, padding: 8, borderRadius: 7, border: '1px solid var(--adm-border-light)', fontFamily: 'var(--font-body)', fontSize: 13 }}>
+                    <option value="">—</option>
+                    {openRoles.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
+                  </select>
+                  {xfer.err && <div style={{ fontSize: 12, color: '#DC2626', marginBottom: 8 }}>{xfer.err}</div>}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button disabled={xfer.busy || !xfer.why.trim()} onClick={() => doXfer(selected)}
+                      style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: 'var(--adm-text)', color: 'var(--adm-bg)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)', opacity: (xfer.busy || !xfer.why.trim()) ? 0.6 : 1 }}>
+                      {xfer.busy ? 'Aktarılıyor…' : 'Aktar'}
+                    </button>
+                    <button disabled={xfer.busy} onClick={() => setXfer(null)}
+                      style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid var(--adm-border-light)', background: 'transparent', color: 'var(--adm-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                      Vazgeç
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => startXfer(selected)}
+                  style={{ width: '100%', padding: '9px 14px', borderRadius: 8, border: '1px solid var(--adm-border-light)', background: 'var(--adm-card)', color: 'var(--adm-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <AIcon name="rocket" size={14} /> Kurucu Hattı'na aday olarak aktar
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -362,13 +362,22 @@ kapsamı C4 ile birlikte gözden geçirilir.
 
 ### 9.5 Inbound bağlantısı
 
-Admin panelindeki Başvurular ekranına **"Kurucu Hattı'na aday olarak aktar"**:
-- `hub_candidates`: `source: 'inbound'`, `source_ref: applications.id`, `stage: 'pool'`
-- Ad, e-posta, link başvurudan taşınır
-- `why_this_one` başvuru metninden ön-doldurulur, düzeltilebilir
-- Açık rol seçimi opsiyonel
-- Aynı başvuru iki kez aktarılamaz (`source_ref` kontrolü)
-- `has_perm('candidates.write')` yoksa düğme görünmez
+Admin panelindeki Başvurular ekranı → başvuru detay panelinde
+**"Kurucu Hattı'na aday olarak aktar"**:
+- `hub_candidates`: `source: 'inbound'`, `source_ref: <applications.id>` (text),
+  `stage: 'pool'`
+- Ad → `full_name`, e-posta → `email`, LinkedIn/portfolyo → `link` (tip
+  otomatik), üniversite + bölüm → `university`
+- `why_this_one` başvuru metninden (`intent` / proje / beceriler / bio)
+  ön-doldurulur, kullanıcı düzeltebilir — **boşsa Aktar pasif**
+- Açık rol seçimi opsiyonel (yalnızca `sourcing` / `shortlist` roller)
+- Aynı başvuru iki kez aktarılamaz — insert öncesi `source_ref` kontrolü +
+  aktarılmış başvurular "Aktarıldı ✓" gösterir
+- Düğme yalnızca **hub yazma yetkisi olan** (cofounder / recruiter) kullanıcıya
+  görünür; asıl kapı RLS (`hub_cand_write`). Admin app'in yetki alanı ayrı
+  olduğu için kontrol `hub_role()` RPC'si ile yapılır.
+- Aday e-postası zaten Hub'da varsa (`hub_cand_email_uq`) anlaşılır hata verir,
+  kayıt açılmaz
 
 ### 9.6 Otomatik mailler (aday iletişimi DEĞİL — süreç maili)
 
@@ -406,7 +415,8 @@ aday kartındaki küçük menüden track'i elle değiştirebilir.
 | Rol oluştur | ✓ | ✓ | ✓ |
 | `candidates.purge` (KVKK silme) | ✓ | ✗ | ✗ |
 
-`roles.jsx`, Bugün, Arşiv, inbound düğmesi `has_perm()` ile gösterilir/gizlenir.
+`roles.jsx`, Bugün, Arşiv `has_perm()` ile gösterilir/gizlenir. Admin'deki
+inbound düğmesi `hub_role()` ile (admin app'in yetki alanı ayrı — §9.5).
 
 ---
 
