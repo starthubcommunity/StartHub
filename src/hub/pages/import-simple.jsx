@@ -74,7 +74,7 @@ export default function ImportSimple({ onClose }) {
   const [step, setStep] = useState(1);
   const [grid, setGrid] = useState(null);       // string[][]
   const [map, setMap] = useState({});           // targetKey -> columnIndex
-  const [meta, setMeta] = useState({ source: 'hackathon', importBatchLabel: '' });
+  const [meta, setMeta] = useState({ source: 'hackathon', importBatchLabel: '', commonWhy: '' });
   const [take, setTake] = useState([]);         // bool[]
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -101,6 +101,11 @@ export default function ImportSimple({ onClose }) {
 
   const goPreview = () => {
     if (map.fullName == null) { setErr('"Ad Soyad" sütunu eşlenmeli.'); return; }
+    // A6 — "Neden bu kişi" sütunu eşlenmediyse tüm partiye tek ortak cümle zorunlu.
+    if (map.whyThisOne == null && !meta.commonWhy.trim()) {
+      setErr('"Neden bu kişi" sütunu yok — tüm partiye uygulanacak ortak bir cümle yaz.');
+      return;
+    }
     setErr('');
     setTake(body.map((r) => String(r[map.fullName] || '').trim() !== ''));
     setStep(3);
@@ -116,7 +121,7 @@ export default function ImportSimple({ onClose }) {
           fullName: val('fullName'),
           ...linkFields(val('link')),
           email: val('email') || undefined,
-          whyThisOne: val('whyThisOne') || null,
+          whyThisOne: val('whyThisOne') || meta.commonWhy.trim() || null,
           sourceDetail: val('sourceDetail') || null,
         };
       });
@@ -183,6 +188,11 @@ export default function ImportSimple({ onClose }) {
                     <Input value={meta.importBatchLabel} onChange={(v) => setMeta((m) => ({ ...m, importBatchLabel: v }))} />
                   </Field>
                 </div>
+                {map.whyThisOne == null && (
+                  <Field label="Ortak “Neden bu kişi” *" hint="Sütun eşlenmedi — tüm partiye bu cümle yazılır. Örn. Teknofest 2026 ulaşım kategorisi finalisti.">
+                    <Input value={meta.commonWhy} onChange={(v) => setMeta((m) => ({ ...m, commonWhy: v }))} />
+                  </Field>
+                )}
               </div>
             )}
 

@@ -70,16 +70,18 @@ export function mapCandidateToDb(c) {
     score_capacity:      c.scoreCapacity      ?? null,
     ai_score:            c.aiScore            ?? null,
     ai_score_note:       c.aiScoreNote        ?? null,
-    // bayraklar
+    // görüşme notu (v3 — kırmızı bayrakların yerine tek serbest alan).
+    // 0013 uygulanmadan kolon yok: değer yoksa GÖNDERİLMEZ ki diğer yazımlar
+    // kırılmasın (orUndef → undefined → JSON'dan düşer).
+    interview_note:  orUndef(c.interviewNote),
+    // bayraklar — v3'te UI yazmıyor; kolonlar düşmedi, round-trip için tutulur
     red_flags:       c.redFlags       || [],
     flag_notes:      c.flagNotes      || {},
     override_reason: c.overrideReason ?? null,
     // takip
     tags:             c.tags           || [],
     last_contact_at:  c.lastContactAt  ?? null,
-    next_action:      c.nextAction     ?? null,
-    next_action_at:   c.nextActionAt   ?? null,
-    next_action_link: c.nextActionLink ?? null,
+    // v3 (PROMPT_V3 A7): next_action* artık türetiliyor — YAZILMAZ (kolon düşmedi)
     // kvkk — retain_until'ın DB default'u (current_date + 1 yıl) devreye
     // girsin diye değer yoksa gönderilmez (§12).
     kvkk_consent: c.kvkkConsent ?? false,
@@ -145,16 +147,16 @@ export function mapCandidateFromDb(r) {
     scoreTotal:         r.score_total         ?? 0,   // generated
     aiScore:            r.ai_score            ?? null,
     aiScoreNote:        r.ai_score_note       ?? null,
-    // bayraklar
+    // görüşme notu (v3)
+    interviewNote:  r.interview_note  ?? null,
+    // bayraklar — v3'te okunmuyor; eski veri için round-trip
     redFlags:       r.red_flags       || [],
     flagNotes:      r.flag_notes      || {},
     overrideReason: r.override_reason ?? null,
     // takip
     tags:           r.tags             || [],
     lastContactAt:  r.last_contact_at  ?? null,
-    nextAction:     r.next_action      ?? null,
-    nextActionAt:   r.next_action_at   ?? null,
-    nextActionLink: r.next_action_link ?? null,
+    // v3: next_action* kolonları okunmuyor (türetiliyor) — mapper'dan çıkarıldı
     // kvkk
     kvkkConsent: r.kvkk_consent ?? false,
     kvkkAt:      r.kvkk_at      ?? null,

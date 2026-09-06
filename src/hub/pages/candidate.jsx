@@ -7,16 +7,21 @@ import { useHubStore } from '../hub-store';
 import { useHubMember } from '../hub-member';
 import { usePerms } from '../../lib/use-perms';
 import {
-  RUBRIC_AXES, RED_FLAGS, AI_PRESCORE_FINISHING, ROLE_TYPES, ARCHIVE_REASONS,
+  RUBRIC_AXES, AI_PRESCORE_FINISHING, ROLE_TYPES, ARCHIVE_REASONS,
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
-  GATE_RESULT_LABEL, THRESHOLD, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
+  GATE_RESULT_LABEL, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
   GATE, GATE_EXTENSIONS,
 } from '../hub-constants';
-import { thresholdMet, thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI } from '../hub-rules';
-import { supabase } from '../../lib/supabase';
+import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI, nextAction } from '../hub-rules';
 import { fillTemplate } from './templates';
 import { generateDraft } from '../hub-ai-draft';
 import HubWizard from '../components/wizard';
+
+const LAST_CHANNEL_KEY = 'sh_hub_last_channel';
+const lastChannel = () => {
+  try { return localStorage.getItem(LAST_CHANNEL_KEY) || 'linkedin'; } catch { return 'linkedin'; }
+};
+const rememberChannel = (ch) => { try { localStorage.setItem(LAST_CHANNEL_KEY, ch); } catch { /* yoksay */ } };
 
 const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunication', capacity: 'scoreCapacity' };
 const PRESCORE_LABEL = Object.fromEntries(AI_PRESCORE_FINISHING.map((x) => [x.value, x.when]));
@@ -79,26 +84,17 @@ function StageActionCard({ question, options }) {
 
 // Aşamaya göre "sıradaki adım" kartını kurar — her seçenek GERÇEK bir
 // store fn / canAdvance() çağırır (cron / hub-daily bağımlılığı YOK).
-function NextStepCard({ c, store, openRole, role, onComposer, afterAdvance, flash }) {
+// v3: Havuz'da mesaj alanı (MessageArea) kartın gövdesinde — burada kart yok.
+// Temas'ta tek aksiyon: "Cevap geldi, görüşmeye geç" (A2).
+function NextStepCard({ c, store, openRole, role, afterAdvance, flash }) {
   const stage = c.stage;
-
-  if (stage === 'pool') {
-    return (
-      <StageActionCard question="Bu kişiye ulaşalım mı?" options={[
-        { label: 'Mesaj taslağı hazırla', hint: 'kopyalayınca Temas\'a geçer', run: async () => { onComposer(); } },
-      ]} />
-    );
-  }
 
   if (stage === 'contact') {
     return (
-      <StageActionCard question="Aday şu an ne durumda?" options={[
-        { label: 'Cevap geldi', hint: 'olumlu dönüş', run: async () => { await store.markReplied(c.id); afterAdvance(); flash?.('Cevap işaretlendi.'); } },
-        { label: 'Görüştüm — Görüşme\'ye al', run: async () => {
-          const chk = canAdvance(c, 'interview', { touchCount: 1 });
-          if (!chk.ok) throw new Error(chk.reason);
-          await store.advanceStage(c.id, 'interview', { reason: 'görüşüldü' });
-          afterAdvance(); flash?.('Aşama: Görüşme.');
+      <StageActionCard question="Aday cevap verdi mi?" options={[
+        { label: 'Cevap geldi, görüşmeye geç', hint: 'son mesaj "cevaplandı" + aşama Görüşme', run: async () => {
+          await store.replyAndAdvance(c.id);
+          afterAdvance(); flash?.('Cevap işaretlendi · Aşama: Görüşme.');
         } },
       ]} />
     );
@@ -117,7 +113,7 @@ function NextStepCard({ c, store, openRole, role, onComposer, afterAdvance, flas
     );
   }
 
-  return null;   // trial → TrialSection/GateCard, member → bitti. Arşivleme üstteki butonla.
+  return null;   // pool → MessageArea, trial → TrialSection/GateCard, member → bitti.
 }
 
 // blur'da işleyen metin/textarea alanı
@@ -150,10 +146,18 @@ export default function CandidatePanel({ candidateId, onClose }) {
   const [history, setHistory] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
-  const [composing, setComposing] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [toast, setToast] = useState(null);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 3500); };
+
+  // A3 — son aşama değişikliği geri alınabilir mi? (kapı/ekibe-alma hariç)
+  const lastLog = [...store.stageLog]
+    .filter((l) => l.candidateId === candidateId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+  const canUndo = !!lastLog && lastLog.toStage === candidate?.stage && candidate?.stage !== 'member';
+  const doUndo = () => store.undoLastStage(candidateId)
+    .then(() => { setHistory(null); flash(`Geri alındı → ${STAGE_LABEL[lastLog.fromStage] || 'Havuz'}.`); })
+    .catch((e) => flash('Geri alınamadı: ' + e.message));
 
   useEffect(() => {
     if (showHistory && !history && candidate) {
@@ -179,29 +183,31 @@ export default function CandidatePanel({ candidateId, onClose }) {
       <div className="hub-panel" onClick={(e) => e.stopPropagation()}>
         <div className="hub-panel__head">
           <div>
-            <div className="hub-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {c.fullName}
+            <div className="hub-panel__title">{c.fullName}</div>
+            {/* A5 — rol ve hat üst şeritte ETİKET; form alanı değil, aşamada tekrar sorulmaz */}
+            <div style={{ fontSize: 12, color: '#A29D94', marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className="hub-pill hub-pill--stage">{STAGE_LABEL[stage]}</span>
               <span className={`hub-pill hub-pill--track-${(c.track || 'founder') === 'member' ? 'member' : 'founder'}`}>
                 {TRACK_LABEL[c.track || 'founder']} hattı
               </span>
-            </div>
-            <div style={{ fontSize: 12, color: '#A29D94', marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span className="hub-pill hub-pill--stage">{STAGE_LABEL[stage]}</span>
+              {openRole && <span className="hub-pill">{openRole.title}</span>}
               <span className="hub-pill hub-pill--source">{SOURCE_LABEL[c.source] || c.source}</span>
+              {nextAction(c, store.touches, store.gates) && (
+                <span className="hub-pill hub-pill--ok">→ {nextAction(c, store.touches, store.gates).label}</span>
+              )}
             </div>
           </div>
           <button className="adm-icon-btn" onClick={onClose}><AIcon name="x" size={18} /></button>
         </div>
 
         <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--adm-border)', background: 'var(--adm-bg-card)', flexWrap: 'wrap' }}>
-          <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => setComposing(true)}>
-            <AIcon name="edit" size={13} /> Mesaj taslağı
-          </button>
-          {stage === 'contact' && (
-            <button className="adm-btn adm-btn--ghost adm-btn--sm"
-              onClick={() => store.markReplied(candidateId).then(() => { setHistory(null); flash('Cevap işaretlendi.'); }).catch((e) => flash('Hata: ' + e.message))}>
-              <AIcon name="check" size={13} /> Cevap geldi
+          {canUndo && (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={doUndo}>
+              <AIcon name="refresh" size={13} /> Geri al ({STAGE_LABEL[lastLog.fromStage] || 'Havuz'})
             </button>
+          )}
+          {stage === 'member' && (
+            <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Ekibe alma geri alınamaz.</span>
           )}
           {stage !== 'member' && stage !== 'archived' && (
             <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }} onClick={() => setArchiving(true)}>
@@ -221,24 +227,18 @@ export default function CandidatePanel({ candidateId, onClose }) {
 
           <TrackRoleSection c={c} openRole={openRole} role={role} store={store} flash={flash} />
 
-          {/* §1 + §Ek — gerçek aksiyon tetikleyen aşama kartı */}
+          {/* §1 — gerçek aksiyon tetikleyen aşama kartı (Havuz'da MessageArea sürer) */}
           <NextStepCard c={c} store={store} openRole={openRole} role={role}
-            onComposer={() => setComposing(true)} afterAdvance={() => setHistory(null)} flash={flash} />
+            afterAdvance={() => setHistory(null)} flash={flash} />
 
-          {stage === 'pool' && <PoolSection c={c} save={save} flash={flash} />}
-          {stage === 'contact' && <ContactSection c={c} save={save} history={history} />}
+          {stage === 'pool' && <PoolSection c={c} save={save} />}
+          {(stage === 'pool' || stage === 'contact') && (
+            <MessageArea c={c} save={save} flash={flash} onSent={() => setHistory(null)} />
+          )}
+          {stage === 'contact' && <ContactSection c={c} history={history} />}
           {stage === 'interview' && <InterviewSection c={c} save={save} role={role} openRole={openRole} />}
           {stage === 'trial' && <TrialSection c={c} />}
           {stage === 'member' && <MemberSection c={c} />}
-
-          {/* Planlanan görüşme / takip — bilgi amaçlı */}
-          {stage !== 'pool' && stage !== 'member' && (
-            <div className="adm-form-grid" style={{ marginTop: 12 }}>
-              <LField label="Planlanan tarih" type="date" value={c.nextActionAt ? String(c.nextActionAt).slice(0, 10) : ''}
-                onCommit={(v) => save({ nextActionAt: v || null })} />
-              <LField label="Bağlantı (takvim)" value={c.nextActionLink} onCommit={(v) => save({ nextActionLink: v })} />
-            </div>
-          )}
 
           {/* Detay akordeonu */}
           <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginTop: 16 }} onClick={() => setShowDetail((v) => !v)}>
@@ -267,11 +267,6 @@ export default function CandidatePanel({ candidateId, onClose }) {
         </div>
       </div>
 
-      {composing && (
-        <MessageComposer candidate={c}
-          onDone={(msg) => { setComposing(false); setHistory(null); flash(msg); }}
-          onCancel={() => setComposing(false)} />
-      )}
       {archiving && (
         <HubWizard title="Arşivle" submitLabel="Arşivle" onCancel={() => setArchiving(false)}
           steps={[{ key: 'reason', type: 'options', q: 'Neden arşivleniyor?',
@@ -331,14 +326,9 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
 
   return (
     <div className="hub-gates" style={{ marginBottom: 16 }}>
-      <h4 className="hub-h4">Hat & Rol</h4>
+      <h4 className="hub-h4">Rol</h4>
       <div className="adm-form-grid">
-        <Field label="Hat" hint="Rol bağlanınca rolden gelir; elle değiştirebilirsin.">
-          <select className="adm-input adm-select" value={c.track || 'founder'} onChange={(e) => store.updateCandidate(c.id, { ...c, track: e.target.value })}>
-            {TRACKS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-        </Field>
-        <Field label="Bağlı açık rol">
+        <Field label="Bağlı açık rol" hint="Hat bağlı rolden miras alınır; ayrıca sorulmaz.">
           <select className="adm-input adm-select" value={c.openRoleId || ''} onChange={(e) => store.linkCandidateRole(c.id, e.target.value || null)}>
             <option value="">—</option>
             {linkable.map((r) => <option key={r.id} value={r.id}>{r.title}{r.track === 'member' ? ' · üye' : ' · kurucu'}</option>)}
@@ -347,6 +337,15 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
             )}
           </select>
         </Field>
+        {/* A5 — track elle değişimi YALNIZCA cofounder; küçük menü, form alanı değil */}
+        {can('members.manage') && (
+          <Field label="Hat (kurucu geçersiz kılabilir)">
+            <select className="adm-input adm-select" value={c.track || 'founder'}
+              onChange={(e) => store.updateCandidate(c.id, { ...c, track: e.target.value }).then(() => flash?.('Hat değişti.')).catch((err) => flash?.(err.message))}>
+              {TRACKS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </Field>
+        )}
       </div>
 
       {decidePending && (
@@ -384,17 +383,8 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
   );
 }
 
-// ── Havuz ─────────────────────────────────────────────────────────
-function PoolSection({ c, save, flash }) {
-  const [busy, setBusy] = useState(false);
-  const runDraft = async () => {
-    // §4 — API'ye gitmeden önce koruma. Geçmiyorsa hiçbir istek çıkmaz.
-    if (!canDraftAI(c)) { flash('Veri yetersiz, elle yaz. Kaynak detayı / "neden bu kişi" / kanıt linki gerekli.'); return; }
-    setBusy(true);
-    try { const { text } = await generateDraft(c); await save({ draftText: text }); flash('Taslak oluşturuldu.'); }
-    catch (e) { flash(e.message); }
-    setBusy(false);
-  };
+// ── Havuz — kimlik + "neden bu kişi" (mesaj alanı MessageArea'da) ──
+function PoolSection({ c, save }) {
   return (
     <div>
       <div className="adm-form-grid">
@@ -403,17 +393,97 @@ function PoolSection({ c, save, flash }) {
       </div>
       <LField label="Neden bu kişi?" textarea value={c.whyThisOne} onCommit={(v) => save({ whyThisOne: v })}
         hint="Somut esere atıf (repo / proje / yarışma / yazı). Sıfat değil, ne yaptığı." />
-      <div className="hub-ai" style={{ marginTop: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <b>Mesaj taslağı (AI)</b>
-          <button className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginLeft: 'auto' }}
-            disabled={busy || !canDraftAI(c)}
-            title={canDraftAI(c) ? '' : 'Veri yetersiz — elle yaz'}
-            onClick={runDraft}>
-            {busy ? 'Üretiliyor…' : (canDraftAI(c) ? 'Taslak oluştur' : 'Veri yetersiz')}
+    </div>
+  );
+}
+
+// ── Mesaj alanı (v3 §9.1) ────────────────────────────────────────
+// Şablon seçimi ana akıştan çıktı. Metin doğrudan düzenlenebilir: draft_text
+// varsa o, yoksa "Taslak oluştur". Kopyala HİÇBİR ŞEY tetiklemez. Ana aksiyon
+// "Mesajı attım" → kanal sorulur (son kullanılan varsayılan) → sendTouch.
+function MessageArea({ c, save, flash, onSent }) {
+  const store = useHubStore();
+  const active = useMemo(() => store.templates.filter((t) => t.active), [store.templates]);
+  const [text, setText] = useState(c.draftText || '');
+  const [busy, setBusy] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const [showTpl, setShowTpl] = useState(false);
+  useEffect(() => { setText(c.draftText || ''); }, [c.id]); // eslint-disable-line
+
+  const commit = () => { if ((text || '') !== (c.draftText || '')) save({ draftText: text }); };
+
+  const runDraft = async () => {
+    if (!canDraftAI(c)) { flash('Veri yetersiz, elle yaz. Kaynak detayı / "neden bu kişi" / kanıt linki gerekli.'); return; }
+    setBusy(true);
+    try { const { text: t } = await generateDraft(c); setText(t); await save({ draftText: t }); flash('Taslak oluşturuldu.'); }
+    catch (e) { flash(e.message); }
+    setBusy(false);
+  };
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text || ''); flash('Panoya kopyalandı.'); }
+    catch { flash('Kopyalanamadı — metni elle seç.'); }
+  };
+
+  const markSent = async (channel) => {
+    setBusy(true);
+    try {
+      rememberChannel(channel);
+      if ((text || '') !== (c.draftText || '')) await save({ draftText: text });
+      const res = await store.sendTouch(c, { templateId: null, channel, personalization: (text || '').trim() || null });
+      setMarking(false);
+      onSent?.();
+      flash(res?.advanced ? 'Mesaj kaydedildi · aday "Temas"a geçti.' : 'Mesaj kaydedildi.');
+    } catch (e) { flash('Kaydedilemedi: ' + e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="hub-ai" style={{ marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+        <b>Mesaj</b>
+        {active.length > 0 && (
+          <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setShowTpl((v) => !v)}>Şablondan başla</button>
+        )}
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy || !canDraftAI(c)}
+            title={canDraftAI(c) ? '' : 'Veri yetersiz — elle yaz'} onClick={runDraft}>
+            {busy ? '…' : (text ? 'Yeniden yaz (AI)' : 'Taslak oluştur')}
           </button>
-        </div>
-        {c.draftText && <div style={{ marginTop: 6, fontSize: 13, color: 'var(--adm-text)' }}>{c.draftText}</div>}
+          <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={!text} onClick={copy}>Kopyala</button>
+        </span>
+      </div>
+
+      {showTpl && (
+        <select className="adm-input adm-select" style={{ marginBottom: 6 }} defaultValue=""
+          onChange={(e) => {
+            const tpl = active.find((t) => t.id === e.target.value);
+            if (tpl) { const b = fillTemplate(tpl.body, c); setText(b); save({ draftText: b }); setShowTpl(false); }
+          }}>
+          <option value="" disabled>Şablon seç…</option>
+          {active.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+      )}
+
+      <textarea className="adm-input adm-textarea" rows={7} value={text}
+        onChange={(e) => setText(e.target.value)} onBlur={commit}
+        placeholder="Mesaj metni — düzenleyebilirsin. AI taslağı için sağ üstteki düğme." />
+
+      <div style={{ marginTop: 8 }}>
+        {marking ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Hangi kanaldan?</span>
+            {TOUCH_CHANNELS.map((ch) => (
+              <button key={ch.value} className={`adm-btn adm-btn--sm ${ch.value === lastChannel() ? 'adm-btn--primary' : 'adm-btn--ghost'}`}
+                disabled={busy} onClick={() => markSent(ch.value)}>{ch.label}</button>
+            ))}
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={() => setMarking(false)}>Vazgeç</button>
+          </div>
+        ) : (
+          <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={() => setMarking(true)}>
+            <AIcon name="check" size={13} /> Mesajı attım
+          </button>
+        )}
       </div>
     </div>
   );
@@ -440,23 +510,19 @@ function ContactSection({ c, history }) {
   );
 }
 
-// ── Görüşme (rubrik + bayraklar) ──────────────────────────────────
+// ── Görüşme (rubrik + serbest not) — v3: kırmızı bayrak YOK ────────
 function InterviewSection({ c, save, role, openRole }) {
   const track = c.track || 'founder';
   const trialChk = canAdvance({ ...c, stage: 'interview' }, 'trial', { role, openRole });
-  const flagCount = (c.redFlags || []).length;
 
+  // Puanlar KİLİTLENMEZ — aynı butona tekrar basmak sıfırlar, farklıya basmak değiştirir.
   const setScore = (axisKey, n) => { const f = AXIS_FIELD[axisKey]; save({ [f]: c[f] === n ? null : n }); };
-  const toggleFlag = (key) => {
-    const cur = c.redFlags || [];
-    save({ redFlags: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] });
-  };
 
   return (
     <div>
       <h4 className="hub-h4">Rubrik</h4>
       <p style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginBottom: 12 }}>
-        {track === 'member' ? 'Üye' : 'Kurucu'} hattı eşiği: {thresholdText(track, openRole)}.
+        {track === 'member' ? 'Üye' : 'Kurucu'} hattı eşiği: {thresholdText(track, openRole)}. Puanları istediğin zaman değiştirebilirsin.
       </p>
       {RUBRIC_AXES.map((ax) => {
         // Üye hattında iletişim ekseni yalnızca rol needsCommunication ise istenir;
@@ -492,32 +558,10 @@ function InterviewSection({ c, save, role, openRole }) {
         {trialChk.ok ? 'Deneme eşiği sağlanıyor.' : (trialChk.reason || 'Deneme eşiği sağlanmıyor.')}
       </div>
 
-      <h4 className="hub-h4">
-        Kırmızı bayraklar {flagCount > 0 && <span className="hub-pill hub-pill--flag">{flagCount}</span>}
-      </h4>
-      {RED_FLAGS.map((f) => {
-        const on = (c.redFlags || []).includes(f.value);
-        return (
-          <div key={f.value} className="hub-flag">
-            <label className="hub-flag__top">
-              <input type="checkbox" checked={on} onChange={() => toggleFlag(f.value)} />
-              {f.label}
-            </label>
-            <div className="hub-flag__hint">{f.hint}</div>
-            {on && (
-              <textarea className="adm-input adm-textarea" rows={2} placeholder="Not…"
-                defaultValue={(c.flagNotes || {})[f.value] || ''}
-                onBlur={(e) => save({ flagNotes: { ...(c.flagNotes || {}), [f.value]: e.target.value } })} />
-            )}
-          </div>
-        );
-      })}
-
-      {flagCount >= THRESHOLD.blockAtRedFlags && (
-        <LField label="Override gerekçesi (yalnızca kurucu)" textarea
-          hint="2+ bayrakla Deneme'ye geçiş için zorunlu."
-          value={c.overrideReason} onCommit={(v) => save({ overrideReason: v })} />
-      )}
+      {/* A4 — kırmızı bayrakların yerine tek serbest not. Kararı insan verir. */}
+      <LField label="Görüşme notu" textarea value={c.interviewNote}
+        onCommit={(v) => save({ interviewNote: v })}
+        hint="Endişeler, izlenimler, açık sorular — serbest metin. İlerlemeyi engellemez." />
     </div>
   );
 }
@@ -713,86 +757,3 @@ function HistoryList({ history }) {
   );
 }
 
-// ── Mesaj taslağı ─────────────────────────────────────────────────
-// Sistem mesajı GÖNDERMEZ. "Kopyala" tek işlemde: panoya + hub_touches +
-// adayı Temas'a taşı + 7 gün takip + şablon sayacı. Kişiselleştirme satırı
-// zorunlu (boşken kopyalama devre dışı). draftText doluysa ön-doldurulur.
-function MessageComposer({ candidate, onDone, onCancel }) {
-  const { templates, sendTouch } = useHubStore();
-  const active = useMemo(() => templates.filter((t) => t.active), [templates]);
-  const [tplId, setTplId] = useState(() => {
-    const match = active.find((t) => t.sourceType === candidate.source);
-    return (match || active[0])?.id || '';
-  });
-  const tpl = active.find((t) => t.id === tplId);
-  const [personalization, setPersonalization] = useState(candidate.draftText || candidate.whyThisOne || '');
-  const [body, setBody] = useState('');
-  const [channel, setChannel] = useState('linkedin');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-
-  useEffect(() => { setBody(tpl ? fillTemplate(tpl.body, candidate) : ''); }, [tplId]); // eslint-disable-line
-
-  const canCopy = personalization.trim().length > 0 && !busy && active.length > 0;
-  // §5 — {{kisisellestirme}} / {{kişiselleştirme}} placeholder'ını gerçek metinle
-  // değiştir. Şablonda yoksa personalization'ı başa ekle (eski davranış).
-  const PH_RE = /\{\{\s*ki[şs]iselle[şs]tirme\s*\}\}/gi;
-  const hasPH = PH_RE.test(body);
-  const fullText = (hasPH
-    ? body.replace(/\{\{\s*ki[şs]iselle[şs]tirme\s*\}\}/gi, personalization.trim())
-    : `${personalization.trim()}\n\n${body}`
-  ).trim();
-
-  const copy = async () => {
-    if (!canCopy) return;
-    setBusy(true); setErr('');
-    try { await navigator.clipboard.writeText(fullText); } catch { /* pano izni yoksa yine kaydet */ }
-    try {
-      const res = await sendTouch(candidate, { templateId: tpl?.id || null, channel, personalization: personalization.trim() });
-      onDone(res?.advanced
-        ? 'Panoya kopyalandı · temas kaydedildi · aday "Temas"a geçti.'
-        : 'Panoya kopyalandı · temas kaydedildi.');
-    } catch (e) { setBusy(false); setErr('Temas kaydedilemedi: ' + e.message); }
-  };
-
-  return (
-    <div className="adm-modal-overlay" onClick={(e) => { e.stopPropagation(); onCancel(); }}>
-      <div className="adm-modal adm-modal--wide" onClick={(e) => e.stopPropagation()}>
-        <div className="adm-modal__header">
-          <h3>Mesaj taslağı</h3>
-          <button className="adm-icon-btn" onClick={onCancel}><AIcon name="x" size={18} /></button>
-        </div>
-        <div className="adm-modal__body">
-          {active.length === 0 && <div className="hub-ai" style={{ marginBottom: 12 }}>Aktif şablon yok — Şablonlar ekranından ekle.</div>}
-          <div className="adm-form-grid">
-            <Field label="Şablon">
-              <select className="adm-input adm-select" value={tplId} onChange={(e) => setTplId(e.target.value)}>
-                {active.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Kanal" required>
-              <select className="adm-input adm-select" value={channel} onChange={(e) => setChannel(e.target.value)}>
-                {TOUCH_CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-            </Field>
-          </div>
-          <Field label="Kişiselleştirme satırı" required hint="Somut esere atıf. BOŞKEN 'Kopyala' devre dışıdır.">
-            <textarea className="adm-input adm-textarea" rows={2} value={personalization}
-              onChange={(e) => setPersonalization(e.target.value)}
-              placeholder="Teknofest'te … projesiyle finale kaldı; GitHub'da canlı demo linki var." />
-          </Field>
-          <Field label="Gövde" hint="Şablondan dolduruldu — düzenleyebilirsin.">
-            <textarea className="adm-input adm-textarea" rows={7} value={body} onChange={(e) => setBody(e.target.value)} />
-          </Field>
-          {err && <div style={{ color: 'var(--adm-red)', fontSize: 13, marginBottom: 8 }}>{err}</div>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button className="adm-btn adm-btn--ghost" onClick={onCancel}>İptal</button>
-            <button className="adm-btn adm-btn--primary" disabled={!canCopy} onClick={copy}>
-              <AIcon name="save" size={14} /> Kopyala
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

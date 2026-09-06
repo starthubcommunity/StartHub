@@ -224,7 +224,7 @@ export function HubStoreProvider({ children }) {
         await updateItem('templates', templateId, { ...tpl, sentCount: (tpl.sentCount || 0) + 1 });
       }
     }
-    return { advanced: beforeContacted };
+    return { advanced: beforeContact };
   }, [addItem, advanceStage, updateItem, patchLocal, currentMember, data]);
 
   // "Cevap geldi" (v2 §2) — cevap durumu YALNIZCA hub_touches.outcome'da
@@ -248,6 +248,35 @@ export function HubStoreProvider({ children }) {
       }
     }
   }, [data, patchLocal, updateItem]);
+
+  // "Cevap geldi, görüşmeye geç" (PROMPT_V3 A2) — TEK aksiyon: son touch
+  // outcome'ı replied + aday interview aşamasına. hub_stage_log'a TEK satır
+  // (advanceStage'ten). Cevap ama görüşme ayarlanmadı diye ayrı durum yok.
+  const replyAndAdvance = useCallback(async (candidateId) => {
+    await markReplied(candidateId);
+    const cand = data.candidates.find((c) => c.id === candidateId);
+    if (cand && STAGE_ORDER.indexOf(cand.stage) < STAGE_ORDER.indexOf('interview')) {
+      await advanceStage(candidateId, 'interview', { reason: 'cevap geldi, görüşmeye geçildi' });
+    }
+  }, [data, markReplied, advanceStage]);
+
+  // Geri alma (PROMPT_V3 A3) — son aşama değişikliğini geri sarar. hub_stage_log
+  // zaten from_stage tutuyor. Eski satır SİLİNMEZ; reason:'geri alındı' ile YENİ
+  // satır yazılır. Kapı sonucu ve moveToTeam (stage=member) geri alınamaz.
+  const undoLastStage = useCallback(async (candidateId) => {
+    const cand = data.candidates.find((c) => c.id === candidateId);
+    if (!cand) return;
+    const logs = data.stageLog
+      .filter((l) => l.candidateId === candidateId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const last = logs[0];
+    if (!last) throw new Error('Geri alınacak bir aşama değişikliği yok.');
+    if (last.toStage !== cand.stage) throw new Error('Aşama bu arada başka bir işlemle değişmiş — geri alınamıyor.');
+    if (cand.stage === 'member') throw new Error('Ekibe alma geri alınamaz.');
+    const target = last.fromStage || 'pool';
+    const extra = cand.stage === 'archived' ? { archiveReason: null } : {};
+    await advanceStage(candidateId, target, { reason: 'geri alındı', extra });
+  }, [data, advanceStage]);
 
   // ── Kapılar (v2 §2.1–2.2) ─────────────────────────────────────
   // Kapı A/B ayrı AŞAMA değil — aday `trial`'da kalır, hub_gates satırı açılır.
@@ -456,7 +485,7 @@ export function HubStoreProvider({ children }) {
     addItem, updateItem, deleteItem, patchLocal,
     addCandidate, updateCandidate, deleteCandidate, patchCandidate,
     logStage, advanceStage, loadHistory,
-    sendTouch, markReplied,
+    sendTouch, markReplied, replyAndAdvance, undoLastStage,
     startGate, markGate, extendGate, moveToTeam,
     importCandidates, purgeCandidate,
     advanceRole, presentCandidate, ownerDecide, linkCandidateRole,

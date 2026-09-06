@@ -41,17 +41,9 @@ export const SOURCES = [
 ];
 export const SOURCE_LABEL = toLabelMap(SOURCES);
 
-// ─── Sonraki aksiyon (v2 §3 — 6 seçenek) ─────────────────────────────
-// Serbest metin DEĞİL: sabit liste.
-export const NEXT_ACTIONS = [
-  { value: 'message',            label: 'Mesaj at' },
-  { value: 'follow_up',          label: 'Takip et' },
-  { value: 'schedule_interview', label: 'Görüşme ayarla' },
-  { value: 'interview',          label: 'Görüş' },
-  { value: 'decide',             label: 'Karar ver' },
-  { value: 'start_gate',         label: 'Kapı başlat' },
-];
-export const NEXT_ACTION_LABEL = toLabelMap(NEXT_ACTIONS);
+// ─── Sonraki aksiyon (v3 §3 — TÜRETİLİR) ────────────────────────────
+// v3: elle seçilen alan kaldırıldı. Etiketler artık hub-rules.js
+// nextAction() içinde; sabit liste tutulmuyor.
 
 // ─── Arşiv sebepleri (v2 §2 — zorunlu) ───────────────────────────────
 export const ARCHIVE_REASONS = [
@@ -73,15 +65,10 @@ export const ROLE_TYPES = [
 ];
 export const ROLE_TYPE_LABEL = toLabelMap(ROLE_TYPES);
 
-// ─── Kırmızı bayraklar (v2 §2.3 — 6→4) ──────────────────────────────
-// Her bayrağın altında serbest not (candidate.flagNotes[key]).
-export const RED_FLAGS = [
-  { value: 'blame',       label: 'Sorumluluk atma',  hint: 'Geçmiş başarısızlıkları hep başkasına/duruma bağlıyor' },
-  { value: 'no_terms',    label: 'Şart sormadı',      hint: 'Hisse / şartlar / beklentiler hiç konuşulmadı' },
-  { value: 'unrealistic', label: 'Gerçekçi değil',    hint: 'Zaman planı, beklenti veya vaatler gerçekçi değil' },
-  { value: 'disrespect',  label: 'Saygısızlık',       hint: 'Görüşmede küçümseyen / saygısız tavır' },
-];
-export const RED_FLAG_LABEL = toLabelMap(RED_FLAGS);
+// ─── Kırmızı bayraklar — v3'te KALDIRILDI (PROMPT_V3 A4) ────────────
+// Yerine aday kartında tek serbest "Görüşme notu" alanı (interview_note).
+// DB kolonları (red_flags, flag_notes, override_reason) düşürülmedi; UI
+// yazmıyor. override_reason yalnızca aşama-atlama override'ında okunur.
 
 // ─── Rubrik (v2 §2.3) — üç eksen, her biri 1–5 ─────────────────────
 export const SCORE_MIN = 1;
@@ -115,9 +102,8 @@ export const TRACK_LABEL = toLabelMap(TRACKS);
 // Kurucu: toplam ≥ minTotal VE her eksen ≥ minAxis, iletişim ekseni zorunlu.
 // Üye: bitirmişlik ≥ minFinishing VE kapasite ≥ minCapacity; iletişim yalnızca
 //      rol needs_communication ise (eşik minCommunication).
-// Ortak: kırmızı bayrak < blockAtRedFlags (ya da cofounder + override).
+// v3: kırmızı bayrak kilidi kaldırıldı — blockAtRedFlags yok.
 export const THRESHOLD = {
-  blockAtRedFlags: 2,
   founder: { minTotal: 10, minAxis: 3 },
   member:  { minFinishing: 3, minCapacity: 3, minCommunication: 3 },
 };

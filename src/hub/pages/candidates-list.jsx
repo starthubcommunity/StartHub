@@ -4,8 +4,8 @@ import React, { useMemo, useState } from 'react';
 import { AIcon, PageHead } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { STAGE_LABEL, SOURCE_LABEL, NEXT_ACTION_LABEL, RED_FLAG_LABEL, ARCHIVE_REASONS } from '../hub-constants';
-import { thresholdMet, rubricComplete } from '../hub-rules';
+import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS } from '../hub-constants';
+import { thresholdMet, rubricComplete, nextAction } from '../hub-rules';
 import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
 import ImportSimple from './import-simple';
@@ -24,7 +24,7 @@ function ScorePill({ c }) {
 
 export default function CandidatesListPage({ filters, setFilters }) {
   const store = useHubStore();
-  const { candidates, members, loading } = store;
+  const { candidates, members, touches, gates, loading } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(null);   // 'one' | 'import' | null
@@ -96,15 +96,10 @@ export default function CandidatesListPage({ filters, setFilters }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <strong style={{ fontSize: 14, color: '#1C1917' }}>{c.fullName}</strong>
                   <span className="hub-pill hub-pill--stage">{STAGE_LABEL[c.stage] || c.stage}</span>
-                  {(c.redFlags || []).length > 0 && (
-                    <span className="hub-pill hub-pill--flag" title={(c.redFlags || []).map((k) => RED_FLAG_LABEL[k] || k).join(', ')}>
-                      ⚑ {(c.redFlags || []).length}
-                    </span>
-                  )}
                 </div>
                 <div style={{ fontSize: 12, color: '#A29D94', marginTop: 3 }}>
                   {SOURCE_LABEL[c.source] || c.source} · {memberName(c.ownerId)}
-                  {c.nextAction ? ` · ${NEXT_ACTION_LABEL[c.nextAction] || c.nextAction}` : ''}
+                  {(() => { const na = nextAction(c, touches, gates); return na ? ` · ${na.label}` : ''; })()}
                 </div>
               </div>
               <ScorePill c={c} />

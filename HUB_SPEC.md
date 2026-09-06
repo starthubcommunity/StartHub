@@ -80,10 +80,12 @@ tutulur, aşama olarak tekrar tutulmaz.
 
 ### 2.1 `canAdvance()` — v3'te sadeleşti
 
-- Sıra atlanamaz (kurucu + override hariç). Geri gitmek serbest.
+- Sıra atlanamaz (kurucu + `override_reason` hariç). Geri gitmek serbest.
 - Arşiv sebebi zorunlu.
-- **Kırmızı bayrak kilidi kaldırıldı.** Eşik hâlâ hesaplanır ve cümle olarak
-  gösterilir ("kapasite puanı düşük") ama **ilerlemeyi engellemez** — bilgi, kilit değil.
+- **Yalnızca kırmızı bayrak kilidi kaldırıldı.** Görüşme→Deneme geçişinde rubrik
+  tamlığı ve puan eşiği **hâlâ engelleyici kontroldür** — eşik cümlesi ("kapasite
+  puanı düşük") bilgi olarak da gösterilir. Kaldırılan tek şey: 2+ kırmızı bayrak
+  varken geçişin kilitlenmesi ve bunu açan cofounder override'ı.
 - `override_reason` / "cofounder override" mekanizması artık yalnızca **aşama
   atlama** için var (bayrak override'ı yok).
 
@@ -134,8 +136,8 @@ tekrar sorulmaz.
 - **Havuz:** tek link, kaynak detayı, **"neden bu kişi"** (zorunlu).
 - **Temas:** mesaj alanı (§9), takip tarihi, **"Cevap geldi, görüşmeye geç"** tek düğme.
 - **Görüşme:** rubrik butonları (her zaman düzenlenebilir) + **"Görüşme notu"** serbest alanı.
-  Eşik cümlesi bilgi amaçlı görünür, ilerlemeyi engellemez. Karar verilince
-  görüşme kararı maili hazır gelir (§9.2).
+  Eşik cümlesi görünür; rubrik/eşik Deneme'ye geçişi hâlâ kapılar (§2.1). Karar
+  verilince görüşme kararı maili hazır gelir (§9.2).
 - **Deneme:** aktif kapı kartı (§2.2).
 - **Ekipte:** hak ediş tarihi, **"Ekibe al"** (§9.4).
 

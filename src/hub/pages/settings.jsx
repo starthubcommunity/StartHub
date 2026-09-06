@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import {
-  HUB_ROLES, HUB_ROLE_LABEL, RUBRIC_AXES, RED_FLAGS, THRESHOLD, STALE, GATE,
+  HUB_ROLES, HUB_ROLE_LABEL, RUBRIC_AXES, THRESHOLD, STALE, GATE,
 } from '../hub-constants';
 
 const BLANK_MEMBER = { email: '', fullName: '', role: 'recruiter', startupIds: [], active: true };
@@ -142,15 +142,14 @@ export default function SettingsPage() {
         {RUBRIC_AXES.map((a) => <li key={a.value}><strong>{a.label}:</strong> {a.hint}</li>)}
         <li>Kurucu hattı eşiği: toplam ≥ {THRESHOLD.founder.minTotal}, her eksen ≥ {THRESHOLD.founder.minAxis}</li>
         <li>Üye hattı eşiği: bitirmişlik ≥ {THRESHOLD.member.minFinishing}, kapasite ≥ {THRESHOLD.member.minCapacity} (iletişim yalnızca rol gerektiriyorsa ≥ {THRESHOLD.member.minCommunication})</li>
-        <li>Ortak: kırmızı bayrak &lt; {THRESHOLD.blockAtRedFlags} (ya da kurucu + override)</li>
         <li>Bayatlama (istemcide isStale): {Object.entries(STALE).map(([k, v]) => `${k} ${v.warn}/${v.critical}g`).join(' · ')}</li>
         <li>Kapılar: A {GATE.aHours} saat · B {GATE.bDays} gün · uzatma +1/+3/+7 gün</li>
       </ul>
 
-      <h3 className="hub-h4" style={{ marginTop: 24 }}>Kırmızı bayrak listesi</h3>
-      <ul style={{ fontSize: 13, color: 'var(--adm-text-secondary)', margin: '0 0 4px 18px' }}>
-        {RED_FLAGS.map((f) => <li key={f.value}><strong>{f.label}</strong> — {f.hint}</li>)}
-      </ul>
+      <div className="hub-ai" style={{ marginTop: 16 }}>
+        <strong>v3:</strong> Kırmızı bayraklar kaldırıldı. Görüşme kararını insan verir;
+        aday kartında tek serbest “Görüşme notu” alanı var, ilerlemeyi kilitleyen bayrak yok.
+      </div>
 
       {/* ── Otomasyon ── */}
       <h3 className="hub-h4" style={{ marginTop: 28 }}>Otomasyon</h3>

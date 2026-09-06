@@ -62,7 +62,7 @@ export function thresholdText(track = 'founder', openRole = null) {
 
 // Hedefin kendi çıkış koşulu. Sıra kontrolü ayrı — canAdvance.
 function targetGate(c, toStage, ctx = {}) {
-  const { role = null, touchCount = null, openRole = null } = ctx;
+  const { touchCount = null, openRole = null } = ctx;
   const track = c.track || 'founder';
 
   switch (toStage) {
@@ -80,7 +80,8 @@ function targetGate(c, toStage, ctx = {}) {
     }
 
     case 'trial': {
-      // Görüşmenin "geçme kararı": rubrik + eşik + kırmızı bayrak kilidi.
+      // Görüşmenin "geçme kararı": rubrik + eşik. v3 (PROMPT_V3 A4):
+      // kırmızı bayrak kilidi kaldırıldı — kararı insan verir.
       if (!rubricCompleteFor(c, openRole))
         return {
           ok: false,
@@ -91,16 +92,6 @@ function targetGate(c, toStage, ctx = {}) {
           ok: false,
           reason: `Eşik sağlanmadı (${track === 'member' ? 'üye' : 'kurucu'} hattı): ${thresholdText(track, openRole)}.`,
         };
-      const flags = (c.redFlags || []).length;
-      if (flags >= THRESHOLD.blockAtRedFlags) {
-        const overridden = role === 'cofounder' && filled(c.overrideReason);
-        return overridden
-          ? { ok: true }
-          : {
-              ok: false,
-              reason: `${flags} kırmızı bayrak işaretli — yalnızca kurucu, gerekçe yazarak (override_reason) geçirebilir.`,
-            };
-      }
       return { ok: true };
     }
 
@@ -160,10 +151,6 @@ export function presentGate(candidate, openRole) {
   const track = c.track || 'founder';
   if (!thresholdMet(c, openRole)) {
     return { ok: false, reason: `Eşik sağlanmadı (${track === 'member' ? 'üye' : 'kurucu'} hattı): ${thresholdText(track, openRole)}.` };
-  }
-  const flags = (c.redFlags || []).length;
-  if (flags >= THRESHOLD.blockAtRedFlags) {
-    return { ok: false, reason: `${flags} kırmızı bayrak işaretli — sunulamaz.` };
   }
   return { ok: true };
 }
@@ -227,6 +214,52 @@ export function gateStatus(gate, now = Date.now()) {
   if (nowT < due) return 'running';
   if (nowT - due <= GATE_DUE_GRACE_MS) return 'due';
   return 'overdue';
+}
+
+// nextAction(candidate, touches, gates) -> { key, label } | null   (PROMPT_V3 A7)
+// v3: elle seçilen `next_action` alanı kaldırıldı. Sıradaki adım aşamadan +
+// temas/kapı durumundan TÜRETİLİR. Saf fonksiyon; UI ve liste bunu çağırır.
+//   Havuz                        → "mesaj at"
+//   Temas + cevap yok            → "takip et"
+//   Temas + cevap var            → "görüşme ayarla"
+//   Görüşme + puan eksik         → "görüş"
+//   Görüşme + puan tam           → "karar ver"
+//   Deneme + kapı yok            → "kapı başlat"
+//   Deneme + kapı sürüyor        → "sonucu bekle"
+//   Ekipte / arşiv               → null
+export function nextAction(candidate, touches = [], gates = []) {
+  const c = candidate || {};
+  const mine = (arr) => (arr || []).filter((x) => x.candidateId === c.id);
+
+  switch (c.stage) {
+    case 'pool':
+      return { key: 'message', label: 'Mesaj at' };
+
+    case 'contact': {
+      const ts = mine(touches).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+      const replied = ts.some((t) => t.outcome === 'replied');
+      return replied
+        ? { key: 'schedule_interview', label: 'Görüşme ayarla' }
+        : { key: 'follow_up', label: 'Takip et' };
+    }
+
+    case 'interview':
+      return rubricComplete(c)
+        ? { key: 'decide', label: 'Karar ver' }
+        : { key: 'interview', label: 'Görüş' };
+
+    case 'trial': {
+      const gs = mine(gates);
+      const running = gs.some((g) => g.result === 'pending');
+      if (running) return { key: 'await_result', label: 'Sonucu bekle' };
+      return gs.length === 0
+        ? { key: 'start_gate', label: 'Kapı başlat' }
+        : { key: 'await_result', label: 'Sonucu bekle' };
+    }
+
+    default:
+      return null;   // member / archived
+  }
 }
 
 // canDraftAI(candidate) -> boolean (v2 §7)

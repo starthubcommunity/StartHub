@@ -22,15 +22,20 @@ export default function NewCandidateModal({ onClose }) {
     { key: 'fullName', type: 'text', q: 'Adayın adı soyadı?', ph: 'Ada Yılmaz' },
     { key: 'link', type: 'text', q: 'Tek link (GitHub / LinkedIn / e-posta)?', ph: 'github.com/adayilmaz', optional: true, sub: 'Tip otomatik algılanır.' },
     { key: 'source', type: 'options', q: 'Kaynak?', options: SOURCES.map((s) => ({ value: s.value, label: s.label })) },
+    // A6 — "neden bu kişi" ZORUNLU (optional yok): AI taslağının ve eleme kararının tek girdisi
+    { key: 'whyThisOne', type: 'textarea', q: 'Neden bu kişi?', ph: 'Ne yapmış? Somut bir iş, proje veya sonuç yaz.',
+      sub: 'Sıfat değil, somut eser: repo / proje / yarışma / yazı / etkinlik.' },
     { key: 'ownerId', type: 'options', q: 'Kim sorumlu?', options: members.map((m) => ({ value: m.id, label: m.fullName || m.email })) },
   ], [members]);
 
   const submit = async (a) => {
     if (!String(a.fullName || '').trim()) throw new Error('Ad zorunlu.');
+    if (!String(a.whyThisOne || '').trim()) throw new Error('"Neden bu kişi" zorunlu.');
     await store.addCandidate({
       fullName: a.fullName.trim(),
       ...linkFields(a.link),
       source: a.source || 'referral',
+      whyThisOne: a.whyThisOne.trim(),
       ownerId: a.ownerId || null,
       stage: 'pool',
     });

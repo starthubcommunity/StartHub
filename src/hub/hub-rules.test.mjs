@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   canAdvance, thresholdMet, thresholdText, presentGate, roleStatusAfterReject,
   inheritedTrack, isStale, gateStatus, gateDueAt, canDraftAI, rubricComplete,
-  candidateVisible,
+  candidateVisible, nextAction,
 } from './hub-rules.js';
 import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
@@ -74,25 +74,12 @@ t('5-5-1 aday trial OLAMAZ (eşik)', () => {
   assert.equal(r.ok, false);
   assert.match(r.reason, /Eşik/);
 });
-t('5-5-5, bayraksız aday trial OLABİLİR', () => {
+t('5-5-5 aday trial OLABİLİR', () => {
   assert.equal(canAdvance(iv({ scoreFinishing: 5, scoreCommunication: 5, scoreCapacity: 5 }), 'trial').ok, true);
 });
-t('2 bayraklı aday, eşik tamam, recruiter → trial OLAMAZ', () => {
+t('v3: kırmızı bayrak kilidi YOK — eşiği geçen aday bayrak alanı ne olursa olsun trial OLABİLİR', () => {
+  // redFlags kolonu düşmedi ama artık hiçbir kontrol onu okumuyor.
   const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_terms'] });
-  const r = canAdvance(c, 'trial', { role: 'recruiter' });
-  assert.equal(r.ok, false);
-  assert.match(r.reason, /kırmızı bayrak/);
-});
-t('2 bayraklı aday, cofounder + override_reason → trial OLABİLİR', () => {
-  const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_terms'], overrideReason: 'Kurucu ekibinde ikinci kişi zaten bu riski dengeliyor.' });
-  assert.equal(canAdvance(c, 'trial', { role: 'cofounder' }).ok, true);
-});
-t('2 bayraklı aday, cofounder ama override_reason BOŞ → trial OLAMAZ', () => {
-  const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame', 'no_terms'], overrideReason: '   ' });
-  assert.equal(canAdvance(c, 'trial', { role: 'cofounder' }).ok, false);
-});
-t('1 bayrak eşiği bozmaz', () => {
-  const c = iv({ scoreFinishing: 5, scoreCommunication: 4, scoreCapacity: 4, redFlags: ['blame'] });
   assert.equal(canAdvance(c, 'trial', { role: 'recruiter' }).ok, true);
 });
 
@@ -113,11 +100,12 @@ t('üye hattı: TRIAL için bitirmişlik+kapasite yeter; kurucu hattı üç ekse
   assert.equal(r.ok, false);
   assert.match(r.reason, /[Rr]ubrik/);
 });
-t('presentGate: role bağlı + eşik + bayrak<2', () => {
-  assert.equal(presentGate({ track: 'member', ...SC, redFlags: [] }, null).ok, false);
-  assert.equal(presentGate({ track: 'member', ...SC, redFlags: [] }, { needsCommunication: false }).ok, true);
-  assert.equal(presentGate({ track: 'founder', ...SC, redFlags: [] }, { needsCommunication: false }).ok, false);
-  assert.equal(presentGate({ track: 'member', ...SC, redFlags: ['a', 'b'] }, { needsCommunication: false }).ok, false);
+t('presentGate: role bağlı + eşik (v3: bayrak kontrolü yok)', () => {
+  assert.equal(presentGate({ track: 'member', ...SC }, null).ok, false);
+  assert.equal(presentGate({ track: 'member', ...SC }, { needsCommunication: false }).ok, true);
+  assert.equal(presentGate({ track: 'founder', ...SC }, { needsCommunication: false }).ok, false);
+  // eskiden 2 bayrak sunumu engellerdi — v3'te engellemez
+  assert.equal(presentGate({ track: 'member', ...SC, redFlags: ['a', 'b'] }, { needsCommunication: false }).ok, true);
 });
 t('thresholdText hat bazında okunur', () => {
   assert.match(thresholdText('founder'), /toplam ≥ 10/);
@@ -245,6 +233,35 @@ t('canDraftAI: kaynak detayı / neden bu kişi / kanıt varsa true', () => {
   assert.equal(canDraftAI({ sourceDetail: 'Teknofest 2025 finalisti' }), true);
   assert.equal(canDraftAI({ whyThisOne: 'tid-ceviri projesini tek başına bitirmiş' }), true);
   assert.equal(canDraftAI({ evidence: [{ type: 'repo', url: 'https://github.com/x/y' }] }), true);
+});
+
+// ── nextAction: türetilen sonraki adım (PROMPT_V3 A7) ───────────
+t('nextAction: Havuz → mesaj at', () => {
+  assert.equal(nextAction({ id: 'c1', stage: 'pool' }).key, 'message');
+});
+t('nextAction: Temas + cevap yok → takip et', () => {
+  const touches = [{ candidateId: 'c1', sentAt: ago(1), outcome: 'pending' }];
+  assert.equal(nextAction({ id: 'c1', stage: 'contact' }, touches).key, 'follow_up');
+});
+t('nextAction: Temas + cevap var → görüşme ayarla', () => {
+  const touches = [
+    { candidateId: 'c1', sentAt: ago(3), outcome: 'pending' },
+    { candidateId: 'c1', sentAt: ago(1), outcome: 'replied' },
+  ];
+  assert.equal(nextAction({ id: 'c1', stage: 'contact' }, touches).key, 'schedule_interview');
+});
+t('nextAction: Görüşme + puan eksik → görüş; puan tam → karar ver', () => {
+  assert.equal(nextAction({ id: 'c1', stage: 'interview', scoreFinishing: 4 }).key, 'interview');
+  assert.equal(nextAction({ id: 'c1', stage: 'interview', scoreFinishing: 4, scoreCommunication: 4, scoreCapacity: 4 }).key, 'decide');
+});
+t('nextAction: Deneme + kapı yok → kapı başlat; kapı sürüyor → sonucu bekle', () => {
+  assert.equal(nextAction({ id: 'c1', stage: 'trial' }, [], []).key, 'start_gate');
+  const gates = [{ candidateId: 'c1', result: 'pending' }];
+  assert.equal(nextAction({ id: 'c1', stage: 'trial' }, [], gates).key, 'await_result');
+});
+t('nextAction: Ekipte / arşiv → null', () => {
+  assert.equal(nextAction({ id: 'c1', stage: 'member' }), null);
+  assert.equal(nextAction({ id: 'c1', stage: 'archived' }), null);
 });
 
 // ── candidateVisible: §10.2 aday okuma kapsamı ──────────────────
