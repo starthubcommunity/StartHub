@@ -355,32 +355,34 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, patchLocal, updateItem, logStage]);
 
-  // "Ekibe aktar" — aşama joined. joined_at + vesting_start_date KOLONLARI
-  // doldurulur (§6/0003); stage_log.reason'a da insan okusun diye yazılır
-  // ama kaynak artık kolondur. vesting_start_date = Kapı A'nın ilk günü,
-  // geriye dönük (§2.5).
+  // "Ekibe al" (C4) — gerçek team köprüsü, hub-move-to-team edge function'ı
+  // (servis rolü): aşama→member, people roster kaydı, startups.member_ids,
+  // invite-member(area:'team') + markalı davet maili, person_id geri yaz,
+  // rol→filled. Client-side RLS bu tabloların çoğunu yazamadığı için fonksiyon
+  // şart. Kısmi başarı → { warnings } döner; çağıran kullanıcıya gösterir.
+  // Dönüş: { vestingStart, steps, warnings }.
   const moveToTeam = useCallback(async (candidateId) => {
-    const gatesA = data.gates
-      .filter((g) => g.candidateId === candidateId && g.gate === 'A' && g.startedAt)
-      .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
-    const vestingStart = gatesA[0] ? String(gatesA[0].startedAt).slice(0, 10) : null;
-    const joinedAt = new Date().toISOString();
-    await advanceStage(candidateId, 'member', {
-      reason: vestingStart ? `hak ediş başlangıcı: ${vestingStart} (Kapı A ilk günü)` : 'ekibe aktarıldı',
-      extra: { joinedAt, vestingStartDate: vestingStart },
+    const { data: res, error } = await supabase.functions.invoke('hub-move-to-team', {
+      body: { candidateId },
     });
-    // Aday `member` olunca bağlı rol `filled` olur.
+    if (error || res?.error) {
+      throw new Error(error?.message || res?.error || 'Ekibe aktarılamadı.');
+    }
+    // Yerel cache'i tazele (fonksiyon DB'yi doğrudan değiştirdi).
     const cand = data.candidates.find((c) => c.id === candidateId);
-    if (cand?.openRoleId) {
-      const role = data.openRoles.find((r) => r.id === cand.openRoleId);
-      if (role && role.status !== 'filled') {
-        const patch = { status: 'filled', filledAt: joinedAt };
-        patchLocal('openRoles', role.id, patch);
-        await updateItem('openRoles', role.id, { ...role, ...patch });
+    if (cand) {
+      patchLocal('candidates', candidateId, {
+        stage: 'member',
+        joinedAt: new Date().toISOString(),
+        vestingStartDate: res?.vestingStart ?? null,
+        personId: res?.personId ?? cand.personId ?? null,
+      });
+      if (cand.openRoleId && res?.steps?.roleFilled) {
+        patchLocal('openRoles', cand.openRoleId, { status: 'filled', filledAt: new Date().toISOString() });
       }
     }
-    return vestingStart;
-  }, [data, advanceStage, patchLocal, updateItem]);
+    return { vestingStart: res?.vestingStart ?? null, steps: res?.steps || {}, warnings: res?.warnings || [] };
+  }, [data, patchLocal]);
 
   // ── Açık roller: durum makinesi (v2 §10.1 — talep akışı yok) ──
   const advanceRole = useCallback(async (roleId, toStatus, { assignTo } = {}) => {

@@ -158,6 +158,25 @@
    `channel='email'` kaydı.
 5. Eşik sağlanmayan adayda "Olumlu" düğmesi pasif, sebep görünür.
 
+## T12 — Kapı görev maili (C3)
+
+1. Deneme aşamasında "Kapı A başlat" → görev metni yaz, "Görevi mail ile gönder"
+   açık bırak → metni gözden geçir → "Mail gönder ve Kapı A'yı başlat".
+2. **Beklenen:** görev + son teslim tarihi adaya mail olarak gider (gerçek
+   kontrol), `hub_gates` kaydı `due_at` ile oluşur, `hub_touches`'a
+   `channel='email'` kaydı. Kutucuk kapatılırsa mail gitmez, kapı yine başlar.
+
+## T13 — Ekibe al (C4)
+
+1. Kapıları geçmiş bir adayda "Ekibe al".
+2. **Beklenen:** aday **Ekipte**, `hub_candidates.person_id` dolu; `people`'da
+   roster kaydı (`project_id` = startup); `startups.member_ids`'te `person_id`;
+   adaya **markalı davet maili** gider, linkten şifre belirleyip `/team/`'e
+   girebiliyor. Bir adım patlarsa "Kısmen aktarıldı — …" uyarısı çıkar (sessiz
+   yutma yok).
+3. ⚠️ `/team/` panelinin üye modeli `app_state` tabanlıysa 2-3. adım şemaya göre
+   güncellenecek (HUB_SPEC §9.4 açık soru).
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

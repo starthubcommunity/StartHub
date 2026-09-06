@@ -787,8 +787,16 @@ function TrialSection({ c }) {
 
   const toTeam = async () => {
     setBusy(true);
-    try { const v = await store.moveToTeam(c.id); flash(v ? `Ekibe aktarıldı · hak ediş başlangıcı ${v}.` : 'Ekibe aktarıldı.'); }
-    catch (e) { flash('Aktarılamadı: ' + e.message); }
+    try {
+      const r = await store.moveToTeam(c.id);
+      if (r.warnings?.length) {
+        flash('Kısmen aktarıldı — ' + r.warnings.join(' · '));
+      } else {
+        flash(r.vestingStart
+          ? `Ekibe alındı · hesap açıldı, davet gönderildi · hak ediş ${r.vestingStart}.`
+          : 'Ekibe alındı · hesap açıldı, davet gönderildi.');
+      }
+    } catch (e) { flash('Aktarılamadı: ' + e.message); }
     setBusy(false);
   };
 

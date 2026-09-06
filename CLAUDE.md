@@ -41,7 +41,9 @@ bir uçtan uca test) + `node src/hub/hub-rules.test.mjs`.
 `hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). Cron artık
 `0015_hub_cron.sql` (eski `_deferred/0004_hub_cron.sql` silindi) — Vault'ta
 `project_url` + `service_role_key` secret'ları ister. v3 migration'ları `0013`'ten
-devam eder; `drop column` yapılmaz (kolon UI'dan gizlenir).
+devam eder; `drop column` yapılmaz (kolon UI'dan gizlenir). Edge function'lar:
+`send-mail`, `invite-member`, `hub-ai-draft`, `hub-daily`, `hub-weekly`,
+`hub-move-to-team` (C4 — servis rolü, `people`/`startups`/auth köprüsü).
 
 ## Proje kuralları
 

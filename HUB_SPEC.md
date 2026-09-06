@@ -132,10 +132,11 @@ aşamasıyla uyuşmuyorsa geri alma sunulmaz.
   temizlenir, bağlı rol `filled → shortlist` + `filled_at` null olur,
   `hub_stage_log`'a `reason: 'ekibe alma geri alındı'`. **Onay diyaloğu**
   gösterilir (birden çok kayıt etkilenir).
-  > **C4 notu:** `moveToTeam` C4'te `people` kaydı açıp davet maili gönderecek.
-  > O noktada bu geri alma yetersiz kalır — C4 yapılırken ya geri alma "davet
-  > gönderilmeden önce" ile sınırlanır, ya da Team tarafını da geri alacak
-  > şekilde genişletilir.
+  > **C4 durumu:** `moveToTeam` artık `people` roster kaydı + `startups.member_ids`
+  > + auth hesabı + davet maili yapıyor (`hub-move-to-team` edge function). Geri
+  > alma **yalnızca Hub tarafını** geri sarar (aşama, `joined_at`,
+  > `vesting_start_date`, rol). Roster kaydı, takım üyeliği ve açılan hesap
+  > **elle** temizlenir. Team tarafını da geri alan bir akış ileride eklenebilir.
 - **Geri alınamaz:** kapı sonucu (`passed`/`failed`) — bu bir aşama değişikliği
   değil (`hub_gates` satırında tutulur), geri alma hedefi üretmez.
 
@@ -344,25 +345,38 @@ verilebilir. Gönderilen mail (davet **veya** ret) `hub_touches`'a
 `channel: 'email'`, `outcome: 'pending'`, `note: <konu>` kaydı olarak düşer.
 Aşama değişmeden önce mail gönderilir — mail patlarsa aşama değişmez.
 
-### 9.3 Kapı A/B görev maili
+### 9.3 Kapı A/B görev maili  *(C3)*
 
-Kapı başlatılırken "Görevi mail ile gönder" seçeneği: görev metni + son teslim
-tarihi mailde gider, `startGate` aynı anda çalışır (süre mail gönderilince
-başlar). Mail gönderilmeden de kapı başlatılabilir (elden iletildiyse).
+`GateStartForm` (Kapı A ve B başlatma): görev metni + **"Görevi mail ile
+gönder"** kutucuğu (aday e-postası varsa varsayılan açık) + düzenlenebilir
+konu/metin. Metin boş bırakılırsa görev + son teslim tarihinden otomatik
+oluşturulur. Tek akış:
+- Mail açık → `sendCandidateMail` (`send-mail` + `hub_touches` `channel:'email'`)
+  sonra `startGate`. `due_at` bu anda hesaplanır — süre mail gönderilince başlar.
+- Mail kapalı / e-posta yok → yalnızca `startGate` (görev elden iletildi).
 
-### 9.4 "Ekibe al" — gerçek team entegrasyonu
+### 9.4 "Ekibe al" — gerçek team entegrasyonu  *(C4 — kısmen şemaya bağlı)*
 
-`moveToTeam` bugün sadece aşamayı `member` yapıyor. v3'te tek düğme sırayla:
-1. `people` kaydı oluştur (Team app tablosu) — ad, e-posta, `startup_id`
-2. İlgili takıma üye olarak ekle (rol: member)
-3. `invite-member` fonksiyonunu `area: 'team'` ile çağır → hesap açılır, markalı
-   şifre belirleme maili gider
-4. `hub_candidates.person_id`'yi geri yaz (kolon yoksa ekle)
+`moveToTeam` → **`hub-move-to-team` edge function** (servis rolü; client RLS
+`people`/`startups` yazamaz). Adımlar, her biri ayrı `try/catch`, patlayan adım
+`warnings`e:
+1. Aşama → `member` (+ `joined_at`, `vesting_start_date` = Kapı A ilk günü)
+2. `people` roster kaydı — `name`, `role_tr/en` = rol başlığı, `type='project_member'`,
+   `project_id` = rolün `startup_id`'si. **`people`'da e-posta kolonu yok** —
+   roster kimliği; `people.id` identity'siz olabilir (max+1 fallback).
+3. `startups.member_ids` dizisine `people.id` eklenir
+4. `invite-member` (`area:'team'`) → auth hesabı + tek kullanımlık link;
+   markalı davet maili `send-mail` ile gider
+5. `hub_candidates.person_id` geri yazılır (kolon: 0016), bağlı rol → `filled`
 
-**Team tablo yapısı varsayılmaz — önce incelenir.** Adımlardan biri patlarsa
-kısmi durum kullanıcıya gösterilir ("hesap açıldı, takıma eklenemedi"), sessizce
-yutulmaz. `moveToTeam` C4 öncesi geri alınabilir (§2.4); C4 sonrası geri alma
-kapsamı C4 ile birlikte gözden geçirilir.
+Yetki: fonksiyon çağıranın JWT'siyle `hub_role()` kontrol eder (cofounder/recruiter).
+Kısmi durum kullanıcıya gösterilir ("Kısmen aktarıldı — …"), sessizce yutulmaz.
+
+> **Açık soru (şema):** `/team/` paneli üyelerini `people` + `startups.member_ids`
+> üzerinden mi okuyor, yoksa `app_state` JSON'undan mı? `people` tablosu
+> pazarlama sitesi roster'ı gibi görünüyor (e-posta yok). "Giriş yapıp takımını
+> görme" kabul kriteri bu cevaba bağlı — netleşince 2-3. adımlar güncellenecek.
+> `app_state`'e derin bağlanma yapılmaz (CLAUDE.md).
 
 ### 9.5 Inbound bağlantısı
 
