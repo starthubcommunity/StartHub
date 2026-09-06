@@ -11,6 +11,7 @@ import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { SOURCES } from '../hub-constants';
 import { parsePastedText, findDuplicate } from '../hub-parse';
+import BulkDraft from '../components/bulk-draft';
 
 const SAMPLE = `1. Ada Yılmaz — github.com/adayilmaz — İTÜ Bilgisayar Müh.
 2. Mert Kaya - mert@ornek.com - Boğaziçi Üniversitesi
@@ -80,7 +81,7 @@ export default function PasteImport({ onClose }) {
         },
         payload,
       );
-      setDone({ created: created.length, updated: updated.length });
+      setDone({ created, updated: updated.length });
     } catch (e) { setErr(e.message || 'Eklenemedi.'); setBusy(false); }
   };
 
@@ -92,10 +93,11 @@ export default function PasteImport({ onClose }) {
         {done != null ? (
           <div className="hub-wz__done">
             <h3>
-              {done.created} aday havuza eklendi
+              {done.created.length} aday havuza eklendi
               {done.updated > 0 ? ` · ${done.updated} mevcut kart güncellendi` : ''}.
             </h3>
-            <button className="hub-wz__next" style={{ margin: '0 auto' }} onClick={onClose}>Kapat</button>
+            {done.created.length > 0 && <BulkDraft candidates={done.created} />}
+            <button className="hub-wz__next" style={{ margin: '10px auto 0' }} onClick={onClose}>Kapat</button>
           </div>
         ) : (<>
           <div className="hub-wz__head">

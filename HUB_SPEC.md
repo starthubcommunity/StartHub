@@ -294,8 +294,10 @@ ekranda, input odaktayken devre dışı.
 **Tekli:** kartta mesaj alanında "Taslak oluştur / Yeniden yaz (AI)" → tek API
 çağrısı → `draft_text` → insan düzenler.
 
-**Toplu:** içe aktarma sonrası **"Hepsine taslak oluştur"** → tarayıcıda sırayla,
-ilerleme çubuğuyla, ayrı kuyruk/worker yok.
+**Toplu:** içe aktarma (yapıştır + CSV) sonuç ekranında **"N adaya taslak
+oluştur (AI)"** (`components/bulk-draft.jsx`) → tarayıcıda `for` döngüsüyle
+sırayla, ilerleme çubuğu, ayrı kuyruk/worker yok. `canDraftAI()` geçmeyen aday
+atlanır ("… atlandı — veri yetersiz").
 
 **Girdi (v3):** `whyThisOne` ve `sourceDetail` **birincil kaynak**. GitHub verisi
 varsa ek girdi, zorunlu değil. Sistem promptundaki "somut bir esere atıf yap"

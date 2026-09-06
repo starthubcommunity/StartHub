@@ -28,9 +28,12 @@ LinkedIn/e-posta ile atılacak ilk mesajın SADECE kişiselleştirme cümlesini 
 
 Kurallar:
 - TEK cümle, en fazla 30 kelime. Türkçe.
-- Adayın SOMUT bir eserine atıf yap ve mümkünse verilen sayısal ayrıntıyı
-  kullan (repo adı + yıldız sayısı, kullanılan dil, ne kadar güncel olduğu,
-  bitmiş proje sayısı). Verilen bilgide somut bir şey yoksa "" (boş string) döndür.
+- BİRİNCİL kaynak: "Neden bu kişi" ve "Kaynak detayı" alanları. Adayın SOMUT bir
+  eserine/işine atıf yap — bu bir GitHub reposu OLMAK ZORUNDA DEĞİL: bir proje,
+  yarışma/hackathon derecesi, hibe başvurusu, etkinlik operasyonu, yayın/yazı,
+  ürün de olabilir. Verilen sayısal ayrıntı varsa kullan.
+- GitHub sinyalleri (varsa) yalnızca EK bağlamdır; yoksa da spesifik bir cümle yaz.
+- Verilen bilgide hiçbir somut şey yoksa "" (boş string) döndür.
 - Sıfat kullanma ("yetenekli", "başarılı", "etkileyici" YASAK). Ne yaptığını söyle.
 - Şablon hissi verme. "Profilinizi inceledim" gibi klişe yok.
 - Selamlama, imza, "merhaba" YOK — yalnızca o tek cümle.
@@ -61,12 +64,14 @@ serve(async (req) => {
 
     const userMsg = [
       `Ad: ${fullName || "(bilinmiyor)"}`,
-      sourceDetail ? `Kaynak detayı: ${sourceDetail}` : null,
+      `--- BİRİNCİL ---`,
       whyThisOne ? `Neden bu kişi: ${whyThisOne}` : null,
-      link ? `Link: ${link}` : null,
+      sourceDetail ? `Kaynak detayı: ${sourceDetail}` : null,
       Array.isArray(evidence) && evidence.length
-        ? `Kanıt (link — not: yıldız / dil / güncellik):\n${evidence.map((e: string) => `  - ${e}`).join("\n")}`
+        ? `Bağlantılar (link — not):\n${evidence.map((e: string) => `  - ${e}`).join("\n")}`
         : null,
+      link ? `Link: ${link}` : null,
+      (Array.isArray(signals) && signals.length) || aiScoreNote ? `--- EK (varsa) ---` : null,
       Array.isArray(signals) && signals.length
         ? `GitHub sinyalleri: ${signals.join(" · ")}`
         : null,

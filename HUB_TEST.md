@@ -210,6 +210,17 @@
    kayıt açılmaz.
 6. CSV içe aktarmada da aynı "Tekrar" sütunu çalışır.
 
+## T16 — AI taslağı: "neden bu kişi"den + toplu (Blok D — D4)
+
+1. **Tekli:** GitHub'ı olmayan, "neden bu kişi"si dolu bir adayın kartında
+   "Taslak oluştur" → anlamlı, spesifik bir cümle (o esere/işe atıf, sıfat yok).
+2. **Toplu:** Yapıştır ve ekle ile 10-20 aday ekle → sonuç ekranında
+   **"N adaya taslak oluştur (AI)"** → ilerleme çubuğu dolar, taslaklar
+   `draft_text`'e yazılır. "neden bu kişi"si olmayan/veri yetersiz olan atlanır
+   ("… atlandı — veri yetersiz").
+3. **Beklenen:** hiçbir taslak otomatik gönderilmez; hepsi kartta düzenlenebilir.
+   `HUB_GEMINI_API_KEY` yoksa net hata.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı
