@@ -38,9 +38,10 @@ bir uçtan uca test) + `node src/hub/hub-rules.test.mjs`.
 `src/hub/components/{saved-views,unknowable}.jsx`.
 
 **Düşen tablolar (0010):** `hub_views`, `hub_import_batches`. **Ölü ama duruyor:**
-`hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). `0004_hub_cron.sql`
-→ `supabase/migrations/_deferred/` — v3 §12.1'de deploy edilir. v3 migration'ları
-`0013`'ten devam eder; `drop column` yapılmaz (kolon UI'dan gizlenir).
+`hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). Cron artık
+`0015_hub_cron.sql` (eski `_deferred/0004_hub_cron.sql` silindi) — Vault'ta
+`project_url` + `service_role_key` secret'ları ister. v3 migration'ları `0013`'ten
+devam eder; `drop column` yapılmaz (kolon UI'dan gizlenir).
 
 ## Proje kuralları
 

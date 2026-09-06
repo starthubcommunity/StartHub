@@ -131,6 +131,19 @@
 5. Aynı e-posta Hub'da zaten varsa → "Bu e-posta zaten Hub'da bir adayda kayıtlı"
    uyarısı, kayıt açılmaz.
 
+## T10 — Gece / haftalık işler (Blok C — C1, operasyonel)
+
+1. `supabase functions invoke hub-daily` (veya Dashboard'dan) — elle tetikle.
+   **Beklenen:** JSON `{ ok:true, followUpsCreated, archivedNoReply, gatesFailed,
+   staleInterview }` — sayılar veri durumuna uygun (contact aşamasında bekleyen
+   varsa > 0). `contact`/`interview`/`trial` aşama adları kullanılıyor.
+2. `supabase functions invoke hub-weekly` — **Beklenen:** aktif cofounder'lara
+   özet maili gider (`sent[].status = 200`), satırlar `interview`/`trial`/
+   `member` sayıları.
+3. İkisi de doğrulanınca: Vault'a `project_url` + `service_role_key` secret'ları
+   ekle → `0015_hub_cron.sql` çalıştır → `select jobname,active from cron.job
+   where jobname like 'hub-%'` iki aktif job göstermeli.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

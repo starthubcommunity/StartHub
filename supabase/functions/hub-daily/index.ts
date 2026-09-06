@@ -2,11 +2,14 @@
 // Gece 03:00 (pg_cron — bkz. supabase/migrations/0004_hub_cron.sql).
 // Elle de tetiklenebilir: supabase.functions.invoke("hub-daily").
 //
-// Yaptıkları (HUB_SPEC §10):
-//  1. contacted aşamasında takibi geçmiş adaylara otomatik takip görevi üretir
+// Yaptıkları (HUB_SPEC §12.1):
+//  1. contact aşamasında takibi geçmiş adaylara otomatik takip görevi üretir
 //  2. İKİNCİ takipten sonra hâlâ sessiz olanları archived / no_reply yapar
-//  3. interviewed'da 5 günü aşan kartları raporlar (kırmızı işaret UI'da canlı)
+//  3. interview'da 5 günü aşan kartları raporlar (bayatlama UI'da canlı)
 //  4. süresi dolan, teslim işaretlenmemiş kapıları failed yapar
+//
+// ⚠️ Aşama değerleri 0011 ile değişti: contacted→contact, interviewed→interview,
+// finalist/gate_a/gate_b→trial, joined→member. Bu fonksiyon YENİ değerleri kullanır.
 //
 // ⚠️ Otomatik AŞAMA kararı YALNIZCA no_reply arşivlemesidir. Kapı "failed"
 // olmak aday aşamasını DEĞİŞTİRMEZ — sıradaki adımı insan verir. Sistem
@@ -34,11 +37,11 @@ serve(async (req) => {
 
   const now = Date.now();
   const nowIso = new Date().toISOString();
-  const report = { followUpsCreated: 0, archivedNoReply: 0, gatesFailed: 0, staleInterviewed: 0 };
+  const report = { followUpsCreated: 0, archivedNoReply: 0, gatesFailed: 0, staleInterview: 0 };
 
-  // ── 1 + 2: contacted bayatlığı ─────────────────────────────────
+  // ── 1 + 2: contact bayatlığı ─────────────────────────────────
   const { data: contacted } = await db
-    .from("hub_candidates").select("id").eq("stage", "contacted");
+    .from("hub_candidates").select("id").eq("stage", "contact");
 
   for (const c of contacted ?? []) {
     const { data: touches } = await db
@@ -67,18 +70,18 @@ serve(async (req) => {
         stage: "archived", archive_reason: "no_reply", stage_changed_at: nowIso,
       }).eq("id", c.id);
       await db.from("hub_stage_log").insert({
-        candidate_id: c.id, from_stage: "contacted", to_stage: "archived",
+        candidate_id: c.id, from_stage: "contact", to_stage: "archived",
         reason: "otomatik: ikinci takipten sonra cevap yok",
       });
       report.archivedNoReply++;
     }
   }
 
-  // ── 3: interviewed 5 günü aşanlar (yalnızca sayım) ─────────────
+  // ── 3: interview 5 günü aşanlar (yalnızca sayım) ──────────────
   const { data: interv } = await db
-    .from("hub_candidates").select("id, stage_changed_at").eq("stage", "interviewed");
+    .from("hub_candidates").select("id, stage_changed_at").eq("stage", "interview");
   for (const c of interv ?? []) {
-    if (c.stage_changed_at && now - Date.parse(c.stage_changed_at) > 5 * DAY) report.staleInterviewed++;
+    if (c.stage_changed_at && now - Date.parse(c.stage_changed_at) > 5 * DAY) report.staleInterview++;
   }
 
   // ── 4: süresi dolan kapılar → failed (teslim işaretlenmemişse) ─

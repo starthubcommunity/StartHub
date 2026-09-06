@@ -45,14 +45,16 @@ serve(async (req) => {
   const perFounder = new Map<string, number>();
   for (const t of newTouches) if (t.sender_id) perFounder.set(t.sender_id, (perFounder.get(t.sender_id) ?? 0) + 1);
 
+  // Aşama değerleri 0011 ile değişti: interviewed→interview, finalist/gate_*→trial,
+  // joined→member.
   const lines = [
     `Bu hafta (${since.slice(0, 10)}'den beri)`,
     `— Havuza yeni aday: ${newCands.length}`,
     `— Yeni temas: ${newTouches.length}`,
     `— Cevap: ${replies}`,
-    `— Görüşmeye geçen: ${toStage("interviewed")}`,
-    `— Finalist olan: ${toStage("finalist")}`,
-    `— Ekibe katılan: ${toStage("joined")}`,
+    `— Görüşmeye geçen: ${toStage("interview")}`,
+    `— Denemeye geçen: ${toStage("trial")}`,
+    `— Ekibe katılan: ${toStage("member")}`,
     `— Arşivlenen: ${toStage("archived")}`,
   ];
   const body = lines.join("\n");

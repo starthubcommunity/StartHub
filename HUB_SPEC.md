@@ -439,13 +439,14 @@ Haftalık hedef: Havuza 10, Temasa 6.
 Mevcut altyapı: `supabase/functions/send-mail` (Resend),
 `invite-member` (`area: 'team' | 'admin' | 'hub'`). **Yeni mail altyapısı kurulmaz.**
 
-### 12.1 Gece / haftalık işler
+### 12.1 Gece / haftalık işler  *(C1 — kod hazır, cron kurulumu elle)*
 
-`hub-daily` + `hub-weekly` yazılmış, zamanlanmamış. Elle tetikle, çıktı doğrula,
-`hub-daily` içindeki aşama adlarını 0011 ile gelen değerlere göre düzelt
-(`contacted` → `contact`, `interviewed` → `interview`). `0004_hub_cron.sql`'i
-`_deferred/`'den çıkar, `<PROJECT_REF>` doldur, servis anahtarını Vault'tan oku,
-deploy et.
+`hub-daily` + `hub-weekly` aşama adları 0011'e göre düzeltildi
+(`contacted`→`contact`, `interviewed`→`interview`, `finalist`/`gate_*`→`trial`,
+`joined`→`member`). Cron `0015_hub_cron.sql` ile kurulur (eski
+`_deferred/0004_hub_cron.sql` silindi): Vault'a `project_url` +
+`service_role_key` secret'ları eklenir, önce fonksiyonlar elle tetiklenip
+gerçek sayı döndürdüğü doğrulanır, sonra migration çalıştırılır.
 
 `hub-daily` sorumlulukları: süresi gelen takipleri üret; `no_reply` adayları
 arşivle; süresi geçen kapıları `failed` yap; **KVKK: `retain_until` geçmiş ve
@@ -504,7 +505,7 @@ Migration'lar **`0013`'ten** devam eder. Her migration idempotent (`if not exist
 `drop … if exists`) ve tek konulu. `drop column` yapılmaz — kolon UI'dan gizlenir,
 gerçek drop ayrı migration'da ve teyitle.
 
-`0004_hub_cron.sql` §12.1'de deploy edilir. RLS politikaları değişmeden kalır.
+`0015_hub_cron.sql` §12.1'de kurulur. RLS politikaları değişmeden kalır.
 
 ---
 
