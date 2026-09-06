@@ -548,7 +548,7 @@ function DecisionMail({ kind, c, role, openRole, onCancel, onDone, flash }) {
     if (kind === 'invite' && !trialChk.ok) { setErr(trialChk.reason || 'Eşik sağlanmıyor.'); return; }
     setBusy(true); setErr('');
     try {
-      if (sendMail && c.email) await store.sendDecisionMail(c, { subject: subject.trim(), body: body.trim() });
+      if (sendMail && c.email) await store.sendCandidateMail(c, { subject: subject.trim(), body: body.trim() });
       if (kind === 'invite') {
         await store.advanceStage(c.id, 'trial', { reason: 'görüşme geçti — denemeye davet' });
       } else {
@@ -694,6 +694,85 @@ function InterviewSection({ c, save, role, openRole, flash, onDone }) {
   );
 }
 
+// ── Kapı başlatma + "Görevi mail ile gönder" (C3) ────────────────
+// Tek akış: görev metni + (opsiyonel) mail. Mail gönderilince süre başlar
+// (due_at bu anda hesaplanır); mail atlanırsa kapı yine başlar.
+function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
+  const store = useHubStore();
+  const hours = gate === 'A' ? GATE.aHours : GATE.bDays * 24;
+  const durLabel = gate === 'A' ? '72 saat' : '10 gün';
+  const [taskText, setTaskText] = useState('');
+  const [sendMail, setSendMail] = useState(!!c.email);
+  const [subject, setSubject] = useState(`Start-Hub — Kapı ${gate} görevi`);
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const dueLabel = new Date(Date.now() + hours * 3600000).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' });
+  // Metni görev + son teslim ile canlı tut (kullanıcı elle değiştirmediyse).
+  const autoBody = `Merhaba ${c.fullName || ''},\n\nDeneme adımına geçtik. Kapı ${gate} görevin:\n\n${taskText.trim() || '(görev metni ayrıca paylaşılacak)'}\n\nSon teslim: ${dueLabel}\n\nSorun olursa yaz.\n\nStart-Hub`;
+  const effectiveBody = body.trim() ? body : autoBody;
+
+  const start = async () => {
+    setBusy(true); setErr('');
+    try {
+      const dueAt = new Date(Date.now() + hours * 3600000).toISOString();
+      if (sendMail && c.email) {
+        await store.sendCandidateMail(c, { subject: subject.trim(), body: effectiveBody.trim() });
+      }
+      await store.startGate(c, gate, {
+        taskText: taskText.trim() || null,
+        dueAt,
+        startupId: c.startupId || null,
+      });
+      onStarted?.();
+      flash?.(sendMail && c.email ? `Kapı ${gate} başladı · görev maili gönderildi.` : `Kapı ${gate} başladı.`);
+      onCancel();
+    } catch (e) { setErr(e.message || 'Başlatılamadı.'); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="hub-ai" style={{ marginTop: 8 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>Kapı {gate} başlat ({durLabel})</div>
+      <Field label="Görev metni" hint="Adaya olduğu gibi gider. Boş bırakılabilir.">
+        <textarea className="adm-input adm-textarea" rows={3} value={taskText}
+          onChange={(e) => setTaskText(e.target.value)}
+          placeholder="Ör. Sektörden 3 kişiyle konuş, kısa notlarını getir." />
+      </Field>
+
+      {c.email ? (
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, margin: '4px 0 8px' }}>
+          <input type="checkbox" checked={sendMail} onChange={(e) => setSendMail(e.target.checked)} />
+          Görevi {c.email} adresine mail ile gönder
+        </label>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '4px 0 8px' }}>
+          Adayın e-postası yok — görev elden iletilecek.
+        </div>
+      )}
+
+      {sendMail && c.email && (
+        <>
+          <Field label="Konu"><input className="adm-input" value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
+          <Field label="Mail metni" hint="Boş bırakırsan görev + son teslim tarihinden otomatik oluşturulur.">
+            <textarea className="adm-input adm-textarea" rows={7} value={body}
+              onChange={(e) => setBody(e.target.value)} placeholder={autoBody} />
+          </Field>
+        </>
+      )}
+
+      {err && <div style={{ fontSize: 12, color: 'var(--adm-red)', marginBottom: 8 }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={start}>
+          {busy ? '…' : (sendMail && c.email ? `Mail gönder ve Kapı ${gate}'yı başlat` : `Kapı ${gate}'yı başlat`)}
+        </button>
+        <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={onCancel}>Vazgeç</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Deneme (Kapı A / B) ───────────────────────────────────────────
 function TrialSection({ c }) {
   const store = useHubStore();
@@ -706,18 +785,6 @@ function TrialSection({ c }) {
   const [wiz, setWiz] = useState(null);   // 'startA' | 'startB' | { extend: gateId }
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
-  const startA = async (a) => {
-    await store.startGate(c, 'A', {
-      taskText: String(a.taskText || '').trim() || null,
-      dueAt: new Date(Date.now() + GATE.aHours * 3600000).toISOString(),
-    });
-  };
-  const startB = async () => {
-    await store.startGate(c, 'B', {
-      dueAt: new Date(Date.now() + GATE.bDays * 86400000).toISOString(),
-      startupId: c.startupId || null,
-    });
-  };
   const toTeam = async () => {
     setBusy(true);
     try { const v = await store.moveToTeam(c.id); flash(v ? `Ekibe aktarıldı · hak ediş başlangıcı ${v}.` : 'Ekibe aktarıldı.'); }
@@ -733,7 +800,9 @@ function TrialSection({ c }) {
         <div className="hub-gate">
           <strong>Kapı A</strong>
           <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '2px 0 8px' }}>72 saatlik tek çıktılı görev.</div>
-          <button className="hub-wz__next" style={{ margin: 0 }} onClick={() => setWiz('startA')}>Kapı A başlat</button>
+          {wiz === 'startA'
+            ? <GateStartForm c={c} gate="A" flash={flash} onStarted={() => {}} onCancel={() => setWiz(null)} />
+            : <button className="hub-wz__next" style={{ margin: 0 }} onClick={() => setWiz('startA')}>Kapı A başlat</button>}
         </div>
       )}
       {gateA && <GateCard gate={gateA} onMark={(p) => store.markGate(gateA.id, p)} onExtend={() => setWiz({ extend: gateA.id })} />}
@@ -742,7 +811,9 @@ function TrialSection({ c }) {
         <div className="hub-gate">
           <strong>Kapı B</strong>
           <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', margin: '2px 0 8px' }}>10 günlük ilk sprint.</div>
-          <button className="hub-wz__next" style={{ margin: 0 }} onClick={() => setWiz('startB')}>Kapı B başlat</button>
+          {wiz === 'startB'
+            ? <GateStartForm c={c} gate="B" flash={flash} onStarted={() => {}} onCancel={() => setWiz(null)} />
+            : <button className="hub-wz__next" style={{ margin: 0 }} onClick={() => setWiz('startB')}>Kapı B başlat</button>}
         </div>
       )}
       {gateB && <GateCard gate={gateB} onMark={(p) => store.markGate(gateB.id, p)} onExtend={() => setWiz({ extend: gateB.id })} />}
@@ -754,16 +825,6 @@ function TrialSection({ c }) {
       )}
       {msg && <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginTop: 8 }}>{msg}</div>}
 
-      {wiz === 'startA' && (
-        <HubWizard title="Kapı A" onCancel={() => setWiz(null)} submitLabel="Başlat (72 saat)"
-          steps={[{ key: 'taskText', type: 'textarea', q: 'Kapı A görevi nedir?', ph: 'Ör. Sektörden 3 kişiyle konuş, kısa notlarını getir.', optional: true, sub: 'Metin adaya olduğu gibi gider.' }]}
-          onComplete={startA} />
-      )}
-      {wiz === 'startB' && (
-        <HubWizard title="Kapı B" onCancel={() => setWiz(null)} submitLabel="Başlat (10 gün)"
-          steps={[{ key: 'ok', type: 'options', q: '10 günlük ilk sprint başlasın mı?', options: [{ value: 'yes', label: 'Evet, Kapı B\'yi başlat' }] }]}
-          onComplete={startB} />
-      )}
       {wiz && wiz.extend && (
         <HubWizard title="Süre uzat" onCancel={() => setWiz(null)} submitLabel="Uzat"
           steps={[{ key: 'days', type: 'options', q: 'Ne kadar uzatılsın?', sub: 'Sistem otomatik not düşer.',

@@ -296,10 +296,10 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, advanceStage, patchLocal, updateItem]);
 
-  // C2 — görüşme kararı maili. OTOMATİK DEĞİL: kullanıcı metni onaylayıp bu
-  // fonksiyonu çağırır. send-mail (Resend) üzerinden gider; gönderilen mail
-  // hub_touches'a channel:'email' kaydı olarak düşer (ret + davet ikisi de).
-  const sendDecisionMail = useCallback(async (candidate, { subject, body }) => {
+  // C2 / C3 — adaya giden onaylı mail (görüşme kararı, Kapı görevi …).
+  // OTOMATİK DEĞİL: kullanıcı metni onaylayıp çağırır. send-mail (Resend)
+  // üzerinden gider; gönderilen mail hub_touches'a channel:'email' kaydı düşer.
+  const sendCandidateMail = useCallback(async (candidate, { subject, body }) => {
     if (!candidate?.email) throw new Error('Adayın e-postası yok.');
     const { data, error } = await supabase.functions.invoke('send-mail', {
       body: { to: candidate.email, subject, body },
@@ -525,7 +525,7 @@ export function HubStoreProvider({ children }) {
     addItem, updateItem, deleteItem, patchLocal,
     addCandidate, updateCandidate, deleteCandidate, patchCandidate,
     logStage, advanceStage, loadHistory,
-    sendTouch, markReplied, replyAndAdvance, undoLastStage, sendDecisionMail,
+    sendTouch, markReplied, replyAndAdvance, undoLastStage, sendCandidateMail,
     startGate, markGate, extendGate, moveToTeam,
     importCandidates, purgeCandidate,
     advanceRole, presentCandidate, ownerDecide, linkCandidateRole,
