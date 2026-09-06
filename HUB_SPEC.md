@@ -355,28 +355,28 @@ oluşturulur. Tek akış:
   sonra `startGate`. `due_at` bu anda hesaplanır — süre mail gönderilince başlar.
 - Mail kapalı / e-posta yok → yalnızca `startGate` (görev elden iletildi).
 
-### 9.4 "Ekibe al" — gerçek team entegrasyonu  *(C4 — kısmen şemaya bağlı)*
+### 9.4 "Ekibe al" — gerçek team entegrasyonu  *(C4)*
+
+Şema (canlı döküm): `people.id` **text** (default yok), `people.project_id`
+bigint → `startups.id`; `startups.member_ids` **text[]** (`people.id`
+değerlerini tutar); `app_state.data` boş — takım/roster modeli **`people` +
+`startups.member_ids`** üzerinde, `app_state`'e dokunulmaz.
 
 `moveToTeam` → **`hub-move-to-team` edge function** (servis rolü; client RLS
 `people`/`startups` yazamaz). Adımlar, her biri ayrı `try/catch`, patlayan adım
 `warnings`e:
 1. Aşama → `member` (+ `joined_at`, `vesting_start_date` = Kapı A ilk günü)
-2. `people` roster kaydı — `name`, `role_tr/en` = rol başlığı, `type='project_member'`,
-   `project_id` = rolün `startup_id`'si. **`people`'da e-posta kolonu yok** —
-   roster kimliği; `people.id` identity'siz olabilir (max+1 fallback).
-3. `startups.member_ids` dizisine `people.id` eklenir
+2. `people` kaydı — `id = crypto.randomUUID()`, `name`, `role_tr/en` = rol
+   başlığı, `type = 'project_member'` (proje varsa; yoksa `'team'`),
+   `project_id` = rolün `startup_id`'si
+3. `startups.member_ids` dizisine `people.id` eklenir (`team` sayacı bir artar)
 4. `invite-member` (`area:'team'`) → auth hesabı + tek kullanımlık link;
    markalı davet maili `send-mail` ile gider
-5. `hub_candidates.person_id` geri yazılır (kolon: 0016), bağlı rol → `filled`
+5. `hub_candidates.person_id` geri yazılır (kolon: 0016 — text), bağlı rol → `filled`
 
 Yetki: fonksiyon çağıranın JWT'siyle `hub_role()` kontrol eder (cofounder/recruiter).
 Kısmi durum kullanıcıya gösterilir ("Kısmen aktarıldı — …"), sessizce yutulmaz.
-
-> **Açık soru (şema):** `/team/` paneli üyelerini `people` + `startups.member_ids`
-> üzerinden mi okuyor, yoksa `app_state` JSON'undan mı? `people` tablosu
-> pazarlama sitesi roster'ı gibi görünüyor (e-posta yok). "Giriş yapıp takımını
-> görme" kabul kriteri bu cevaba bağlı — netleşince 2-3. adımlar güncellenecek.
-> `app_state`'e derin bağlanma yapılmaz (CLAUDE.md).
+Env: `SUPABASE_ANON_KEY` / `SERVICE_ROLE_KEY` / `SUPABASE_URL` platformdan gelir.
 
 ### 9.5 Inbound bağlantısı
 

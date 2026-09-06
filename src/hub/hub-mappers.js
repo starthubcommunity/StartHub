@@ -74,6 +74,9 @@ export function mapCandidateToDb(c) {
     // 0013 uygulanmadan kolon yok: değer yoksa GÖNDERİLMEZ ki diğer yazımlar
     // kırılmasın (orUndef → undefined → JSON'dan düşer).
     interview_note:  orUndef(c.interviewNote),
+    // C4 — ekibe alınınca people.id (0016). Yazan: hub-move-to-team fonksiyonu;
+    // burada yalnızca round-trip (değer yoksa gönderilmez → 0016 öncesi kırılmaz).
+    person_id:       orUndef(c.personId),
     // bayraklar — v3'te UI yazmıyor; kolonlar düşmedi, round-trip için tutulur
     red_flags:       c.redFlags       || [],
     flag_notes:      c.flagNotes      || {},
@@ -149,6 +152,7 @@ export function mapCandidateFromDb(r) {
     aiScoreNote:        r.ai_score_note       ?? null,
     // görüşme notu (v3)
     interviewNote:  r.interview_note  ?? null,
+    personId:       r.person_id       ?? null,   // C4
     // bayraklar — v3'te okunmuyor; eski veri için round-trip
     redFlags:       r.red_flags       || [],
     flagNotes:      r.flag_notes      || {},

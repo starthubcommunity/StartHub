@@ -168,14 +168,14 @@
 
 ## T13 — Ekibe al (C4)
 
-1. Kapıları geçmiş bir adayda "Ekibe al".
-2. **Beklenen:** aday **Ekipte**, `hub_candidates.person_id` dolu; `people`'da
-   roster kaydı (`project_id` = startup); `startups.member_ids`'te `person_id`;
-   adaya **markalı davet maili** gider, linkten şifre belirleyip `/team/`'e
-   girebiliyor. Bir adım patlarsa "Kısmen aktarıldı — …" uyarısı çıkar (sessiz
-   yutma yok).
-3. ⚠️ `/team/` panelinin üye modeli `app_state` tabanlıysa 2-3. adım şemaya göre
-   güncellenecek (HUB_SPEC §9.4 açık soru).
+1. Bağlı rolü + e-postası olan, kapıları geçmiş bir adayda "Ekibe al".
+2. **Beklenen:** aday **Ekipte**; `hub_candidates.person_id` (text) dolu;
+   `people`'da `type='project_member'`, `project_id`=startup kaydı;
+   `startups.member_ids`'te o `people.id`; adaya **markalı davet maili** gider,
+   linkten şifre belirleyip `/team/`'e girip takımını görebiliyor.
+3. Bir adım patlarsa "Kısmen aktarıldı — …" uyarısı (sessiz yutma yok). Rolü
+   olmayan adayda "bağlı proje yok — takım üyeliği atlandı" uyarısı, hesap yine açılır.
+4. Yetkisiz (project_owner) çağrıda fonksiyon 403 döner.
 
 ## Regresyon
 

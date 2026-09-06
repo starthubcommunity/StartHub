@@ -9,9 +9,10 @@
 // Her adım ayrı try/catch — patlayan adım `warnings`e yazılır, akış durmaz.
 // Çağıran (hub-store.moveToTeam) kısmi durumu kullanıcıya gösterir.
 //
-// ⚠️ /team/ paneli durumunu `app_state` JSON bloğunda tutar; buraya
-// DOKUNULMAZ (CLAUDE.md). people + startups.member_ids "roster" tarafıdır —
-// /team/ oturum modeli farklıysa 2-3. adımlar şemaya göre güncellenmeli.
+// Şema (2025-... dökümü): people.id = TEXT (default yok → biz üretiriz),
+// project_id = bigint → startups.id. startups.member_ids = text[] (people.id
+// değerlerini tutar). app_state.data şu an boş {} — takım/roster modeli
+// people + startups.member_ids üzerinde. app_state'e dokunulmaz.
 //
 // Yetki: çağıranın JWT'si iletilir; hub_role() cofounder|recruiter olmalı.
 
@@ -89,27 +90,25 @@ serve(async (req) => {
       return json({ error: "Aşama güncellenemedi: " + (e as Error).message }, 500);
     }
 
-    // ── 2. people roster kaydı ────────────────────────────────
-    let personId: number | null = (cand.person_id as number | null) ?? null;
+    // ── 2. people roster kaydı (people.id TEXT — biz üretiriz) ─
+    let personId: string | null = (cand.person_id as string | null) ?? null;
     if (!personId) {
       try {
+        const newId = crypto.randomUUID();
         const rosterRow = {
+          id: newId,
           name: cand.full_name || "Yeni üye",
           role_tr: (role_row?.title as string) || "Ekip üyesi",
           role_en: (role_row?.title as string) || "Team member",
-          type: "project_member",
+          type: startupId != null ? "project_member" : "team",
           project_id: startupId,
+          color: "#2563EB",
           linkedin: cand.linkedin || "#",
+          sort_order: 99,
         };
-        let ins = await db.from("people").insert(rosterRow).select("id").single();
-        if (ins.error && /null value|not-null|id/i.test(ins.error.message)) {
-          // people.id identity'siz olabilir — max+1 ile tekrar dene.
-          const { data: mx } = await db.from("people").select("id").order("id", { ascending: false }).limit(1);
-          const nextId = (Number(mx?.[0]?.id) || 0) + 1;
-          ins = await db.from("people").insert({ ...rosterRow, id: nextId }).select("id").single();
-        }
+        const ins = await db.from("people").insert(rosterRow).select("id").single();
         if (ins.error) throw new Error(ins.error.message);
-        personId = Number(ins.data.id);
+        personId = String(ins.data.id);
         steps.person = true;
       } catch (e) {
         warnings.push("roster (people) kaydı açılamadı: " + (e as Error).message);
@@ -118,14 +117,16 @@ serve(async (req) => {
       steps.person = true;
     }
 
-    // ── 3. startups.member_ids'e ekle ─────────────────────────
+    // ── 3. startups.member_ids'e ekle (text[]) ────────────────
     if (personId && startupId != null) {
       try {
-        const { data: s, error } = await db.from("startups").select("member_ids").eq("id", startupId).single();
+        const { data: s, error } = await db.from("startups").select("member_ids, team").eq("id", startupId).single();
         if (error) throw new Error(error.message);
-        const ids: number[] = Array.isArray(s?.member_ids) ? s.member_ids : [];
+        const ids: string[] = Array.isArray(s?.member_ids) ? s.member_ids.map(String) : [];
         if (!ids.includes(personId)) {
-          const { error: ue } = await db.from("startups").update({ member_ids: [...ids, personId] }).eq("id", startupId);
+          const { error: ue } = await db.from("startups")
+            .update({ member_ids: [...ids, personId], team: ids.length + 1 })
+            .eq("id", startupId);
           if (ue) throw new Error(ue.message);
         }
         steps.membership = true;
