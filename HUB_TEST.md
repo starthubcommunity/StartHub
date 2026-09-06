@@ -197,6 +197,19 @@
    `source` seçilen değer, `why_this_one` = ortak cümle. `hub-rules.test.mjs`
    yapıştırma senaryoları yeşil.
 
+## T15 — Tekilleştirme (Blok D — D2)
+
+1. Havuzda e-postası/GitHub'ı olan bir aday varken, aynı e-posta/GitHub'ı içeren
+   bir satırı **Yapıştır ve ekle** ile getir.
+2. **Beklenen:** önizlemede o satırda "tekrar" rozeti + seçim menüsü
+   (mevcudu güncelle / yeni kayıt / atla), varsayılan "güncelle".
+3. "Güncelle" ile onayla → **yeni kart açılmaz**; mevcut kartın boş alanları
+   (link, okul, kanıt) dolar. Sonuç ekranı "N eklendi · M güncellendi" der.
+4. Aynı ad + aynı okul (link yok) → "olası" rozeti, varsayılan "yeni kayıt".
+5. **Tek aday** eklerken aynı e-posta/GitHub → "Zaten kayıtlı (…)" uyarısı,
+   kayıt açılmaz.
+6. CSV içe aktarmada da aynı "Tekrar" sütunu çalışır.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

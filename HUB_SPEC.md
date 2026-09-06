@@ -255,12 +255,20 @@ aksiyon). Akış:
    cümlesi** (zorunlu) + opsiyonel açık rol
 4. Onayla → Havuz (`store.importCandidates`, hepsine aynı `import_batch_label`)
 
-**Tekilleştirme** (önizlemede ve elle eklerken):
-- E-posta tam eşleşme → kesin tekrar
-- GitHub kullanıcı adı / LinkedIn slug eşleşme → kesin tekrar
-- Ad benzerliği (`similar() > 0.8`) + aynı okul → olası tekrar, uyar
+**Tekilleştirme** (`hub-parse.findDuplicate` → `{ id, reason, certain }`):
+- E-posta tam eşleşme → **kesin** (`certain: true`)
+- GitHub kullanıcı adı / LinkedIn slug eşleşme → **kesin**
+- Ad benzerliği (`similar() ≥ 0.8`) **VE** aynı okul (iki tarafta da dolu,
+  normalize eşit) → **olası** (`certain: false`)
 
-Tekrar bulununca: **atla** veya **mevcut kartı güncelle** (yeni kayıt açma).
+**Yapıştır / CSV önizlemesi:** tekrar bulunan her satırda "Tekrar" sütunu — rozet
+(`tekrar` / `olası`) + seçim: **mevcudu güncelle** / **yeni kayıt** / **atla**.
+Varsayılan: kesin → güncelle, olası → yeni kayıt. "Güncelle" mevcut kartta
+yalnızca **boş alanları** doldurur + yeni kanıt linklerini ekler; aşama/puan/not
+dokunulmaz. `importCandidates` `{ created, updated }` döner.
+
+**Elle tek aday:** kesin mükerrer yeni kayıt açtırmaz — uyarı verir, kullanıcı
+mevcut kartı listeden açar. (Olası mükerrer elle eklemede engellenmez.)
 
 ### 6.3 CSV/Excel içe aktarma
 

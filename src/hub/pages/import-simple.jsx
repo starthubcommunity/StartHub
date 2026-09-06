@@ -10,6 +10,7 @@ import { Field, Input, Select } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { SOURCES } from '../hub-constants';
+import { findDuplicate } from '../hub-parse';
 
 // ── CSV ayrıştırma (tırnak-farkında, minimal) ────────────────────────
 function parseCsv(text) {
@@ -76,6 +77,8 @@ export default function ImportSimple({ onClose }) {
   const [map, setMap] = useState({});           // targetKey -> columnIndex
   const [meta, setMeta] = useState({ source: 'hackathon', importBatchLabel: '', commonWhy: '' });
   const [take, setTake] = useState([]);         // bool[]
+  const [dups, setDups] = useState([]);         // (findDuplicate | null)[]  — D2
+  const [modes, setModes] = useState([]);       // ('new'|'update'|'skip')[]
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(null);
@@ -107,6 +110,16 @@ export default function ImportSimple({ onClose }) {
       return;
     }
     setErr('');
+    // D2 — mükerrer tespiti (e-posta / link; CSV'de okul kolonu genelde yok).
+    const d = body.map((r) => {
+      const val = (k) => (map[k] != null ? String(r[map[k]] || '').trim() : '');
+      return findDuplicate({
+        fullName: val('fullName'), email: val('email'),
+        ...linkFields(val('link')), university: '',
+      }, store.candidates);
+    });
+    setDups(d);
+    setModes(d.map((x) => (x?.certain ? 'update' : 'new')));
     setTake(body.map((r) => String(r[map.fullName] || '').trim() !== ''));
     setStep(3);
   };
@@ -118,6 +131,8 @@ export default function ImportSimple({ onClose }) {
         const val = (k) => (map[k] != null ? String(r[map[k]] || '').trim() : '');
         return {
           _take: !!take[i],
+          _mode: modes[i] || 'new',
+          _dupId: dups[i]?.id ?? null,
           fullName: val('fullName'),
           ...linkFields(val('link')),
           email: val('email') || undefined,
@@ -125,11 +140,11 @@ export default function ImportSimple({ onClose }) {
           sourceDetail: val('sourceDetail') || null,
         };
       });
-      const { created } = await store.importCandidates(
+      const { created, updated } = await store.importCandidates(
         { source: meta.source, importBatchLabel: meta.importBatchLabel.trim() || null },
         rows,
       );
-      setDone(created.length);
+      setDone({ created: created.length, updated: updated.length });
     } catch (e) { setErr(e.message || 'İçe aktarılamadı.'); setBusy(false); }
   };
 
@@ -140,7 +155,10 @@ export default function ImportSimple({ onClose }) {
       <div className="hub-wz hub-wz--wide" onClick={(e) => e.stopPropagation()}>
         {done != null ? (
           <div className="hub-wz__done">
-            <h3>{done} aday havuza eklendi.</h3>
+            <h3>
+              {done.created} aday havuza eklendi
+              {done.updated > 0 ? ` · ${done.updated} mevcut kart güncellendi` : ''}.
+            </h3>
             <button className="hub-wz__next" style={{ margin: '0 auto' }} onClick={onClose}>Kapat</button>
           </div>
         ) : (<>
@@ -200,19 +218,38 @@ export default function ImportSimple({ onClose }) {
               <div className="hub-wz__step">
                 <div className="hub-wz__kicker">ADIM 3/3</div>
                 <div className="hub-wz__q hub-wz__q--tight">Önizle ve onayla</div>
-                <div className="hub-wz__sub">{take.filter(Boolean).length} / {body.length} satır alınacak.</div>
+                <div className="hub-wz__sub">
+                  {take.filter(Boolean).length} / {body.length} satır alınacak
+                  {dups.filter(Boolean).length > 0 ? ` · ${dups.filter(Boolean).length} olası tekrar` : ''}.
+                </div>
                 <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #F0EADE', borderRadius: 10 }}>
                   <table className="adm-table">
-                    <thead><tr><th></th><th>Ad</th><th>Link</th><th>Neden bu kişi</th></tr></thead>
+                    <thead><tr><th></th><th>Ad</th><th>Link</th><th>Neden bu kişi</th><th>Tekrar</th></tr></thead>
                     <tbody>
                       {body.map((r, i) => {
                         const val = (k) => (map[k] != null ? String(r[map[k]] || '').trim() : '');
+                        const dup = dups[i];
                         return (
                           <tr key={i} style={{ opacity: take[i] ? 1 : 0.4 }}>
                             <td><input type="checkbox" checked={!!take[i]} onChange={(e) => setTake((t) => t.map((x, j) => (j === i ? e.target.checked : x)))} /></td>
                             <td>{val('fullName') || <em style={{ color: '#A29D94' }}>isimsiz</em>}</td>
                             <td style={{ fontSize: 12 }}>{val('link')}</td>
                             <td style={{ fontSize: 12 }}>{val('whyThisOne')}</td>
+                            <td style={{ fontSize: 12 }}>
+                              {dup ? (
+                                <div title={dup.reason}>
+                                  <span className="hub-pill hub-pill--flag" style={{ marginRight: 4 }}>
+                                    {dup.certain ? 'tekrar' : 'olası'}
+                                  </span>
+                                  <select className="adm-input adm-select adm-input--sm" value={modes[i] || 'new'}
+                                    onChange={(e) => setModes((m) => m.map((x, j) => (j === i ? e.target.value : x)))}>
+                                    <option value="update">mevcudu güncelle</option>
+                                    <option value="new">yeni kayıt</option>
+                                    <option value="skip">atla</option>
+                                  </select>
+                                </div>
+                              ) : <span style={{ color: '#A29D94' }}>—</span>}
+                            </td>
                           </tr>
                         );
                       })}

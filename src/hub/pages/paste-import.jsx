@@ -10,7 +10,7 @@ import { Field, Input, Select } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { SOURCES } from '../hub-constants';
-import { parsePastedText } from '../hub-parse';
+import { parsePastedText, findDuplicate } from '../hub-parse';
 
 const SAMPLE = `1. Ada Yılmaz — github.com/adayilmaz — İTÜ Bilgisayar Müh.
 2. Mert Kaya - mert@ornek.com - Boğaziçi Üniversitesi
@@ -19,7 +19,7 @@ const SAMPLE = `1. Ada Yılmaz — github.com/adayilmaz — İTÜ Bilgisayar Mü
 export default function PasteImport({ onClose }) {
   const store = useHubStore();
   const { can } = usePerms();
-  const { openRoles } = store;
+  const { openRoles, candidates } = store;
   const [step, setStep] = useState(1);
   const [raw, setRaw] = useState('');
   const [rows, setRows] = useState([]);            // parsePastedText().rows
@@ -32,12 +32,23 @@ export default function PasteImport({ onClose }) {
     const { rows: r } = parsePastedText(raw);
     if (!r.length) { setErr('Ayrıştırılacak bir şey bulunamadı.'); return; }
     setErr('');
-    setRows(r);
+    // D2 — havuzdaki adaylarla mükerrer tespiti + varsayılan mod.
+    setRows(r.map((row) => {
+      const dup = findDuplicate(row, candidates);
+      return {
+        ...row,
+        _dup: dup,
+        _dupId: dup?.id ?? null,
+        _mode: dup?.certain ? 'update' : 'new',   // olası tekrarda varsayılan 'new' (uyar, birleştirme)
+      };
+    }));
     setStep(2);
   };
 
-  const takenCount = rows.filter((r) => r._take).length;
+  const takenCount = rows.filter((r) => r._take && r._mode !== 'skip').length;
+  const dupCount = rows.filter((r) => r._dup).length;
   const linkOf = (r) => r.github || r.linkedin || r.email || '';
+  const setMode = (id, v) => setRows((xs) => xs.map((x) => x._id === id ? { ...x, _mode: v } : x));
 
   const toPreview = () => {
     if (takenCount === 0) { setErr('En az bir satır seçili olmalı.'); return; }
@@ -51,6 +62,8 @@ export default function PasteImport({ onClose }) {
     try {
       const payload = rows.map((r) => ({
         _take: r._take,
+        _mode: r._mode,
+        _dupId: r._dupId,
         fullName: r.fullName || '(isimsiz)',
         email: r.email || undefined,
         linkedin: r.linkedin || null,
@@ -59,7 +72,7 @@ export default function PasteImport({ onClose }) {
         evidence: r.evidence || [],
         whyThisOne: meta.commonWhy.trim(),
       }));
-      const { created } = await store.importCandidates(
+      const { created, updated } = await store.importCandidates(
         {
           source: meta.source,
           importBatchLabel: meta.importBatchLabel.trim() || null,
@@ -67,7 +80,7 @@ export default function PasteImport({ onClose }) {
         },
         payload,
       );
-      setDone(created.length);
+      setDone({ created: created.length, updated: updated.length });
     } catch (e) { setErr(e.message || 'Eklenemedi.'); setBusy(false); }
   };
 
@@ -78,7 +91,10 @@ export default function PasteImport({ onClose }) {
       <div className="hub-wz hub-wz--wide" onClick={(e) => e.stopPropagation()}>
         {done != null ? (
           <div className="hub-wz__done">
-            <h3>{done} aday havuza eklendi.</h3>
+            <h3>
+              {done.created} aday havuza eklendi
+              {done.updated > 0 ? ` · ${done.updated} mevcut kart güncellendi` : ''}.
+            </h3>
             <button className="hub-wz__next" style={{ margin: '0 auto' }} onClick={onClose}>Kapat</button>
           </div>
         ) : (<>
@@ -110,12 +126,13 @@ export default function PasteImport({ onClose }) {
                 <div className="hub-wz__kicker">ADIM 2/3</div>
                 <div className="hub-wz__q hub-wz__q--tight">Satırları gözden geçir</div>
                 <div className="hub-wz__sub">
-                  {rows.length} satır · {takenCount} seçili. Adı çıkarılamayan satırlar
-                  varsayılan olarak <b>kapalı</b>.
+                  {rows.length} satır · {takenCount} seçili
+                  {dupCount > 0 ? ` · ${dupCount} olası tekrar` : ''}. Adı çıkarılamayan
+                  satırlar varsayılan olarak <b>kapalı</b>.
                 </div>
                 <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #F0EADE', borderRadius: 10 }}>
                   <table className="adm-table">
-                    <thead><tr><th></th><th>Ad</th><th>Link</th><th>Okul</th><th>Bağlantı</th></tr></thead>
+                    <thead><tr><th></th><th>Ad</th><th>Link</th><th>Okul</th><th>Bağlantı</th><th>Tekrar</th></tr></thead>
                     <tbody>
                       {rows.map((r) => (
                         <tr key={r._id} style={{ opacity: r._take ? 1 : 0.4, background: r._unparsed ? 'var(--adm-red-light, #FEF2F2)' : undefined }}>
@@ -127,6 +144,21 @@ export default function PasteImport({ onClose }) {
                           <td style={{ fontSize: 12 }}>{linkOf(r) || <span style={{ color: '#A29D94' }}>—</span>}</td>
                           <td style={{ fontSize: 12 }}>{r.university || <span style={{ color: '#A29D94' }}>—</span>}</td>
                           <td style={{ fontSize: 12 }}>{r.evidence?.length ? `${r.evidence.length} link` : <span style={{ color: '#A29D94' }}>—</span>}</td>
+                          <td style={{ fontSize: 12 }}>
+                            {r._dup ? (
+                              <div title={r._dup.reason}>
+                                <span className="hub-pill hub-pill--flag" style={{ marginRight: 4 }}>
+                                  {r._dup.certain ? 'tekrar' : 'olası'}
+                                </span>
+                                <select className="adm-input adm-select adm-input--sm" value={r._mode}
+                                  onChange={(e) => setMode(r._id, e.target.value)}>
+                                  <option value="update">mevcudu güncelle</option>
+                                  <option value="new">yeni kayıt</option>
+                                  <option value="skip">atla</option>
+                                </select>
+                              </div>
+                            ) : <span style={{ color: '#A29D94' }}>—</span>}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { useHubStore } from '../hub-store';
 import { SOURCES } from '../hub-constants';
+import { findDuplicate } from '../hub-parse';
 import HubWizard from '../components/wizard';
 
 // Tek "Link" alanı — tip otomatik algılanır (v2 §4).
@@ -31,9 +32,15 @@ export default function NewCandidateModal({ onClose }) {
   const submit = async (a) => {
     if (!String(a.fullName || '').trim()) throw new Error('Ad zorunlu.');
     if (!String(a.whyThisOne || '').trim()) throw new Error('"Neden bu kişi" zorunlu.');
+    const link = linkFields(a.link);
+    // D2 — kesin mükerrer (e-posta / GitHub / LinkedIn) yeni kayıt açtırmaz.
+    const dup = findDuplicate({ fullName: a.fullName.trim(), university: '', ...link }, store.candidates);
+    if (dup?.certain) {
+      throw new Error(`Zaten kayıtlı (${dup.reason}). Aynı kişiyse listeden mevcut kartını aç ve düzenle.`);
+    }
     await store.addCandidate({
       fullName: a.fullName.trim(),
-      ...linkFields(a.link),
+      ...link,
       source: a.source || 'referral',
       whyThisOne: a.whyThisOne.trim(),
       ownerId: a.ownerId || null,

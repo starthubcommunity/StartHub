@@ -140,19 +140,27 @@ export function parsePastedText(raw) {
   return { rows };
 }
 
-// Havuzdaki mevcut adaylarla tekrar tespiti: link eşleşmesi VEYA ad benzerliği.
+// Havuzdaki mevcut adaylarla tekrar tespiti (HUB_SPEC v3 §6.2):
+//   KESİN  (certain:true)  — e-posta tam eşleşme / GitHub kullanıcı adı /
+//                            LinkedIn slug eşleşme
+//   OLASI  (certain:false) — ad benzerliği (similar ≥ 0.8) VE aynı okul
+//                            (iki tarafta da okul dolu ve normalize eşit)
+// Dönüş: { id, reason, certain } | null.
 export function findDuplicate(row, candidates) {
   const email = strip(row.email);
   const gh = ghKey(row.github);
   const li = liKey(row.linkedin);
   for (const c of candidates) {
-    if (email && strip(c.email) === email) return { id: c.id, reason: 'aynı e-posta' };
-    if (gh && ghKey(c.github) === gh) return { id: c.id, reason: 'aynı GitHub' };
-    if (li && liKey(c.linkedin) === li) return { id: c.id, reason: 'aynı LinkedIn' };
+    if (email && strip(c.email) === email) return { id: c.id, reason: 'aynı e-posta', certain: true };
+    if (gh && ghKey(c.github) === gh) return { id: c.id, reason: 'aynı GitHub', certain: true };
+    if (li && liKey(c.linkedin) === li) return { id: c.id, reason: 'aynı LinkedIn', certain: true };
   }
-  if (row.fullName) {
+  const school = strip(row.university);
+  if (row.fullName && school) {
     for (const c of candidates) {
-      if (c.fullName && similar(row.fullName, c.fullName) >= 0.8) return { id: c.id, reason: 'benzer ad' };
+      if (c.fullName && strip(c.university) === school && similar(row.fullName, c.fullName) >= 0.8) {
+        return { id: c.id, reason: 'benzer ad + aynı okul', certain: false };
+      }
     }
   }
   return null;

@@ -458,12 +458,39 @@ export function HubStoreProvider({ children }) {
   // Ayrı `hub_import_batches` tablosu YOK — kabul edilen her satır pool'a yeni
   // aday olur, hepsine aynı serbest `importBatchLabel` yazılır (filtre amaçlı).
   const importCandidates = useCallback(async (batchInfo, rows) => {
-    const accepted = rows.filter((r) => r._take);
+    // D2 — _mode: 'new' (varsayılan) | 'update' (mevcut kartı doldur) | 'skip'
+    const accepted = rows.filter((r) => r._take && r._mode !== 'skip');
     const retainUntil = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
     const label = batchInfo.importBatchLabel || batchInfo.sourceDetail || null;
     const batchRoleId = batchInfo.roleId ?? null;
     const created = [];
+    const updated = [];
     for (const r of accepted) {
+      // ── Mevcut kartı güncelle (yeni kayıt açma) ──────────────
+      if (r._mode === 'update' && r._dupId) {
+        const ex = data.candidates.find((c) => c.id === r._dupId);
+        if (ex) {
+          const patch = {};
+          if (!ex.email && r.email) patch.email = r.email;
+          if (!ex.linkedin && r.linkedin) patch.linkedin = r.linkedin;
+          if (!ex.github && r.github) patch.github = r.github;
+          if (!ex.university && r.university) patch.university = r.university;
+          if (!ex.whyThisOne && r.whyThisOne) patch.whyThisOne = r.whyThisOne;
+          if (!ex.sourceDetail && (r.sourceDetail || batchInfo.sourceDetail)) {
+            patch.sourceDetail = r.sourceDetail || batchInfo.sourceDetail;
+          }
+          const have = new Set((ex.evidence || []).map((e) => e.url));
+          const addEv = (r.evidence || []).filter((e) => e.url && !have.has(e.url));
+          if (addEv.length) patch.evidence = [...(ex.evidence || []), ...addEv];
+          if (Object.keys(patch).length) {
+            patchLocal('candidates', ex.id, patch);
+            await updateItem('candidates', ex.id, { ...ex, ...patch });
+          }
+          updated.push(ex.id);
+          continue;
+        }
+      }
+      // ── Yeni aday ───────────────────────────────────────────
       const roleId = r.roleId ?? batchRoleId;
       const role = roleId ? data.openRoles.find((x) => x.id === roleId) : null;
       const c = await addItem('candidates', {
@@ -489,8 +516,8 @@ export function HubStoreProvider({ children }) {
       });
       created.push(c);
     }
-    return { created, label };
-  }, [addItem, currentMember, data]);
+    return { created, updated, label };
+  }, [addItem, updateItem, patchLocal, currentMember, data]);
 
   // ── KVKK: adayı tamamen sil (v2 §13) ─────────────────────────
   // Bağlı kayıtlar (touches / interviews / gates / stage_log) FK on delete

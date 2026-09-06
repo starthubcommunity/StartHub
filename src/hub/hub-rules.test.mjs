@@ -471,10 +471,24 @@ t('D1: adı çıkarılamayan satır _unparsed + _take varsayılan KAPALI', () =>
   assert.ok(junk.length >= 1);
   assert.ok(junk.every((r) => r._unparsed === true && r._take === false));
 });
-t('findDuplicate: github / e-posta eşleşmesi', () => {
+t('findDuplicate: github / e-posta eşleşmesi → KESİN', () => {
   const { rows } = parsePastedText('Ada Yılmaz - ada@ornek.com - github.com/ada');
   const existing = [{ id: 'e1', fullName: 'X', github: 'https://github.com/ada', email: null, linkedin: null }];
-  assert.equal(findDuplicate(rows[0], existing)?.id, 'e1');
+  const d = findDuplicate(rows[0], existing);
+  assert.equal(d?.id, 'e1');
+  assert.equal(d.certain, true);
+});
+t('D2: ad benzerliği + AYNI okul → OLASI (certain:false)', () => {
+  const existing = [{ id: 'e2', fullName: 'Ada Yilmaz', university: 'Boğaziçi Üniversitesi', email: null }];
+  const row = { fullName: 'Ada Yılmaz', university: 'Bogazici Universitesi' };
+  const d = findDuplicate(row, existing);
+  assert.equal(d?.id, 'e2');
+  assert.equal(d.certain, false);
+});
+t('D2: ad benzer ama okul FARKLI / boş → tekrar sayılmaz', () => {
+  const existing = [{ id: 'e3', fullName: 'Ada Yılmaz', university: 'İTÜ', email: null }];
+  assert.equal(findDuplicate({ fullName: 'Ada Yılmaz', university: 'ODTÜ' }, existing), null);
+  assert.equal(findDuplicate({ fullName: 'Ada Yılmaz', university: '' }, existing), null);
 });
 t('matchScore: role_type + beceri örtüşmesi', () => {
   const role = { roleType: 'technical', skills: ['React', 'SQL'], track: 'member', status: 'sourcing' };
