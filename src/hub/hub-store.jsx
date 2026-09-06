@@ -296,6 +296,20 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, advanceStage, patchLocal, updateItem]);
 
+  // D3 — hızlı elemede "Mesaj gönder"in geri alınması: son touch'ı sil, aday
+  // sendTouch ile Havuz'dan Temas'a çıktıysa Havuz'a döndür.
+  const undoSend = useCallback(async (candidateId) => {
+    const last = data.touches
+      .filter((t) => t.candidateId === candidateId)
+      .sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt))[0];
+    if (last) await deleteItem('touches', last.id);
+    const cand = data.candidates.find((c) => c.id === candidateId);
+    if (cand && cand.stage === 'contact') {
+      const plan = undoPlan(cand, data.stageLog);
+      if (plan && plan.toStage === 'pool') await undoLastStage(candidateId);
+    }
+  }, [data, deleteItem, undoLastStage]);
+
   // C2 / C3 — adaya giden onaylı mail (görüşme kararı, Kapı görevi …).
   // OTOMATİK DEĞİL: kullanıcı metni onaylayıp çağırır. send-mail (Resend)
   // üzerinden gider; gönderilen mail hub_touches'a channel:'email' kaydı düşer.
@@ -554,7 +568,7 @@ export function HubStoreProvider({ children }) {
     addItem, updateItem, deleteItem, patchLocal,
     addCandidate, updateCandidate, deleteCandidate, patchCandidate,
     logStage, advanceStage, loadHistory,
-    sendTouch, markReplied, replyAndAdvance, undoLastStage, sendCandidateMail,
+    sendTouch, markReplied, replyAndAdvance, undoLastStage, undoSend, sendCandidateMail,
     startGate, markGate, extendGate, moveToTeam,
     importCandidates, purgeCandidate,
     advanceRole, presentCandidate, ownerDecide, linkCandidateRole,

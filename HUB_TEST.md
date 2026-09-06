@@ -221,6 +221,19 @@
 3. **Beklenen:** hiçbir taslak otomatik gönderilmez; hepsi kartta düzenlenebilir.
    `HUB_GEMINI_API_KEY` yoksa net hata.
 
+## T17 — Hızlı eleme (Blok D — D3)
+
+1. Adaylar → **"Hızlı eleme"** (filtre yoksa "hiç mesaj atılmamış" ile açılır).
+2. Tam ekran, tek aday. Kartta: ad, okul, bağlı rol, **nerede bulundu**
+   (kaynak + detay), **neden bu kişi**, bağlantılar, düzenlenebilir AI taslağı.
+   Teknik adayda GitHub sinyalleri küçük bir satır (yoksa hiç).
+3. Klavye ile — fareye dokunmadan — 20 adaylık partiyi geç: **M** gönder ·
+   **A** atla · **E** ele. Her "M" `hub_touches` kaydı oluşturur, aday Temas'a
+   geçer. Input'a odakken M/A/E yazı olarak girer, aksiyonu tetiklemez.
+4. **Ctrl+Z** → son aksiyonu geri alır ('ele' → arşivden çıkar; 'M' → touch
+   silinir, Havuz'a döner). Üstte ilerleme (N/20) ve bugünkü gönderim sayısı.
+5. Parti bitince özet ("N mesaj · M elendi · K atlandı").
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

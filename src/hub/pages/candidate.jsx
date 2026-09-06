@@ -16,12 +16,7 @@ import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraft
 import { fillTemplate } from './templates';
 import { generateDraft } from '../hub-ai-draft';
 import HubWizard from '../components/wizard';
-
-const LAST_CHANNEL_KEY = 'sh_hub_last_channel';
-const lastChannel = () => {
-  try { return localStorage.getItem(LAST_CHANNEL_KEY) || 'linkedin'; } catch { return 'linkedin'; }
-};
-const rememberChannel = (ch) => { try { localStorage.setItem(LAST_CHANNEL_KEY, ch); } catch { /* yoksay */ } };
+import { lastChannel, rememberChannel } from '../hub-channel';
 
 const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunication', capacity: 'scoreCapacity' };
 const PRESCORE_LABEL = Object.fromEntries(AI_PRESCORE_FINISHING.map((x) => [x.value, x.when]));

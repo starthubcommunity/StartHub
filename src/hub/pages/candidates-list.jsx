@@ -12,6 +12,7 @@ import CandidatePanel from './candidate';
 import ImportSimple from './import-simple';
 import PasteImport from './paste-import';
 import NewCandidateModal from './new-candidate';
+import Triage from './triage';
 import HubWizard from '../components/wizard';
 
 const STAGE_COLOR = { pool: '#A29D94', contact: '#2563EB', interview: '#7C3AED', trial: '#EA580C', member: '#16A34A' };
@@ -58,7 +59,8 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const { candidates, members, openRoles, touches, gates, currentMember, loading } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
-  const [adding, setAdding] = useState(null);   // 'one' | 'import' | null
+  const [adding, setAdding] = useState(null);   // 'one' | 'import' | 'paste' | null
+  const [triageIds, setTriageIds] = useState(null);   // D3
   const [actOn, setActOn] = useState(null);     // satırdan arşivle/sil için aday
   const [toast, setToast] = useState('');
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
@@ -89,6 +91,16 @@ export default function CandidatesListPage({ filters, setFilters }) {
     () => applyFilters(candidates, filters, ctx).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
     [candidates, filters, ctx]
   );
+
+  // D3 — hızlı eleme: filtre yoksa varsayılan "hiç mesaj atılmamış".
+  const startTriage = () => {
+    const empty = !filters.chip && !filters.stage.length && !filters.source.length
+      && !filters.openRoleId.length && !filters.q.trim();
+    const f = empty ? { ...filters, chip: 'no_message' } : filters;
+    if (empty) setFilters(f);
+    const list = applyFilters(candidates, f, ctx).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    setTriageIds(list.map((r) => r.id));
+  };
 
   const rowActionSteps = [{
     key: 'op', type: 'options', q: 'Bu adaya ne yapılsın?',
@@ -129,6 +141,14 @@ export default function CandidatesListPage({ filters, setFilters }) {
       } />
 
       <FilterBar filters={filters} onChange={setFilters} candidates={candidates} openRoles={openRoles} ctx={ctx} />
+
+      {can('candidates.write') && rows.length > 0 && (
+        <div style={{ margin: '2px 0 6px' }}>
+          <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={startTriage}>
+            <AIcon name="layers" size={13} /> Hızlı eleme{filters.chip || filters.stage.length || filters.q.trim() ? ` (${rows.length})` : ' (hiç mesaj atılmamış)'}
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="adm-empty">Yükleniyor…</div>
@@ -171,6 +191,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
       {adding === 'one' && <NewCandidateModal onClose={() => setAdding(null)} />}
       {adding === 'import' && <ImportSimple onClose={() => setAdding(null)} />}
       {adding === 'paste' && <PasteImport onClose={() => setAdding(null)} />}
+      {triageIds && <Triage ids={triageIds} onClose={() => setTriageIds(null)} />}
       {actOn && (
         <HubWizard title={actOn.fullName} submitLabel="Uygula" onCancel={() => setActOn(null)}
           steps={rowActionSteps} onComplete={runRowAction} />

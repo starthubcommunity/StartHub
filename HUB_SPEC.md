@@ -284,8 +284,19 @@ mesaj atılmamış"). Kartta **kaynaktan bağımsız**: ad, şehir/okul, bağlı
 sinyalleri **küçük ek satır**, omurga değil.
 
 Aksiyonlar: **Mesaj gönder (M) · Atla (A) · Ele (E)**. Her basışta sonraki aday.
-Üstte ilerleme (7/20), altta günlük sayaç, `Ctrl+Z` geri al. Kısayollar sadece bu
-ekranda, input odaktayken devre dışı.
+Üstte ilerleme (7/20), üstte günlük gönderim sayacı, `Ctrl+Z` geri al. Kısayollar
+sadece bu ekranda, input odaktayken M/A/E devre dışı (Ctrl+Z yine çalışır).
+
+- **Mesaj gönder** → taslak `draft_text`'e yazılır + `sendTouch` (son kullanılan
+  kanal): `hub_touches` kaydı, Havuz→Temas, +7 gün takip.
+- **Atla** → aday dokunulmadan sıradakine geç (Havuz'da kalır).
+- **Ele** → `advanceStage('archived', reason:'hızlı eleme',
+  archive_reason:'below_bar')`.
+- **Geri al** → 'ele' → `undoLastStage`; 'mesaj gönder' → `undoSend` (son touch
+  silinir + Temas'a çıkmışsa Havuz'a döner); 'atla' → yalnızca imleç geri.
+
+Giriş: Adaylar listesinde **"Hızlı eleme"** düğmesi; aktif filtre varsa onun
+sonucuyla, yoksa `no_message` çipiyle başlar. Kuyruk açılışta dondurulur.
 
 ---
 
