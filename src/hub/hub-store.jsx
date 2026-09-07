@@ -26,6 +26,50 @@ export function useHubStore() {
   return ctx;
 }
 
+// Kurucu Hattı → Team köprüsü: Hub'ın 'track' kavramını (kurucu/üye) Team
+// app'in role'üne çevirir. 'admin'/'cto' StartHub org-seviyesi roller,
+// Hub'ın bilgisi dışında — buradan asla atanmaz.
+function teamRoleFromTrack(track) {
+  return track === 'founder' ? 'lead' : 'member';
+}
+
+// Team app'e (ayrı Supabase projesi) düz fetch — best-effort. Hub'ın
+// kendi ilerlemesini ASLA bloklamaz/engellemez: her koşulda { ok, ... }
+// döner, hata fırlatmaz. service_role Hub'a hiç girmez — yalnızca
+// publishable anon key + paylaşılan bir sır header'ı.
+async function bridgeToTeam({ startupId, fullName, email, track, candidateId, actorEmail }) {
+  if (import.meta.env.VITE_HUB_BRIDGE_DISABLED === '1') return { ok: false, error: 'devre dışı (dev)' };
+  if (!startupId) return { ok: false, error: 'proje bağlantısı yok' };
+  const url = import.meta.env.VITE_TEAM_BRIDGE_URL;
+  const anonKey = import.meta.env.VITE_TEAM_BRIDGE_ANON_KEY;
+  const secret = import.meta.env.VITE_TEAM_BRIDGE_SECRET;
+  if (!url || !anonKey || !secret) return { ok: false, error: 'köprü yapılandırılmamış' };
+
+  const { data: su, error: suErr } = await supabase.from('startups').select('team_app_id, name').eq('id', startupId).maybeSingle();
+  if (suErr) return { ok: false, error: suErr.message };
+  if (!su?.team_app_id) return { ok: false, error: "bu proje Team app ekibiyle eşleşmemiş (startups.team_app_id boş)" };
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 8000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      signal: ac.signal,
+      headers: { 'Content-Type': 'application/json', apikey: anonKey, 'x-hub-bridge-key': secret },
+      body: JSON.stringify({
+        teamId: su.team_app_id, fullName, email, role: teamRoleFromTrack(track),
+        source: { candidateId, actorEmail: actorEmail || null },
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    return res.ok && json.ok ? { ok: true, ...json } : { ok: false, error: json.error || `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, error: e.name === 'AbortError' ? 'zaman aşımı' : String(e?.message || e) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function HubStoreProvider({ children }) {
   const [data, setData]           = useState(EMPTY);
   const [loading, setLoading]     = useState(true);
@@ -310,8 +354,22 @@ export function HubStoreProvider({ children }) {
         await updateItem('openRoles', role.id, { ...role, ...patch });
       }
     }
-    return vestingStart;
-  }, [data, advanceStage, patchLocal, updateItem]);
+    // Team app'e (ayrı proje) ekleme — best-effort yan işlem. Başarısız
+    // olsa bile yukarıdaki hub güncellemesi HER KOŞULDA kalıcıdır; hata
+    // yalnızca stage_log'a not düşülür, kullanıcı Team panelinden elle
+    // ekleyebilir (email zaten idempotent).
+    let bridge = null;
+    if (cand) {
+      bridge = await bridgeToTeam({
+        startupId: cand.startupId, fullName: cand.fullName, email: cand.email, track: cand.track,
+        candidateId, actorEmail: currentMember?.email || null,
+      });
+      if (!bridge.ok) {
+        await logStage(candidateId, 'member', 'member', `Team app'e otomatik ekleme başarısız: ${bridge.error} — elle ekleyin.`);
+      }
+    }
+    return { vestingStart, bridge };
+  }, [data, advanceStage, patchLocal, updateItem, logStage, currentMember]);
 
   // ── Açık roller: durum makinesi (v2 §10.1 — talep akışı yok) ──
   const advanceRole = useCallback(async (roleId, toStatus, { assignTo } = {}) => {

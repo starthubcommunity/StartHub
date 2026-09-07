@@ -285,6 +285,9 @@ function ProjectForm({ item, onClose, onSave, people }) {
           <Field label="Ekip (otomatik)" hint="Lider + üyeler + bu projeye bağlı proje üyelerinden hesaplanır"><Input type="number" value={autoTeamCount || f.team} disabled /></Field>
           <Field label="Açık Rol (otomatik)" hint="Aşağıdaki 'Açık Pozisyonlar' listesinden hesaplanır"><Input type="number" value={autoOpenRoles} disabled /></Field>
         </div>
+        <Field label="Team App Ekip ID" hint="Ekip Paneli'ndeki (/team/) ekip id'si — ör. 'A', 'B', 'C', 'BD'. Boşsa Kurucu Hattı'ndan bu projeye işe alınan adaylar Ekip Paneli'ne otomatik eklenmez.">
+          <Input value={f.teamAppId || ''} onChange={v => set('teamAppId', v.toUpperCase().trim())} placeholder="A" style={{ maxWidth: 160 }} />
+        </Field>
 
         {/* Ekip üyeleri editörü */}
         <div className="adm-team-edit">
