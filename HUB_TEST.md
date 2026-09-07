@@ -250,6 +250,16 @@
    çıkıyor, M/A/E düğmelerini kapatmıyor, ~1.8 sn sonra kayboluyor, tıklamayı
    geçiriyor (`pointer-events:none`).
 
+## T19 — Kaynak kütüğü + verim (Blok E — E1)
+
+1. Yönetim → **Kaynaklar** (yalnızca `sources.read` yetkisi olan görür).
+2. Boşsa "Örnek kaynakları ekle" → 6 kaynak. "Kaynak ekle" ile spesifik ad
+   ("Teknofest 2026 ulaşım kategorisi").
+3. **Beklenen:** her satırda Aday / Cevap % / İşe alım (o kaynak tipinin
+   adaylarından). Son kontrol tarihi geçince kırmızı; "Kontrol edildi işaretle".
+4. Metrikler → **"Kaynak verimi"** tablosu: satırlar `source_detail` düzeyinde,
+   Aday/Temas/Cevap %/İşe alım; işe alıma göre sıralı.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

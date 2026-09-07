@@ -6,7 +6,7 @@ import {
   inheritedTrack, isStale, gateStatus, gateDueAt, canDraftAI, rubricComplete,
   candidateVisible, nextAction, undoPlan,
 } from './hub-rules.js';
-import { stageReachCounts, stageConversion, sourceFunnel, active90, intervalToDays } from './hub-metrics.js';
+import { stageReachCounts, stageConversion, sourceFunnel, sourceStats, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
 import { applyFilters, chipPredicate, countActiveFilters } from './hub-filter.js';
 import { matchScore, suggestRolesFor } from './hub-match.js';
@@ -425,6 +425,31 @@ t('sourceFunnel: kaynak bazında "hiç ulaşmış" sayımı', () => {
   assert.equal(f.github.contact, 2);
   assert.equal(f.github.interview, 1);
   assert.equal(f.hackathon.interview, 1);
+});
+t('sourceStats (E1): source_detail düzeyinde cevap oranı + işe alım', () => {
+  const cands = [
+    { id: 'a', source: 'hackathon', sourceDetail: 'Teknofest 2026 ulaşım', stage: 'member' },
+    { id: 'b', source: 'hackathon', sourceDetail: 'Teknofest 2026 ulaşım', stage: 'contact' },
+    { id: 'c', source: 'referral',  sourceDetail: '', stage: 'pool' },
+  ];
+  const touches = [
+    { candidateId: 'a', outcome: 'replied' },
+    { candidateId: 'b', outcome: 'pending' },
+    { candidateId: 'b', outcome: 'replied' },
+  ];
+  const s = sourceStats(cands, touches, []);
+  assert.equal(s['Teknofest 2026 ulaşım'].total, 2);
+  assert.equal(s['Teknofest 2026 ulaşım'].sent, 3);
+  assert.equal(s['Teknofest 2026 ulaşım'].replied, 2);
+  assert.equal(s['Teknofest 2026 ulaşım'].replyRate, 67);
+  assert.equal(s['Teknofest 2026 ulaşım'].hired, 1);       // a → member
+  assert.equal(s['referral'].total, 1);                    // detail boş → source'a düşer
+  assert.equal(s['referral'].replyRate, null);             // temas yok
+});
+t('sourceStats: işe alım stage_log member kaydından da sayılır', () => {
+  const cands = [{ id: 'x', source: 'github', sourceDetail: 'GH taraması', stage: 'archived' }];
+  const log = [{ candidateId: 'x', toStage: 'member' }];
+  assert.equal(sourceStats(cands, [], log)['GH taraması'].hired, 1);
 });
 t('active90: 90 günü dolmamışsa rate null', () => {
   const cands = [{ id: 'x', stage: 'member' }];

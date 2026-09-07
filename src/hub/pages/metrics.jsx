@@ -2,8 +2,8 @@
 // Grafik yok — sayı kartları. Hepsi gerçek veriden; sabit değer yok.
 import React, { useMemo } from 'react';
 import { useHubStore } from '../hub-store';
-import { STAGES, SOURCE_LABEL } from '../hub-constants';
-import { stageReachCounts, sourceFunnel, active90 } from '../hub-metrics';
+import { SOURCE_LABEL } from '../hub-constants';
+import { stageReachCounts, sourceStats, active90 } from '../hub-metrics';
 
 const pct = (n, d) => (d > 0 ? Math.round((100 * n) / d) : null);
 
@@ -31,7 +31,7 @@ export default function MetricsPage() {
   const { candidates, touches, stageLog } = useHubStore();
 
   const reach = useMemo(() => stageReachCounts(stageLog), [stageLog]);
-  const funnel = useMemo(() => sourceFunnel(candidates, stageLog), [candidates, stageLog]);
+  const stats = useMemo(() => sourceStats(candidates, touches, stageLog), [candidates, touches, stageLog]);
   const a90 = useMemo(() => active90(candidates, stageLog), [candidates, stageLog]);
 
   const sent = touches.length;
@@ -39,16 +39,11 @@ export default function MetricsPage() {
   const interview = reach.interview || 0;
   const trial = reach.trial || 0;
 
-  // Kaynak başına cevap oranı: o kaynaktan gelen adayların temaslarında
-  // outcome='replied' / toplam temas.
-  const srcOf = new Map(candidates.map((c) => [c.id, c.source || 'other']));
-  const bySource = {};
-  for (const t of touches) {
-    const s = srcOf.get(t.candidateId) || 'other';
-    if (!bySource[s]) bySource[s] = { sent: 0, replied: 0 };
-    bySource[s].sent++;
-    if (t.outcome === 'replied') bySource[s].replied++;
-  }
+  // E1 — kaynak = "Teknofest 2026 ulaşım kategorisi" düzeyinde (source_detail).
+  // Önce işe alım, sonra cevap oranına göre sırala; verimli kaynak üstte.
+  const srcRows = Object.values(stats).sort(
+    (a, b) => b.hired - a.hired || (b.replyRate ?? -1) - (a.replyRate ?? -1) || b.total - a.total
+  );
 
   return (
     <div>
@@ -66,30 +61,36 @@ export default function MetricsPage() {
           hint={a90.eligible ? `${a90.active}/${a90.eligible} · 90 günü dolan` : 'henüz 90 günü dolan aday yok'} />
       </div>
 
-      <h3 className="hub-h4">Kaynak başına cevap oranı</h3>
+      <h3 className="hub-h4">Kaynak verimi</h3>
+      <p style={{ fontSize: 12, color: '#A29D94', margin: '0 0 8px' }}>
+        Kaynak = spesifik parti (“Teknofest 2026 ulaşım kategorisi”), tip değil. Aday sayısı çok değil,
+        <b> cevap oranı</b> ve <b>işe alım</b> önemli.
+      </p>
       <div className="adm-card" style={{ overflowX: 'auto' }}>
         <table className="adm-table" style={{ width: '100%' }}>
           <thead>
             <tr>
               <th>Kaynak</th>
-              {STAGES.map((s) => <th key={s.value} style={{ textAlign: 'right' }}>{s.label}</th>)}
+              <th style={{ textAlign: 'right' }}>Aday</th>
+              <th style={{ textAlign: 'right' }}>Temas</th>
               <th style={{ textAlign: 'right' }}>Cevap %</th>
+              <th style={{ textAlign: 'right' }}>İşe alım</th>
             </tr>
           </thead>
           <tbody>
-            {Object.keys(funnel).sort().map((src) => {
-              const f = funnel[src];
-              const b = bySource[src] || { sent: 0, replied: 0 };
-              return (
-                <tr key={src}>
-                  <td>{SOURCE_LABEL[src] || src}</td>
-                  {STAGES.map((s) => <td key={s.value} style={{ textAlign: 'right' }}>{f[s.value] || 0}</td>)}
-                  <td style={{ textAlign: 'right' }}>{pct(b.replied, b.sent) ?? '—'}</td>
-                </tr>
-              );
-            })}
-            {Object.keys(funnel).length === 0 && (
-              <tr><td colSpan={STAGES.length + 2}><div className="adm-empty">Aday yok.</div></td></tr>
+            {srcRows.map((r) => (
+              <tr key={r.key}>
+                <td>{SOURCE_LABEL[r.key] || r.key || '—'}</td>
+                <td style={{ textAlign: 'right' }}>{r.total}</td>
+                <td style={{ textAlign: 'right' }}>{r.sent}</td>
+                <td style={{ textAlign: 'right', fontWeight: r.replyRate != null && r.replyRate >= 20 ? 700 : 400, color: r.replyRate != null && r.replyRate >= 20 ? 'var(--adm-green)' : undefined }}>
+                  {r.replyRate == null ? '—' : `%${r.replyRate}`}
+                </td>
+                <td style={{ textAlign: 'right', fontWeight: r.hired > 0 ? 700 : 400 }}>{r.hired}</td>
+              </tr>
+            ))}
+            {srcRows.length === 0 && (
+              <tr><td colSpan={5}><div className="adm-empty">Aday yok.</div></td></tr>
             )}
           </tbody>
         </table>

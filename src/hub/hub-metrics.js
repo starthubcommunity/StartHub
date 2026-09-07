@@ -75,6 +75,39 @@ export function sourceFunnel(candidates = [], stageLog = []) {
   return out;
 }
 
+// sourceStats (PROMPT_V3 E1) — kaynak BAŞINA verim. Anahtar varsayılan olarak
+// source_detail ("Teknofest 2026 ulaşım kategorisi"), yoksa source ("hackathon").
+// Aday sayısı DEĞİL; asıl bakılan: cevap oranı ve işe alım sayısı.
+//   { [key]: { key, total, sent, replied, replyRate, hired } }
+export function sourceStats(candidates = [], touches = [], stageLog = [], keyFn) {
+  const kf = keyFn || ((c) => (c.sourceDetail && String(c.sourceDetail).trim()) || c.source || 'other');
+  const keyOf = new Map(candidates.map((c) => [c.id, kf(c)]));
+  const reached = reachedIndexByCandidate(stageLog);
+  const memberIdx = STAGE_ORDER.indexOf('member');
+
+  const out = {};
+  const bump = (k) => (out[k] = out[k] || { key: k, total: 0, sent: 0, replied: 0, replyRate: null, hired: 0 });
+
+  for (const c of candidates) {
+    const k = keyOf.get(c.id);
+    const row = bump(k);
+    row.total++;
+    const hired = c.stage === 'member' || (reached.get(c.id) ?? -1) >= memberIdx;
+    if (hired) row.hired++;
+  }
+  for (const t of touches) {
+    const k = keyOf.get(t.candidateId);
+    if (k == null) continue;
+    const row = bump(k);
+    row.sent++;
+    if (t.outcome === 'replied') row.replied++;
+  }
+  for (const row of Object.values(out)) {
+    row.replyRate = row.sent > 0 ? Math.round((100 * row.replied) / row.sent) : null;
+  }
+  return out;
+}
+
 // "90 günde hâlâ aktif" (v2 §11) — GERİYE DÖNÜK HESAPLANAMAZ. hub_stage_log'dan:
 // 90+ gün önce `member`'a ulaşmış adaylardan bugün hâlâ `member` olanların oranı.
 // Henüz 90 günü dolan aday yoksa rate=null (uydurma sayı yok).

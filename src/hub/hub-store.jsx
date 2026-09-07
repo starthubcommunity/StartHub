@@ -15,7 +15,7 @@ import { STAGE_ORDER } from './hub-constants';
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
 // v2: roleLog / views / sources düştü (menüde yok). interviews tek aday için
 // loadHistory() ile; touches/gates Bugün ekranı için; stageLog dönüşüm için.
-const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog'];
+const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
 
 const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
 

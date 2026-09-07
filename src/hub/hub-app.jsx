@@ -15,6 +15,7 @@ import CandidatesListPage from './pages/candidates-list';
 import ArchivePage from './pages/archive';
 import TemplatesPage from './pages/templates';
 import MetricsPage from './pages/metrics';
+import SourcesPage from './pages/sources';
 import SettingsPage from './pages/settings';
 import RolesPage from './pages/roles';
 
@@ -339,6 +340,7 @@ const MAIN_NAV = [
 const GEAR_NAV = [
   { id: 'templates', label: 'Şablonlar', icon: 'penEdit',    perm: 'templates.read' },
   { id: 'metrics',   label: 'Metrikler', icon: 'trendingUp', perm: 'metrics.read' },
+  { id: 'sources',   label: 'Kaynaklar', icon: 'layers',     perm: 'sources.read' },
   { id: 'members',   label: 'Yetkiler',  icon: 'users',      perm: 'members.manage' },
   { id: 'settings',  label: 'Ayarlar',   icon: 'settings',   perm: 'settings.write' },
 ];
@@ -423,6 +425,7 @@ function HubApp({ email, onLogout }) {
             : activePage === 'roles' ? <RolesPage />
             : activePage === 'templates' ? <TemplatesPage />
             : activePage === 'metrics' ? <MetricsPage />
+            : activePage === 'sources' ? <SourcesPage />
             : activePage === 'members' ? <PermissionsScreen area="hub" />
             : activePage === 'settings' ? <SettingsPage />
             : <div className="adm-empty">Bu ekran yok.</div>}

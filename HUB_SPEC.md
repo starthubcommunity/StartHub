@@ -483,15 +483,20 @@ inbound düğmesi `hub_role()` ile (admin app'in yetki alanı ayrı — §9.5).
 
 ---
 
-## 11. Kaynaklar ve metrikler
+## 11. Kaynaklar ve metrikler  *(E1)*
 
-`hub_source_registry` + `sources.jsx` geri bağlanır. Kaynak = "hackathon" değil,
-**"Teknofest 2026 ulaşım kategorisi"** düzeyinde (`source_detail`).
+`sources.jsx` geri bağlandı → **Yönetim → Kaynaklar** (`perm: 'sources.read'`).
+Sadece **kütük** (nereden avlanılıyor) + verim; GitHub taraması E5'e taşındı.
+`store` koleksiyonlarına `sources` eklendi. Kütük satırı: ad (spesifik) · tip ·
+sıklık · son kontrol · sorumlu · **Aday / Cevap % / İşe alım** · durum. 8 haftadır
+cevap+işe alım yoksa "pasifleştir öner".
 
-**Metrikler (`metrics.jsx`) — 3 metrik:**
-- Kaynak başına **cevap oranı ve işe alım sayısı** (aday sayısı değil)
-- Görüşmeden Deneme'ye geçiş oranı
-- 90 günde hâlâ aktif (uzun vadede gerçek üretim verisinden — §12.6)
+**Metrikler (`metrics.jsx`) — 3 kart + kaynak verimi:**
+- 3 kart: cevap oranı · Görüşme→Deneme · 90 günde aktif (değişmedi).
+- "Kaynak verimi" tablosu: `hub-metrics.sourceStats` — anahtar **`source_detail`**
+  ("Teknofest 2026 ulaşım kategorisi"), yoksa `source`. Sütun: Aday · Temas ·
+  **Cevap %** · **İşe alım**. İşe alıma / cevaba göre sıralı (verimli üstte).
+  Aday sayısı artık omurga değil.
 
 Haftalık hedef: Havuza 10, Temasa 6.
 
