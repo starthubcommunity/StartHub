@@ -299,16 +299,21 @@ export function nextAction(candidate, touches = [], gates = []) {
   }
 }
 
-// canDraftAI(candidate) -> boolean (v2 §7)
-// AI, adayın somut verisi (kaynak detayı, "neden bu kişi", kanıt linki) boşsa
-// taslak üretmez — UI "Veri yetersiz, elle yaz" uyarısı gösterir.
+// canDraftAI(candidate) -> boolean (v2 §7, Blok D düzeltme 2)
+// AI, adayın SOMUT verisi yoksa taslak üretmez — "Veri yetersiz, elle yaz".
+// v3: sadece isim/takım + okul yetersizdir (kişinin NE YAPTIĞI belli değil).
+// "Somut" sayılması için: kanıt linki VAR, ya da metin ≥ 5 kelime, ya da bir
+// sayı içeriyor (yıl / derece / sayaç) ve ≥ 3 kelime.
+const wc = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
+const hasSubstance = (s) => {
+  const n = wc(s);
+  return n >= 5 || (/\d/.test(String(s || '')) && n >= 3);
+};
+
 export function canDraftAI(candidate) {
   const c = candidate || {};
-  return (
-    filled(c.sourceDetail) ||
-    filled(c.whyThisOne) ||
-    (Array.isArray(c.evidence) && c.evidence.length > 0)
-  );
+  if (Array.isArray(c.evidence) && c.evidence.length > 0) return true;
+  return hasSubstance(c.whyThisOne) || hasSubstance(c.sourceDetail);
 }
 
 // candidateVisible(candidate, ctx) -> bir üye bu adayı görebilir mi? (§10.2)

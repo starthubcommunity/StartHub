@@ -197,6 +197,9 @@ export function HubStoreProvider({ children }) {
   const sendTouch = useCallback(async (candidate, { templateId = null, variant = null, channel, personalization = null }) => {
     const now = new Date();
     const followUp = new Date(now.getTime() + 7 * 86400000).toISOString();
+    // Çağıran bayat bir aday nesnesi geçmiş olabilir (aday kartı / hızlı eleme
+    // ayrı yerlerden çağırıyor) — aşama kontrolünü CANLI cache'ten yap.
+    const live = data.candidates.find((c) => c.id === candidate.id) || candidate;
     await addItem('touches', {
       candidateId: candidate.id,
       channel,
@@ -209,12 +212,12 @@ export function HubStoreProvider({ children }) {
       note: personalization,
     });
 
-    const beforeContact = STAGE_ORDER.indexOf(candidate.stage) < STAGE_ORDER.indexOf('contact');
+    const beforeContact = STAGE_ORDER.indexOf(live.stage) < STAGE_ORDER.indexOf('contact');
     if (beforeContact) {
       await advanceStage(candidate.id, 'contact', { reason: 'ilk mesaj', extra: { lastContactAt: now.toISOString() } });
     } else {
       patchLocal('candidates', candidate.id, { lastContactAt: now.toISOString() });
-      await updateItem('candidates', candidate.id, { ...candidate, lastContactAt: now.toISOString() });
+      await updateItem('candidates', candidate.id, { ...live, lastContactAt: now.toISOString() });
     }
 
     if (templateId) {

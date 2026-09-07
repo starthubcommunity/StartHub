@@ -143,9 +143,13 @@ export function parsePastedText(raw) {
 // Havuzdaki mevcut adaylarla tekrar tespiti (HUB_SPEC v3 §6.2):
 //   KESİN  (certain:true)  — e-posta tam eşleşme / GitHub kullanıcı adı /
 //                            LinkedIn slug eşleşme
-//   OLASI  (certain:false) — ad benzerliği (similar ≥ 0.8) VE aynı okul
-//                            (iki tarafta da okul dolu ve normalize eşit)
+//   OLASI  (certain:false) — ad benzerliği (similar ≥ NAME_DUP). Aynı okul
+//                            varsa sinyal güçlenir ama ŞART DEĞİL (yapıştırılan
+//                            listelerde e-posta/link çoğu zaman yok; ad+okul
+//                            şartı bu veride hiç tetiklenmiyordu).
 // Dönüş: { id, reason, certain } | null.
+export const NAME_DUP = 0.85;
+
 export function findDuplicate(row, candidates) {
   const email = strip(row.email);
   const gh = ghKey(row.github);
@@ -156,11 +160,23 @@ export function findDuplicate(row, candidates) {
     if (li && liKey(c.linkedin) === li) return { id: c.id, reason: 'aynı LinkedIn', certain: true };
   }
   const school = strip(row.university);
-  if (row.fullName && school) {
+  if (row.fullName && nameKey(row.fullName).split(' ').filter(Boolean).length >= 2) {
+    let best = null;
     for (const c of candidates) {
-      if (c.fullName && strip(c.university) === school && similar(row.fullName, c.fullName) >= 0.8) {
-        return { id: c.id, reason: 'benzer ad + aynı okul', certain: false };
+      if (!c.fullName) continue;
+      const s = similar(row.fullName, c.fullName);
+      if (s < NAME_DUP) continue;
+      const sameSchool = school && strip(c.university) === school;
+      if (!best || s > best.s || (s === best.s && sameSchool && !best.sameSchool)) {
+        best = { id: c.id, s, sameSchool };
       }
+    }
+    if (best) {
+      return {
+        id: best.id,
+        reason: best.sameSchool ? 'benzer ad + aynı okul' : 'benzer ad',
+        certain: false,
+      };
     }
   }
   return null;

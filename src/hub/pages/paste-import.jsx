@@ -33,14 +33,16 @@ export default function PasteImport({ onClose }) {
     const { rows: r } = parsePastedText(raw);
     if (!r.length) { setErr('Ayrıştırılacak bir şey bulunamadı.'); return; }
     setErr('');
-    // D2 — havuzdaki adaylarla mükerrer tespiti + varsayılan mod.
+    // D2 — havuzdaki adaylarla mükerrer tespiti. Tekrar bulunan HER satırda
+    // varsayılan "mevcudu güncelle" (aynı listeyi ikinci kez yapıştırınca yeni
+    // kayıt yığılmasın); kullanıcı satırda "yeni kayıt"a çevirebilir.
     setRows(r.map((row) => {
       const dup = findDuplicate(row, candidates);
       return {
         ...row,
         _dup: dup,
         _dupId: dup?.id ?? null,
-        _mode: dup?.certain ? 'update' : 'new',   // olası tekrarda varsayılan 'new' (uyar, birleştirme)
+        _mode: dup ? 'update' : 'new',
       };
     }));
     setStep(2);

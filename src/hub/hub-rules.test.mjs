@@ -230,9 +230,15 @@ t('canDraftAI: somut veri yoksa false', () => {
   assert.equal(canDraftAI({ fullName: 'Ada' }), false);
   assert.equal(canDraftAI({ sourceDetail: '', whyThisOne: '', evidence: [] }), false);
 });
-t('canDraftAI: kaynak detayı / neden bu kişi / kanıt varsa true', () => {
-  assert.equal(canDraftAI({ sourceDetail: 'Teknofest 2025 finalisti' }), true);
-  assert.equal(canDraftAI({ whyThisOne: 'tid-ceviri projesini tek başına bitirmiş' }), true);
+t('canDraftAI: yalnızca takım adı + okul → false (Blok D düz. 2)', () => {
+  assert.equal(canDraftAI({ whyThisOne: 'AquaTeam ile Afyon Kocatepe' }), false);
+  assert.equal(canDraftAI({ whyThisOne: 'AquaTeam' }), false);
+  assert.equal(canDraftAI({ whyThisOne: 'Afyon Kocatepe Üniversitesi öğrencisi' }), false); // 4 kelime, sayı yok
+});
+t('canDraftAI: somut iş / sayı içeren metin / kanıt → true', () => {
+  assert.equal(canDraftAI({ sourceDetail: 'Teknofest 2025 finalisti' }), true);        // 3 kelime + sayı
+  assert.equal(canDraftAI({ whyThisOne: 'Teknofest 2026 ulaşım kategorisi finalisti' }), true); // 5 kelime
+  assert.equal(canDraftAI({ whyThisOne: 'tid-ceviri projesini tek başına bitirmiş' }), true);   // 5 kelime
   assert.equal(canDraftAI({ evidence: [{ type: 'repo', url: 'https://github.com/x/y' }] }), true);
 });
 
@@ -478,17 +484,33 @@ t('findDuplicate: github / e-posta eşleşmesi → KESİN', () => {
   assert.equal(d?.id, 'e1');
   assert.equal(d.certain, true);
 });
-t('D2: ad benzerliği + AYNI okul → OLASI (certain:false)', () => {
-  const existing = [{ id: 'e2', fullName: 'Ada Yilmaz', university: 'Boğaziçi Üniversitesi', email: null }];
-  const row = { fullName: 'Ada Yılmaz', university: 'Bogazici Universitesi' };
-  const d = findDuplicate(row, existing);
+t('D2 düz.1: e-postasız/linksiz, yalnızca ad+okul — aynı liste 2. kez → OLASI', () => {
+  // İlk yapıştırma sonrası havuzdaki kayıt (link yok, okul parser'dan gelmiş)
+  const existing = [{ id: 'e2', fullName: 'Ada Yılmaz', university: 'Boğaziçi Üniversitesi', email: null, github: null, linkedin: null }];
+  // İkinci yapıştırmadaki aynı satır
+  const d = findDuplicate({ fullName: 'Ada Yılmaz', university: 'Boğaziçi Üniversitesi' }, existing);
   assert.equal(d?.id, 'e2');
   assert.equal(d.certain, false);
+  assert.match(d.reason, /aynı okul/);
 });
-t('D2: ad benzer ama okul FARKLI / boş → tekrar sayılmaz', () => {
-  const existing = [{ id: 'e3', fullName: 'Ada Yılmaz', university: 'İTÜ', email: null }];
-  assert.equal(findDuplicate({ fullName: 'Ada Yılmaz', university: 'ODTÜ' }, existing), null);
-  assert.equal(findDuplicate({ fullName: 'Ada Yılmaz', university: '' }, existing), null);
+t('D2 düz.1: TR karakter normalizasyonu (Yılmaz ↔ Yilmaz, İTÜ ↔ itu)', () => {
+  const existing = [{ id: 'e3', fullName: 'ADA YILMAZ', university: 'İTÜ' }];
+  assert.equal(findDuplicate({ fullName: 'Ada Yılmaz', university: 'itü' }, existing)?.id, 'e3');
+});
+t('D2 düz.1: ad ≥0.85, OKUL EŞLEŞMESE de olası tekrar', () => {
+  const existing = [{ id: 'e4', fullName: 'Ada Yılmaz', university: 'İTÜ', email: null }];
+  const d = findDuplicate({ fullName: 'Ada Yılmaz', university: 'ODTÜ' }, existing);
+  assert.equal(d?.id, 'e4');
+  assert.equal(d.certain, false);
+  assert.equal(d.reason, 'benzer ad');
+  // okulsuz da:
+  assert.equal(findDuplicate({ fullName: 'Ada Yılmaz', university: '' }, existing)?.id, 'e4');
+});
+t('D2 düz.1: farklı kişi (ad benzemiyor) → null', () => {
+  const existing = [{ id: 'e5', fullName: 'Ada Yılmaz', university: 'İTÜ' }];
+  assert.equal(findDuplicate({ fullName: 'Mert Kaya', university: 'İTÜ' }, existing), null);
+  // tek kelimelik "ad" (junk) → null
+  assert.equal(findDuplicate({ fullName: 'AquaTeam', university: 'İTÜ' }, existing), null);
 });
 t('matchScore: role_type + beceri örtüşmesi', () => {
   const role = { roleType: 'technical', skills: ['React', 'SQL'], track: 'member', status: 'sourcing' };

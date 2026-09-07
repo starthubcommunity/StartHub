@@ -45,13 +45,18 @@ serve(async (req) => {
   try {
     const { fullName, sourceDetail, whyThisOne, link, evidence, signals, aiScoreNote } = await req.json();
 
+    // Blok D düzeltme 2 — güvenlik ağı: yalnızca isim/takım + okul yetersiz.
+    // "Somut" = kanıt linki / GitHub sinyali VAR, ya da metin ≥ 5 kelime, ya da
+    // sayı (yıl/derece) içeriyor ve ≥ 3 kelime.
+    const wc = (s: unknown) => String(s || "").trim().split(/\s+/).filter(Boolean).length;
+    const substantial = (s: unknown) => wc(s) >= 5 || (/\d/.test(String(s || "")) && wc(s) >= 3);
     const hasConcrete =
-      (whyThisOne && String(whyThisOne).trim()) ||
-      (sourceDetail && String(sourceDetail).trim()) ||
       (Array.isArray(evidence) && evidence.length > 0) ||
-      (Array.isArray(signals) && signals.length > 0);
+      (Array.isArray(signals) && signals.length > 0) ||
+      substantial(whyThisOne) ||
+      substantial(sourceDetail);
     if (!hasConcrete) {
-      return new Response(JSON.stringify({ text: "" }), {
+      return new Response(JSON.stringify({ text: "", insufficient: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -97,11 +102,15 @@ serve(async (req) => {
       });
     }
     const data = await res.json();
-    const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "")
+    let text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "")
       .trim()
       .replace(/^["']|["']$/g, "");
 
-    return new Response(JSON.stringify({ text }), {
+    // Güvenlik ağı: model somut bir cümle kuramadıysa (çok kısa / sadece
+    // isim-entity yan yana) "" + insufficient döndür — arayüz "elle yaz" der.
+    if (wc(text) < 5) text = "";
+
+    return new Response(JSON.stringify({ text, insufficient: text === "" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

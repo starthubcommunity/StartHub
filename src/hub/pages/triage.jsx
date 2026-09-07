@@ -21,7 +21,7 @@ export default function Triage({ ids, onClose }) {
   const [draft, setDraft] = useState('');
   const [drafting, setDrafting] = useState(false);
   const [toast, setToast] = useState('');
-  const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 2200); };
+  const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 1800); };
 
   const total = queue.length;
   const cur = idx < total ? store.candidates.find((c) => c.id === queue[idx]) || null : null;
@@ -34,19 +34,25 @@ export default function Triage({ ids, onClose }) {
 
   useEffect(() => { setDraft(cur?.draftText || ''); }, [cur?.id]); // eslint-disable-line
 
+  // Kullanıcı taslağı düzenleyip "Atla"ya basarsa yazdığı kaybolmasın diye
+  // onBlur'da / atlamada draft_text'e yazılır.
   const commitDraft = async () => {
     if (cur && (draft || '') !== (cur.draftText || '')) {
-      await store.updateCandidate(cur.id, { ...cur, draftText: draft });
+      store.patchCandidate(cur.id, { draftText: draft });
+      await store.updateCandidate(cur.id, { ...cur, draftText: draft }).catch(() => {});
     }
   };
 
+  // "Mesajı attım" (aday kartı) ile BİREBİR aynı yol: yalnızca store.sendTouch.
+  // O tek başına hub_touches + Havuz→Temas + takip tarihini yapar. Taslak metni
+  // touch'ın note'una gider (ayrıca candidate.draft_text'e yazmaya gerek yok).
   const doMessage = async () => {
     if (!cur || busy) return;
     setBusy(true);
+    const id = cur.id;
     try {
-      await commitDraft();
       await store.sendTouch(cur, { templateId: null, channel: lastChannel(), personalization: (draft || '').trim() || null });
-      setHist((h) => [...h, { id: cur.id, action: 'message' }]);
+      setHist((h) => [...h, { id, action: 'message' }]);
       setIdx((i) => i + 1);
       flash('Mesaj kaydedildi.');
     } catch (e) { flash('Hata: ' + e.message); }
@@ -124,7 +130,7 @@ export default function Triage({ ids, onClose }) {
 
   return (
     <div className="hub-panel-overlay" style={{ alignItems: 'stretch', justifyContent: 'stretch' }}>
-      <div className="hub-panel" style={{ maxWidth: 'none', width: '100%', height: '100%', borderRadius: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="hub-panel" style={{ position: 'relative', maxWidth: 'none', width: '100%', height: '100%', borderRadius: 0, display: 'flex', flexDirection: 'column' }}>
         <div className="hub-panel__head">
           <div>
             <div className="hub-panel__title">Hızlı eleme</div>
@@ -199,7 +205,15 @@ export default function Triage({ ids, onClose }) {
             <button className="adm-btn adm-btn--ghost" disabled={busy || !hist.length} onClick={undo}>↶ Geri <kbd>Ctrl+Z</kbd></button>
           </div>
         )}
-        {toast && <div className="hub-toast">{toast}</div>}
+        {/* Bug 4 — bildirim aksiyon alanının üstüne binmesin: üst-orta, tıklamayı geçirir. */}
+        {toast && (
+          <div style={{
+            position: 'absolute', top: 64, left: '50%', transform: 'translateX(-50%)',
+            background: 'var(--adm-text)', color: 'var(--adm-bg)', fontSize: 13, fontWeight: 600,
+            padding: '7px 16px', borderRadius: 999, pointerEvents: 'none', zIndex: 5,
+            boxShadow: '0 2px 12px rgba(0,0,0,.18)',
+          }}>{toast}</div>
+        )}
       </div>
     </div>
   );

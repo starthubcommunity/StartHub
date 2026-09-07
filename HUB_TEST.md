@@ -234,6 +234,22 @@
    silinir, Havuz'a döner). Üstte ilerleme (N/20) ve bugünkü gönderim sayısı.
 5. Parti bitince özet ("N mesaj · M elendi · K atlandı").
 
+## T18 — Blok D düzeltmeleri (canlı)
+
+1. **Dedup (D2 düz.1):** Aynı listeyi ikinci kez yapıştır (ortak "neden bu kişi"
+   değişmiş olsa da). **Beklenen:** e-postasız/linksiz, yalnızca ad+okul içeren
+   satırlar bile "olası tekrar" rozeti alır, varsayılan aksiyon **"mevcudu
+   güncelle"**. Onayla → yeni kayıt açılmaz, "N eklendi · M güncellendi".
+   TR karakter (Yılmaz/Yilmaz, İTÜ/itü) eşleşiyor.
+2. **canDraftAI (D3 düz.2):** yalnızca takım adı + okulu olan adayda "Taslak
+   oluştur" → **üretmiyor**, "Veri yetersiz — elle yaz". Somut cümle (sayı içeren
+   veya ≥5 kelime) olan adayda üretiyor.
+3. **Triage M (D3 düz.3):** hızlı elemede M → aday **Temas**'a geçiyor, takip
+   tarihi kuruluyor (kart akışıyla birebir). Touch kaydı `note`'unda taslak var.
+4. **Triage bildirimi (D3 düz.4):** "Mesaj kaydedildi" bildirimi üst-ortada
+   çıkıyor, M/A/E düğmelerini kapatmıyor, ~1.8 sn sonra kayboluyor, tıklamayı
+   geçiriyor (`pointer-events:none`).
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

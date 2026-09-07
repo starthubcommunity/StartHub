@@ -120,7 +120,7 @@ export default function ImportSimple({ onClose }) {
       }, store.candidates);
     });
     setDups(d);
-    setModes(d.map((x) => (x?.certain ? 'update' : 'new')));
+    setModes(d.map((x) => (x ? 'update' : 'new')));   // tekrar bulunan her satır varsayılan "güncelle"
     setTake(body.map((r) => String(r[map.fullName] || '').trim() !== ''));
     setStep(3);
   };

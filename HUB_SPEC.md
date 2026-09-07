@@ -258,14 +258,18 @@ aksiyon). Akış:
 **Tekilleştirme** (`hub-parse.findDuplicate` → `{ id, reason, certain }`):
 - E-posta tam eşleşme → **kesin** (`certain: true`)
 - GitHub kullanıcı adı / LinkedIn slug eşleşme → **kesin**
-- Ad benzerliği (`similar() ≥ 0.8`) **VE** aynı okul (iki tarafta da dolu,
-  normalize eşit) → **olası** (`certain: false`)
+- Ad benzerliği (`similar() ≥ 0.85`, `NAME_DUP`) → **olası** (`certain: false`).
+  **Aynı okul ŞART DEĞİL** — yapıştırılan listelerde e-posta/link genelde yok,
+  okul şartı hiç tetiklenmiyordu. Aynı okul varsa `reason` "benzer ad + aynı
+  okul" olur (sinyal güçlenir). TR normalizasyonu: `strip()` İ/I/ı→i, ş→s vb.
+  eşleyip sonra `toLowerCase` — locale-bağımsız.
 
 **Yapıştır / CSV önizlemesi:** tekrar bulunan her satırda "Tekrar" sütunu — rozet
 (`tekrar` / `olası`) + seçim: **mevcudu güncelle** / **yeni kayıt** / **atla**.
-Varsayılan: kesin → güncelle, olası → yeni kayıt. "Güncelle" mevcut kartta
-yalnızca **boş alanları** doldurur + yeni kanıt linklerini ekler; aşama/puan/not
-dokunulmaz. `importCandidates` `{ created, updated }` döner.
+Varsayılan: **tekrar bulunan her satır → "güncelle"** (aynı listeyi ikinci kez
+yapıştırınca yeni kayıt yığılmasın). "Güncelle" mevcut kartta yalnızca **boş
+alanları** doldurur + yeni kanıt linklerini ekler; aşama/puan/not dokunulmaz.
+`importCandidates` `{ created, updated }` döner.
 
 **Elle tek aday:** kesin mükerrer yeni kayıt açtırmaz — uyarı verir, kullanıcı
 mevcut kartı listeden açar. (Olası mükerrer elle eklemede engellenmez.)
@@ -287,8 +291,9 @@ Aksiyonlar: **Mesaj gönder (M) · Atla (A) · Ele (E)**. Her basışta sonraki 
 Üstte ilerleme (7/20), üstte günlük gönderim sayacı, `Ctrl+Z` geri al. Kısayollar
 sadece bu ekranda, input odaktayken M/A/E devre dışı (Ctrl+Z yine çalışır).
 
-- **Mesaj gönder** → taslak `draft_text`'e yazılır + `sendTouch` (son kullanılan
-  kanal): `hub_touches` kaydı, Havuz→Temas, +7 gün takip.
+- **Mesaj gönder** → **yalnızca** `store.sendTouch` (aday kartındaki "Mesajı
+  attım" ile birebir aynı yol — mantık kopyalanmaz): `hub_touches` kaydı (taslak
+  metni `note`'a), Havuz→Temas, +7 gün takip. Kanal: son kullanılan.
 - **Atla** → aday dokunulmadan sıradakine geç (Havuz'da kalır).
 - **Ele** → `advanceStage('archived', reason:'hızlı eleme',
   archive_reason:'below_bar')`.
@@ -315,9 +320,12 @@ varsa ek girdi, zorunlu değil. Sistem promptundaki "somut bir esere atıf yap"
 kuralı korunur ama eser GitHub reposu olmak zorunda değil (proje, başvuru,
 etkinlik, yayın).
 
-**Veri yeterliliği (`canDraftAI()`):** `sourceDetail` / `whyThisOne` / `evidence`
-hepsi boşsa taslak üretilmez — *"Veri yetersiz, elle yaz."* v3'te `why_this_one`
-zorunlu olduğu için bu alan pratikte her adayda dolu olur.
+**Veri yeterliliği (`canDraftAI()` — Blok D düz. 2):** yalnızca isim/takım + okul
+**yetersizdir** (kişinin ne yaptığı belli değil). "Somut" sayılması için: kanıt
+linki VAR, **ya da** `whyThisOne`/`sourceDetail` metni ≥ 5 kelime, **ya da** bir
+sayı (yıl/derece/sayaç) içeriyor ve ≥ 3 kelime. Geçmezse *"Veri yetersiz, elle
+yaz."* Edge function'da aynı kontrol + üretilen metin < 5 kelimeyse `""` +
+`insufficient` döner (arayüz "elle yaz" gösterir).
 
 **Taslak asla otomatik gönderilmez.** AI ilk taslağı yazar; gönderen her zaman insan.
 
