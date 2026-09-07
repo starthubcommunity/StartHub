@@ -525,6 +525,12 @@ export function HubStoreProvider({ children }) {
         track: role ? inheritedTrack(role) : undefined,
         whyThisOne: r.whyThisOne || null,
         evidence: r.evidence || [],
+        // E5 — GitHub taramasından gelen ön puan / sinyaller (rubriğin yerine GEÇMEZ)
+        city: r.city || null,
+        enrichment: r.enrichment || undefined,
+        enrichedAt: r.enrichedAt || (r.enrichment ? r.enrichment.fetched_at : undefined),
+        aiScore: r.aiScore ?? undefined,
+        aiScoreNote: r.aiScoreNote || undefined,
         stage: 'pool',
         createdBy: currentMember?.id ?? null,
         kvkkConsent: false,

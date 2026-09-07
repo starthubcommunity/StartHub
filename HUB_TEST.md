@@ -291,6 +291,16 @@
    "→ <rol> · N puan uyum · arşivde (…)" ile listelenir; tıklayınca kart açılır.
    Yeniden bağlama elle (kartın "Rol / hat düzenle" menüsü + "Geri al").
 
+## T23 — GitHub taraması (Blok E — E5)
+
+1. `supabase secrets set HUB_GITHUB_TOKEN=ghp_…` + deploy `hub-github-scan`.
+2. Adaylar → **"GitHub"** (yalnızca `scan.run` yetkisi görür) → parametreler →
+   **Tara**. **Beklenen:** ~2 sn/kullanıcı, sonuç satırlarında ön puan (1–5,
+   yalnızca bitirmişlik) + "neden bu kişi" + kanıt repoları. Token istenmez.
+3. Seç → "N adayı ekle" → Havuz'da `github` kaynaklı, `ai_score` dolu,
+   `score_communication/capacity` **boş**. Ardından "Hepsine taslak".
+4. `scan.run` yetkisi olmayanda "GitHub" düğmesi yok; edge function 403.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

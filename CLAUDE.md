@@ -43,7 +43,9 @@ bir uçtan uca test) + `node src/hub/hub-rules.test.mjs`.
 `project_url` + `service_role_key` secret'ları ister. v3 migration'ları `0013`'ten
 devam eder; `drop column` yapılmaz (kolon UI'dan gizlenir). Edge function'lar:
 `send-mail`, `invite-member`, `hub-ai-draft`, `hub-daily`, `hub-weekly`,
-`hub-move-to-team` (C4 — servis rolü, `people`/`startups`/auth köprüsü).
+`hub-move-to-team` (C4), `hub-github-scan` (E5 — `HUB_GITHUB_TOKEN` secret,
+tarama sunucuda). `hub-github.js` / `hub-enrich.js` / `components/unknowable.jsx`
+artık bağlantısız (enrich saf fonksiyonları testli).
 
 ## Proje kuralları
 

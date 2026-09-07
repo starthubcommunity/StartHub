@@ -562,11 +562,21 @@ sebep `no_time` / `below_bar`, `matchScore ≥ 2` adaylar. Bugün ekranında
 iyi rol, tıklayınca kart. **Yalnızca havuz ≥ `MATCH_MIN_POOL` (100)** olunca
 görünür (altında gürültü). Yeniden bağlama insanın işi (kart menüsü).
 
-### 12.5 GitHub taraması (E5, opsiyonel araç)
+### 12.5 GitHub taraması (E5, opsiyonel araç) — *kod hazır*
 
-`hub-github.js` + `hub-enrich.js` geri bağlanabilir: token tarayıcıda tutulmaz,
-edge function proxy'sine taşınır; ayrı ekran değil, aday ekleme yöntemlerinden
-biri; `enrichment` rubriğin yerine geçmez, sadece ön puan önerir.
+- **`hub-github-scan` edge function** (yeni): arama + kişi başına profil/repo
+  çekimi + `computeEnrichment` / `prescoreFinishing` / `whyThisOne` **sunucuda**.
+  Token `HUB_GITHUB_TOKEN` secret'ı — **tarayıcıya inmez**. Yetki: `hub_role()`
+  cofounder/recruiter. Edge timeout için `limit ≤ 8`, derin analiz yok.
+- **`github-import.jsx`** (yeni): Adaylar → aksiyon menüsünde **"GitHub"**
+  (`scan.run` yetkisi) — ayrı ekran değil. Parametre formu → Tara → önizleme
+  (ön puan + "neden bu kişi" + kanıt repoları) → `importCandidates` (source
+  `github`). Ardından "Hepsine taslak" (bulk-draft).
+- Eski `hub-github.js` / `hub-enrich.js` (tarayıcı) artık **kullanılmıyor**
+  (`hub-enrich`'in saf fonksiyonları hâlâ testli). Eski `sources.jsx`'teki
+  `GitHubScan` E1'de kaldırıldı; `components/unknowable.jsx` bağlantısız.
+- `enrichment` → `ai_score` **öneri**; `score_communication` / `score_capacity`
+  boş kalır (görüşmeden). Rubriğin yerine geçmez.
 
 ### 12.6 Team'den Hub'a geri besleme (E6)
 

@@ -11,6 +11,7 @@ import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
 import ImportSimple from './import-simple';
 import PasteImport from './paste-import';
+import GithubImport from './github-import';
 import NewCandidateModal from './new-candidate';
 import Triage from './triage';
 import HubWizard from '../components/wizard';
@@ -134,6 +135,11 @@ export default function CandidatesListPage({ filters, setFilters }) {
             <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('import')}>
               <AIcon name="upload" size={14} /> CSV
             </button>
+            {can('scan.run') && (
+              <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('github')}>
+                <AIcon name="rocket" size={14} /> GitHub
+              </button>
+            )}
             <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAdding('paste')}>
               <AIcon name="edit" size={14} /> Yapıştır ve ekle
             </button>
@@ -192,6 +198,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
       {adding === 'one' && <NewCandidateModal onClose={() => setAdding(null)} />}
       {adding === 'import' && <ImportSimple onClose={() => setAdding(null)} />}
       {adding === 'paste' && <PasteImport onClose={() => setAdding(null)} />}
+      {adding === 'github' && <GithubImport onClose={() => setAdding(null)} />}
       {triageIds && <Triage ids={triageIds} onClose={() => setTriageIds(null)} />}
       {actOn && (
         <HubWizard title={actOn.fullName} submitLabel="Uygula" onCancel={() => setActOn(null)}
