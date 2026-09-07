@@ -548,14 +548,8 @@ function TrialSection({ c }) {
   };
   const toTeam = async () => {
     setBusy(true);
-    try {
-      const { vestingStart: v, bridge } = await store.moveToTeam(c.id);
-      let msg = v ? `Ekibe aktarıldı · hak ediş başlangıcı ${v}.` : 'Ekibe aktarıldı.';
-      if (bridge && !bridge.ok) msg += ` (Team app'e otomatik eklenemedi: ${bridge.error} — Ekip Panelinden elle ekleyin.)`;
-      else if (bridge?.ok && bridge.downgradedFromLead) msg += ' (O ekipte zaten Team Lead var, üye olarak eklendi.)';
-      else if (bridge?.ok && bridge.addedToTeam) msg += ' Team app hesabı oluşturuldu, davet maili gönderildi.';
-      flash(msg);
-    } catch (e) { flash('Aktarılamadı: ' + e.message); }
+    try { const v = await store.moveToTeam(c.id); flash(v ? `Ekibe aktarıldı · hak ediş başlangıcı ${v}.` : 'Ekibe aktarıldı.'); }
+    catch (e) { flash('Aktarılamadı: ' + e.message); }
     setBusy(false);
   };
 
