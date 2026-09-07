@@ -554,11 +554,13 @@ alanı var.
   `settings` KVKK bölümü) `has_perm('candidates.purge')` ile; satır aksiyonuna
   ek koruma eklendi.
 
-### 12.4 Eski adayları yeni role hatırlat (E4)
+### 12.4 Eski adayları yeni role hatırlat (E4) — *kod hazır*
 
-Yeni rol `sourcing`'e düşünce, arşivdeki `no_time` / `below_bar` sebepli ve benzer
-beceri etiketli adayları Bugün ekranında öner. `hub-match.js` burada — ama havuz
-100+ adaya ulaşmadan açılmaz.
+`hub-match.js` geri bağlandı. `suggestArchivedFor(role, candidates)`: arşivde,
+sebep `no_time` / `below_bar`, `matchScore ≥ 2` adaylar. Bugün ekranında
+**"Yeni rol için arşivden aday"** bloğu — `sourcing` roller için, aday başına en
+iyi rol, tıklayınca kart. **Yalnızca havuz ≥ `MATCH_MIN_POOL` (100)** olunca
+görünür (altında gürültü). Yeniden bağlama insanın işi (kart menüsü).
 
 ### 12.5 GitHub taraması (E5, opsiyonel araç)
 

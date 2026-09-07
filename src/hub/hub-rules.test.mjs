@@ -9,7 +9,7 @@ import {
 import { stageReachCounts, stageConversion, sourceFunnel, sourceStats, active90, intervalToDays } from './hub-metrics.js';
 import { parsePastedText, findDuplicate } from './hub-parse.js';
 import { applyFilters, chipPredicate, countActiveFilters } from './hub-filter.js';
-import { matchScore, suggestRolesFor } from './hub-match.js';
+import { matchScore, suggestRolesFor, suggestArchivedFor } from './hub-match.js';
 import { computeEnrichment, prescoreFinishing, whyThisOne } from './hub-enrich.js';
 
 let pass = 0;
@@ -543,6 +543,17 @@ t('matchScore: role_type + beceri örtüşmesi', () => {
   const weak = { roleType: 'business', skills: ['excel'], track: 'founder' };
   assert.ok(matchScore(strong, role) > matchScore(weak, role));
   assert.deepEqual(suggestRolesFor(strong, [role]).map((x) => x.role), [role]);
+});
+t('suggestArchivedFor (E4): yalnızca no_time/below_bar arşivi + beceri uyumu', () => {
+  const role = { roleType: 'technical', skills: ['React', 'SQL'], track: 'member', status: 'sourcing' };
+  const cands = [
+    { id: 'a', stage: 'archived', archiveReason: 'no_time', roleType: 'technical', skills: ['react', 'sql'] },
+    { id: 'b', stage: 'archived', archiveReason: 'no_reply', roleType: 'technical', skills: ['react', 'sql'] }, // sebep dışı
+    { id: 'c', stage: 'archived', archiveReason: 'below_bar', roleType: 'business', skills: ['excel'] },        // uyum yok
+    { id: 'd', stage: 'contact', archiveReason: null, roleType: 'technical', skills: ['react', 'sql'] },        // arşivde değil
+  ];
+  const out = suggestArchivedFor(role, cands).map((x) => x.candidate.id);
+  assert.deepEqual(out, ['a']);
 });
 t('prescoreFinishing: yalnızca bitirmişlik', () => {
   const mkRepo = (o = {}) => ({ owner: { login: 'ada' }, fork: false, language: 'TypeScript', stargazers_count: 0, description: '', homepage: '', has_pages: false, pushed_at: ago(10), created_at: ago(300), html_url: `https://github.com/ada/${o.name || 'x'}`, name: o.name || 'x', full_name: `ada/${o.name || 'x'}`, ...o });

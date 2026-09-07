@@ -34,3 +34,18 @@ export function suggestCandidatesFor(role, candidates = [], { min = 2, limit = 6
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
+
+// E4 — yeni rol açılınca arşivdeki UYGUN adayları hatırlat. Yalnızca
+// "vakti yok" / "çıtanın altında" sebepli arşivler (yeniden değerlendirilebilir).
+export const REMINDER_ARCHIVE_REASONS = ['no_time', 'below_bar'];
+// Havuz bu boyuta ulaşmadan öneri açılmaz (gürültü olur).
+export const MATCH_MIN_POOL = 100;
+
+export function suggestArchivedFor(role, candidates = [], { min = 2, limit = 5 } = {}) {
+  return candidates
+    .filter((c) => c.stage === 'archived' && REMINDER_ARCHIVE_REASONS.includes(c.archiveReason))
+    .map((c) => ({ candidate: c, score: matchScore(c, role) }))
+    .filter((x) => x.score >= min)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}

@@ -282,6 +282,15 @@
 4. `candidates.purge` yetkisi olmayan kullanıcıda "Kalıcı sil" seçeneği yok;
    satır aksiyonu da reddediyor.
 
+## T22 — Yeni role eski aday hatırlatması (Blok E — E4)
+
+1. Havuz 100'ün altındaysa **blok görünmez** (kural gereği).
+2. 100+ aday varken: `no_time` / `below_bar` sebebiyle arşivlenmiş, becerileri
+   yeni bir `sourcing` rolüyle örtüşen aday olsun.
+3. **Beklenen:** Bugün → **"Yeni rol için arşivden aday"** bloğunda o aday
+   "→ <rol> · N puan uyum · arşivde (…)" ile listelenir; tıklayınca kart açılır.
+   Yeniden bağlama elle (kartın "Rol / hat düzenle" menüsü + "Geri al").
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

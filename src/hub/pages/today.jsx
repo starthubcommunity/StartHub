@@ -10,6 +10,7 @@ import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { isStale, thresholdMet, rubricCompleteFor, gateStatus } from '../hub-rules';
 import { WEEKLY_TARGET, STAGE_LABEL } from '../hub-constants';
+import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -81,7 +82,23 @@ export default function TodayPage({ onGoto }) {
     .filter((x) => x.s.stale)
     .sort((a, b) => b.s.days - a.s.days);
 
-  const allEmpty = !toSend.length && !dueFollowUps.length && !decisionReady.length && !dueGates.length && !stale.length;
+  // E4 — havuz 100+ olunca: yeni (sourcing) roller için arşivdeki uygun adaylar.
+  const roleReminders = useMemo(() => {
+    if (candidates.length < MATCH_MIN_POOL) return [];
+    const seen = new Set();
+    const out = [];
+    for (const r of openRoles.filter((x) => x.status === 'sourcing')) {
+      for (const { candidate, score } of suggestArchivedFor(r, candidates)) {
+        if (seen.has(candidate.id)) continue;
+        seen.add(candidate.id);
+        out.push({ c: candidate, role: r, score });
+      }
+    }
+    return out.sort((a, b) => b.score - a.score).slice(0, 8);
+  }, [candidates, openRoles]);
+
+  const allEmpty = !toSend.length && !dueFollowUps.length && !decisionReady.length
+    && !dueGates.length && !stale.length && !roleReminders.length;
 
   return (
     <div className="hub-today">
@@ -133,6 +150,13 @@ export default function TodayPage({ onGoto }) {
               <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
                 meta={`${STAGE_LABEL[c.stage]} · ${s.days} gün`}
                 action={<span className={`hub-card__dot hub-card__dot--${s.level}`} />} />
+            ))}
+          </Block>
+
+          <Block title="Yeni rol için arşivden aday">
+            {roleReminders.map(({ c, role, score }) => (
+              <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
+                meta={`→ ${role.title} · ${score} puan uyum · arşivde (${c.archiveReason === 'no_time' ? 'vakti yoktu' : 'çıtanın altında'})`} />
             ))}
           </Block>
         </>
