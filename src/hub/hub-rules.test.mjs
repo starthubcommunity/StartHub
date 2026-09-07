@@ -456,6 +456,31 @@ t('active90: 90 günü dolmamışsa rate null', () => {
   const log = [{ candidateId: 'x', toStage: 'member', createdAt: new Date().toISOString() }];
   assert.equal(active90(cands, log).rate, null);
 });
+t('active90 (E6): productionByPerson verilince gerçek üretim sinyali kullanılır', () => {
+  const old = new Date(Date.now() - 100 * 86400000).toISOString();
+  const cands = [
+    { id: 'x', stage: 'archived', personId: 'p1' },   // stage'e göre pasif ama...
+    { id: 'y', stage: 'member', personId: 'p2' },      // stage'e göre aktif ama...
+  ];
+  const log = [
+    { candidateId: 'x', toStage: 'member', createdAt: old },
+    { candidateId: 'y', toStage: 'member', createdAt: old },
+  ];
+  const prod = {
+    p1: { tasksDone: 3 },                              // üretiyor → aktif
+    p2: { lastActiveAt: old, tasksDone: 0 },           // 100 gün önce → pasif
+  };
+  const r = active90(cands, log, Date.now(), { productionByPerson: prod });
+  assert.equal(r.eligible, 2);
+  assert.equal(r.active, 1);       // x aktif (görev), y pasif (eski aktiflik)
+  assert.equal(r.source, 'production');
+});
+t('active90 (E6): prod yoksa stage_log yoluna düşer (source=stage_log)', () => {
+  const old = new Date(Date.now() - 100 * 86400000).toISOString();
+  const r = active90([{ id: 'x', stage: 'member' }], [{ candidateId: 'x', toStage: 'member', createdAt: old }], Date.now());
+  assert.equal(r.source, 'stage_log');
+  assert.equal(r.rate, 100);
+});
 t('active90: 100 gün önce member + 1 hâlâ member → %50', () => {
   const old = new Date(Date.now() - 100 * DAY).toISOString();
   const cands = [{ id: 'x', stage: 'member' }, { id: 'y', stage: 'archived' }];

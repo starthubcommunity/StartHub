@@ -578,11 +578,19 @@ görünür (altında gürültü). Yeniden bağlama insanın işi (kart menüsü)
 - `enrichment` → `ai_score` **öneri**; `score_communication` / `score_capacity`
   boş kalır (görüşmeden). Rubriğin yerine geçmez.
 
-### 12.6 Team'den Hub'a geri besleme (E6)
+### 12.6 Team'den Hub'a geri besleme (E6) — *plumbing hazır, veri kaynağı bekliyor*
 
-Team'deki tamamlanan görev sayısı ve CTO onayları Hub'a akar. "90 günde hâlâ
-aktif" metriği `stage_log` yerine gerçek üretim verisinden hesaplanır. §9.4
-kurulmadan yapılamaz.
+**Kontrat:** `active90(candidates, stageLog, now, { productionByPerson })` —
+`productionByPerson` `{ [person_id]: { lastActiveAt?, tasksDone?, ctoApproved? } }`
+verilirse "aktif" = son 90 günde aktiflik **veya** tamamlanmış görev **veya** CTO
+onayı (kişi C4'te yazılan `hub_candidates.person_id` ile eşleşir). Verilmezse eski
+davranış: hâlâ `member` aşamasında mı. Dönüşteki `source` (`production` /
+`stage_log`) metrik kartında gösterilir.
+
+**Eksik:** `/team/` bu sözlüğü henüz üretmiyor — `app_state.data` boş `{}`,
+bundle repo dışı (§12.7). O taraf `{ personId: {...} }` verisini bir tabloya ya
+da `app_state.data.hubFeedback`'e yazdığında `metrics.jsx` onu okuyup
+`productionByPerson` olarak geçirir; kod yolu hazır. §9.4 (C4) kuruldu.
 
 ### 12.7 `/team/` paneli — boş üyelik durumu  *(repo dışı, Fix 1)*
 

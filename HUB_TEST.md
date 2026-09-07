@@ -301,6 +301,16 @@
    `score_communication/capacity` **boş**. Ardından "Hepsine taslak".
 4. `scan.run` yetkisi olmayanda "GitHub" düğmesi yok; edge function 403.
 
+## T24 — Team→Hub geri besleme (Blok E — E6, plumbing)
+
+1. Metrikler → "90 günde hâlâ aktif" kartının ipucu **"stage_log tahmini
+   (Team verisi bekleniyor — E6)"** diyor (henüz `/team/` üretim verisi yok).
+2. `active90` birim testleri: `productionByPerson` verilince `source=production`
+   ve gerçek sinyalle (görev/CTO/aktiflik) hesaplıyor; verilmeyince
+   `source=stage_log` ve eski davranış. (`hub-rules.test.mjs`.)
+3. `/team/` `{ personId: { lastActiveAt, tasksDone, ctoApproved } }` verisini
+   yayınladığında `metrics.jsx` onu geçirir → kart "Team üretim verisi" der.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

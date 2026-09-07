@@ -58,7 +58,9 @@ export default function MetricsPage() {
         <Metric label="Cevap oranı (temas → cevap)" value={pct(replied, sent)} target={20} hint={`${replied}/${sent}`} />
         <Metric label="Görüşmeden Deneme'ye" value={pct(trial, interview)} target={25} hint={`${trial}/${interview}`} />
         <Metric label="90 günde hâlâ aktif" value={a90.rate} target={70}
-          hint={a90.eligible ? `${a90.active}/${a90.eligible} · 90 günü dolan` : 'henüz 90 günü dolan aday yok'} />
+          hint={a90.eligible
+            ? `${a90.active}/${a90.eligible} · 90 günü dolan · ${a90.source === 'production' ? 'Team üretim verisi' : 'stage_log tahmini (Team verisi bekleniyor — E6)'}`
+            : 'henüz 90 günü dolan aday yok'} />
       </div>
 
       <h3 className="hub-h4">Kaynak verimi</h3>

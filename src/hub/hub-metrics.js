@@ -109,10 +109,19 @@ export function sourceStats(candidates = [], touches = [], stageLog = [], keyFn)
 }
 
 // "90 günde hâlâ aktif" (v2 §11) — GERİYE DÖNÜK HESAPLANAMAZ. hub_stage_log'dan:
-// 90+ gün önce `member`'a ulaşmış adaylardan bugün hâlâ `member` olanların oranı.
+// 90+ gün önce `member`'a ulaşmış adaylardan bugün hâlâ "aktif" olanların oranı.
 // Henüz 90 günü dolan aday yoksa rate=null (uydurma sayı yok).
-export function active90(candidates = [], stageLog = [], now = Date.now()) {
+//
+// E6 — "aktif"in kaynağı: `opts.productionByPerson` verilirse (Team panelinden
+// gelen { [person_id]: { lastActiveAt?, tasksDone?, ctoApproved? } }), o kişi
+// için GERÇEK üretim sinyali kullanılır: son 90 günde aktiflik VEYA tamamlanmış
+// görev VEYA CTO onayı. Verilmezse eski davranış: hâlâ `member` aşamasında mı.
+// `source` alanı hangi yolun kullanıldığını söyler.
+export function active90(candidates = [], stageLog = [], now = Date.now(), opts = {}) {
   const CUT = now - 90 * 86400000;
+  const prod = opts.productionByPerson || null;
+  const personIdOf = new Map(candidates.map((c) => [c.id, c.personId ?? null]));
+
   const joinedAt = new Map(); // candidateId -> ilk member stage_log zamanı
   for (const r of stageLog) {
     if (r.toStage !== 'member' || !r.createdAt) continue;
@@ -120,11 +129,30 @@ export function active90(candidates = [], stageLog = [], now = Date.now()) {
     if (!joinedAt.has(r.candidateId) || t < joinedAt.get(r.candidateId)) joinedAt.set(r.candidateId, t);
   }
   const stageNow = new Map(candidates.map((c) => [c.id, c.stage]));
-  let eligible = 0, active = 0;
+
+  const isActive = (cid) => {
+    const pid = personIdOf.get(cid);
+    const p = prod && pid != null ? prod[pid] : null;
+    if (p) {
+      if (p.ctoApproved) return true;
+      if ((p.tasksDone || 0) > 0) return true;
+      if (p.lastActiveAt && Date.parse(p.lastActiveAt) >= CUT) return true;
+      return false;
+    }
+    return stageNow.get(cid) === 'member';
+  };
+
+  let eligible = 0, active = 0, withProd = 0;
   for (const [cid, t] of joinedAt) {
     if (t > CUT) continue;
     eligible++;
-    if (stageNow.get(cid) === 'member') active++;
+    const pid = personIdOf.get(cid);
+    if (prod && pid != null && prod[pid]) withProd++;
+    if (isActive(cid)) active++;
   }
-  return { eligible, active, rate: eligible ? Math.round((100 * active) / eligible) : null };
+  return {
+    eligible, active,
+    rate: eligible ? Math.round((100 * active) / eligible) : null,
+    source: prod && withProd > 0 ? 'production' : 'stage_log',
+  };
 }
