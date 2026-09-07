@@ -10,7 +10,7 @@ import {
   RUBRIC_AXES, AI_PRESCORE_FINISHING, ROLE_TYPES, ARCHIVE_REASONS,
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
   GATE_RESULT_LABEL, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
-  GATE, GATE_EXTENSIONS,
+  GATE, GATE_EXTENSIONS, KVKK_NOTICE_URL, KVKK_NOTICE_LINE,
 } from '../hub-constants';
 import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI, nextAction, undoPlan } from '../hub-rules';
 import { fillTemplate } from './templates';
@@ -465,6 +465,16 @@ function MessageArea({ c, save, flash, onSent }) {
       <textarea className="adm-input adm-textarea" rows={7} value={text}
         onChange={(e) => setText(e.target.value)} onBlur={commit}
         placeholder="Mesaj metni — düzenleyebilirsin. AI taslağı için sağ üstteki düğme." />
+
+      {/* E3 — ilk mesajda KVKK aydınlatma satırı bulunmalı */}
+      {c.stage === 'pool' && !text.includes(KVKK_NOTICE_URL) && (
+        <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginTop: 4 }}>
+          İlk mesajda KVKK aydınlatması olmalı.{' '}
+          <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => { const t = `${text.trim()}\n\n${KVKK_NOTICE_LINE}`.trim(); setText(t); save({ draftText: t }); }}>
+            Satırı ekle
+          </button>
+        </div>
+      )}
 
       <div style={{ marginTop: 8 }}>
         {marking ? (

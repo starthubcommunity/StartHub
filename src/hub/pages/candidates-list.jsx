@@ -114,6 +114,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const runRowAction = async (a) => {
     const c = actOn;
     if (a.op === 'purge') {
+      if (!can('candidates.purge')) { flash('KVKK silme yetkin yok.'); return; }  // E3
       await store.purgeCandidate(c.id);
       flash('Aday ve tüm kayıtları silindi.');
     } else if (String(a.op).startsWith('arch:')) {

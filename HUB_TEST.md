@@ -271,6 +271,17 @@
    zincir metni hazır. **Mail/mesaj otomatik gitmez.**
 4. 8+ gün → adım 3; 12+ gün → aday `no_reply` ile arşive.
 
+## T21 — KVKK saklama (Blok E — E3)
+
+1. Bir test adayının `retain_until`'ini geçmişe çek, `stage` `member` olmasın →
+   `supabase functions invoke hub-daily`. **Beklenen:** `kvkkPurged` ≥ 1, aday
+   ve bağlı kayıtları silinmiş. `member` adaya dokunulmamış.
+2. Şablon editöründe ilk-temas şablonu → `{{kvkk}}` yoksa kırmızı uyarı.
+   `{{kvkk}}` ekle → mesajda `KVKK_NOTICE_LINE` görünür.
+3. Aday kartı (Havuz) "Mesaj" alanı: KVKK URL yoksa "Satırı ekle" → eklenir.
+4. `candidates.purge` yetkisi olmayan kullanıcıda "Kalıcı sil" seçeneği yok;
+   satır aksiyonu da reddediyor.
+
 ## Regresyon
 
 - [ ] `/team/` ve `/admin/` bozulmadı

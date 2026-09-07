@@ -179,6 +179,12 @@ export const GATE_RESULTS = [
 ];
 export const GATE_RESULT_LABEL = toLabelMap(GATE_RESULTS);
 
+// ─── KVKK (E3) ───────────────────────────────────────────────────
+// İlk mesajda aydınlatma bağlantısı. Şablonda {{kvkk}} → bu satır.
+export const KVKK_NOTICE_URL = 'https://www.starthub-community.com/kvkk';
+export const KVKK_NOTICE_LINE =
+  `Verilerini nasıl işlediğimiz: ${KVKK_NOTICE_URL} · silinmesini istersen yaz, kaydını kaldırırız.`;
+
 // ─── Roller (§5) ─────────────────────────────────────────────────
 export const HUB_ROLES = [
   { value: 'cofounder',     label: 'Kurucu' },

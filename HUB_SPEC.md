@@ -540,12 +540,19 @@ Zincir metni: `sequence_key` gruplu şablonlar (ada göre sıralı, adım N içi
 (N-1). şablon); yoksa gömülü hatırlatma. Şablon editöründe "Zincir anahtarı"
 alanı var.
 
-### 12.3 KVKK saklama (E3)
+### 12.3 KVKK saklama (E3) — *kod hazır*
 
-`kvkk_consent`, `kvkk_at`, `retain_until` kolonları kullanılmaya başlanır.
-`hub-daily` süresi geçmiş ve `member` olmamış kayıtları siler/anonimleştirir. İlk
-mesaj şablonuna aydınlatma bağlantısı eklenir. `candidates.purge` yetkisi silme
-akışına bağlanır.
+- `hub-daily` §5: `retain_until < bugün` **ve** `stage != 'member'` olan kayıtları
+  **tamamen siler** (touches/gates/stage_log FK cascade). Rapor: `kvkkPurged`.
+  Ekipte adaya dokunulmaz. `retain_until` yeni adaylarda +1 yıl (0001 default /
+  `importCandidates`).
+- **Aydınlatma:** `{{kvkk}}` şablon değişkeni → `KVKK_NOTICE_LINE`
+  (`hub-constants`). Şablon editörü ilk-temas şablonunda `{{kvkk}}` yoksa uyarır.
+  Aday kartı "Mesaj" alanı, Havuz'da metinde KVKK URL yoksa **"Satırı ekle"**
+  düğmesi gösterir.
+- **Silme yetkisi:** UI purge yolları (`candidates-list` satır aksiyonu +
+  `settings` KVKK bölümü) `has_perm('candidates.purge')` ile; satır aksiyonuna
+  ek koruma eklendi.
 
 ### 12.4 Eski adayları yeni role hatırlat (E4)
 

@@ -123,7 +123,20 @@ serve(async (req) => {
     report.gatesFailed++;
   }
 
-  return new Response(JSON.stringify({ ok: true, ran_at: nowIso, ...report }), {
+  // ── 5: KVKK saklama (E3) — retain_until geçmiş ve EKİPTE OLMAYAN kayıtları
+  // tamamen sil. Bağlı touches / gates / stage_log FK cascade ile gider.
+  // Ekipte (member) adaya dokunulmaz.
+  const today = nowIso.slice(0, 10);
+  const { data: expired } = await db
+    .from("hub_candidates").select("id")
+    .lt("retain_until", today).neq("stage", "member");
+  let kvkkPurged = 0;
+  for (const c of expired ?? []) {
+    const { error } = await db.from("hub_candidates").delete().eq("id", c.id);
+    if (!error) kvkkPurged++;
+  }
+
+  return new Response(JSON.stringify({ ok: true, ran_at: nowIso, ...report, kvkkPurged }), {
     headers: { ...cors, "Content-Type": "application/json" },
   });
 });

@@ -8,7 +8,7 @@ import React, { useState, useMemo } from 'react';
 import { AIcon, Modal, Field, Input, Textarea, Select, ConfirmDialog } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { SOURCES } from '../hub-constants';
+import { SOURCES, KVKK_NOTICE_LINE } from '../hub-constants';
 
 export const TEMPLATE_TYPES = [
   { value: '', label: 'Genel' },
@@ -26,12 +26,14 @@ export function templateVars(body) {
   return [...out];
 }
 // {{ad}} → fullName · {{kanıt}} → whyThisOne · {{proje}} → extra.project
+// {{kvkk}} → KVKK aydınlatma satırı (E3 — ilk mesajda bulunmalı)
 export function fillTemplate(body, candidate, extra = {}) {
   const map = {
     ad: candidate?.fullName || '',
     kanıt: candidate?.whyThisOne || '',
     kanit: candidate?.whyThisOne || '',
     proje: extra.project || '',
+    kvkk: KVKK_NOTICE_LINE,
   };
   return (body || '').replace(VAR_RE, (_, k) => (k in map ? map[k] : `{{${k}}}`));
 }
@@ -155,9 +157,14 @@ export default function TemplatesPage() {
                 <Input value={editing.sequenceKey || ''} onChange={(v) => setEditing({ ...editing, sequenceKey: v })} placeholder="ör. outbound" />
               </Field>
             </div>
-            <Field label="Gövde" required hint="Değişkenler: {{ad}} · {{kanıt}} · {{proje}}. Kişiselleştirme satırı burada DEĞİL — kopyalama anında aday kartında ayrı alanda yazılır.">
+            <Field label="Gövde" required hint="Değişkenler: {{ad}} · {{kanıt}} · {{proje}} · {{kvkk}} (aydınlatma satırı — ilk mesajda bulunmalı, E3).">
               <Textarea value={editing.body} onChange={(v) => setEditing({ ...editing, body: v })} rows={8} />
             </Field>
+            {editing.sourceType !== 'reject' && editing.sourceType !== 'invite' && !/\{\{\s*kvkk\s*\}\}/i.test(editing.body || '') && (
+              <div style={{ fontSize: 12, color: 'var(--adm-red)' }}>
+                İlk temas şablonunda {'{{kvkk}}'} yok — KVKK aydınlatma satırını ekle.
+              </div>
+            )}
             <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
               Bulunan değişkenler: {templateVars(editing.body).map((v) => `{{${v}}}`).join(' ') || '—'}
             </div>
