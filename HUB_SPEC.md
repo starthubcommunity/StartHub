@@ -520,10 +520,25 @@ gerçek sayı döndürdüğü doğrulanır, sonra migration çalıştırılır.
 arşivle; süresi geçen kapıları `failed` yap; **KVKK: `retain_until` geçmiş ve
 `member` olmamış kayıtları sil/anonimleştir** (§12.3).
 
-### 12.2 Takip zinciri (E2)
+### 12.2 Takip zinciri (E2) — *kod hazır*
 
-`hub_touches.step_no`, `hub_templates.sequence_key`. `hub-daily` gün 4 ve gün 8'de
-sıradaki mesajı hazırlayıp Bugün ekranına **görev olarak** düşürür. Gönderim yine insanla.
+`hub_touches.step_no` (1 ilk mesaj · 2 gün-4 · 3 gün-8), `hub_templates.sequence_key`
+(zincir grubu) — migration **0017**.
+
+`hub-daily` `contact` aşamasındaki, cevap gelmemiş adaylar için:
+- İlk mesajdan **≥ 4 gün** geçti ve `step_no` en fazla 1 ise → adım 2 hazırla.
+- **≥ 8 gün** ve `step_no` ≤ 2 ise → adım 3 hazırla.
+- **≥ 12 gün** ve adım 3 de yapıldıysa → `archived` / `no_reply`.
+
+"Hazırla" = önceki `pending` touch `no_reply` olur; yeni `pending` touch
+(`step_no`, `follow_up_at = now`, `note` = zincir metni) eklenir → Bugün ekranı
+"Süresi gelen takipler" bloğunda görünür (`#2` / `#3` + "taslak hazır"); aynı
+metin `candidate.draft_text`'e yazılır (kart açılınca hazır). **Gönderim yine
+insanla** — hub-daily hiçbir mesaj göndermez.
+
+Zincir metni: `sequence_key` gruplu şablonlar (ada göre sıralı, adım N için
+(N-1). şablon); yoksa gömülü hatırlatma. Şablon editöründe "Zincir anahtarı"
+alanı var.
 
 ### 12.3 KVKK saklama (E3)
 

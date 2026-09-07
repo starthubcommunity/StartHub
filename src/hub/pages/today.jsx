@@ -110,7 +110,8 @@ export default function TodayPage({ onGoto }) {
 
           <Block title="Süresi gelen takipler">
             {dueFollowUps.map(({ t, c }) => (
-              <Row key={t.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName} meta={`takip: ${fmt(t.followUpAt)}`} />
+              <Row key={t.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
+                meta={`takip ${(t.stepNo || 1) > 1 ? `#${t.stepNo} · ` : ''}${fmt(t.followUpAt)}${(t.stepNo || 1) > 1 && c.draftText ? ' · taslak hazır' : ''}`} />
             ))}
           </Block>
 

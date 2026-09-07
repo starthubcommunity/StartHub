@@ -272,6 +272,7 @@ export function mapTouchToDb(t) {
     outcome:      orUndef(t.outcome),
     follow_up_at: t.followUpAt ?? null,
     note:         t.note ?? null,
+    step_no:      orUndef(t.stepNo),   // E2 — 0017 öncesi kırılmasın
   };
 }
 export function mapTouchFromDb(r) {
@@ -286,6 +287,7 @@ export function mapTouchFromDb(r) {
     outcome:     r.outcome || 'pending',
     followUpAt:  r.follow_up_at ?? null,
     note:        r.note ?? null,
+    stepNo:      r.step_no ?? 1,
   };
 }
 
@@ -359,6 +361,7 @@ export function mapTemplateToDb(t) {
     sent_count:  t.sentCount ?? 0,
     reply_count: t.replyCount ?? 0,
     active:      t.active ?? true,
+    sequence_key: orUndef(t.sequenceKey),   // E2
   };
 }
 export function mapTemplateFromDb(r) {
@@ -373,6 +376,7 @@ export function mapTemplateFromDb(r) {
     sentCount:  r.sent_count ?? 0,
     replyCount: r.reply_count ?? 0,
     active:     r.active ?? true,
+    sequenceKey: r.sequence_key ?? null,
     createdAt:  r.created_at ?? null,
   };
 }

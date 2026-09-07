@@ -38,7 +38,7 @@ export function fillTemplate(body, candidate, extra = {}) {
 
 const rate = (t) => (t.sentCount ? Math.round((100 * (t.replyCount || 0)) / t.sentCount) : null);
 
-const BLANK = { name: '', sourceType: '', subject: '', body: '', active: true };
+const BLANK = { name: '', sourceType: '', subject: '', body: '', active: true, sequenceKey: '' };
 
 export default function TemplatesPage() {
   const { templates, addItem, updateItem, deleteItem } = useHubStore();
@@ -149,7 +149,12 @@ export default function TemplatesPage() {
               <Field label="Tür"><Select value={editing.sourceType || ''} onChange={(v) => setEditing({ ...editing, sourceType: v })} options={TEMPLATE_TYPES} /></Field>
               <Field label="Aktif"><Select value={editing.active ? '1' : '0'} onChange={(v) => setEditing({ ...editing, active: v === '1' })} options={[{ value: '1', label: 'Evet' }, { value: '0', label: 'Hayır' }]} /></Field>
             </div>
-            <Field label="Konu (e-posta için)"><Input value={editing.subject || ''} onChange={(v) => setEditing({ ...editing, subject: v })} /></Field>
+            <div className="adm-form-grid">
+              <Field label="Konu (e-posta için)"><Input value={editing.subject || ''} onChange={(v) => setEditing({ ...editing, subject: v })} /></Field>
+              <Field label="Zincir anahtarı (E2)" hint="Aynı anahtarlı şablonlar takip zinciri olur; sıra ada göre (2. = gün 4, 3. = gün 8).">
+                <Input value={editing.sequenceKey || ''} onChange={(v) => setEditing({ ...editing, sequenceKey: v })} placeholder="ör. outbound" />
+              </Field>
+            </div>
             <Field label="Gövde" required hint="Değişkenler: {{ad}} · {{kanıt}} · {{proje}}. Kişiselleştirme satırı burada DEĞİL — kopyalama anında aday kartında ayrı alanda yazılır.">
               <Textarea value={editing.body} onChange={(v) => setEditing({ ...editing, body: v })} rows={8} />
             </Field>
