@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════
--- 0017_hub_followup_chain.sql — takip zinciri (PROMPT_V3 E2)
+-- 0020_hub_followup_chain.sql — takip zinciri (PROMPT_V3 E2)
 -- ══════════════════════════════════════════════════════════
 -- hub_touches.step_no   : zincirdeki adım (1 = insanın attığı ilk mesaj,
 --                         2 = gün 4 hatırlatma, 3 = gün 8 son hatırlatma).

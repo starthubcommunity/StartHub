@@ -262,7 +262,7 @@
 
 ## T20 — Takip zinciri (Blok E — E2, operasyonel)
 
-1. Migration `0017` uygula. İstersen Şablonlar'da aynı "Zincir anahtarı" ile
+1. Migration `0020` uygula. İstersen Şablonlar'da aynı "Zincir anahtarı" ile
    2-3 şablon oluştur (ör. `outbound`).
 2. Bir adaya ilk mesajı at (Temas'a geçsin). Gün sayımı **ilk `hub_touches`
    satırının `sent_at`'i** üzerinden (bu tabloda `created_at` YOK). Simüle etmek

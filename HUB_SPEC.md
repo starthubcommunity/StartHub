@@ -526,7 +526,7 @@ arşivle; süresi geçen kapıları `failed` yap; **KVKK: `retain_until` geçmi�
 ### 12.2 Takip zinciri (E2) — *kod hazır*
 
 `hub_touches.step_no` (1 ilk mesaj · 2 gün-4 · 3 gün-8), `hub_templates.sequence_key`
-(zincir grubu) — migration **0017**.
+(zincir grubu) — migration **0020**.
 
 `hub-daily` `contact` aşamasındaki, cevap gelmemiş adaylar için:
 - İlk mesajdan **≥ 4 gün** geçti ve `step_no` en fazla 1 ise → adım 2 hazırla.
