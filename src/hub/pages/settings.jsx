@@ -154,8 +154,13 @@ export default function SettingsPage() {
       {/* ── Otomasyon ── */}
       <h3 className="hub-h4" style={{ marginTop: 28 }}>Otomasyon</h3>
       <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 8 }}>
-        v2'de gece işi / cron yok — bayatlama <code>isStale()</code> ile istemcide,
-        aşama geçişleri senkron. Elle tetiklenecek bir şey yok.
+        <code>hub-daily</code> her gece <b>03:00 UTC</b>, <code>hub-weekly</code>
+        pazartesi <b>08:00 UTC</b> — pg_cron ile kurulu ve aktif.
+        <br />• <code>hub-daily</code>: takip zinciri (gün 4 / 8 hazırla, gün 12 arşivle),
+        süresi dolan kapıları <code>failed</code> yap, KVKK süresi geçen kayıtları sil.
+        <br />• <code>hub-weekly</code>: haftalık özet maili aktif kuruculara.
+        <br />Bayatlama (<code>isStale()</code>) istemcide hesaplanır; otomatik
+        <b> mesaj / mail gönderimi yoktur</b> — hazırlar, gönderen insandır.
       </p>
 
       {/* ── KVKK ── */}

@@ -264,8 +264,10 @@
 
 1. Migration `0017` uygula. İstersen Şablonlar'da aynı "Zincir anahtarı" ile
    2-3 şablon oluştur (ör. `outbound`).
-2. Bir adaya ilk mesajı at (Temas'a geçsin). 4+ gün sonrasını simüle et /
-   `sent_at`'i geri al → `supabase functions invoke hub-daily`.
+2. Bir adaya ilk mesajı at (Temas'a geçsin). Gün sayımı **ilk `hub_touches`
+   satırının `sent_at`'i** üzerinden (bu tabloda `created_at` YOK). Simüle etmek
+   için o satırın `sent_at`'ini 4+ gün geriye al →
+   `supabase functions invoke hub-daily`.
 3. **Beklenen:** `followUpsCreated` artar; Bugün → "Süresi gelen takipler"de o
    aday **"#2 · taslak hazır"** ile görünür; kartı açınca "Mesaj" alanında
    zincir metni hazır. **Mail/mesaj otomatik gitmez.**

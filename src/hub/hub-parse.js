@@ -160,15 +160,29 @@ export function findDuplicate(row, candidates) {
     if (li && liKey(c.linkedin) === li) return { id: c.id, reason: 'aynı LinkedIn', certain: true };
   }
   const school = strip(row.university);
-  if (row.fullName && nameKey(row.fullName).split(' ').filter(Boolean).length >= 2) {
+  const rowTokens = nameKey(row.fullName).split(' ').filter(Boolean);
+  if (row.fullName && rowTokens.length >= 2) {
+    const rowSet = new Set(rowTokens);
+    // Bir ad, diğerinin tüm kelimelerini içeriyorsa (ör. "Rahmi Yerlikaya" ⊂
+    // "Rahmi Yerlikaya Ünv" — ayrıştırma fazladan kelime kattığında) → mükerrer.
+    const subsetMatch = (a, b) => {
+      const A = a, B = new Set(nameKey(b).split(' ').filter(Boolean));
+      if (A.size < 2 || B.size < 2) return false;
+      const short = A.size <= B.size ? A : B;
+      const long = A.size <= B.size ? B : A;
+      for (const w of short) if (!long.has(w)) return false;
+      return true;
+    };
     let best = null;
     for (const c of candidates) {
       if (!c.fullName) continue;
       const s = similar(row.fullName, c.fullName);
-      if (s < NAME_DUP) continue;
+      const sub = s < NAME_DUP && subsetMatch(rowSet, c.fullName);
+      if (s < NAME_DUP && !sub) continue;
+      const eff = sub ? NAME_DUP : s;
       const sameSchool = school && strip(c.university) === school;
-      if (!best || s > best.s || (s === best.s && sameSchool && !best.sameSchool)) {
-        best = { id: c.id, s, sameSchool };
+      if (!best || eff > best.s || (eff === best.s && sameSchool && !best.sameSchool)) {
+        best = { id: c.id, s: eff, sameSchool };
       }
     }
     if (best) {

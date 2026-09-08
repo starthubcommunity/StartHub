@@ -258,11 +258,14 @@ aksiyon). Akış:
 **Tekilleştirme** (`hub-parse.findDuplicate` → `{ id, reason, certain }`):
 - E-posta tam eşleşme → **kesin** (`certain: true`)
 - GitHub kullanıcı adı / LinkedIn slug eşleşme → **kesin**
-- Ad benzerliği (`similar() ≥ 0.85`, `NAME_DUP`) → **olası** (`certain: false`).
-  **Aynı okul ŞART DEĞİL** — yapıştırılan listelerde e-posta/link genelde yok,
-  okul şartı hiç tetiklenmiyordu. Aynı okul varsa `reason` "benzer ad + aynı
-  okul" olur (sinyal güçlenir). TR normalizasyonu: `strip()` İ/I/ı→i, ş→s vb.
-  eşleyip sonra `toLowerCase` — locale-bağımsız.
+- Ad benzerliği (`similar() ≥ 0.85`, `NAME_DUP`) **veya** bir ad diğerinin tüm
+  kelimelerini kapsıyorsa (2+ kelime; ayrıştırma fazladan kelime kattığında)
+  → **olası** (`certain: false`). Aynı okul ŞART DEĞİL (yapıştırılan listelerde
+  e-posta/link genelde yok); varsa `reason` "benzer ad + aynı okul" olur.
+  TR normalizasyonu: `strip()` İ/I/ı→i, ş→s vb. + `toLowerCase` (locale-bağımsız).
+- **Parti-içi mükerrer:** önizleme yalnızca mevcut havuza bakar; aynı partide iki
+  kez geçen kişi için `importCandidates` büyüyen bir havuza (mevcut + bu partide
+  açılanlar) karşı tekrar `findDuplicate` çalıştırır — ikinci kayıt açılmaz.
 
 **Yapıştır / CSV önizlemesi:** tekrar bulunan her satırda "Tekrar" sütunu — rozet
 (`tekrar` / `olası`) + seçim: **mevcudu güncelle** / **yeni kayıt** / **atla**.

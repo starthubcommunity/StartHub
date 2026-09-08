@@ -10,6 +10,7 @@ import React, { useState, useEffect, useCallback, useMemo, createContext, useCon
 import { supabase } from '../lib/supabase';
 import { HUB_TABLES } from './hub-mappers';
 import { roleStatusAfterReject, inheritedTrack, undoPlan } from './hub-rules';
+import { findDuplicate } from './hub-parse';
 import { STAGE_ORDER } from './hub-constants';
 
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
@@ -482,10 +483,19 @@ export function HubStoreProvider({ children }) {
     const batchRoleId = batchInfo.roleId ?? null;
     const created = [];
     const updated = [];
+    // Blok D düzeltmesi (mükerrer): önizleme yalnızca HAVUZa karşı bakıyordu;
+    // aynı partide iki kez geçen kişi iki kayıt oluyordu. Burada büyüyen bir
+    // havuza (mevcut + bu partide açılanlar) karşı tekrar bakılır.
+    const pool = data.candidates.slice();
     for (const r of accepted) {
       // ── Mevcut kartı güncelle (yeni kayıt açma) ──────────────
-      if (r._mode === 'update' && r._dupId) {
-        const ex = data.candidates.find((c) => c.id === r._dupId);
+      let dupId = (r._mode === 'update' && r._dupId) ? r._dupId : null;
+      if (!dupId && r._mode !== 'skip') {
+        const d = findDuplicate(r, pool);
+        if (d) dupId = d.id;   // parti-içi veya önizlemede kaçmış mükerrer
+      }
+      if (dupId) {
+        const ex = pool.find((c) => c.id === dupId) || data.candidates.find((c) => c.id === dupId);
         if (ex) {
           const patch = {};
           if (!ex.email && r.email) patch.email = r.email;
@@ -538,6 +548,7 @@ export function HubStoreProvider({ children }) {
         retainUntil,
       });
       created.push(c);
+      pool.push(c);   // sonraki satırlar bu adayı da mükerrer kontrolünde görsün
     }
     return { created, updated, label };
   }, [addItem, updateItem, patchLocal, currentMember, data]);

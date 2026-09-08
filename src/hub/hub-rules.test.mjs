@@ -562,6 +562,17 @@ t('D2 düz.1: farklı kişi (ad benzemiyor) → null', () => {
   // tek kelimelik "ad" (junk) → null
   assert.equal(findDuplicate({ fullName: 'AquaTeam', university: 'İTÜ' }, existing), null);
 });
+t('Blok E düz.: ayrıştırma fazladan kelime kattı ("Rahmi Yerlikaya" ⊂ "... Ünv") → mükerrer', () => {
+  const existing = [{ id: 'r1', fullName: 'Rahmi Yerlikaya', university: null, email: null, github: null }];
+  const d = findDuplicate({ fullName: 'Rahmi Yerlikaya Ünv', university: '' }, existing);
+  assert.equal(d?.id, 'r1');
+  assert.equal(d.certain, false);
+  // ters yön de: kısa yeni, uzun mevcut
+  const existing2 = [{ id: 'r2', fullName: 'Rahmi Yerlikaya Afyon' }];
+  assert.equal(findDuplicate({ fullName: 'Rahmi Yerlikaya' }, existing2)?.id, 'r2');
+  // ortak kelime tek → mükerrer değil
+  assert.equal(findDuplicate({ fullName: 'Rahmi Demir Kaya' }, existing), null);
+});
 t('matchScore: role_type + beceri örtüşmesi', () => {
   const role = { roleType: 'technical', skills: ['React', 'SQL'], track: 'member', status: 'sourcing' };
   const strong = { roleType: 'technical', skills: ['react', 'sql', 'go'], track: 'member' };
