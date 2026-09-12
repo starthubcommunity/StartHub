@@ -86,8 +86,28 @@ export default function ShowcasePage() {
   const save = async (patch) => {
     const { error } = await supabase.from('startups').update(patch).eq('id', editing.id);
     if (error) { flash('Kaydedilemedi: ' + error.message); return; }
+    const startupId = editing.id;
+    const teamAppId = editing.team_app_id;
     setEditing(null);
-    flash('Kaydedildi — web sitesine yansıdı.');
+    // Team App'e (ayrı proje) açıklamayı da gönder — best-effort, site
+    // kaydı hiçbir zaman bu adıma bağlı değil (başarısız olsa da yukarıdaki
+    // kayıt zaten tamamlandı).
+    if (teamAppId) {
+      supabase.functions.invoke('hub-showcase-sync', { body: { startupId, action: 'push_description', description: patch.desc_tr || '' } })
+        .then(({ data }) => flash(data?.ok ? 'Kaydedildi — web sitesine ve Team App açıklamasına yansıdı.' : 'Kaydedildi — Team App\'e gönderilemedi (site güncellendi).'))
+        .catch(() => flash('Kaydedildi — Team App\'e gönderilemedi (site güncellendi).'));
+    } else {
+      flash('Kaydedildi — web sitesine yansıdı.');
+    }
+    load();
+  };
+
+  const syncTeamCount = async (row) => {
+    const { data, error } = await supabase.functions.invoke('hub-showcase-sync', { body: { startupId: row.id, action: 'pull_roster' } });
+    if (error || !data?.ok) { flash('Ekip sayısı alınamadı: ' + (data?.error || error?.message || '')); return; }
+    const { error: uErr } = await supabase.from('startups').update({ team: data.memberCount }).eq('id', row.id);
+    if (uErr) { flash('Ekip sayısı yazılamadı: ' + uErr.message); return; }
+    flash(`Team App'teki gerçek üye sayısı (${data.memberCount}) siteye yazıldı.`);
     load();
   };
 
@@ -113,6 +133,11 @@ export default function ShowcasePage() {
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>{r.tagline_tr || '(slogan yok)'}</div>
               </div>
+              {r.team_app_id && (
+                <button className="adm-btn adm-btn--ghost" onClick={() => syncTeamCount(r)} title="Team App'teki gerçek üye sayısını siteye yaz">
+                  <AIcon name="trendingUp" size={15} /> Ekip Sayısını Güncelle
+                </button>
+              )}
               <button className="adm-btn" onClick={() => setEditing(r)}><AIcon name="penEdit" size={15} /> Düzenle</button>
             </div>
           ))}
