@@ -164,6 +164,7 @@ function mapStartupToDb(item) {
     featured:           item.featured        || false,
     is_new:             item.isNew           || false,
     team_app_id:        item.teamAppId       || null,
+    published:          item.published       !== false,
   };
   if (item.id) db.id = item.id;
   return db;
@@ -203,6 +204,7 @@ function mapStartupFromDb(row) {
     featured:         row.featured           || false,
     isNew:            row.is_new             || false,
     teamAppId:        row.team_app_id        || null,
+    published:        row.published          !== false,
   };
 }
 

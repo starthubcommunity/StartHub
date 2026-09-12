@@ -127,7 +127,7 @@ function ProjectsPage() {
         <div className="adm-cell-logo" style={{ background: r.color }}>
           {r.logo ? <img src={r.logo} alt="" /> : r.name[0]}
         </div>
-        <div><div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>{r.name}{r.featured && <span className="adm-pill-featured">★ Öne Çıkan</span>}</div><div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{r.tagline_tr}</div></div>
+        <div><div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>{r.name}{r.featured && <span className="adm-pill-featured">★ Öne Çıkan</span>}{r.published === false && <span className="adm-badge" style={{ background: 'var(--adm-text-dim)', color: '#fff' }}>Gizli</span>}</div><div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{r.tagline_tr}</div></div>
       </div>
     )},
     { key: 'stage', label: 'Aşama', render: (r) => <span className={`adm-badge adm-badge--${r.stage}`}>{(PV_STAGE[r.stage] || {}).label || r.stage}</span> },
@@ -167,7 +167,7 @@ function ProjectsPage() {
 
 function ProjectForm({ item, onClose, onSave, people }) {
   const { updateItem: updatePersonLink } = useAdmin();
-  const blank = { name: '', slug: '', color: '#2563EB', stage: 'idea', logo: null, tagline_tr: '', tagline_en: '', desc_tr: '', desc_en: '', about_tr: '', about_en: '', problem_tr: '', problem_en: '', solution_tr: '', solution_en: '', tags: [], team: 1, openRoles: 0, website: '', demo: '', github: '', openRolesList_tr: [], openRolesList_en: [], featured: null, trending: null, isNew: null, leadId: '', memberIds: [], mentorId: '', metrics: [] };
+  const blank = { name: '', slug: '', color: '#2563EB', stage: 'idea', logo: null, tagline_tr: '', tagline_en: '', desc_tr: '', desc_en: '', about_tr: '', about_en: '', problem_tr: '', problem_en: '', solution_tr: '', solution_en: '', tags: [], team: 1, openRoles: 0, website: '', demo: '', github: '', openRolesList_tr: [], openRolesList_en: [], featured: null, trending: null, isNew: null, published: true, leadId: '', memberIds: [], mentorId: '', metrics: [] };
   const [f, setF] = useStateP(item ? { ...blank, ...item } : blank);
   const [preview, setPreview] = useStateP(false);
   const [err, setErr] = useStateP('');
@@ -257,6 +257,12 @@ function ProjectForm({ item, onClose, onSave, people }) {
             </div>
           </div>
         </div>
+        <Field label="Web Sitesinde Yayında mı?" hint="Kapalıysa proje yalnızca admin panel/Kurucu Hattı'nda görünür — ana sayfa ve proje detayından gizlenir. Arka planda yönetilen projeler için kapatın.">
+          <div className="adm-tri">
+            <button type="button" className={`adm-tri__btn adm-tri__btn--yes ${f.published !== false ? 'adm-tri__btn--active' : ''}`} onClick={() => set('published', true)}>Evet, yayında</button>
+            <button type="button" className={`adm-tri__btn ${f.published === false ? 'adm-tri__btn--active' : ''}`} onClick={() => set('published', false)}>Hayır, gizli</button>
+          </div>
+        </Field>
         <Field label="Etiketler"><TagInput tags={f.tags || []} onChange={v => set('tags', v)} /></Field>
         <div className="adm-form-grid">
           <Field label="Slogan (TR)"><Input value={f.tagline_tr} onChange={v => set('tagline_tr', v)} /></Field>

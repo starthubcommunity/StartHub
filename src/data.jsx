@@ -665,7 +665,7 @@ function ContentProvider({ children }) {
           { data: orRows, error: e5 },
         ] = await Promise.all([
           supabase.from('people').select('*').order('sort_order'),
-          supabase.from('startups').select('*').order('id'),
+          supabase.from('startups').select('*').eq('published', true).order('id'),
           supabase.from('sponsors').select('*').order('sort_order'),
           supabase.from('events').select('*').order('date'),
           supabase.from('public_open_roles').select('*').order('created_at'),
