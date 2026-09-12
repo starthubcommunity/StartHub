@@ -18,6 +18,8 @@ import MetricsPage from './pages/metrics';
 import SourcesPage from './pages/sources';
 import SettingsPage from './pages/settings';
 import RolesPage from './pages/roles';
+import ApplicationsPage from './pages/applications';
+import SponsorsPage from './pages/sponsors';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -332,17 +334,19 @@ function HubNoAccess({ email, onLogout }) {
 // Metrikler, Yetkiler, Ayarlar. Her öğe bir has_perm anahtarına bağlı;
 // yetkisi olmayan öğe menüde HİÇ görünmez.
 const MAIN_NAV = [
-  { id: 'today',      label: 'Bugün',   icon: 'dashboard', perm: null },
-  { id: 'candidates', label: 'Adaylar', icon: 'layers',    perm: 'candidates.read' },
-  { id: 'archive',    label: 'Arşiv',   icon: 'trash',     perm: 'candidates.read' },
-  { id: 'roles',      label: 'Açık Pozisyonlar',  icon: 'rocket',    perm: 'roles.read' },
+  { id: 'today',        label: 'Bugün',        icon: 'dashboard', perm: null },
+  { id: 'candidates',   label: 'Adaylar',      icon: 'layers',    perm: 'candidates.read' },
+  { id: 'archive',      label: 'Arşiv',        icon: 'trash',     perm: 'candidates.read' },
+  { id: 'roles',        label: 'Açık Pozisyonlar', icon: 'rocket', perm: 'roles.read' },
+  { id: 'applications', label: 'Başvurular',   icon: 'penEdit',   perm: 'applications.read' },
 ];
 const GEAR_NAV = [
-  { id: 'templates', label: 'Şablonlar', icon: 'penEdit',    perm: 'templates.read' },
-  { id: 'metrics',   label: 'Metrikler', icon: 'trendingUp', perm: 'metrics.read' },
-  { id: 'sources',   label: 'Kaynaklar', icon: 'layers',     perm: 'sources.read' },
-  { id: 'members',   label: 'Yetkiler',  icon: 'users',      perm: 'members.manage' },
-  { id: 'settings',  label: 'Ayarlar',   icon: 'settings',   perm: 'settings.write' },
+  { id: 'templates', label: 'Şablonlar',  icon: 'penEdit',    perm: 'templates.read' },
+  { id: 'metrics',   label: 'Metrikler',  icon: 'trendingUp', perm: 'metrics.read' },
+  { id: 'sources',   label: 'Kaynaklar',  icon: 'layers',     perm: 'sources.read' },
+  { id: 'sponsors',  label: 'Destekçiler', icon: 'handshake', perm: 'sponsors.read' },
+  { id: 'members',   label: 'Yetkiler',   icon: 'users',      perm: 'members.manage' },
+  { id: 'settings',  label: 'Ayarlar',    icon: 'settings',   perm: 'settings.write' },
 ];
 const ALL_NAV = [...MAIN_NAV, ...GEAR_NAV];
 
@@ -423,9 +427,11 @@ function HubApp({ email, onLogout }) {
             : activePage === 'candidates' ? <CandidatesListPage filters={filters} setFilters={setFilters} />
             : activePage === 'archive' ? <ArchivePage />
             : activePage === 'roles' ? <RolesPage />
+            : activePage === 'applications' ? <ApplicationsPage />
             : activePage === 'templates' ? <TemplatesPage />
             : activePage === 'metrics' ? <MetricsPage />
             : activePage === 'sources' ? <SourcesPage />
+            : activePage === 'sponsors' ? <SponsorsPage />
             : activePage === 'members' ? <PermissionsScreen area="hub" />
             : activePage === 'settings' ? <SettingsPage />
             : <div className="adm-empty">Bu ekran yok.</div>}
