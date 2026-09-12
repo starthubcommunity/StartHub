@@ -1,7 +1,10 @@
 {
+  "redirects": [
+    { "source": "/hub/:path*", "destination": "/HR/:path*", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/admin/:path*", "destination": "/admin/index.html" },
-    { "source": "/hub/:path*", "destination": "/hub/index.html" },
+    { "source": "/HR/:path*", "destination": "/hub/index.html" },
     { "source": "/team/:path*", "destination": "/team/index.html" },
     { "source": "/:path*",       "destination": "/index.html" }
   ]

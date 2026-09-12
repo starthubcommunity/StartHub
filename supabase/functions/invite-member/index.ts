@@ -33,7 +33,7 @@ const SITE_BASE = APP_URL.replace(/\/team\/?$/, "").replace(/\/$/, "");
 const REDIRECT: Record<string, string> = {
   team:  APP_URL,
   admin: `${SITE_BASE}/admin/`,
-  hub:   `${SITE_BASE}/hub/`,
+  hub:   `${SITE_BASE}/HR/`,
 };
 const AREA_LABEL: Record<string, string> = {
   admin: "Yönetim Paneli",
