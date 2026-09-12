@@ -11,6 +11,12 @@
 // member_ids/mentor_id) BURADA YOK — Team App'in kendi ayrı roster
 // modeliyle çakışmaması için kasıtlı dışarıda tutuldu.
 //
+// teamId'ye eşlenmiş bir proje YOKSA artık 404 dönmüyor — kullanıcı kararı:
+// cofounder istediği ekibi istediği an web sitesine ekleyebilmeli, admin
+// panelden ayrıca "Team App Ekip ID" ayarlamaya gerek kalmadan. Bu durumda
+// team_app_id=teamId ile YENİ bir startups satırı oluşturulur (slug
+// name'den otomatik üretilir, çakışırsa teamId ile benzersizleştirilir).
+//
 //   supabase functions deploy team-project-save --project-ref fdlghaafspcuagxfrofz --no-verify-jwt
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -35,6 +41,25 @@ const cors = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
+function slugify(s: string): string {
+  const base = (s || "")
+    .toLowerCase()
+    .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s")
+    .replace(/ı/g, "i").replace(/ö/g, "o").replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return base || "proje";
+}
+
+async function uniqueSlug(db: ReturnType<typeof createClient>, base: string, teamId: string): Promise<string> {
+  let candidate = base;
+  for (let i = 0; i < 20; i++) {
+    const { data } = await db.from("startups").select("id").eq("slug", candidate).maybeSingle();
+    if (!data) return candidate;
+    candidate = i === 0 ? `${base}-${teamId.toLowerCase()}` : `${base}-${teamId.toLowerCase()}-${i + 1}`;
+  }
+  return `${base}-${Date.now()}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -57,7 +82,29 @@ serve(async (req) => {
     const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
     const { data: s, error: sErr } = await db.from("startups").select("id").eq("team_app_id", teamId).maybeSingle();
     if (sErr) return json({ error: sErr.message }, 500);
-    if (!s) return json({ error: `'${teamId}' Team App ekibine eşlenmiş proje yok` }, 404);
+
+    if (!s) {
+      // Bu ekip henüz web sitesine eşlenmemiş — yeni bir proje oluşturuluyor.
+      if (!clean.name || String(clean.name).trim() === "") return json({ error: "Yeni proje için isim zorunlu" }, 400);
+      const slug = await uniqueSlug(db, slugify(String(clean.name)), teamId);
+      const row = {
+        name: clean.name, slug,
+        color: clean.color || "#2563EB", stage: clean.stage || "idea", logo: clean.logo || null,
+        tagline_tr: clean.tagline_tr || "", tagline_en: clean.tagline_en || "",
+        desc_tr: clean.desc_tr || "", desc_en: clean.desc_en || "",
+        about_tr: clean.about_tr || "", about_en: clean.about_en || "",
+        problem_tr: clean.problem_tr || "", problem_en: clean.problem_en || "",
+        solution_tr: clean.solution_tr || "", solution_en: clean.solution_en || "",
+        tags: clean.tags || [], website: clean.website || null, demo: clean.demo || null, github: clean.github || null,
+        metrics: clean.metrics || [],
+        trending: clean.trending || false, featured: clean.featured || false, is_new: clean.is_new || false,
+        published: clean.published !== false,
+        team: 0, id: Date.now(), team_app_id: teamId,
+      };
+      const { data: created, error: cErr } = await db.from("startups").insert(row).select().single();
+      if (cErr) return json({ error: cErr.message }, 500);
+      return json({ ok: true, created: true, project: created });
+    }
 
     const { data: updated, error } = await db.from("startups").update(clean).eq("id", s.id).select().single();
     if (error) return json({ error: error.message }, 500);
