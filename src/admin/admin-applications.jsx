@@ -7,7 +7,7 @@ import { mapCandidateToDb } from '../hub/hub-mappers';
 
 // Başvuru metninden "neden bu kişi" ön-doldurması (kullanıcı düzeltir).
 function inboundWhy(app) {
-  return [app.intent, app.project_name && `Proje: ${app.project_name}`, app.skills && `Beceriler: ${app.skills}`, app.bio]
+  return [app.intent, app.project_name && `Proje: ${app.project_name}`, app.role && `İlgilendiği pozisyon: ${app.role}`, app.skills && `Beceriler: ${app.skills}`, app.bio]
     .map((x) => (x || '').trim())
     .filter(Boolean)
     .join(' — ')

@@ -307,7 +307,10 @@ function JoinPage({ navigate, projectId }) {
           name: communityForm.name, email: communityForm.email,
           university: communityForm.university || null,
           department: communityForm.department || null,
-          role: communityForm.role || null,
+          // Proje sayfasından belirli bir pozisyona tıklanarak gelindiyse
+          // (savedRole), o daha spesifik bilgi genel kategori seçiminden
+          // önceliklidir — tıklanan pozisyon adı artık kayboluyordu.
+          role: savedRole || communityForm.role || null,
           intent: communityForm.intent || 'community',
           bio: communityForm.bio || null,
           skills: communityForm.skills || null,
