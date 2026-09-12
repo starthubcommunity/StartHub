@@ -19,7 +19,10 @@ const BLANK = {
   assignedTo: '', status: 'sourcing',
 };
 const daysSince = (iso) => (iso ? Math.floor((Date.now() - Date.parse(iso)) / 86400000) : 0);
-const NEXT_LABEL = { sourcing: 'Aramaya al', shortlist: 'Kısa listeye al', draft: 'Taslağa al' };
+// shortlist'e artık elle geçiş yok (bkz. ROLE_STATUS_NEXT) — bu yüzden burada
+// hedef anahtarı olarak hiç görünmez, silinmedi çünkü şortlist'ten geri dönüş
+// (shortlist -> sourcing) hâlâ elle mümkün ve "Aramaya al" ile aynı hedefi kullanır.
+const NEXT_LABEL = { sourcing: 'Yayınla', draft: 'Taslağa al' };
 
 export default function RolesPage() {
   const store = useHubStore();
@@ -134,7 +137,7 @@ export default function RolesPage() {
       <div className="adm-page-head">
         <div>
           <h1 className="adm-page-head__title">Açık Pozisyonlar</h1>
-          <p className="adm-page-head__desc">Rol doğrudan "Aranıyor"a düşer. Aday sunma aday kartından yapılır.</p>
+          <p className="adm-page-head__desc">Rol doğrudan "Yayında"ya düşer. Aday sunma aday kartından yapılır.</p>
         </div>
         {canManage && (
           <div className="adm-page-head__actions">

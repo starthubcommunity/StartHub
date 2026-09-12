@@ -110,18 +110,27 @@ export const THRESHOLD = {
 
 // ─── Açık rol durum makinesi (v2 §10.1 — 7→4) ─────────────────────
 // Talep/onay el sıkışması yok: rol doğrudan 'sourcing'e düşer.
+// 'sourcing' = "Yayında" (web sitesinde görünür, aday aranıyor). 'shortlist'
+// artık ELLE ulaşılabilir bir durum DEĞİL — yalnızca bir aday proje sahibine
+// gerçekten SUNULDUĞUNDA sistem otomatik olarak buraya geçer (bkz. hub-
+// store.jsx presentCandidate / hub-rules.js roleStatusAfterReject). Kullanıcı
+// kararı: "Kısa listeye al" butonu (gerçek bir sunum olmadan elle bu duruma
+// geçme) kaldırıldı çünkü sitede görünürlük açısından sourcing'den farksızdı
+// ve kafa karıştırıyordu — etiket/rozet, otomatik oluştuğunda hâlâ doğru
+// gösteriliyor, sadece manuel buton gitti.
 export const ROLE_STATUSES = [
   { value: 'draft',     label: 'Taslak' },
-  { value: 'sourcing',  label: 'Aranıyor' },
+  { value: 'sourcing',  label: 'Yayında' },
   { value: 'shortlist', label: 'Kısa liste' },
   { value: 'filled',    label: 'Dolduruldu' },
 ];
 export const ROLE_STATUS_LABEL = toLabelMap(ROLE_STATUSES);
 
 // filled sisteme aittir (aday `member` olunca otomatik).
+// sourcing -> shortlist ELLE yok (yukarıdaki not) — yalnızca geri dönüş var.
 export const ROLE_STATUS_NEXT = {
   draft:     ['sourcing'],
-  sourcing:  ['shortlist', 'draft'],
+  sourcing:  ['draft'],
   shortlist: ['sourcing'],   // filled otomatik
   filled:    [],
 };
