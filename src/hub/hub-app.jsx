@@ -18,6 +18,7 @@ import MetricsPage from './pages/metrics';
 import SourcesPage from './pages/sources';
 import SettingsPage from './pages/settings';
 import RolesPage from './pages/roles';
+import ShowcasePage from './pages/showcase';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -341,6 +342,7 @@ const GEAR_NAV = [
   { id: 'templates', label: 'Şablonlar', icon: 'penEdit',    perm: 'templates.read' },
   { id: 'metrics',   label: 'Metrikler', icon: 'trendingUp', perm: 'metrics.read' },
   { id: 'sources',   label: 'Kaynaklar', icon: 'layers',     perm: 'sources.read' },
+  { id: 'showcase',  label: 'Vitrin',    icon: 'penEdit',    perm: 'showcase.write' },
   { id: 'members',   label: 'Yetkiler',  icon: 'users',      perm: 'members.manage' },
   { id: 'settings',  label: 'Ayarlar',   icon: 'settings',   perm: 'settings.write' },
 ];
@@ -426,6 +428,7 @@ function HubApp({ email, onLogout }) {
             : activePage === 'templates' ? <TemplatesPage />
             : activePage === 'metrics' ? <MetricsPage />
             : activePage === 'sources' ? <SourcesPage />
+            : activePage === 'showcase' ? <ShowcasePage />
             : activePage === 'members' ? <PermissionsScreen area="hub" />
             : activePage === 'settings' ? <SettingsPage />
             : <div className="adm-empty">Bu ekran yok.</div>}
