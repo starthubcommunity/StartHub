@@ -163,6 +163,7 @@ function mapStartupToDb(item) {
     trending:           item.trending        || false,
     featured:           item.featured        || false,
     is_new:             item.isNew           || false,
+    team_app_id:        item.teamAppId       || null,
   };
   if (item.id) db.id = item.id;
   return db;
@@ -201,6 +202,7 @@ function mapStartupFromDb(row) {
     trending:         row.trending           || false,
     featured:         row.featured           || false,
     isNew:            row.is_new             || false,
+    teamAppId:        row.team_app_id        || null,
   };
 }
 

@@ -3,7 +3,8 @@
 //   1. Aşama -> member (+ joined_at / vesting_start_date)
 //   2. people roster kaydı (ad, rol, project_id=startup_id)   [best-effort]
 //   3. startups.member_ids'e ekle                             [best-effort]
-//   4. invite-member(area:'team') ile auth hesabı + markalı şifre-belirleme maili
+//   4. hub-bridge-add-member (Team app'in KENDİ Supabase projesi) ile
+//      gerçek Ekip Paneli üyeliği + markalı şifre-belirleme maili
 //   5. hub_candidates.person_id geri yaz + bağlı rol -> filled
 //
 // Her adım ayrı try/catch — patlayan adım `warnings`e yazılır, akış durmaz.
@@ -14,6 +15,16 @@
 // değerlerini tutar). app_state.data şu an boş {} — takım/roster modeli
 // people + startups.member_ids üzerinde. app_state'e dokunulmaz.
 //
+// ÖNEMLİ (2026-09-12 düzeltmesi): 4. adım eskiden invite-member(area:'team')
+// çağırıyordu — ama o, BU projenin (main, fdlghaafspcuagxfrofz) kendi auth
+// sisteminde hesap/link üretiyordu. Gerçek /team/ bundle'ı TAMAMEN AYRI bir
+// Supabase projesine (umgdtjlgivvymngsnqtv) bağlı — Supabase Auth token'ları
+// projeye özel imzalandığı için o link /team/'de geçersiz kalıyordu, üstelik
+// app_state.data.users'a (Team'in gerçek üye listesi) hiç dokunulmuyordu.
+// Yani buton "başarılı" görünse de kişi Ekip Paneli'nde hiçbir zaman üye
+// olarak belirmiyordu. Doğrusu: startups.team_app_id (0023) üzerinden Team
+// projesindeki hub-bridge-add-member'ı çağırmak — bkz. aşağıdaki 4. adım.
+//
 // Yetki: çağıranın JWT'si iletilir; hub_role() cofounder|recruiter olmalı.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -22,6 +33,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+// Team app'in KENDİ (ayrı) Supabase projesi — main projeyle karıştırılmaz.
+const TEAM_PROJECT_URL = "https://umgdtjlgivvymngsnqtv.supabase.co";
+const HUB_BRIDGE_SECRET = Deno.env.get("HUB_BRIDGE_SECRET");
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -137,34 +151,41 @@ serve(async (req) => {
       warnings.push("bağlı proje yok — takım üyeliği atlandı");
     }
 
-    // ── 4. auth hesabı + markalı davet maili ──────────────────
-    if (cand.email) {
+    // ── 4. Team app'e (ayrı Supabase projesi) gerçek üye olarak ekle ──
+    if (cand.email && startupId != null) {
       try {
-        const invRes = await fetch(`${SUPABASE_URL}/functions/v1/invite-member`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
-          body: JSON.stringify({ email: cand.email, area: "team" }),
-        });
-        const inv = await invRes.json();
-        if (!invRes.ok || !inv?.link) throw new Error(inv?.error || "link üretilemedi");
-
-        const mailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-mail`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
-          body: JSON.stringify({
-            to: cand.email,
-            subject: "StartHub Ekip Paneli — erişimin tanımlandı",
-            body: `Merhaba ${cand.full_name || ""},\n\nEkibe katıldın. Ekip Paneli'ne girmek için şifreni belirle:\n${inv.link}\n\nBağlantı tek kullanımlıktır ve 1 saat içinde geçerliliğini yitirir.\n\nStartHub`,
-          }),
-        });
-        const mail = await mailRes.json();
-        if (!mailRes.ok || mail?.error) throw new Error(mail?.error ? JSON.stringify(mail.error) : "mail gönderilemedi");
-        steps.invite = true;
+        const { data: sRow, error: sErr } = await db.from("startups").select("team_app_id").eq("id", startupId).single();
+        if (sErr) throw new Error(sErr.message);
+        const teamId = (sRow?.team_app_id as string | null) || null;
+        if (!teamId) {
+          warnings.push("proje Team App'e eşlenmemiş (startups.team_app_id boş) — Ekip Paneli'ne otomatik eklenemedi, elle eklenmeli");
+        } else if (!HUB_BRIDGE_SECRET) {
+          warnings.push("HUB_BRIDGE_SECRET tanımlı değil — Ekip Paneli köprüsü atlandı");
+        } else {
+          const bridgeRole = cand.track === "founder" ? "lead" : "member";
+          const bRes = await fetch(`${TEAM_PROJECT_URL}/functions/v1/hub-bridge-add-member`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-hub-bridge-key": HUB_BRIDGE_SECRET },
+            body: JSON.stringify({
+              teamId, fullName: cand.full_name || "Yeni üye", email: cand.email, role: bridgeRole,
+              source: { candidateId, actorEmail: null },
+            }),
+            signal: AbortSignal.timeout(8000),
+          });
+          const b = await bRes.json();
+          if (!bRes.ok || !b?.ok) throw new Error(b?.error || `hub-bridge-add-member ${bRes.status}`);
+          steps.invite = true;
+          if (b.downgradedFromLead) warnings.push("ekipte zaten bir lead var — Ekip Paneli'nde member olarak eklendi");
+          if (b.alreadyMember) warnings.push("kişi zaten bu Team App ekibinde kayıtlı");
+          if (b.created && b.inviteSent === false) warnings.push("Ekip Paneli hesabı açıldı ama davet maili gönderilemedi");
+        }
       } catch (e) {
-        warnings.push("davet maili gönderilemedi: " + (e as Error).message);
+        warnings.push("Ekip Paneli'ne otomatik eklenemedi: " + (e as Error).message);
       }
+    } else if (!cand.email) {
+      warnings.push("adayın e-postası yok — Ekip Paneli'ne eklenemedi");
     } else {
-      warnings.push("adayın e-postası yok — hesap/davet atlandı");
+      warnings.push("bağlı proje yok — Ekip Paneli'ne eklenemedi");
     }
 
     // ── 5. person_id geri yaz + rol filled ───────────────────
