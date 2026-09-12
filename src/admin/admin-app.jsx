@@ -295,7 +295,11 @@ function AdminApp() {
   const [recovery, setRecovery]       = useStateA(false); // şifre sıfırlama linkinden dönüldü mü
   const [role, setRole]               = useStateA(null);  // 'admin' | 'editor' | null
   const [roleLoading, setRoleLoading] = useStateA(false);
-  const [page, setPage]               = useStateA(() => sessionStorage.getItem('sh_adm_page') || 'dashboard');
+  const [page, setPage]               = useStateA(() => {
+    // Team App'ten ?editProject=<slug> ile gelindiyse Projeler sekmesi açılır.
+    if (new URLSearchParams(window.location.search).get('editProject')) return 'projects';
+    return sessionStorage.getItem('sh_adm_page') || 'dashboard';
+  });
   const [mobileNavOpen, setMobileNavOpen] = useStateA(false);
   const { trash, saveError } = useAdmin();
   const { can, loading: permsLoading } = usePerms();

@@ -115,6 +115,19 @@ function ProjectsPage() {
   const [editing, setEditing] = useStateP(null);
   const [deleting, setDeleting] = useStateP(null);
 
+  // Team App'in (/team/) "Düzenle" butonu buraya ?editProject=<slug> ile
+  // yönlendirir — o projenin düzenleme ekranını admin panelin kendi
+  // butonuna basılmış gibi otomatik açar (URL'i temizler, tekrar açılmasın).
+  useEffectP(() => {
+    const slug = new URLSearchParams(window.location.search).get('editProject');
+    if (!slug) return;
+    const match = data.startups.find(s => s.slug === slug);
+    if (match) setEditing(match);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('editProject');
+    window.history.replaceState({}, '', url);
+  }, [data.startups]);
+
   const filtered = useMemoP(() => {
     if (!search) return data.startups;
     const q = search.toLowerCase();
