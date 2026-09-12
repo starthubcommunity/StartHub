@@ -1,5 +1,7 @@
 {
   "redirects": [
+    { "source": "/hub", "destination": "/HR", "permanent": true },
+    { "source": "/hub/", "destination": "/HR/", "permanent": true },
     { "source": "/hub/:path*", "destination": "/HR/:path*", "permanent": true }
   ],
   "rewrites": [
