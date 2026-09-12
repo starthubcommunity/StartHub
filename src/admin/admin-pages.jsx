@@ -1,7 +1,7 @@
 // admin-pages.jsx — Dashboard, Projects, Posts
 import { useState as useStateP, useEffect as useEffectP, useMemo as useMemoP, useRef as useRefP } from 'react';
 import { useAdmin, uid, nextId, COLLECTIONS } from './admin-store';
-import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper } from './admin-ui';
+import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper } from './admin-ui';
 import { ProjectPreview, PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
 import { usePerms } from '../lib/use-perms';
 import { people } from '../data';
@@ -241,10 +241,11 @@ function ProjectForm({ item, onClose, onSave, people }) {
       headerExtra={<PreviewToggle on={preview} onClick={() => setPreview(p => !p)} />}>
       {preview ? <ProjectPreview f={f} teamCount={autoTeamCount} /> : (
       <form onSubmit={e => { e.preventDefault(); submit(); }} className="adm-form">
-        <div className="adm-field" style={{ background: 'var(--adm-bg-2)', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: 'var(--adm-text-dim)', marginBottom: 16 }}>
-          Logo, slogan, açıklama, trend ve web sitesinde yayın durumu artık burada değil — <strong>Kurucu Hattı → Vitrin</strong> sayfasından (yalnızca cofounder) düzenleniyor.
-        </div>
         <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <label className="adm-field__label">Logo</label>
+            <ImageUpload value={f.logo} onChange={v => set('logo', v)} size={84} shape="rounded" format="png" maxDim={400} />
+          </div>
           <div style={{ flex: 1 }}>
             <div className="adm-form-grid">
               <Field label="Proje Adı" required><Input value={f.name} onChange={v => set('name', v)} placeholder="FinTrack" /></Field>
@@ -256,7 +257,21 @@ function ProjectForm({ item, onClose, onSave, people }) {
             </div>
           </div>
         </div>
+        <Field label="Web Sitesinde Yayında mı?" hint="Kapalıysa proje yalnızca admin panel/Kurucu Hattı'nda görünür — ana sayfa ve proje detayından gizlenir. Arka planda yönetilen projeler için kapatın.">
+          <div className="adm-tri">
+            <button type="button" className={`adm-tri__btn adm-tri__btn--yes ${f.published !== false ? 'adm-tri__btn--active' : ''}`} onClick={() => set('published', true)}>Evet, yayında</button>
+            <button type="button" className={`adm-tri__btn ${f.published === false ? 'adm-tri__btn--active' : ''}`} onClick={() => set('published', false)}>Hayır, gizli</button>
+          </div>
+        </Field>
         <Field label="Etiketler"><TagInput tags={f.tags || []} onChange={v => set('tags', v)} /></Field>
+        <div className="adm-form-grid">
+          <Field label="Slogan (TR)"><Input value={f.tagline_tr} onChange={v => set('tagline_tr', v)} /></Field>
+          <Field label="Slogan (EN)"><Input value={f.tagline_en} onChange={v => set('tagline_en', v)} /></Field>
+        </div>
+        <div className="adm-form-grid">
+          <Field label="Açıklama (TR)"><Textarea value={f.desc_tr} onChange={v => set('desc_tr', v)} /></Field>
+          <Field label="Açıklama (EN)"><Textarea value={f.desc_en} onChange={v => set('desc_en', v)} /></Field>
+        </div>
         <div className="adm-form-grid">
           <Field label="Detay (TR)"><Textarea value={f.about_tr} onChange={v => set('about_tr', v)} rows={4} /></Field>
           <Field label="Detay (EN)"><Textarea value={f.about_en} onChange={v => set('about_en', v)} rows={4} /></Field>
@@ -355,6 +370,7 @@ function ProjectForm({ item, onClose, onSave, people }) {
         </div>
         <div className="adm-form-grid adm-form-grid--3">
           <Field label="Öne Çıkan" hint="Hero'da gösterilir · en fazla 1"><TriToggle value={f.featured} onChange={v => set('featured', v)} /></Field>
+          <Field label="Trend"><TriToggle value={f.trending} onChange={v => set('trending', v)} /></Field>
           <Field label="Yeni"><TriToggle value={f.isNew} onChange={v => set('isNew', v)} /></Field>
         </div>
         <div className="adm-field" style={{ background: 'var(--adm-bg-2)', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
