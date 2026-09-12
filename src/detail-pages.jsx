@@ -79,7 +79,13 @@ function ProjectDetailPage({ projectId, navigate }) {
 
   const lead = people.find(pp => pp.id === p.leadId);
   const mentor = people.find(pp => pp.id === p.mentorId);
-  const explicitMembers = (p.memberIds || []).map(id => people.find(pp => pp.id === id)).filter(Boolean);
+  // Lider/mentör AYNI ZAMANDA member_ids içinde de olabilir (ör. hub-move-to-team
+  // ikisini de yazar) — kendi kartında ayrıca gösterilmeyecek şekilde hariç tutulur,
+  // yoksa "Ekip Lideri" + "Geliştirici" olarak iki kez görünür.
+  const explicitMembers = (p.memberIds || [])
+    .filter(id => id !== p.leadId && id !== p.mentorId)
+    .map(id => people.find(pp => pp.id === id))
+    .filter(Boolean);
   const linkedIds = new Set([p.leadId, p.mentorId, ...explicitMembers.map(m => m.id)]);
   // Panelden "Proje Üyesi" olarak bu projeye bağlanan kişiler — memberIds'de
   // olmasalar bile burada listelenir, tekrar etmemesi için filtrelenir.
