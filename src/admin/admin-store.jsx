@@ -322,18 +322,26 @@ function AdminProvider({ children }) {
       supabase.from('startups').select('*').order('id'),
       supabase.from('sponsors').select('*').order('sort_order'),
       supabase.from('events').select('*').order('date'),
-    ]).then(([postRes, peopleRes, startupRes, sponsorRes, eventRes]) => {
+      supabase.from('public_open_roles').select('*').order('created_at'),
+    ]).then(([postRes, peopleRes, startupRes, sponsorRes, eventRes, roleRes]) => {
       if (cancelled) return;
       if (postRes.error)    console.error('[Admin] posts:', postRes.error.message);
       if (peopleRes.error)  console.error('[Admin] people:', peopleRes.error.message);
       if (startupRes.error) console.error('[Admin] startups:', startupRes.error.message);
       if (sponsorRes.error) console.error('[Admin] sponsors:', sponsorRes.error.message);
       if (eventRes.error)   console.error('[Admin] events:', eventRes.error.message);
+      if (roleRes.error)    console.error('[Admin] public_open_roles:', roleRes.error.message);
+      // Açık pozisyonlar artık Kurucu Hattı'ndan (hub_open_roles) geliyor —
+      // startups.open_roles_list_tr/en kolonları UI'dan gizlendi, drop edilmedi.
+      const rolesByStartup = {};
+      (roleRes.data || []).forEach((r) => {
+        (rolesByStartup[r.startup_id] = rolesByStartup[r.startup_id] || []).push({ id: r.id, title: r.title, profile: r.profile, roleType: r.role_type, track: r.track });
+      });
       setData(prev => ({
         ...prev,
         posts:    (postRes.data    || []).map(mapPostFromDb),
         people:   (peopleRes.data  || []).map(mapPersonFromDb),
-        startups: (startupRes.data || []).map(mapStartupFromDb),
+        startups: (startupRes.data || []).map(mapStartupFromDb).map(s => ({ ...s, openRolesLive: rolesByStartup[s.id] || [] })),
         sponsors: (sponsorRes.data || []).map(mapSponsorFromDb),
         events:   (eventRes.data   || []).map(mapEventFromDb),
       }));
@@ -449,7 +457,7 @@ function AdminProvider({ children }) {
     posts:       data.posts.length,
     sponsors:    data.sponsors.length,
     events:      data.events.length,
-    openRoles:   data.startups.reduce((s, x) => s + (x.openRoles || 0), 0),
+    openRoles:   data.startups.reduce((s, x) => s + (x.openRolesLive || []).length, 0),
   };
 
   const statValue = useCallbackS((key) => {

@@ -36,7 +36,7 @@ function ProjectPreview({ f, teamCount }) {
         </div>
         <div className="adm-pv-meta">
           <span>👥 {teamCount ?? ((f.leadId ? 1 : 0) + (f.memberIds || []).length || f.team || 0)} kişi</span>
-          {f.openRoles > 0 && <span style={{ color: '#16A34A' }}>💼 {f.openRoles} açık pozisyon</span>}
+          {(f.openRolesLive || []).length > 0 && <span style={{ color: '#16A34A' }}>💼 {f.openRolesLive.length} açık pozisyon</span>}
         </div>
       </div>
 

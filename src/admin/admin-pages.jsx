@@ -93,7 +93,7 @@ function DashboardPage() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="adm-list-item__title">{s.name}</div>
-                  <div className="adm-list-item__sub">{s.team} kişi{s.openRoles > 0 ? ` · ${s.openRoles} açık rol` : ''}</div>
+                  <div className="adm-list-item__sub">{s.team} kişi{(s.openRolesLive || []).length > 0 ? ` · ${s.openRolesLive.length} açık rol` : ''}</div>
                 </div>
                 <span className={`adm-badge adm-badge--${s.stage}`}>{(PV_STAGE[s.stage] || {}).label || s.stage}</span>
               </div>
@@ -136,7 +136,7 @@ function ProjectsPage() {
       ...(r.memberIds || []),
       ...data.people.filter(p => p.type === 'project_member' && p.projectId === r.id).map(p => p.id),
     ]).size },
-    { key: 'openRoles', label: 'Açık Rol', style: { width: 90 }, render: (r) => (r.openRolesList_tr || []).length },
+    { key: 'openRoles', label: 'Açık Rol', style: { width: 90 }, render: (r) => (r.openRolesLive || []).length },
   ];
 
   const handleSave = async (formData) => {
@@ -223,18 +223,15 @@ function ProjectForm({ item, onClose, onSave, people }) {
     catch (e) { setErr(e?.message || 'Çıkarılamadı — lütfen tekrar dene.'); }
     finally { setMemberBusy(null); }
   };
-  // "Açık Rol" sayısı ile "Açık Pozisyonlar" listesi ayrı ayrı elle girilirse
-  // birbirinden kopabiliyordu (site bir tarafta sayıyı, diğer tarafta listeyi
-  // gösteriyor, tutarsızlık "açık pozisyon var" ile "yok" çelişkisi yaratıyordu).
-  // Artık sayı her zaman listeden türetiliyor, elle girilemiyor.
-  const autoOpenRoles = (f.openRolesList_tr || []).length;
-
   const [saving, setSaving] = useStateP(false);
 
   const submit = async () => {
     if (!f.name.trim() || !f.slug.trim()) { setErr('Proje adı ve slug zorunludur — boş proje yayınlanamaz.'); return; }
     setErr(''); setSaving(true);
-    try { await onSave({ ...f, team: autoTeamCount || f.team, openRoles: autoOpenRoles }); }
+    // openRoles/openRolesList artık Kurucu Hattı'ndan (hub_open_roles) türetiliyor,
+    // bu form onları hiç göndermiyor — kolonlar drop edilmedi (0021), sadece
+    // buradan bir daha yazılmıyor.
+    try { await onSave({ ...f, team: autoTeamCount || f.team }); }
     catch (e) { setErr(e?.message || 'Kaydedilemedi — lütfen tekrar dene.'); }
     finally { setSaving(false); }
   };
@@ -281,10 +278,7 @@ function ProjectForm({ item, onClose, onSave, people }) {
           <Field label="Çözüm (TR)"><Textarea value={f.solution_tr} onChange={v => set('solution_tr', v)} /></Field>
           <Field label="Çözüm (EN)"><Textarea value={f.solution_en} onChange={v => set('solution_en', v)} /></Field>
         </div>
-        <div className="adm-form-grid adm-form-grid--2">
-          <Field label="Ekip (otomatik)" hint="Lider + üyeler + bu projeye bağlı proje üyelerinden hesaplanır"><Input type="number" value={autoTeamCount || f.team} disabled /></Field>
-          <Field label="Açık Rol (otomatik)" hint="Aşağıdaki 'Açık Pozisyonlar' listesinden hesaplanır"><Input type="number" value={autoOpenRoles} disabled /></Field>
-        </div>
+        <Field label="Ekip (otomatik)" hint="Lider + üyeler + bu projeye bağlı proje üyelerinden hesaplanır"><Input type="number" value={autoTeamCount || f.team} disabled style={{ maxWidth: 160 }} /></Field>
 
         {/* Ekip üyeleri editörü */}
         <div className="adm-team-edit">
@@ -370,12 +364,9 @@ function ProjectForm({ item, onClose, onSave, people }) {
           <Field label="Trend"><TriToggle value={f.trending} onChange={v => set('trending', v)} /></Field>
           <Field label="Yeni"><TriToggle value={f.isNew} onChange={v => set('isNew', v)} /></Field>
         </div>
-        <Field label="Açık Pozisyonlar (TR)" hint="Virgülle ayır: Flutter Geliştirici, UI/UX Tasarımcı">
-          <Input value={(f.openRolesList_tr || []).join(', ')} onChange={v => set('openRolesList_tr', v.split(',').map(s => s.trim()).filter(Boolean))} />
-        </Field>
-        <Field label="Açık Pozisyonlar (EN)">
-          <Input value={(f.openRolesList_en || []).join(', ')} onChange={v => set('openRolesList_en', v.split(',').map(s => s.trim()).filter(Boolean))} />
-        </Field>
+        <div className="adm-field" style={{ background: 'var(--adm-bg-2)', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: 'var(--adm-text-dim)' }}>
+          Açık pozisyonlar artık burada elle yazılmıyor — Kurucu Hattı'ndaki "Açık Pozisyonlar" (Roller) sayfasından bu projeye bağlı, "Aranıyor"/"Aday sunuldu" durumundaki roller siteye otomatik yansır.
+        </div>
         <div className="adm-form__footer">
           {err && <span className="adm-form__err">{err}</span>}
           <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose} disabled={saving}>İptal</button>

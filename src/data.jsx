@@ -596,6 +596,20 @@ function mapStartup(row) {
   };
 }
 
+// Kurucu Hattı'nın public_open_roles view'ından (0021 migration) gelir —
+// startups.open_roles_list_tr/en artık kullanılmıyor, tek kaynak Hub.
+function mapOpenRole(row) {
+  return {
+    id:         row.id,
+    startupId:  row.startup_id,
+    title:      row.title   || '',
+    roleType:   row.role_type || '',
+    profile:    row.profile || '',
+    skills:     row.skills  || [],
+    track:      row.track   || 'member',
+  };
+}
+
 function mapSponsor(row) {
   return {
     id:         row.id,
@@ -648,19 +662,28 @@ function ContentProvider({ children }) {
           { data: sRows,  error: e2 },
           { data: spRows, error: e3 },
           { data: eRows,  error: e4 },
+          { data: orRows, error: e5 },
         ] = await Promise.all([
           supabase.from('people').select('*').order('sort_order'),
           supabase.from('startups').select('*').order('id'),
           supabase.from('sponsors').select('*').order('sort_order'),
           supabase.from('events').select('*').order('date'),
+          supabase.from('public_open_roles').select('*').order('created_at'),
         ]);
         if (e1 || e2 || e3 || e4) throw (e1 || e2 || e3 || e4);
-        if (cancelled) return;
+        // Açık pozisyonlar (Kurucu Hattı) opsiyonel — view henüz yayında
+        // değilse veya erişilemezse sessizce boş liste kullan, sitenin
+        // geri kalanını engellemez.
+        if (e5) console.error('[Content] public_open_roles:', e5.message);
 
         const mp  = (pRows  || []).map(mapPerson);
-        const ms  = (sRows  || []).map(mapStartup);
         const msp = (spRows || []).map(mapSponsor);
         const me  = (eRows  || []).map(mapEvent);
+        const openRolesByStartup = {};
+        (orRows || []).map(mapOpenRole).forEach((r) => {
+          (openRolesByStartup[r.startupId] = openRolesByStartup[r.startupId] || []).push(r);
+        });
+        const ms = (sRows || []).map(mapStartup).map((s) => ({ ...s, openRolesLive: openRolesByStartup[s.id] || [] }));
 
         // Modül dizilerini yerinde güncelle (teamMembers/mentors türetmesi için)
         people.length   = 0; mp.forEach(x  => people.push(x));
@@ -795,7 +818,7 @@ const resolveStat = (key) => {
   if (s.mode === 'auto') {
     if (key === 'projects')  return startups.length;
     if (key === 'posts')     return postsCache.length;
-    if (key === 'openRoles') return startups.reduce((a, b) => a + (b.openRoles || 0), 0);
+    if (key === 'openRoles') return startups.reduce((a, b) => a + (b.openRolesLive || []).length, 0);
     if (key === 'sponsors')  return sponsors.length;
     if (key === 'members')   return people.length;
   }

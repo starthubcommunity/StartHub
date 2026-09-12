@@ -385,7 +385,8 @@ function JoinPage({ navigate, projectId }) {
   ) : null;
 
   const roleDescCard = (project && savedRole) ? (() => {
-    const desc = getRoleDescription(savedRole, lang);
+    const liveRole = (project.openRolesLive || []).find(r => r.title === savedRole);
+    const desc = liveRole?.profile || getRoleDescription(savedRole, lang);
     if (!desc) return null;
     return (
       <div style={{ padding: '18px 20px', background: 'var(--bg-secondary)', borderRadius: 'var(--r-lg)', marginBottom: 28, borderLeft: `3px solid ${project.color}` }}>

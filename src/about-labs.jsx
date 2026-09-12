@@ -228,7 +228,7 @@ function OpportunitiesTab({ opportunities, navigate }) {
   filtered.forEach(o => {
     const pid = o.project.id;
     if (!grouped[pid]) grouped[pid] = { project: o.project, roles: [] };
-    grouped[pid].roles.push(o.role);
+    grouped[pid].roles.push({ title: o.role, profile: o.profile });
   });
   const groups = Object.values(grouped);
 
@@ -288,7 +288,7 @@ function OpportunitiesTab({ opportunities, navigate }) {
                 {/* Pozisyon listesi */}
                 <div>
                   {g.roles.map((role, i) => {
-                    const desc = getRoleDescription(role, lang);
+                    const desc = role.profile || getRoleDescription(role.title, lang);
                     return (
                       <div key={i} className="opp-row" style={{
                         borderTop: i > 0 ? '1px solid var(--border-light)' : 'none',
@@ -302,11 +302,11 @@ function OpportunitiesTab({ opportunities, navigate }) {
                           <Icon name="briefcase" size={17} />
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14.5 }}>{role}</div>
+                          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14.5 }}>{role.title}</div>
                           <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: 2 }}>{desc}</div>
                         </div>
                         <Button variant="primary" size="sm" iconRight="arrowRight"
-                          onClick={(e) => { e.stopPropagation(); sessionStorage.setItem('sh_join_role', role); navigate('join', g.project.id); window.scrollTo({ top: 0 }); }}>
+                          onClick={(e) => { e.stopPropagation(); sessionStorage.setItem('sh_join_role', role.title); navigate('join', g.project.id); window.scrollTo({ top: 0 }); }}>
                           {t('labs.applyTeam')}
                         </Button>
                       </div>
@@ -349,10 +349,10 @@ function LabsPage({ navigate }) {
     return matchesStage && matchesSearch;
   });
 
-  // Tüm açık pozisyonları topla
+  // Tüm açık pozisyonları topla (Kurucu Hattı'ndan — bkz. 0021 migration)
   const allOpportunities = startups.flatMap(s => {
-    const roles = localized(s, 'openRolesList') || [];
-    return roles.map(role => ({ role, project: s }));
+    const roles = s.openRolesLive || [];
+    return roles.map(r => ({ role: r.title, profile: r.profile, project: s }));
   });
 
   const goProject = (id) => { navigate('project', id); window.scrollTo({ top: 0 }); };

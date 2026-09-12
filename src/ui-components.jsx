@@ -221,10 +221,10 @@ function StartupCard({ startup, onClick }) {
             <Icon name="users" size={14} />
             <span>{teamCount} {t('sections.teamSize')}</span>
           </div>
-          {startup.openRoles > 0 && (
+          {(startup.openRolesLive || []).length > 0 && (
             <div className="startup-card__meta-item" style={{ color: 'var(--green)', marginLeft: 'auto' }}>
               <Icon name="briefcase" size={14} />
-              <span>{startup.openRoles} {t('sections.openRoles')}</span>
+              <span>{startup.openRolesLive.length} {t('sections.openRoles')}</span>
             </div>
           )}
         </div>

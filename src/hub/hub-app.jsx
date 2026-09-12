@@ -335,7 +335,7 @@ const MAIN_NAV = [
   { id: 'today',      label: 'Bugün',   icon: 'dashboard', perm: null },
   { id: 'candidates', label: 'Adaylar', icon: 'layers',    perm: 'candidates.read' },
   { id: 'archive',    label: 'Arşiv',   icon: 'trash',     perm: 'candidates.read' },
-  { id: 'roles',      label: 'Roller',  icon: 'rocket',    perm: 'roles.read' },
+  { id: 'roles',      label: 'Açık Pozisyonlar',  icon: 'rocket',    perm: 'roles.read' },
 ];
 const GEAR_NAV = [
   { id: 'templates', label: 'Şablonlar', icon: 'penEdit',    perm: 'templates.read' },

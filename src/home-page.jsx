@@ -102,8 +102,8 @@ function HeroVisual({ lang, navigate }) {
   const latest = [...posts].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0] || null;
 
   const rolePairs = startups.flatMap(s => {
-    const roles = localized(s, 'openRolesList') || [];
-    return roles.map(role => ({ project: s, role }));
+    const roles = s.openRolesLive || [];
+    return roles.map(r => ({ project: s, role: r.title }));
   });
   const [rotIdx, setRotIdx] = React.useState(0);
   const [visible, setVisible] = React.useState(true);
@@ -153,7 +153,7 @@ function HeroVisual({ lang, navigate }) {
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>{localized(featured, 'tagline') || localized(featured, 'desc')}</p>
             <div className="hero__feat-foot">
               <span><Icon name="users" size={14} /> {liveTeamCount(featured, people)} {lang === 'tr' ? 'kişi' : 'people'}</span>
-              {featured.openRoles > 0 && <span><Icon name="briefcase" size={14} /> {featured.openRoles} {lang === 'tr' ? 'açık görev' : 'open'}</span>}
+              {(featured.openRolesLive || []).length > 0 && <span><Icon name="briefcase" size={14} /> {featured.openRolesLive.length} {lang === 'tr' ? 'açık görev' : 'open'}</span>}
               <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
             </div>
           </div>
@@ -336,7 +336,7 @@ function LabProjects({ navigate }) {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--border-light)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 13, color: 'var(--text-tertiary)' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="users" size={14} /> {liveTeamCount(s, people)}</span>
-                      {s.openRoles > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--green)' }}><Icon name="briefcase" size={14} /> {s.openRoles} {t('sections.openRoles')}</span>}
+                      {(s.openRolesLive || []).length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--green)' }}><Icon name="briefcase" size={14} /> {s.openRolesLive.length} {t('sections.openRoles')}</span>}
                     </div>
                     <Icon name="arrowRight" size={16} style={{ color: 'var(--text-tertiary)' }} />
                   </div>

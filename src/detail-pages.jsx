@@ -86,7 +86,9 @@ function ProjectDetailPage({ projectId, navigate }) {
   const projectMembers = people.filter(pp => pp.type === 'project_member' && pp.projectId === p.id && !linkedIds.has(pp.id));
   const members = [...explicitMembers, ...projectMembers];
   const related = postsForProject(p.id);
-  const openList = localized(p, 'openRolesList') || [];
+  // Kurucu Hattı'ndaki hub_open_roles'tan (public_open_roles view) gelir —
+  // tek kaynak Hub, admin panelde elle liste tutulmuyor artık (bkz. 0021).
+  const openList = p.openRolesLive || [];
 
   const TeamRow = ({ person, tag, kind }) => (
     <div className={`team-row team-row--${kind}`}>
@@ -130,7 +132,7 @@ function ProjectDetailPage({ projectId, navigate }) {
               </div>
             </div>
             <div className="pd-actions">
-              {p.openRoles > 0 ? (
+              {openList.length > 0 ? (
                 <Button variant="primary" iconRight="chevronDown" onClick={() => { const el = document.getElementById('open-positions'); if (el) { const y = el.getBoundingClientRect().top + window.scrollY - 100; window.scrollTo({ top: y, behavior: 'smooth' }); } }}>
                   {t('labs.joinThis')}
                 </Button>
@@ -202,23 +204,23 @@ function ProjectDetailPage({ projectId, navigate }) {
 
           {/* Open positions */}
           <div id="open-positions" style={{ marginTop: 40, scrollMarginTop: 100 }}>
-            <SectionHeader label={t('labs.openPositions')} title={p.openRoles > 0
-              ? (lang === 'tr' ? `${p.openRoles} açık pozisyon` : `${p.openRoles} open positions`)
+            <SectionHeader label={t('labs.openPositions')} title={openList.length > 0
+              ? (lang === 'tr' ? `${openList.length} açık pozisyon` : `${openList.length} open positions`)
               : t('labs.noOpenPositions')} style={{ marginBottom: 20 }} />
             {openList.length > 0 && (
               <div className="grid grid-2" style={{ gap: 16 }}>
-                {openList.map((r, i) => (
-                  <div className="open-role" key={i} onClick={() => { sessionStorage.setItem('sh_join_role', r); navigate('join', p.id); window.scrollTo({ top: 0 }); }}>
+                {openList.map((r) => (
+                  <div className="open-role" key={r.id} onClick={() => { sessionStorage.setItem('sh_join_role', r.title); navigate('join', p.id); window.scrollTo({ top: 0 }); }}>
                     <span className="open-role__icon" style={{ background: `color-mix(in srgb, ${p.color} 12%, var(--card-bg))`, color: p.color }}>
                       <Icon name="briefcase" size={20} />
                     </span>
                     <div className="open-role__info">
-                      <div className="open-role__name">{r}</div>
+                      <div className="open-role__name">{r.title}</div>
                       <div className="open-role__sub">
-                        <span className="open-role__status"><span className="open-role__dot"></span>{lang === 'tr' ? 'Açık pozisyon' : 'Open position'}</span>
+                        {r.profile ? r.profile : <span className="open-role__status"><span className="open-role__dot"></span>{lang === 'tr' ? 'Açık pozisyon' : 'Open position'}</span>}
                       </div>
                     </div>
-                    <Button variant="primary" size="sm" iconRight="arrowRight" onClick={(e) => { e.stopPropagation(); sessionStorage.setItem('sh_join_role', r); navigate('join', p.id); window.scrollTo({ top: 0 }); }}>
+                    <Button variant="primary" size="sm" iconRight="arrowRight" onClick={(e) => { e.stopPropagation(); sessionStorage.setItem('sh_join_role', r.title); navigate('join', p.id); window.scrollTo({ top: 0 }); }}>
                       {t('labs.applyTeam')}
                     </Button>
                   </div>

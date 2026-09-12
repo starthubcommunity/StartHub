@@ -133,7 +133,7 @@ export default function RolesPage() {
     <div>
       <div className="adm-page-head">
         <div>
-          <h1 className="adm-page-head__title">Roller</h1>
+          <h1 className="adm-page-head__title">Açık Pozisyonlar</h1>
           <p className="adm-page-head__desc">Rol doğrudan "Aranıyor"a düşer. Aday sunma aday kartından yapılır.</p>
         </div>
         {canManage && (
