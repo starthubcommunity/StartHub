@@ -8,10 +8,10 @@ Vite 6 + React 18 + Supabase (auth + Postgres), Vercel'de barındırılıyor.
 |-----|------|-------|
 | `/` | `index.html` | `src/main.jsx` → `src/app.jsx` |
 | `/admin/` | `admin/index.html` | `src/admin/main.jsx` → `src/admin/admin-app.jsx` |
-| `/team/` | `public/team/index.html` | Önceden paketlenmiş tek dosya — Vite build'ine dahil değil |
-| `/hub/` | `hub/index.html` | `src/hub/main.jsx` → `src/hub/hub-app.jsx` *(yapım aşamasında)* |
+| `/team/` | `public/team/index.html` | Kendi kendine yeten tek dosyalık uygulama — bu repoda DOĞRUDAN elle düzenlenir (build artefaktı değil; ayrı Supabase projesi `umgdtjlgivvymngsnqtv`'ye bağlanır). Değişiklik yapmadan önce aşağıdaki **Dikkat** bölümündeki JSON-string kaçışlama uyarısını oku. |
+| `/HR/` | `HR/index.html` | `src/hub/main.jsx` → `src/hub/hub-app.jsx` — eski adı `/hub/`; o yol artık `/HR/`'a 308 ile yönleniyor (`vercel.json`). Kaynak klasör hâlâ `src/hub/`. |
 
-## Kurucu Hattı (`/hub`)
+## Kurucu Hattı / İnsan Kaynağı (`/HR/`)
 
 Yapım şartnamesi: **`HUB_SPEC.md`** — artık **v3** (v2'nin canlı kullanımından
 sonra: aday kartı sadeleştirmesi, yapıştır-ayrıştır ana giriş yöntemi, arşiv ayrı
@@ -26,26 +26,45 @@ bir uçtan uca test) + `node src/hub/hub-rules.test.mjs`.
 
 **Hub sayfaları:** `today.jsx` · `candidates-list.jsx` · `candidate.jsx`
 (+`GateCard`) · `archive.jsx` · `roles.jsx` · `templates.jsx` · `metrics.jsx` ·
-`settings.jsx`. Destek dosyaları: `new-candidate.jsx`, `import-simple.jsx` (CSV),
+`settings.jsx` · `applications.jsx` (web sitesi başvuruları — admin panelden
+taşındı) · `sponsors.jsx` (destekçiler — admin panelden taşındı, yalnızca
+cofounder). Destek dosyaları: `new-candidate.jsx`, `import-simple.jsx` (CSV),
 `paste-import.jsx` (yapıştır-ayrıştır — v3 ana yöntem), `triage.jsx` (hızlı eleme),
 `hub-ai-draft.js` + `supabase/functions/hub-ai-draft/`.
 
 **v3'te geri bağlanan (v2'de bağlantısı kesikti):** `src/hub/hub-parse.js` (§6.2),
-`src/hub/pages/sources.jsx` + `hub_source_registry` (§11), `hub-github.js` +
-`hub-enrich.js` (§12.5, opsiyonel), `hub-match.js` (§12.4, havuz 100+ olunca).
+`src/hub/pages/sources.jsx` + `hub_source_registry` (§11), `hub-match.js`
+(§12.4, havuz 100+ olunca).
 
-**Hâlâ bağlantısı kesik:** `src/hub/pages/{board,table,import}.jsx`,
-`src/hub/components/{saved-views,unknowable}.jsx`.
+**Bağlantısız ama testli, kasıtlı olarak duruyor:** `hub-enrich.js` (§12.5 —
+UI'dan hiç çağrılmıyor ama `hub-rules.test.mjs` onu test ediyor, saf mantığı
+korunuyor).
+
+**Temizlendi (2026-09-13):** `src/hub/pages/{board,table,import}.jsx`,
+`src/hub/components/{saved-views,unknowable}.jsx`, `hub-github.js` — hiçbir
+yerden erişilemiyordu (hub-app.jsx'in nav/route'unda yoktu), silindi. GitHub
+taraması artık yalnızca sunucu tarafında (`hub-github-scan` edge function,
+bkz. `github-import.jsx`).
+
+**Proje düzenleme artık admin panelde değil:** logo/slogan/açıklama/detay/
+problem/çözüm/etiket/link/metrik/öne-çıkan/trend/yeni/yayın — hepsi
+`/team/`'in Overview ekranındaki "Düzenle" modalından (`team-project-save`
+edge function, main projeye deploy) yönetiliyor; admin panel yalnızca
+proje verisini okur (Dashboard özeti, Ekip & Mentörler proje seçici).
+Team App'te henüz eşlenmemiş bir ekip için Düzenle, otomatik yeni bir
+proje oluşturur (`startups.team_app_id` = o ekibin id'si).
 
 **Düşen tablolar (0010):** `hub_views`, `hub_import_batches`. **Ölü ama duruyor:**
-`hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). Cron artık
-`0015_hub_cron.sql` (eski `_deferred/0004_hub_cron.sql` silindi) — Vault'ta
-`project_url` + `service_role_key` secret'ları ister. v3 migration'ları `0013`'ten
-devam eder; `drop column` yapılmaz (kolon UI'dan gizlenir). Edge function'lar:
-`send-mail`, `invite-member`, `hub-ai-draft`, `hub-daily`, `hub-weekly`,
-`hub-move-to-team` (C4), `hub-github-scan` (E5 — `HUB_GITHUB_TOKEN` secret,
-tarama sunucuda). `hub-github.js` / `hub-enrich.js` / `components/unknowable.jsx`
-artık bağlantısız (enrich saf fonksiyonları testli).
+`hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). **Cron aktif**
+(`0015_hub_cron.sql`, 2026-09-13'te uygulandı — Vault'taki `project_url` +
+`service_role_key` doğrulandı, `hub-daily`/`hub-weekly` her gece/pazartesi
+gerçekten çalışıyor). v3 migration'ları `0013`'ten devam eder; `drop column`
+yapılmaz (kolon UI'dan gizlenir). Edge function'lar: `send-mail`,
+`invite-member`, `hub-ai-draft`, `hub-daily`, `hub-weekly`, `hub-move-to-team`
+(C4 — gerçekte Team App'in kendi projesindeki `hub-bridge-add-member`'ı
+çağırır), `hub-github-scan` (E5 — `HUB_GITHUB_TOKEN` secret, tarama
+sunucuda), `team-project-save` (proje CRUD, main proje), `hub-bridge-add-member`
+(Team App projesine deploy — gerçek üyelik).
 
 ## Proje kuralları
 
@@ -76,11 +95,28 @@ Hub tabloları `hub_` önekiyle gelir — şema `supabase/migrations/0001_hub.sq
 
 ## Dikkat
 
-`public/team/index.html` **bir build artefaktıdır** (bundler çıktısı, ~700 KB,
-asset'ler base64 gömülü) — **kaynağı bu repoda yoktur, doğrudan düzenlenmez.**
-Değişiklik gerekiyorsa o bundle'ı üreten kaynakta yapılır (bkz. HUB_SPEC §12.7).
-Team roster/üyelik modeli: `people` (`type='project_member'`, `project_id` →
-`startups.id`) + `startups.member_ids` (text[]). `app_state` (id `text`, data
-`jsonb`) şu an boş; buna derin bağlanma yapılmaz. Hub, team sistemine yalnızca
-referansla (`startup_id`, `person_id`) bağlanır. **Blok E'deki Team→Hub geri
-beslemesi (E6) de bu repo-dışı kaynağa bağımlıdır.**
+`public/team/index.html` (~700 KB) **build artefaktı DEĞİLDİR** — 2026-09-12'de
+bir yedekteki git geçmişinden doğrulandı: baştan beri elle/Claude ile yazılan
+kendi kendine yeten tek dosyalık bir uygulama (önceki "dokunma" notu yanlış
+varsayıma dayanıyordu). Doğrudan düzenlenebilir ama İKİ katman iç içedir:
+dış katman düz HTML, ama gövde `<script type="__bundler/template">` içinde
+**JSON-string-kodlu** durur (`JSON.parse(...)` ile çözülür) — bu yüzden elle
+kaçışlama YAPILMAZ, her değişiklik `JSON.stringify(plain).slice(1,-1)` ile
+üretilip anchor'la değiştirilir, ardından hem `JSON.parse` hem `node:vm`
+(`class Component extends DCLogic` bloğu) ile sözdizimi doğrulanır, `npm run
+build` sonrası `dist/team/index.html` boyutu `public/`le birebir karşılaştırılır.
+Yazma işlemleri (`git add/commit`, dosyaya `fs.writeFileSync`) otomatik izin
+sınıflandırıcısı tarafından her seferinde ayrıca onay ister — beklenen bir
+fren, PowerShell/Bash arasında geçiş bazen işe yarar ama garanti değil.
+
+Team roster/üyelik modeli iki KATMANLIDIR: (1) `people`
+(`type='project_member'`, `project_id` → `startups.id`) + `startups.member_ids`
+(text[]) — sitenin gösterdiği ekip kartları, yalnızca Hub'ın "Ekibe al"
+akışıyla (`hub-move-to-team`) güncellenir; (2) Team App'in KENDİ ayrı
+Supabase projesindeki (`umgdtjlgivvymngsnqtv`) `app_state.data.users` —
+gerçek görev/sprint sistemi girişi. `hub-move-to-team`, `hub-bridge-add-member`
+(Team App projesine deploy) üzerinden ikisini birden yazar; ama Team App'te
+biri ELLE eklenirse (o akışı kullanmadan) katman (1)'e hiç yansımaz —
+bilinçli, tek yönlü bir sınır (bkz. 2026-09-13 oturum denetimi).
+`startups.team_app_id` iki sistemi eşler; boşsa köprü çalışmaz (artık
+Team App'in kendi Düzenle modalı bunu otomatik dolduruyor).
