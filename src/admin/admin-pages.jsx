@@ -114,61 +114,95 @@ function DashboardPage() {
 // ilgili "durum" alanlarına (yayın/öne çıkan/trend/yeni) hiç dokunmuyor.
 // Burası yalnızca o durum alanlarını yönetir — ayrı bir düzenleme ekranı
 // yok, her buton kendi başına anında kaydeder.
-const STATUS_TOGGLES = [
-  { key: 'published', onLabel: '🌐 Yayında',   offLabel: 'Yayına Al',   activeBg: '#F0FDF4', activeColor: '#16A34A', defaultOn: true  },
-  { key: 'featured',  onLabel: '★ Öne Çıkan',  offLabel: 'Öne Çıkar',   activeBg: '#FFFBEB', activeColor: '#D97706', defaultOn: false, exclusive: true },
-  { key: 'trending',  onLabel: '🔥 Trend',      offLabel: 'Trend Yap',   activeBg: '#FEF2F2', activeColor: '#DC2626', defaultOn: false },
-  { key: 'isNew',     onLabel: '✨ Yeni',       offLabel: 'Yeni İşaretle', activeBg: '#EFF6FF', activeColor: '#2563EB', defaultOn: false },
+// "Yeni" rozeti: sitede ✨ ile gösterilir, elle işaretlenir/kaldırılır —
+// otomatik süresi yok, kasıtlı (basit tutuldu).
+const BADGE_TOGGLES = [
+  { key: 'featured', icon: '★', label: 'Öne Çıkan', activeBg: '#FFFBEB', activeColor: '#D97706', exclusive: true, hint: 'Hero’da gösterilir · en fazla 1' },
+  { key: 'trending',  icon: '🔥', label: 'Trend',     activeBg: '#FEF2F2', activeColor: '#DC2626' },
+  { key: 'isNew',     icon: '✨', label: 'Yeni',      activeBg: '#EFF6FF', activeColor: '#2563EB', hint: 'Sitede "Yeni" rozeti gösterir' },
 ];
 
 function ProjectsPage() {
   const { data, updateItem, clearFlagExcept } = useAdmin();
   const { can } = usePerms();
   const canWrite = can('projects.write');
+  const [search, setSearch] = useStateP('');
 
-  const toggle = (s, t) => {
+  const filtered = useMemoP(() => {
+    if (!search) return data.startups;
+    const q = search.toLowerCase();
+    return data.startups.filter((s) => s.name.toLowerCase().includes(q) || (s.slug || '').toLowerCase().includes(q));
+  }, [data.startups, search]);
+
+  const togglePublish = (s) => {
     if (!canWrite) return;
-    const cur = t.defaultOn ? s[t.key] !== false : !!s[t.key];
-    const next = !cur;
+    updateItem('startups', s.id, { published: s.published === false });
+  };
+  const toggleBadge = (s, t) => {
+    if (!canWrite) return;
+    const next = !s[t.key];
     updateItem('startups', s.id, { [t.key]: next });
     if (t.exclusive && next) clearFlagExcept('startups', s.id, t.key);
   };
 
   return (
     <div>
-      <PageHead title="Projeler" desc={`${data.startups.length} proje — site durumunu buradan yönetin, içerik Team Management'tan düzenlenir`} />
+      <PageHead title="Projeler" desc="Site durumunu buradan yönetin — içerik (logo/açıklama/linkler) Team Management'tan düzenlenir" />
       <div className="adm-card">
+        <div className="adm-card__header"><SearchBar value={search} onChange={setSearch} placeholder="Proje ara..." /></div>
         <div className="adm-card__body" style={{ padding: 0 }}>
-          {data.startups.map((s) => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--adm-border-light)', flexWrap: 'wrap' }}>
-              <div className="adm-cell-logo" style={{ background: s.color }}>
-                {s.logo ? <img src={s.logo} alt="" /> : s.name[0]}
+          {filtered.map((s) => {
+            const isPublished = s.published !== false;
+            return (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: '1px solid var(--adm-border-light)', flexWrap: 'wrap', opacity: isPublished ? 1 : 0.65 }}>
+                <div className="adm-cell-logo" style={{ background: s.color }}>
+                  {s.logo ? <img src={s.logo} alt="" /> : s.name[0]}
+                </div>
+                <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {s.name}
+                    {isPublished && (
+                      <a href={`/#/project/${s.slug}`} target="_blank" rel="noreferrer" title="Sitede gör"
+                        style={{ color: 'var(--adm-text-dim)', display: 'inline-flex' }}>
+                        <AIcon name="externalLink" size={13} />
+                      </a>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.tagline_tr}</div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {BADGE_TOGGLES.map((t) => {
+                    const on = !!s[t.key];
+                    return (
+                      <button key={t.key} disabled={!canWrite} onClick={() => toggleBadge(s, t)} title={t.hint || t.label}
+                        style={{
+                          width: 32, height: 32, borderRadius: 8, fontSize: 14, cursor: canWrite ? 'pointer' : 'default',
+                          border: `1px solid ${on ? t.activeColor : 'var(--adm-border-light)'}`,
+                          background: on ? t.activeBg : 'transparent', opacity: canWrite ? 1 : 0.6,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                        {t.icon}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button disabled={!canWrite} onClick={() => togglePublish(s)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: canWrite ? 'pointer' : 'default',
+                    border: `1.5px solid ${isPublished ? '#16A34A' : 'var(--adm-border-light)'}`,
+                    background: isPublished ? '#F0FDF4' : 'var(--adm-bg)', color: isPublished ? '#16A34A' : 'var(--adm-text-dim)',
+                    opacity: canWrite ? 1 : 0.6, minWidth: 108, textAlign: 'center',
+                  }}>
+                  {isPublished ? '🌐 Yayında' : 'Yayına Al'}
+                </button>
               </div>
-              <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-                <div style={{ fontWeight: 600 }}>{s.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.tagline_tr}</div>
-              </div>
-              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                {STATUS_TOGGLES.map((t) => {
-                  const on = t.defaultOn ? s[t.key] !== false : !!s[t.key];
-                  return (
-                    <button key={t.key} disabled={!canWrite} onClick={() => toggle(s, t)}
-                      style={{
-                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: canWrite ? 'pointer' : 'default',
-                        border: `1px solid ${on ? t.activeColor : 'var(--adm-border-light)'}`,
-                        background: on ? t.activeBg : 'transparent', color: on ? t.activeColor : 'var(--adm-text-dim)',
-                        opacity: canWrite ? 1 : 0.6,
-                      }}>
-                      {on ? t.onLabel : t.offLabel}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          {data.startups.length === 0 && (
+            );
+          })}
+          {filtered.length === 0 && (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--adm-text-dim)' }}>
-              Henüz proje yok — Team Management'tan ("Yeni Ekip Oluştur") eklenir.
+              {data.startups.length === 0 ? 'Henüz proje yok — Team Management’tan ("Yeni Ekip Oluştur") eklenir.' : 'Aramayla eşleşen proje yok.'}
             </div>
           )}
         </div>
