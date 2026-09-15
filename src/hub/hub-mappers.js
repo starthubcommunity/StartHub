@@ -1,3 +1,5 @@
+import { DEFAULT_TRACK } from './hub-constants.js';
+
 // hub-mappers.js — DB (snake_case) ↔ JS (camelCase) dönüşümleri.
 //
 // `src/admin/admin-store.jsx`'teki mapXToDb / mapXFromDb desenini izler.
@@ -60,7 +62,7 @@ export function mapCandidateToDb(c) {
     open_role_id:   c.openRoleId    ?? null,
     startup_id:     c.startupId     ?? null,
     // §12 — hat ve proje sahibi kararı
-    track:               c.track             || 'founder',
+    track:               c.track             || DEFAULT_TRACK,
     presented_at:        c.presentedAt       ?? null,
     owner_decision:      c.ownerDecision     ?? null,
     owner_decision_note: c.ownerDecisionNote ?? null,
@@ -139,7 +141,7 @@ export function mapCandidateFromDb(r) {
     openRoleId:    r.open_role_id   ?? null,
     startupId:     r.startup_id     ?? null,
     // §12
-    track:             r.track               || 'founder',
+    track:             r.track               || DEFAULT_TRACK,
     presentedAt:       r.presented_at        ?? null,
     ownerDecision:     r.owner_decision      ?? null,
     ownerDecisionNote: r.owner_decision_note ?? null,

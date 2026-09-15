@@ -96,9 +96,9 @@ function HeroSection({ navigate }) {
 function HeroVisual({ lang, navigate }) {
   const { t, localized } = useLang();
   const { posts, postsLoading } = usePosts();
-  const { startups } = useStartups();
+  const { startups, contentLoading } = useStartups();
   const { people } = usePeople();
-  const featured = startups.find(s => s.featured) || startups[0];
+  const featured = startups.find(s => s.featured) || startups[0] || null;
   const latest = [...posts].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0] || null;
 
   const rolePairs = startups.flatMap(s => {
@@ -139,24 +139,30 @@ function HeroVisual({ lang, navigate }) {
         <div className="hero__cards-col hero__cards-col--left">
 
           {/* ═══ 1. FEATURED CARD ═══ */}
-          <div className="hero__sc hero__sc--feat" onClick={() => { navigate('project', featured.id); window.scrollTo({ top: 0 }); }}>
-            <span className="hero__feat-badge">{lang === 'tr' ? 'Öne Çıkan' : 'Featured'}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <div className="hero__feat-logo" style={{ background: featured.color }}>
-                {featured.logo ? <img src={featured.logo} alt={featured.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : featured.name[0]}
+          {featured ? (
+            <div className="hero__sc hero__sc--feat" onClick={() => { navigate('project', featured.id); window.scrollTo({ top: 0 }); }}>
+              <span className="hero__feat-badge">{lang === 'tr' ? 'Öne Çıkan' : 'Featured'}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div className="hero__feat-logo" style={{ background: featured.color }}>
+                  {featured.logo ? <img src={featured.logo} alt={featured.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : featured.name[0]}
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em' }}>{featured.name}</div>
+                  <StageBadge stage={featured.stage} />
+                </div>
               </div>
-              <div>
-                <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em' }}>{featured.name}</div>
-                <StageBadge stage={featured.stage} />
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>{localized(featured, 'tagline') || localized(featured, 'desc')}</p>
+              <div className="hero__feat-foot">
+                <span><Icon name="users" size={14} /> {liveTeamCount(featured, people)} {lang === 'tr' ? 'kişi' : 'people'}</span>
+                {(featured.openRolesLive || []).length > 0 && <span><Icon name="briefcase" size={14} /> {featured.openRolesLive.length} {lang === 'tr' ? 'açık görev' : 'open'}</span>}
+                <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
               </div>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>{localized(featured, 'tagline') || localized(featured, 'desc')}</p>
-            <div className="hero__feat-foot">
-              <span><Icon name="users" size={14} /> {liveTeamCount(featured, people)} {lang === 'tr' ? 'kişi' : 'people'}</span>
-              {(featured.openRolesLive || []).length > 0 && <span><Icon name="briefcase" size={14} /> {featured.openRolesLive.length} {lang === 'tr' ? 'açık görev' : 'open'}</span>}
-              <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
+          ) : !contentLoading && (
+            <div className="hero__sc hero__sc--feat" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
+              {lang === 'tr' ? 'Henüz proje yok' : 'No projects yet'}
             </div>
-          </div>
+          )}
 
           {/* ═══ 3. POST/NEWS CARD ═══ */}
           {latest ? (

@@ -98,6 +98,15 @@ export const TRACKS = [
 ];
 export const TRACK_LABEL = toLabelMap(TRACKS);
 
+// track alanı boş/bilinmeyen bir adayın varsayılan hattı. 2026-09-16
+// düzeltmesi: önceden kodun her yerinde `c.track || 'founder'` deseni
+// vardı (hub_candidates.track DB default'u da 'founder'ydı) — yani
+// track'i hiç yazmayan HER yol (site trigger'ı 0022, elle aday ekleme,
+// yapıştır/CSV/GitHub içe aktarma) sessizce kurucu hattına düşüyor ve
+// çok daha ağır THRESHOLD.founder ile değerlendiriliyordu. Doğrusu
+// hub_open_roles.track'in zaten kullandığı 'member' varsayılanı.
+export const DEFAULT_TRACK = 'member';
+
 // ─── Eşik değerleri — HAT BAZINDA (v2 §2.3) ────────────────────────
 // Kurucu: toplam ≥ minTotal VE her eksen ≥ minAxis, iletişim ekseni zorunlu.
 // Üye: bitirmişlik ≥ minFinishing VE kapasite ≥ minCapacity; iletişim yalnızca

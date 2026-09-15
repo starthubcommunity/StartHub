@@ -10,7 +10,7 @@ import {
   RUBRIC_AXES, AI_PRESCORE_FINISHING, ROLE_TYPES, ARCHIVE_REASONS,
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
   GATE_RESULT_LABEL, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
-  GATE, GATE_EXTENSIONS, KVKK_NOTICE_URL, KVKK_NOTICE_LINE,
+  GATE, GATE_EXTENSIONS, KVKK_NOTICE_URL, KVKK_NOTICE_LINE, DEFAULT_TRACK,
 } from '../hub-constants';
 import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI, nextAction, undoPlan } from '../hub-rules';
 import { fillTemplate } from './templates';
@@ -171,8 +171,8 @@ export default function CandidatePanel({ candidateId, onClose }) {
             {/* A5 — rol ve hat üst şeritte ETİKET; form alanı değil, aşamada tekrar sorulmaz */}
             <div style={{ fontSize: 12, color: '#A29D94', marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <span className="hub-pill hub-pill--stage">{STAGE_LABEL[stage]}</span>
-              <span className={`hub-pill hub-pill--track-${(c.track || 'founder') === 'member' ? 'member' : 'founder'}`}>
-                {TRACK_LABEL[c.track || 'founder']} hattı
+              <span className={`hub-pill hub-pill--track-${(c.track || DEFAULT_TRACK) === 'member' ? 'member' : 'founder'}`}>
+                {TRACK_LABEL[c.track || DEFAULT_TRACK]} hattı
               </span>
               {openRole && <span className="hub-pill">{openRole.title}</span>}
               <span className="hub-pill hub-pill--source">{SOURCE_LABEL[c.source] || c.source}</span>
@@ -335,7 +335,7 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
             </Field>
             {isCofounder && (
               <Field label="Hat (geçersiz kıl · kurucu)">
-                <select className="adm-input adm-select" value={c.track || 'founder'}
+                <select className="adm-input adm-select" value={c.track || DEFAULT_TRACK}
                   onChange={(e) => store.updateCandidate(c.id, { ...c, track: e.target.value }).then(() => flash?.('Hat değişti.')).catch((err) => flash?.(err.message))}>
                   {TRACKS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
@@ -625,7 +625,7 @@ function DecisionMail({ kind, c, role, openRole, onCancel, onDone, flash }) {
 
 // ── Görüşme (rubrik + serbest not) — v3: kırmızı bayrak YOK ────────
 function InterviewSection({ c, save, role, openRole, flash, onDone }) {
-  const track = c.track || 'founder';
+  const track = c.track || DEFAULT_TRACK;
   const trialChk = canAdvance({ ...c, stage: 'interview' }, 'trial', { role, openRole });
   const [decision, setDecision] = useState(null);   // 'invite' | 'reject' | null
 
@@ -823,7 +823,7 @@ function TrialSection({ c }) {
   const gates = store.gates.filter((g) => g.candidateId === c.id);
   const gateA = gates.filter((g) => g.gate === 'A').sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))[0];
   const gateB = gates.filter((g) => g.gate === 'B').sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
-  const founder = (c.track || 'founder') === 'founder';
+  const founder = (c.track || DEFAULT_TRACK) === 'founder';
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [wiz, setWiz] = useState(null);   // 'startA' | 'startB' | { extend: gateId }

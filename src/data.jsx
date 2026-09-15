@@ -677,7 +677,12 @@ const ContentContext = createContext({
 
 function ContentProvider({ children }) {
   const [contentLoading, setContentLoading] = useState(true);
-  const [content, setContent] = useState({ people, startups, sponsors, events });
+  // İlk state modül-seviyesi ÖRNEK/demo verilerle (FinTrack/EcoRoute/StudyMate
+  // vb.) tohumlanıyordu — Supabase'ten gerçek veri gelene kadarki kısa anda
+  // sitede alakasız içerik görünüyordu (2026-09-16 canlı raporu). Boş dizilerle
+  // başlayıp `contentLoading` true olduğu sürece tüketen bileşenler zaten boş
+  // listeyi doğal şekilde (hiç kart göstermeyerek) ele alıyor.
+  const [content, setContent] = useState({ people: [], startups: [], sponsors: [], events: [] });
 
   useEffect(() => {
     let cancelled = false;

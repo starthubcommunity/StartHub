@@ -223,6 +223,17 @@ function JoinPage({ navigate, projectId }) {
       .then(({ data }) => setIdeaProjects(data || []))
       .catch(() => setIdeaProjects([]));
   }, [communityForm.intent, ideaProjects]);
+  // `project` deep-link'ten (projectId prop) türetiliyor ama `startups`
+  // ContentProvider'dan ASENKRON geliyor — soğuk/yenilenmiş bir sayfa
+  // yüklemesinde ilk render'da `project` henüz null olabiliyor, bu yüzden
+  // `communityForm.intent`'in mount-anı varsayılanı ('community') kalıcı
+  // olarak yanlış kalıyordu (görünür UI değil, yalnızca applications.intent
+  // kaydı — 2026-09-16 bulgusu). `project` sonradan çözülünce düzelt; intent
+  // dropdown'ı zaten proje bağlamında hiç render edilmiyor, kullanıcı
+  // seçimini ezme riski yok.
+  useEffectOP(() => {
+    if (project) setCommunityForm(p => (p.intent === 'project' ? p : { ...p, intent: 'project' }));
+  }, [project]);
   const [mentorForm, setMentorForm] = useStateOP({
     name: '', email: '', expertise: '', experience_years: '',
     current_company: '', hours_per_week: '', linkedin: '', mentor_note: '',

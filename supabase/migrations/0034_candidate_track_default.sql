@@ -1,0 +1,22 @@
+-- ══════════════════════════════════════════════════════════
+-- 0034_candidate_track_default.sql — hub_candidates.track varsayılanı düzeltildi
+-- ══════════════════════════════════════════════════════════
+-- 0005_hub_roles.sql'de hub_candidates.track 'founder' varsayılanıyla
+-- eklenmişti (satır 31), oysa hub_open_roles.track aynı dosyada 'member'
+-- varsayılanıyla (satır 16) — asimetrik ve yanlış: sıradan bir topluluk/
+-- proje adayı, açık role bağlanana kadar (inheritedTrack) sessizce
+-- "Kurucu hattı" sayılıp çok daha ağır THRESHOLD.founder ile
+-- değerlendiriliyordu (bkz. src/hub/hub-rules.js thresholdMet/rubricCompleteFor).
+--
+-- Asıl kök düzeltme JS tarafında yapıldı (src/hub/hub-mappers.js
+-- mapCandidateToDb — DB'ye yazarken her zaman EXPLICIT bir değer gönderir,
+-- bu yüzden bu kolon default'u pratikte hiç devreye girmiyordu) — bu
+-- migration yalnızca şemayı SEMANTİK olarak doğru/tutarlı hale getirir
+-- (savunma katmanı): gelecekte track'i atlayan herhangi bir doğrudan
+-- SQL/insert de artık doğru varsayılanı alır.
+--
+-- Mevcut adayların track'i GERİYE DÖNÜK DEĞİŞTİRİLMEDİ — bu, halihazırda
+-- değerlendirme sürecinde olan gerçek adayları etkileyebilecek ayrı bir
+-- karar, kullanıcı onayı olmadan yapılmadı (bkz. HUB_SPEC.md §16 notu).
+
+alter table hub_candidates alter column track set default 'member';

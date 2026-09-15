@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { AIcon, PageHead } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS } from '../hub-constants';
+import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS, DEFAULT_TRACK } from '../hub-constants';
 import { thresholdMet, rubricComplete, nextAction, gateDueAt } from '../hub-rules';
 import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
@@ -31,7 +31,7 @@ function RowRight({ c, touchesByCand, gatesByCand }) {
     return <span className="hub-pill">takip {fmtDate(last?.followUpAt)}</span>;
   }
   if (c.stage === 'interview') {
-    if (!rubricComplete(c) && (c.track || 'founder') === 'founder') {
+    if (!rubricComplete(c) && (c.track || DEFAULT_TRACK) === 'founder') {
       return <span className="hub-pill" style={{ color: 'var(--adm-text-dim)' }}>puan bekliyor</span>;
     }
     const met = thresholdMet(c);
@@ -82,8 +82,8 @@ export default function CandidatesListPage({ filters, setFilters }) {
   }, [gates]);
 
   const ctx = useMemo(
-    () => ({ currentMemberId: currentMember?.id ?? null, touchesByCand, now: Date.now() }),
-    [currentMember, touchesByCand]
+    () => ({ currentMemberId: currentMember?.id ?? null, touchesByCand, now: Date.now(), openRoles }),
+    [currentMember, touchesByCand, openRoles]
   );
 
   const activeCount = useMemo(() => candidates.filter((c) => c.stage !== 'archived').length, [candidates]);
