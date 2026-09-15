@@ -565,6 +565,7 @@ function mapStartup(row) {
     slug:             row.slug               || '',
     name:             row.name               || '',
     color:            row.color              || '#2563EB',
+    logo:             row.logo               || null,
     stage:            row.stage              || 'idea',
     tagline_tr:       row.tagline_tr         || '',
     tagline_en:       row.tagline_en         || '',
