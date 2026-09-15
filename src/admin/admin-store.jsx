@@ -388,7 +388,13 @@ function AdminProvider({ children }) {
     const entry   = DB_TABLE[collection];
     const idField = COLLECTIONS[collection].idField;
     if (!entry) return Promise.reject(new Error('Bilinmeyen koleksiyon'));
-    const dbRecord = { ...entry.toDb(updates) };
+    // toDb() mapper'ları TAM bir öğe bekler (eksik alanı '' /false/null
+    // varsayılanına çevirir) — kısmi bir `updates` (ör. { isNew: true })
+    // doğrudan mapper'a verilirse diğer TÜM alanlar sessizce boşaltılır.
+    // Önce mevcut bilinen öğeyle birleştirip TAM bir nesne üretiyoruz;
+    // zaten tam nesne gönderen eski çağrılar için davranış değişmez.
+    const current = data[collection].find(it => it[idField] === id) || {};
+    const dbRecord = { ...entry.toDb({ ...current, ...updates }) };
     delete dbRecord.id; // PK asla güncellenmez
     return supabase.from(entry.table).update(dbRecord).eq(idField, id).select().single()
       .then(({ data: row, error }) => {
@@ -398,7 +404,7 @@ function AdminProvider({ children }) {
           [collection]: prev[collection].map(it => it[idField] === id ? entry.fromDb(row) : it),
         }));
       });
-  }, []);
+  }, [data]);
 
   const deleteItem = useCallbackS((collection, id) => {
     const entry   = DB_TABLE[collection];
@@ -415,13 +421,14 @@ function AdminProvider({ children }) {
 
   const clearFlagExcept = useCallbackS((collection, id, field) => {
     const idField = COLLECTIONS[collection].idField;
-    setData(prev => ({
-      ...prev,
-      [collection]: prev[collection].map(it =>
-        it[idField] === id ? it : (it[field] ? { ...it, [field]: false } : it)
-      ),
-    }));
-  }, []);
+    // Önceden yalnızca yerel state'i temizliyordu, DB'ye hiç yazmıyordu —
+    // "en fazla 1 öne çıkan" kısıtlaması bir sonraki sayfa yenilemesinde
+    // bozuluyordu. Artık her etkilenen satır için gerçek (ve artık güvenli
+    // — bkz. updateItem) bir DB güncellemesi yapılır.
+    data[collection]
+      .filter((it) => it[idField] !== id && it[field])
+      .forEach((it) => { updateItem(collection, it[idField], { [field]: false }); });
+  }, [data, updateItem]);
 
   const countFlag = useCallbackS((collection, field, exceptId) => {
     const idField = COLLECTIONS[collection].idField;
