@@ -105,12 +105,77 @@ function DashboardPage() {
   );
 }
 
-// Not: Proje düzenleme (logo/slogan/açıklama/detay/problem/çözüm/etiket/
-// linkler/metrik/öne çıkan/trend/yeni/yayın) artık burada değil —
-// Team Management'taki (/team/) Overview ekranının "Düzenle" butonundan
-// yapılıyor (bkz. public/team/index.html _renderProjectEditModal / Save
-// team-project-save Edge Function'ına yazıyor). data.startups site/ekip
-// atama amaçlı hâlâ okunuyor (Dashboard, Ekip & Mentörler sayfası).
+// ============================================
+// PROJECTS — site durumu (form YOK, tek-tık aksiyonlar)
+// ============================================
+// İçerik düzenleme (logo/slogan/açıklama/detay/problem/çözüm/etiket/
+// linkler/metrik) artık burada değil — Team Management'taki (/team/)
+// Overview ekranının "Düzenle" butonundan yapılıyor, o modal siteyle
+// ilgili "durum" alanlarına (yayın/öne çıkan/trend/yeni) hiç dokunmuyor.
+// Burası yalnızca o durum alanlarını yönetir — ayrı bir düzenleme ekranı
+// yok, her buton kendi başına anında kaydeder.
+const STATUS_TOGGLES = [
+  { key: 'published', onLabel: '🌐 Yayında',   offLabel: 'Yayına Al',   activeBg: '#F0FDF4', activeColor: '#16A34A', defaultOn: true  },
+  { key: 'featured',  onLabel: '★ Öne Çıkan',  offLabel: 'Öne Çıkar',   activeBg: '#FFFBEB', activeColor: '#D97706', defaultOn: false, exclusive: true },
+  { key: 'trending',  onLabel: '🔥 Trend',      offLabel: 'Trend Yap',   activeBg: '#FEF2F2', activeColor: '#DC2626', defaultOn: false },
+  { key: 'isNew',     onLabel: '✨ Yeni',       offLabel: 'Yeni İşaretle', activeBg: '#EFF6FF', activeColor: '#2563EB', defaultOn: false },
+];
+
+function ProjectsPage() {
+  const { data, updateItem, clearFlagExcept } = useAdmin();
+  const { can } = usePerms();
+  const canWrite = can('projects.write');
+
+  const toggle = (s, t) => {
+    if (!canWrite) return;
+    const cur = t.defaultOn ? s[t.key] !== false : !!s[t.key];
+    const next = !cur;
+    updateItem('startups', s.id, { [t.key]: next });
+    if (t.exclusive && next) clearFlagExcept('startups', s.id, t.key);
+  };
+
+  return (
+    <div>
+      <PageHead title="Projeler" desc={`${data.startups.length} proje — site durumunu buradan yönetin, içerik Team Management'tan düzenlenir`} />
+      <div className="adm-card">
+        <div className="adm-card__body" style={{ padding: 0 }}>
+          {data.startups.map((s) => (
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--adm-border-light)', flexWrap: 'wrap' }}>
+              <div className="adm-cell-logo" style={{ background: s.color }}>
+                {s.logo ? <img src={s.logo} alt="" /> : s.name[0]}
+              </div>
+              <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+                <div style={{ fontWeight: 600 }}>{s.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.tagline_tr}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {STATUS_TOGGLES.map((t) => {
+                  const on = t.defaultOn ? s[t.key] !== false : !!s[t.key];
+                  return (
+                    <button key={t.key} disabled={!canWrite} onClick={() => toggle(s, t)}
+                      style={{
+                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: canWrite ? 'pointer' : 'default',
+                        border: `1px solid ${on ? t.activeColor : 'var(--adm-border-light)'}`,
+                        background: on ? t.activeBg : 'transparent', color: on ? t.activeColor : 'var(--adm-text-dim)',
+                        opacity: canWrite ? 1 : 0.6,
+                      }}>
+                      {on ? t.onLabel : t.offLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {data.startups.length === 0 && (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--adm-text-dim)' }}>
+              Henüz proje yok — Team Management'tan ("Yeni Ekip Oluştur") eklenir.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function toSlug(str) {
   return (str || '').toLowerCase()
@@ -562,4 +627,4 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
   );
 }
 
-export { DashboardPage, PostsPage, STAT_META };
+export { DashboardPage, ProjectsPage, PostsPage, STAT_META };

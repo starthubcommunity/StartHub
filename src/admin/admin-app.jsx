@@ -3,7 +3,7 @@ import React from 'react';
 import { useState as useStateA, useEffect as useEffectA } from 'react';
 import { AdminProvider, useAdmin } from './admin-store';
 import { AIcon } from './admin-ui';
-import { DashboardPage } from './admin-pages';
+import { DashboardPage, ProjectsPage } from './admin-pages';
 import { ContentPage } from './admin-pages3';
 import { AutomationPage } from './admin-automation';
 import { AnalyticsPage } from './admin-analytics';
@@ -350,6 +350,7 @@ function AdminApp() {
   // menüde HİÇ görünmez. Asıl kapı RLS'tir; bu yalnızca kafa karışıklığını önler.
   const NAV = [
     { id: 'dashboard',     label: 'Dashboard',       icon: 'dashboard',  perm: null },
+    { id: 'projects',      label: 'Projeler',        icon: 'rocket',    perm: 'projects.read' },
     { id: 'posts',         label: 'Yazılar',          icon: 'layers',    perm: 'posts.read' },
     { id: 'analytics',     label: 'Analitik',         icon: 'trendingUp', perm: 'analytics.read' },
     { id: 'automation',    label: 'Otomasyon',        icon: 'zap',       perm: 'automation.read' },
@@ -363,6 +364,7 @@ function AdminApp() {
 
   const renderPage = () => {
     switch (activePage) {
+      case 'projects':   return <ProjectsPage />;
       case 'posts':      return <ContentPage />;
       case 'analytics':  return <AnalyticsPage />;
       case 'automation': return <AutomationPage />;

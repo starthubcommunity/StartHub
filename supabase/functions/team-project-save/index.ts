@@ -11,6 +11,14 @@
 // member_ids/mentor_id) BURADA YOK — Team App'in kendi ayrı roster
 // modeliyle çakışmaması için kasıtlı dışarıda tutuldu.
 //
+// Site DURUMU (published/featured/trending/is_new) da KASITLI OLARAK
+// YOK — kullanıcı kararı (2026-09-16): içerik Team Management'tan
+// (burası), site durumu yalnızca admin panelden (StatusToggle, düz
+// startups UPDATE + RLS has_perm('projects.write')) yönetilir. Team
+// App bu alanlara hiç yazamaz; yeni proje oluşturulunca published
+// varsayılan olarak true (aşağıdaki create bloğu) kalır, admin panelden
+// istenirse gizlenir.
+//
 // teamId'ye eşlenmiş bir proje YOKSA artık 404 dönmüyor — kullanıcı kararı:
 // cofounder istediği ekibi istediği an web sitesine ekleyebilmeli, admin
 // panelden ayrıca "Team App Ekip ID" ayarlamaya gerek kalmadan. Bu durumda
@@ -31,7 +39,6 @@ const WRITABLE_FIELDS = [
   "tagline_tr", "tagline_en", "desc_tr", "desc_en",
   "about_tr", "about_en", "problem_tr", "problem_en", "solution_tr", "solution_en",
   "tags", "website", "demo", "github", "metrics",
-  "trending", "featured", "is_new", "published",
 ];
 
 const cors = {
