@@ -1,16 +1,23 @@
 // applications.jsx — Diğer Başvurular (HR, Yönetim altında). 'community' ve
 // 'project' türü başvurular artık burada YOK — 0022 tetikleyicisiyle otomatik
 // hub_candidates'a (Adaylar) düşüyorlar, ayrı bir inceleme/aktarım adımına
-// gerek kalmadı (kullanıcı kararı, 2026-09-16). Bu sayfada yalnızca
-// 'mentor_application' / 'sponsor_application' kalıyor — bunlar hiring
-// pipeline'a girmez (aday değiller), tek görünür oldukları yer burası.
+// gerek kalmadı (kullanıcı kararı, 2026-09-16). Bu sayfada 'mentor_application' /
+// 'sponsor_application' / 'idea_application' kalıyor — bunlar hiring pipeline'a
+// girmez (aday değiller), tek görünür oldukları yer burası (v3.1, §16).
 import React from 'react';
 import { useState as useStateA, useEffect as useEffectA } from 'react';
 import { supabase } from '../../lib/supabase';
 import { AIcon, PageHead } from '../../admin/admin-ui';
 import { usePerms } from '../../lib/use-perms';
 
-const OTHER_INTENTS = ['mentor_application', 'sponsor_application'];
+const OTHER_INTENTS = ['mentor_application', 'sponsor_application', 'idea_application'];
+
+const TYPE_TABS = [
+  { key: 'all', label: 'Tümü' },
+  { key: 'mentor_application', label: 'Mentörlük' },
+  { key: 'sponsor_application', label: 'Destekçilik' },
+  { key: 'idea_application', label: 'Fikirler' },
+];
 
 const STATUS_CFG = {
   new:      { label: 'Yeni',       color: '#2563EB', bg: '#EFF6FF' },
@@ -20,7 +27,7 @@ const STATUS_CFG = {
 };
 
 const INTENT_LABEL = {
-  community: 'Topluluk', project: 'Proje', mentor_application: 'Mentörlük', sponsor_application: 'Destekçilik',
+  community: 'Topluluk', project: 'Proje', mentor_application: 'Mentörlük', sponsor_application: 'Destekçilik', idea_application: 'Fikir',
 };
 
 function StatusBadge({ status }) {
@@ -39,6 +46,7 @@ export default function ApplicationsPage() {
   const [items, setItems] = useStateA([]);
   const [loading, setLoading] = useStateA(true);
   const [selected, setSelected] = useStateA(null);
+  const [typeFilter, setTypeFilter] = useStateA('all');
   const [filter, setFilter] = useStateA('all');
   const [updating, setUpdating] = useStateA(false);
 
@@ -79,9 +87,14 @@ export default function ApplicationsPage() {
     if (selected?.id === id) setSelected(null);
   };
 
-  const filtered = filter === 'all' ? items : items.filter((x) => (x.status || 'new') === filter);
+  const byType = typeFilter === 'all' ? items : items.filter((x) => x.intent === typeFilter);
+  const filtered = filter === 'all' ? byType : byType.filter((x) => (x.status || 'new') === filter);
 
-  const counts = items.reduce((acc, x) => {
+  const typeCounts = items.reduce((acc, x) => {
+    acc[x.intent] = (acc[x.intent] || 0) + 1;
+    return acc;
+  }, {});
+  const counts = byType.reduce((acc, x) => {
     const s = x.status || 'new';
     acc[s] = (acc[s] || 0) + 1;
     return acc;
@@ -95,12 +108,20 @@ export default function ApplicationsPage() {
 
   return (
     <div>
-      <PageHead title="Diğer Başvurular" desc={`${items.length} başvuru — mentörlük ve destekçilik (topluluk/proje başvuruları otomatik Adaylar'a düşer)`} />
+      <PageHead title="Diğer Başvurular" desc={`${items.length} başvuru — mentörlük, destekçilik, fikirler (topluluk/proje başvuruları otomatik Adaylar'a düşer)`} />
       <div style={{ display: 'flex', gap: 0 }}>
         {/* Sol — liste */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            {TYPE_TABS.map((tb) => (
+              <button key={tb.key} onClick={() => { setTypeFilter(tb.key); setFilter('all'); }}
+                style={{ padding: '6px 13px', borderRadius: 99, border: `1px solid ${typeFilter === tb.key ? 'var(--adm-text)' : 'var(--adm-border-light)'}`, background: typeFilter === tb.key ? 'var(--adm-text)' : 'transparent', color: typeFilter === tb.key ? 'var(--adm-bg)' : 'var(--adm-text-dim)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                {tb.label} <span style={{ opacity: 0.6, marginLeft: 3 }}>{tb.key === 'all' ? items.length : (typeCounts[tb.key] || 0)}</span>
+              </button>
+            ))}
+          </div>
           <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-            {[['all', 'Tümü', items.length], ...Object.entries(STATUS_CFG).map(([k, v]) => [k, v.label, counts[k] || 0])].map(([key, label, count]) => (
+            {[['all', 'Tümü', byType.length], ...Object.entries(STATUS_CFG).map(([k, v]) => [k, v.label, counts[k] || 0])].map(([key, label, count]) => (
               <button key={key} onClick={() => setFilter(key)}
                 style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--adm-border-light)', background: filter === key ? 'var(--adm-text)' : 'var(--adm-card)', color: filter === key ? 'var(--adm-bg)' : 'var(--adm-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
                 {label} <span style={{ opacity: 0.6, marginLeft: 4 }}>{count}</span>
@@ -194,6 +215,9 @@ export default function ApplicationsPage() {
               ['İlgi Alanı', selected.role],
               ['Katılım Amacı', INTENT_LABEL[selected.intent] || selected.intent],
               ['Proje', selected.project_name],
+              ['Fikir', selected.pitch],
+              ['Çözdüğü Problem', selected.problem],
+              ['Şu Ana Kadar Yapılan', selected.progress],
               ['Yetenekler', selected.skills],
               ['LinkedIn', selected.linkedin],
               ['Portfolyo', selected.portfolio],

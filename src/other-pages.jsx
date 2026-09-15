@@ -207,7 +207,22 @@ function JoinPage({ navigate, projectId }) {
     name: '', email: '', university: '', department: '', role: '',
     intent: project ? 'project' : 'community',
     bio: '', linkedin: '', portfolio: '', skills: '',
+    // v3.1 — option 3 (devam eden projeye katıl) ve option 4 (liderlik) için:
+    projectId: '', ideaProjectId: '',
+    // option 4/5 serbest metinler:
+    pitch: '', problem: '', progress: '',
   });
+  // Fikir aşamasındaki projeler (stage:'idea') — "Lab"ta YAYINDA olmadıkları
+  // için ContentProvider'ın (published:true filtreli) startups listesinde yok;
+  // ayrı, tembel (yalnızca liderlik seçilince) bir sorgu gerekiyor. RLS zaten
+  // startups SELECT'i herkese açık (pub_read_startups using(true)) — sorun yok.
+  const [ideaProjects, setIdeaProjects] = useStateOP(null);
+  useEffectOP(() => {
+    if (communityForm.intent !== 'founder_lead' || ideaProjects !== null) return;
+    supabase.from('startups').select('id, name').eq('stage', 'idea').order('name')
+      .then(({ data }) => setIdeaProjects(data || []))
+      .catch(() => setIdeaProjects([]));
+  }, [communityForm.intent, ideaProjects]);
   const [mentorForm, setMentorForm] = useStateOP({
     name: '', email: '', expertise: '', experience_years: '',
     current_company: '', hours_per_week: '', linkedin: '', mentor_note: '',
@@ -257,6 +272,9 @@ function JoinPage({ navigate, projectId }) {
     } else {
       check(communityForm.name.trim(), 'name', lang === 'tr' ? 'Ad Soyad' : 'Full Name');
       check(communityForm.email.trim(), 'email', lang === 'tr' ? 'E-posta' : 'Email');
+      if (!project && communityForm.intent === 'idea_application') {
+        check(communityForm.pitch.trim(), 'pitch', lang === 'tr' ? 'Fikrin' : 'Your idea');
+      }
     }
     if (missing.length) {
       setInvalidFields(new Set(missing.map(([f]) => f)));
@@ -303,6 +321,13 @@ function JoinPage({ navigate, projectId }) {
           intent: 'sponsor_application',
         };
       } else {
+        // Proje bağlamı: deep-link (project prop) > option 3'teki in-form proje
+        // seçimi > option 4'teki liderlik için seçilen fikir-aşaması proje.
+        const inFormProject = communityForm.intent === 'project' && communityForm.projectId
+          ? startups.find(s => String(s.id) === String(communityForm.projectId)) : null;
+        const ideaProject = communityForm.intent === 'founder_lead' && communityForm.ideaProjectId
+          ? (ideaProjects || []).find(s => String(s.id) === String(communityForm.ideaProjectId)) : null;
+        const pickedProject = project || inFormProject || ideaProject;
         insertData = {
           name: communityForm.name, email: communityForm.email,
           university: communityForm.university || null,
@@ -316,8 +341,13 @@ function JoinPage({ navigate, projectId }) {
           skills: communityForm.skills || null,
           linkedin: communityForm.linkedin || null,
           portfolio: communityForm.portfolio || null,
-          project_id: project?.id || null,
-          project_name: project?.name || null,
+          project_id: pickedProject?.id || null,
+          project_name: pickedProject?.name || null,
+          // v3.1 — option 4 (liderlik, fikir seçilmediyse serbest metin) ve
+          // option 5 (yeni fikir) için:
+          pitch: (communityForm.pitch || '').trim() || null,
+          problem: (communityForm.problem || '').trim() || null,
+          progress: (communityForm.progress || '').trim() || null,
         };
       }
       const { error } = await supabase.from('applications').insert(insertData);
@@ -515,31 +545,118 @@ function JoinPage({ navigate, projectId }) {
                       </select>
                     </div>
                   )}
-                  <div className="form-group">
-                    <label className="form-label">{fl('c_role', t('join.role'))}</label>
-                    <select className="form-input form-select" value={communityForm.role} onChange={e => handleC('role', e.target.value)}>
-                      <option value="">—</option>
-                      {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{fl('c_bio', t('join.bio'))}</label>
-                    <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={communityForm.bio} onChange={e => handleC('bio', e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{fl('c_skills', t('join.skills'))}</label>
-                    <input className="form-input" placeholder={t('join.skillsPlaceholder')} value={communityForm.skills} onChange={e => handleC('skills', e.target.value)} />
-                  </div>
-                  <div className="grid grid-2">
+
+                  {/* option 3 — devam eden bir projeye üye ol: proje + (varsa) pozisyon seçici */}
+                  {!project && communityForm.intent === 'project' && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label">{t('join.projectPick')}</label>
+                        <select className="form-input form-select" value={communityForm.projectId}
+                          onChange={e => { handleC('projectId', e.target.value); handleC('role', ''); }}>
+                          <option value="">{t('join.projectPickPlaceholder')}</option>
+                          {startups.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                      {communityForm.projectId && (() => {
+                        const picked = startups.find(s => String(s.id) === String(communityForm.projectId));
+                        const roles = picked?.openRolesLive || [];
+                        return roles.length === 0 ? (
+                          <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: -8, marginBottom: 20 }}>{t('join.noOpenRoles')}</p>
+                        ) : (
+                          <div className="form-group">
+                            <label className="form-label">{t('join.rolePick')}</label>
+                            <select className="form-input form-select" value={communityForm.role} onChange={e => handleC('role', e.target.value)}>
+                              <option value="">{t('join.rolePickAny')}</option>
+                              {roles.map(r => <option key={r.title} value={r.title}>{r.title}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
+
+                  {/* option 4 — fikir aşamasında liderlik/ortaklık */}
+                  {!project && communityForm.intent === 'founder_lead' && (
+                    <>
+                      <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 18 }}>{t('join.founderNote')}</p>
+                      {ideaProjects && ideaProjects.length > 0 && (
+                        <div className="form-group">
+                          <label className="form-label">{t('join.ideaProjectPick')}</label>
+                          <select className="form-input form-select" value={communityForm.ideaProjectId} onChange={e => handleC('ideaProjectId', e.target.value)}>
+                            <option value="">{t('join.ideaProjectNone')}</option>
+                            {ideaProjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      {!communityForm.ideaProjectId && (
+                        <div className="form-group">
+                          <label className="form-label">{t('join.founderPitch')}</label>
+                          <textarea className="form-input" placeholder={t('join.founderPitchPlaceholder')} value={communityForm.pitch} onChange={e => handleC('pitch', e.target.value)} />
+                        </div>
+                      )}
+                      <div className="form-group">
+                        <label className="form-label">{t('join.founderExperience')}</label>
+                        <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={communityForm.bio} onChange={e => handleC('bio', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">{fl('c_linkedin', t('join.linkedin'))}</label>
+                        <input className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* option 5 — yeni fikir: aday değerlendirmesi değil, proje teklifi — rol/proje sorulmaz */}
+                  {!project && communityForm.intent === 'idea_application' && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label">{t('join.pitchLabel')} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
+                        <textarea className={`form-input${invalidFields.has('pitch') ? ' form-input--invalid' : ''}`} placeholder={t('join.pitchPlaceholder')} value={communityForm.pitch} onChange={e => handleC('pitch', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">{t('join.problemLabel')}</label>
+                        <textarea className="form-input" placeholder={t('join.problemPlaceholder')} value={communityForm.problem} onChange={e => handleC('problem', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">{t('join.progressLabel')}</label>
+                        <textarea className="form-input" placeholder={t('join.progressPlaceholder')} value={communityForm.progress} onChange={e => handleC('progress', e.target.value)} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* option 1/2 (topluluk/bölüm) ve deep-link proje bağlamı — İlgi Alanı kategori dropdown'ı */}
+                  {(project || ['community', 'hub'].includes(communityForm.intent)) && (
                     <div className="form-group">
-                      <label className="form-label">{fl('c_linkedin', t('join.linkedin'))}</label>
-                      <input className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
+                      <label className="form-label">{fl('c_role', t('join.role'))}</label>
+                      <select className="form-input form-select" value={communityForm.role} onChange={e => handleC('role', e.target.value)}>
+                        <option value="">—</option>
+                        {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">{fl('c_portfolio', t('join.portfolio'))}</label>
-                      <input className="form-input" placeholder="github.com/..." value={communityForm.portfolio} onChange={e => handleC('portfolio', e.target.value)} />
-                    </div>
-                  </div>
+                  )}
+
+                  {/* Bio/Yetenekler/Linkler — option 4/5 dışındaki tüm dallarda (kendi alanlarını yukarıda gösterdiler) */}
+                  {(project || ['community', 'hub', 'project'].includes(communityForm.intent)) && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label">{fl('c_bio', t('join.bio'))}</label>
+                        <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={communityForm.bio} onChange={e => handleC('bio', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">{fl('c_skills', t('join.skills'))}</label>
+                        <input className="form-input" placeholder={t('join.skillsPlaceholder')} value={communityForm.skills} onChange={e => handleC('skills', e.target.value)} />
+                      </div>
+                      <div className="grid grid-2">
+                        <div className="form-group">
+                          <label className="form-label">{fl('c_linkedin', t('join.linkedin'))}</label>
+                          <input className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">{fl('c_portfolio', t('join.portfolio'))}</label>
+                          <input className="form-input" placeholder="github.com/..." value={communityForm.portfolio} onChange={e => handleC('portfolio', e.target.value)} />
+                        </div>
+                      </div>
+                    </>
+                  )}
                   {errorBanner}
                   {submitBtn}
                 </form>

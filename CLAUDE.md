@@ -26,11 +26,24 @@ bir uçtan uca test) + `node src/hub/hub-rules.test.mjs`.
 
 **Hub sayfaları:** `today.jsx` · `candidates-list.jsx` · `candidate.jsx`
 (+`GateCard`) · `archive.jsx` · `roles.jsx` · `templates.jsx` · `metrics.jsx` ·
-`settings.jsx` · `applications.jsx` (web sitesi başvuruları — admin panelden
-taşındı) · `sponsors.jsx` (destekçiler — admin panelden taşındı, yalnızca
-cofounder). Destek dosyaları: `new-candidate.jsx`, `import-simple.jsx` (CSV),
-`paste-import.jsx` (yapıştır-ayrıştır — v3 ana yöntem), `triage.jsx` (hızlı eleme),
-`hub-ai-draft.js` + `supabase/functions/hub-ai-draft/`.
+`settings.jsx` · `applications.jsx` ("Diğer Başvurular" — yalnızca
+mentor/sponsor/idea_application; community/project artık elle aktarım
+gerektirmiyor, 0022 tetikleyicisiyle otomatik Adaylar'a düşüyor, bkz. §16) ·
+`sponsors.jsx` (destekçiler — admin panelden taşındı, yalnızca cofounder).
+Destek dosyaları: `new-candidate.jsx` (`presetRoleId` ile "bu role aday ekle"
+akışını da karşılar), `import-simple.jsx` (CSV), `paste-import.jsx`
+(yapıştır-ayrıştır — v3 ana yöntem), `triage.jsx` (hızlı eleme), `hub-ai-draft.js`
++ `supabase/functions/hub-ai-draft/`.
+
+**Navigasyon (2026-09-16):** Bugün → Adaylar → Açık Pozisyonlar → Arşiv →
+(altta, katlanır) Yönetim (Şablonlar/Metrikler/Kaynaklar/Destekçiler/Diğer
+Başvurular/Yetkiler/Ayarlar). "Başvurular" ayrı bir ana sekme değil.
+Açık Pozisyonlar'da rol kartları tıklanabilir (→ o role bağlı adaylarla
+filtrelenmiş Adaylar listesi) ve "+ Bu role aday ekle" var. Yeni rol
+oluşturma hatta göre dallanır: Kurucu hattı → "Yeni proje taslağı oluştur"
+(`hub-create-draft-project` edge function, `startups`'ta `stage:'idea'`,
+`published:false`) veya "Benim projem var"; Üye hattında proje seçimi
+zorunlu (taslak seçeneği yok).
 
 **v3'te geri bağlanan (v2'de bağlantısı kesikti):** `src/hub/hub-parse.js` (§6.2),
 `src/hub/pages/sources.jsx` + `hub_source_registry` (§11), `hub-match.js`
@@ -58,13 +71,27 @@ proje oluşturur (`startups.team_app_id` = o ekibin id'si).
 `hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). **Cron aktif**
 (`0015_hub_cron.sql`, 2026-09-13'te uygulandı — Vault'taki `project_url` +
 `service_role_key` doğrulandı, `hub-daily`/`hub-weekly` her gece/pazartesi
-gerçekten çalışıyor). v3 migration'ları `0013`'ten devam eder; `drop column`
-yapılmaz (kolon UI'dan gizlenir). Edge function'lar: `send-mail`,
+gerçekten çalışıyor). v3 migration'ları `0013`'ten devam eder (son: `0033`);
+`drop column` yapılmaz (kolon UI'dan gizlenir). Edge function'lar: `send-mail`,
 `invite-member`, `hub-ai-draft`, `hub-daily`, `hub-weekly`, `hub-move-to-team`
 (C4 — gerçekte Team App'in kendi projesindeki `hub-bridge-add-member`'ı
 çağırır), `hub-github-scan` (E5 — `HUB_GITHUB_TOKEN` secret, tarama
 sunucuda), `team-project-save` (proje CRUD, main proje), `hub-bridge-add-member`
-(Team App projesine deploy — gerçek üyelik).
+(Team App projesine deploy — gerçek üyelik), `hub-create-draft-project`
+(main proje — Açık Pozisyonlar'da kurucu hattı rol açarken fikir-aşaması
+proje taslağı oluşturur, `hub_role()` cofounder/recruiter kontrolü).
+
+**Katıl formu ↔ Hub (v3.1, §16, 2026-09-16):** `JoinPage` (`src/other-pages.jsx`)
+5 seçenekli: topluluk/bölüm/proje-üyeliği/kurucu-liderliği/yeni-fikir. Trigger
+(`applications_to_hub_candidate`, 0033) artık `role_type`'ı eşliyor (website
+6 kategori → Hub 4 kategori), proje+pozisyon tam eşleşirse role otomatik
+bağlıyor, `founder_lead`'i `track:'founder'` ile Havuz'a düşürüyor,
+`idea_application`'ı hiç `hub_candidates`'a düşürmüyor. **Yan düzeltme:**
+`hub_candidates.track` DB default'u `'founder'` olduğu için eski tetikleyici
+track'i hiç yazmayınca TÜM inbound adaylar (normal üyeler dahil) yanlışlıkla
+kurucu eşiğiyle (`THRESHOLD.founder`) değerlendiriliyordu — artık her zaman
+açıkça yazılıyor. **Mevcut (eski) adayların `track`'i geriye dönük
+düzeltilmedi** — bu ayrı, kullanıcı onayı gerektiren bir karar.
 
 ## Proje kuralları
 

@@ -57,6 +57,11 @@ export default function TodayPage({ onGoto }) {
   const toSend = candidates.filter((c) => c.stage === 'pool' && c.ownerId === currentMember?.id);
   const sentThisWeek = touches.filter((t) => t.senderId === currentMember?.id && new Date(t.sentAt) >= startOfWeek()).length;
 
+  // v3.1 (§16) — kurucu hattı (liderlik/ortaklık) başvuruları, normal aday
+  // kararıyla karışmasın diye ayrı küçük bir blokta. Arşiv/Ekipte hariç
+  // her aşamada görünür (nadir/yüksek-önem, süreç boyunca takip edilir).
+  const founderLeads = candidates.filter((c) => c.track === 'founder' && c.stage !== 'archived' && c.stage !== 'member');
+
   const dueFollowUps = touches
     .filter((t) => t.outcome === 'pending' && t.followUpAt && new Date(t.followUpAt).getTime() <= now)
     .map((t) => ({ t, c: byId[t.candidateId] }))
@@ -97,7 +102,7 @@ export default function TodayPage({ onGoto }) {
     return out.sort((a, b) => b.score - a.score).slice(0, 8);
   }, [candidates, openRoles]);
 
-  const allEmpty = !toSend.length && !dueFollowUps.length && !decisionReady.length
+  const allEmpty = !toSend.length && !founderLeads.length && !dueFollowUps.length && !decisionReady.length
     && !dueGates.length && !stale.length && !roleReminders.length;
 
   return (
@@ -122,6 +127,13 @@ export default function TodayPage({ onGoto }) {
             {toSend.map((c) => (
               <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
                 meta={`${c.university || '—'}${thresholdMet(c) ? ' · eşik ✓' : ''}`} />
+            ))}
+          </Block>
+
+          <Block title="Liderlik başvuruları">
+            {founderLeads.map((c) => (
+              <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
+                meta={`${STAGE_LABEL[c.stage]} · kurucu hattı`} />
             ))}
           </Block>
 
