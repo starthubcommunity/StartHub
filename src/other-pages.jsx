@@ -369,7 +369,9 @@ function JoinPage({ navigate, projectId }) {
 
   const projectContextCard = project ? (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: `color-mix(in srgb, ${project.color} 6%, var(--card-bg))`, border: `1.5px solid color-mix(in srgb, ${project.color} 22%, var(--border))`, borderRadius: 'var(--r-lg)', marginBottom: 28 }}>
-      <div style={{ width: 42, height: 42, borderRadius: 'var(--r-md)', flexShrink: 0, background: project.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17 }}>{project.name[0]}</div>
+      <div style={{ width: 42, height: 42, borderRadius: 'var(--r-md)', flexShrink: 0, overflow: 'hidden', background: project.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17 }}>
+        {project.logo ? <img src={project.logo} alt={project.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : project.name[0]}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{project.name}</span>
