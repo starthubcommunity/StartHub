@@ -9,6 +9,15 @@ import { usePerms } from '../lib/use-perms';
 // ============================================
 const PERSON_TYPES = { team: 'Ekip', project_member: 'Proje Üyesi', mentor: 'Mentör', author: 'Yazar' };
 
+// "linkedin.com/in/..." gibi protokolsüz girilen linkler mutlak değil site
+// içi göreli yol sayılıyordu (tıklayınca LinkedIn yerine anasayfaya
+// düşülüyordu, 2026-09-16 canlı raporu — bkz. src/ui-components.jsx aynı yama).
+function externalUrl(url) {
+  const s = (url || '').trim();
+  if (!s || s === '#') return '';
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+}
+
 function PeoplePage() {
   const { data, addItem, updateItem, deleteItem } = useAdmin();
   const { can } = usePerms();
@@ -66,29 +75,33 @@ function PeoplePage() {
         </div>
         <div className="adm-card__body">
           <div className="adm-people-grid">
-            {filtered.map(p => (
-              <div key={p.id} className="adm-person-card">
-                <div className="adm-person-card__avatar" style={{ background: p.color }}>
-                  {p.photo ? <img src={p.photo} alt="" /> : <span>{p.name[0]}</span>}
+            {filtered.map(p => {
+              const li = externalUrl(p.linkedin);
+              return (
+                <div key={p.id} className="adm-person-card" onClick={() => li && window.open(li, '_blank', 'noopener,noreferrer')}
+                  style={{ cursor: li ? 'pointer' : 'default' }} title={li ? 'LinkedIn’i aç' : ''}>
+                  <div className="adm-person-card__avatar" style={{ background: p.color }}>
+                    {p.photo ? <img src={p.photo} alt="" /> : <span>{p.name[0]}</span>}
+                  </div>
+                  <div className="adm-person-card__info">
+                    <div className="adm-person-card__name">{p.name}</div>
+                    <div className="adm-person-card__role">{p.role_tr}</div>
+                    <span className={`adm-badge adm-badge--${p.type === 'mentor' ? 'mentor' : p.type === 'author' ? 'tag' : p.type === 'project_member' ? 'building' : 'team'}`}>
+                      {PERSON_TYPES[p.type] || p.type}{p.type === 'team' && p.tier ? ` · T${p.tier}` : ''}
+                    </span>
+                    {p.type === 'project_member' && p.projectId && (
+                      <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginTop: 4 }}>
+                        {data.startups.find(s => s.id === p.projectId)?.name || `#${p.projectId}`}
+                      </div>
+                    )}
+                  </div>
+                  <div className="adm-person-card__actions" onClick={e => e.stopPropagation()}>
+                    <button className="adm-icon-btn" onClick={() => setEditing(p)}><AIcon name="edit" size={14} /></button>
+                    {can('people.write') && <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(p)}><AIcon name="trash" size={14} /></button>}
+                  </div>
                 </div>
-                <div className="adm-person-card__info">
-                  <div className="adm-person-card__name">{p.name}</div>
-                  <div className="adm-person-card__role">{p.role_tr}</div>
-                  <span className={`adm-badge adm-badge--${p.type === 'mentor' ? 'mentor' : p.type === 'author' ? 'tag' : p.type === 'project_member' ? 'building' : 'team'}`}>
-                    {PERSON_TYPES[p.type] || p.type}{p.type === 'team' && p.tier ? ` · T${p.tier}` : ''}
-                  </span>
-                  {p.type === 'project_member' && p.projectId && (
-                    <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginTop: 4 }}>
-                      {data.startups.find(s => s.id === p.projectId)?.name || `#${p.projectId}`}
-                    </div>
-                  )}
-                </div>
-                <div className="adm-person-card__actions">
-                  <button className="adm-icon-btn" onClick={() => setEditing(p)}><AIcon name="edit" size={14} /></button>
-                  {can('people.write') && <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(p)}><AIcon name="trash" size={14} /></button>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

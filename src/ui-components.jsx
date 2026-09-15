@@ -2,6 +2,16 @@
 import { useState as useStateUI, useEffect as useEffectUI, useRef as useRefUI } from 'react';
 import { useLang, usePeople } from './data';
 
+// Admin panelde "linkedin.com/in/..." gibi protokolsüz girilen linkler,
+// href/window.open'da MUTLAK değil SİTE İÇİ GÖRELİ yol sayılıyordu — tıklayınca
+// LinkedIn yerine anasayfaya düşülüyordu (2026-09-16 canlı raporu). '#'/boş
+// placeholder ise linksiz kabul edilir.
+export function externalUrl(url) {
+  const s = (url || '').trim();
+  if (!s || s === '#') return '';
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+}
+
 // ============================================
 // SCROLL REVEAL (YC-style fade-up on scroll)
 // ============================================
@@ -301,9 +311,10 @@ function BlogCard({ post, onClick }) {
 // ============================================
 function PersonCard({ person, roleField = 'role' }) {
   const { localized } = useLang();
-  const goLinkedIn = () => { if (person.linkedin && person.linkedin !== '#') window.open(person.linkedin, '_blank', 'noopener,noreferrer'); };
+  const li = externalUrl(person.linkedin);
+  const goLinkedIn = () => { if (li) window.open(li, '_blank', 'noopener,noreferrer'); };
   return (
-    <div className="mentor-card" onClick={goLinkedIn} style={{ cursor: person.linkedin && person.linkedin !== '#' ? 'pointer' : 'default' }}>
+    <div className="mentor-card" onClick={goLinkedIn} style={{ cursor: li ? 'pointer' : 'default' }}>
       <span className="mentor-card__accent" style={{ background: person.color }}></span>
       <div className="mentor-card__top">
         <Avatar person={person} size={56} />
@@ -315,8 +326,8 @@ function PersonCard({ person, roleField = 'role' }) {
         </div>
       </div>
       {localized(person, 'bio') && <p className="mentor-card__bio">{localized(person, 'bio')}</p>}
-      {person.linkedin && (
-        <a href={person.linkedin} className="mentor-card__li" target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>
+      {li && (
+        <a href={li} className="mentor-card__li" target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>
           <Icon name="linkedin" size={15} /> LinkedIn
         </a>
       )}

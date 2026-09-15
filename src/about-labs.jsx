@@ -1,7 +1,7 @@
 // about-labs.jsx — About (yönetim ekibi + mentörler + 2 buton) & Lab (proje listesi)
 import React, { useState as useStateAL } from 'react';
 import { useLang, postsForProject, usePeople, useStartups } from './data';
-import { Avatar, Icon, Reveal, Button, SectionHeader, StartupCard, PersonCard, PostCard, StageBadge, stageMap } from './ui-components';
+import { Avatar, Icon, Reveal, Button, SectionHeader, StartupCard, PersonCard, PostCard, StageBadge, stageMap, externalUrl } from './ui-components';
 import { CTASection, PageHeader } from './layout';
 import { getRoleDescription } from './detail-pages';
 import { JourneySection } from './home-page';
@@ -11,17 +11,18 @@ import { JourneySection } from './home-page';
 // ============================================
 function OrgCard({ person, tier }) {
   const { localized } = useLang();
-  const goLinkedIn = () => { if (person.linkedin && person.linkedin !== '#') window.open(person.linkedin, '_blank', 'noopener,noreferrer'); };
+  const li = externalUrl(person.linkedin);
+  const goLinkedIn = () => { if (li) window.open(li, '_blank', 'noopener,noreferrer'); };
   return (
-    <div className={`org-card org-card--t${tier}`} onClick={goLinkedIn} style={{ cursor: person.linkedin && person.linkedin !== '#' ? 'pointer' : 'default' }}>
+    <div className={`org-card org-card--t${tier}`} onClick={goLinkedIn} style={{ cursor: li ? 'pointer' : 'default' }}>
       <Avatar person={person} size={tier === 1 ? 64 : 54} />
       <div className="org-card__name">{person.name}</div>
       <div className="org-card__role" style={{ background: person.color + '18', color: person.color }}>
         {tier === 1 && <Icon name="star" size={12} />}
         {localized(person, 'role')}
       </div>
-      {person.linkedin && (
-        <a className="org-card__li" href={person.linkedin} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}><Icon name="linkedin" size={16} /></a>
+      {li && (
+        <a className="org-card__li" href={li} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}><Icon name="linkedin" size={16} /></a>
       )}
     </div>
   );
