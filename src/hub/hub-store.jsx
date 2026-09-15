@@ -96,7 +96,14 @@ export function HubStoreProvider({ children }) {
   const updateItem = useCallback((collection, id, updates) => {
     const entry = HUB_TABLES[collection];
     if (!entry) return Promise.reject(new Error(`Bilinmeyen koleksiyon: ${collection}`));
-    const dbRecord = entry.toDb(updates);
+    // toDb() mapper'ları TAM bir öğe bekler (eksik alanı ''/false/null
+    // varsayılanına çevirir) — admin-store.jsx'te aynı desenin kısmi bir
+    // `updates` ile çağrılınca tüm satırı sessizce boşalttığı canlı bir
+    // olayla ortaya çıktı (bkz. 2026-09-15 postmortem). Buradaki tüm
+    // mevcut çağıranlar zaten tam nesne gönderiyor ama önlem olarak aynı
+    // kök-düzeltme: DB'ye yazmadan önce mevcut bilinen öğeyle birleştir.
+    const current = (data[collection] || []).find((it) => it.id === id) || {};
+    const dbRecord = entry.toDb({ ...current, ...updates });
     delete dbRecord.id; // PK asla güncellenmez
     return supabase.from(entry.table).update(dbRecord).eq('id', id).select().single()
       .then(({ data: row, error }) => {

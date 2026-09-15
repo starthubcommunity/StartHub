@@ -15,7 +15,10 @@ function linkFields(v) {
   return { linkedin: s };
 }
 
-export default function NewCandidateModal({ onClose }) {
+// presetRoleId: "+ Bu role aday ekle" (Açık Pozisyonlar) ile açılınca —
+// aday eklenir eklenmez o role bağlanır, track role'den miras alınır
+// (linkCandidateRole zaten bu mirası uyguluyor, tekrar sormuyoruz).
+export default function NewCandidateModal({ onClose, presetRoleId }) {
   const store = useHubStore();
   const { members, currentMember } = store;
 
@@ -38,7 +41,7 @@ export default function NewCandidateModal({ onClose }) {
     if (dup?.certain) {
       throw new Error(`Zaten kayıtlı (${dup.reason}). Aynı kişiyse listeden mevcut kartını aç ve düzenle.`);
     }
-    await store.addCandidate({
+    const created = await store.addCandidate({
       fullName: a.fullName.trim(),
       ...link,
       source: a.source || 'referral',
@@ -46,6 +49,7 @@ export default function NewCandidateModal({ onClose }) {
       ownerId: a.ownerId || null,
       stage: 'pool',
     });
+    if (presetRoleId && created?.id) await store.linkCandidateRole(created.id, presetRoleId);
   };
 
   return (

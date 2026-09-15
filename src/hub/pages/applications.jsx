@@ -1,33 +1,16 @@
-// applications.jsx — Başvurular (HR). Web sitesinden gelen tüm başvurular
-// (community/project/mentor_application/sponsor_application) burada
-// yönetilir — admin panelden taşındı (kullanıcı kararı, tek yönetim yeri).
-// 'community'/'project' türü başvurular zaten otomatik hub_candidates'a
-// düşüyor (bkz. 0022 trigger) — buradaki "Aday olarak aktar" hâlâ elle
-// bir yol olarak duruyor (özellikle mentor/sponsor başvuruları veya
-// tetikleyicinin atladığı/mükerrer sandığı durumlar için).
+// applications.jsx — Diğer Başvurular (HR, Yönetim altında). 'community' ve
+// 'project' türü başvurular artık burada YOK — 0022 tetikleyicisiyle otomatik
+// hub_candidates'a (Adaylar) düşüyorlar, ayrı bir inceleme/aktarım adımına
+// gerek kalmadı (kullanıcı kararı, 2026-09-16). Bu sayfada yalnızca
+// 'mentor_application' / 'sponsor_application' kalıyor — bunlar hiring
+// pipeline'a girmez (aday değiller), tek görünür oldukları yer burası.
 import React from 'react';
 import { useState as useStateA, useEffect as useEffectA } from 'react';
 import { supabase } from '../../lib/supabase';
 import { AIcon, PageHead } from '../../admin/admin-ui';
 import { usePerms } from '../../lib/use-perms';
-import { mapCandidateToDb } from '../hub-mappers';
 
-function inboundWhy(app) {
-  return [app.intent, app.project_name && `Proje: ${app.project_name}`, app.role && `İlgilendiği pozisyon: ${app.role}`, app.skills && `Beceriler: ${app.skills}`, app.bio]
-    .map((x) => (x || '').trim())
-    .filter(Boolean)
-    .join(' — ')
-    .slice(0, 500);
-}
-
-function inboundLink(app) {
-  const s = (app.linkedin || app.portfolio || '').trim();
-  if (!s) return {};
-  if (/github\.com/i.test(s)) return { github: s };
-  if (/linkedin\.com/i.test(s)) return { linkedin: s };
-  if (/@/.test(s) && !/^https?:/i.test(s)) return { email: s };
-  return { linkedin: s };
-}
+const OTHER_INTENTS = ['mentor_application', 'sponsor_application'];
 
 const STATUS_CFG = {
   new:      { label: 'Yeni',       color: '#2563EB', bg: '#EFF6FF' },
@@ -52,7 +35,6 @@ function StatusBadge({ status }) {
 export default function ApplicationsPage() {
   const { can } = usePerms();
   const canWrite = can('applications.write');
-  const canInbound = can('candidates.write');
 
   const [items, setItems] = useStateA([]);
   const [loading, setLoading] = useStateA(true);
@@ -60,77 +42,24 @@ export default function ApplicationsPage() {
   const [filter, setFilter] = useStateA('all');
   const [updating, setUpdating] = useStateA(false);
 
-  const [transferred, setTransferred] = useStateA(() => new Set());
-  const [openRoles, setOpenRoles] = useStateA([]);
-  const [xfer, setXfer] = useStateA(null);   // { why, roleId, busy, err }
-
   const load = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('applications')
         .select('*')
+        .in('intent', OTHER_INTENTS)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setItems(data || []);
     } catch (e) {
-      console.error('[Başvurular] yüklenemedi:', e.message);
+      console.error('[Diğer Başvurular] yüklenemedi:', e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadHubContext = async () => {
-    if (!canInbound) return;
-    const [{ data: cands }, { data: roles }] = await Promise.all([
-      supabase.from('hub_candidates').select('source_ref').eq('source', 'inbound'),
-      supabase.from('hub_open_roles').select('id,title,status').in('status', ['sourcing', 'shortlist']),
-    ]);
-    setTransferred(new Set((cands || []).map((c) => c.source_ref).filter(Boolean)));
-    setOpenRoles(roles || []);
-  };
-
-  useEffectA(() => { load(); loadHubContext(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffectA(() => { setXfer(null); }, [selected?.id]);
-
-  const startXfer = (app) => setXfer({ why: inboundWhy(app), roleId: '', busy: false, err: '' });
-
-  const doXfer = async (app) => {
-    setXfer((x) => ({ ...x, busy: true, err: '' }));
-    try {
-      const { data: dup } = await supabase
-        .from('hub_candidates').select('id')
-        .eq('source', 'inbound').eq('source_ref', String(app.id)).limit(1);
-      if (dup && dup.length) {
-        setTransferred((s) => new Set(s).add(String(app.id)));
-        setXfer((x) => ({ ...x, busy: false, err: 'Bu başvuru zaten aktarılmış.' }));
-        return;
-      }
-      const row = mapCandidateToDb({
-        fullName: app.name || '(isimsiz)',
-        email: app.email || null,
-        ...inboundLink(app),
-        university: [app.university, app.department].filter(Boolean).join(' · ') || null,
-        source: 'inbound',
-        sourceRef: String(app.id),
-        whyThisOne: (xfer.why || '').trim() || null,
-        openRoleId: xfer.roleId || null,
-        stage: 'pool',
-      });
-      const { error } = await supabase.from('hub_candidates').insert(row);
-      if (error) {
-        const msg = /hub_cand_email_uq|duplicate key/i.test(error.message)
-          ? 'Bu e-posta zaten Hub\'da bir adayda kayıtlı.'
-          : error.message;
-        setXfer((x) => ({ ...x, busy: false, err: msg }));
-        return;
-      }
-      setTransferred((s) => new Set(s).add(String(app.id)));
-      setXfer(null);
-    } catch (e) {
-      setXfer((x) => ({ ...x, busy: false, err: e.message || 'Aktarılamadı.' }));
-    }
-  };
+  useEffectA(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateStatus = async (id, status) => {
     setUpdating(true);
@@ -166,7 +95,7 @@ export default function ApplicationsPage() {
 
   return (
     <div>
-      <PageHead title="Başvurular" desc={`${items.length} başvuru — web sitesinden gelen tüm başvurular (topluluk, proje, mentörlük, destekçilik)`} />
+      <PageHead title="Diğer Başvurular" desc={`${items.length} başvuru — mentörlük ve destekçilik (topluluk/proje başvuruları otomatik Adaylar'a düşer)`} />
       <div style={{ display: 'flex', gap: 0 }}>
         {/* Sol — liste */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
@@ -287,46 +216,6 @@ export default function ApplicationsPage() {
               </div>
             )}
 
-            {canInbound && (
-              <div style={{ marginTop: 20, borderTop: '1px solid var(--adm-border-light)', paddingTop: 16 }}>
-                {transferred.has(String(selected.id)) ? (
-                  <div style={{ fontSize: 13, color: '#16A34A', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <AIcon name="check" size={15} /> Aday havuzuna aktarıldı
-                  </div>
-                ) : xfer ? (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--adm-text-dim)', marginBottom: 6 }}>
-                      Aday olarak aktar
-                    </div>
-                    <label style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Neden bu kişi? (düzeltebilirsin)</label>
-                    <textarea value={xfer.why} onChange={(e) => setXfer((x) => ({ ...x, why: e.target.value }))}
-                      rows={3} style={{ width: '100%', boxSizing: 'border-box', marginTop: 4, marginBottom: 8, padding: 8, borderRadius: 7, border: '1px solid var(--adm-border-light)', fontFamily: 'var(--font-body)', fontSize: 13 }} />
-                    <label style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Açık rol (opsiyonel)</label>
-                    <select value={xfer.roleId} onChange={(e) => setXfer((x) => ({ ...x, roleId: e.target.value }))}
-                      style={{ width: '100%', marginTop: 4, marginBottom: 10, padding: 8, borderRadius: 7, border: '1px solid var(--adm-border-light)', fontFamily: 'var(--font-body)', fontSize: 13 }}>
-                      <option value="">—</option>
-                      {openRoles.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
-                    </select>
-                    {xfer.err && <div style={{ fontSize: 12, color: '#DC2626', marginBottom: 8 }}>{xfer.err}</div>}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button disabled={xfer.busy || !xfer.why.trim()} onClick={() => doXfer(selected)}
-                        style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: 'var(--adm-text)', color: 'var(--adm-bg)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)', opacity: (xfer.busy || !xfer.why.trim()) ? 0.6 : 1 }}>
-                        {xfer.busy ? 'Aktarılıyor…' : 'Aktar'}
-                      </button>
-                      <button disabled={xfer.busy} onClick={() => setXfer(null)}
-                        style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid var(--adm-border-light)', background: 'transparent', color: 'var(--adm-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
-                        Vazgeç
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={() => startXfer(selected)}
-                    style={{ width: '100%', padding: '9px 14px', borderRadius: 8, border: '1px solid var(--adm-border-light)', background: 'var(--adm-card)', color: 'var(--adm-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    <AIcon name="rocket" size={14} /> Aday havuzuna aktar
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>
