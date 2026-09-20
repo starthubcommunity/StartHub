@@ -38,6 +38,16 @@ akışını da karşılar), `import-simple.jsx` (CSV), `paste-import.jsx`
 **Navigasyon (2026-09-16):** Bugün → Adaylar → Açık Pozisyonlar → Arşiv →
 (altta, katlanır) Yönetim (Şablonlar/Metrikler/Kaynaklar/Destekçiler/Diğer
 Başvurular/Yetkiler/Ayarlar). "Başvurular" ayrı bir ana sekme değil.
+
+**Bugün = kuyruk modu (2026-09-20):** her blok başlığında (mesajı varsa) bir
+"Başlat" düğmesi — bloğu liste olarak taramak yerine `QueueModal`
+(today.jsx) tek kart/tek aksiyon/otomatik "Sonraki" akışıyla açar. Bu bileşen
+aksiyonu İCAT ETMEZ — mevcut `CandidatePanel`'i (aday kartı, zaten aşamaya
+göre doğru tek soruyu soruyor) olduğu gibi kullanır, üstüne yalnızca ince bir
+ilerleme çubuğu ekler. Satır tek tek tıklamak hâlâ çalışır (liste kalktı,
+kuyruk ek bir yol). Adaylar sayfasındaki 4 ayrı ekle butonu (Tek aday/CSV/
+GitHub/Yapıştır) tek bir "+ Aday Ekle" açılır menüsünde toplandı,
+yapıştır-ayrıştır ilk sırada ("ana yöntem" etiketiyle).
 Açık Pozisyonlar'da rol kartları tıklanabilir (→ o role bağlı adaylarla
 filtrelenmiş Adaylar listesi) ve "+ Bu role aday ekle" var. Yeni rol
 oluşturma hatta göre dallanır: Kurucu hattı → "Yeni proje taslağı oluştur"

@@ -61,6 +61,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(null);   // 'one' | 'import' | 'paste' | null
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [triageIds, setTriageIds] = useState(null);   // D3
   const [actOn, setActOn] = useState(null);     // satırdan arşivle/sil için aday
   const [toast, setToast] = useState('');
@@ -128,21 +129,35 @@ export default function CandidatesListPage({ filters, setFilters }) {
     <div>
       <PageHead title="Adaylar" desc={`${rows.length} / ${activeCount} aktif aday`} actions={
         can('candidates.write') ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setAdding('one')}>
-              <AIcon name="plus" size={14} /> Tek aday
+          <div style={{ position: 'relative' }}>
+            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAddMenuOpen((v) => !v)}>
+              <AIcon name="plus" size={14} /> Aday Ekle
             </button>
-            <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('import')}>
-              <AIcon name="upload" size={14} /> CSV
-            </button>
-            {can('scan.run') && (
-              <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('github')}>
-                <AIcon name="rocket" size={14} /> GitHub
-              </button>
+            {addMenuOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setAddMenuOpen(false)} />
+                <div style={{
+                  position: 'absolute', top: '110%', right: 0, zIndex: 11, minWidth: 210,
+                  background: 'var(--adm-bg-card)', border: '1px solid var(--adm-border-light)', borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.14)', padding: 6, display: 'flex', flexDirection: 'column', gap: 2,
+                }}>
+                  {[
+                    { key: 'paste', icon: 'edit', label: 'Yapıştır ve ekle', hint: 'ana yöntem' },
+                    { key: 'one', icon: 'plus', label: 'Tek aday' },
+                    { key: 'import', icon: 'upload', label: 'CSV' },
+                    ...(can('scan.run') ? [{ key: 'github', icon: 'rocket', label: 'GitHub' }] : []),
+                  ].map((opt) => (
+                    <button key={opt.key} onClick={() => { setAdding(opt.key); setAddMenuOpen(false); }}
+                      className="adm-btn adm-btn--ghost adm-btn--sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', border: 'none', width: '100%' }}>
+                      <AIcon name={opt.icon} size={14} />
+                      <span style={{ flex: 1, textAlign: 'left' }}>{opt.label}</span>
+                      {opt.hint && <span style={{ fontSize: 10.5, color: 'var(--adm-text-dim)' }}>{opt.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
-            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAdding('paste')}>
-              <AIcon name="edit" size={14} /> Yapıştır ve ekle
-            </button>
           </div>
         ) : null
       } />

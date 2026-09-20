@@ -21,13 +21,69 @@ const startOfWeek = () => {
 };
 const fmt = (v) => (v ? new Date(v).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
 
-function Block({ title, extra, children }) {
+// ids verilirse (ve boş değilse) blok başlığına bir "Başlat" düğmesi eklenir
+// — tek tek satır tıklamak yerine, bu bloğun tamamını sırayla (tek kart, tek
+// aksiyon, otomatik sıradaki) işlemek için (bkz. QueueModal altta, 2026-09-20
+// sadeleştirmesi). Liste hâlâ altında durur — kim isterse tek tek de seçebilir.
+function Block({ title, extra, ids, onStartQueue, children }) {
   if (!children || (Array.isArray(children) && children.filter(Boolean).length === 0)) return null;
   return (
     <section className="hub-today__block">
-      <div className="hub-today__blockhead"><h3>{title}</h3>{extra}</div>
+      <div className="hub-today__blockhead">
+        <h3>{title}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {extra}
+          {ids && ids.length > 0 && (
+            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onStartQueue(ids, title)}>
+              Başlat <AIcon name="arrowRight" size={12} />
+            </button>
+          )}
+        </div>
+      </div>
       <div className="hub-today__rows">{children}</div>
     </section>
+  );
+}
+
+// Bir liste bloğunu tek kart / tek aksiyon / otomatik sıradaki akışına
+// çevirir. Aksiyonun kendisini İCAT ETMEZ — her aşamanın zaten kendi doğru
+// tek sorusunu gösteren CandidatePanel'i (aday kartı) olduğu gibi kullanır;
+// bu bileşen yalnızca ince bir ilerleme çubuğu + "Sonraki" ekler.
+function QueueModal({ title, ids, onClose }) {
+  const [queue] = useState(() => (ids || []).slice());
+  const [idx, setIdx] = useState(0);
+  const total = queue.length;
+  const curId = idx < total ? queue[idx] : null;
+
+  if (!curId) {
+    return (
+      <div className="hub-panel-overlay" onClick={onClose}>
+        <div className="hub-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+          <div style={{ textAlign: 'center', padding: 32 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Kuyruk bitti 🎉</div>
+            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={onClose}>Kapat</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <CandidatePanel candidateId={curId} onClose={onClose} />
+      <div style={{
+        position: 'fixed', top: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 1001,
+        display: 'flex', alignItems: 'center', gap: 10, background: 'var(--adm-text)', color: 'var(--adm-bg)',
+        padding: '7px 8px 7px 16px', borderRadius: 999, boxShadow: '0 4px 16px rgba(0,0,0,.22)',
+        fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)',
+      }}>
+        <span>{title} · {idx + 1}/{total}</span>
+        <button onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0}
+          style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: 'inherit', borderRadius: 999, width: 26, height: 26, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.4 : 1, fontSize: 13 }}>←</button>
+        <button onClick={() => setIdx((i) => i + 1)}
+          style={{ background: 'rgba(255,255,255,.22)', border: 'none', color: 'inherit', borderRadius: 999, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Sonraki →</button>
+      </div>
+    </>
   );
 }
 
@@ -50,6 +106,8 @@ export default function TodayPage({ onGoto }) {
   const { candidates, touches, gates, openRoles, currentMember } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
+  const [queue, setQueue] = useState(null);   // { title, ids } | null
+  const startQueue = (ids, title) => setQueue({ ids, title });
   const byId = useMemo(() => Object.fromEntries(candidates.map((c) => [c.id, c])), [candidates]);
   const now = Date.now();
   const myStartups = currentMember?.startupIds || [];
@@ -123,41 +181,42 @@ export default function TodayPage({ onGoto }) {
         </div>
       ) : (
         <>
-          <Block title="Mesaj atılacaklar" extra={<span className="hub-today__target">bu hafta {sentThisWeek}/{WEEKLY_TARGET.contacts}</span>}>
+          <Block title="Mesaj atılacaklar" ids={toSend.map((c) => c.id)} onStartQueue={startQueue}
+            extra={<span className="hub-today__target">bu hafta {sentThisWeek}/{WEEKLY_TARGET.contacts}</span>}>
             {toSend.map((c) => (
               <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
                 meta={`${c.university || '—'}${thresholdMet(c) ? ' · eşik ✓' : ''}`} />
             ))}
           </Block>
 
-          <Block title="Liderlik başvuruları">
+          <Block title="Liderlik başvuruları" ids={founderLeads.map((c) => c.id)} onStartQueue={startQueue}>
             {founderLeads.map((c) => (
               <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
                 meta={`${STAGE_LABEL[c.stage]} · kurucu hattı`} />
             ))}
           </Block>
 
-          <Block title="Süresi gelen takipler">
+          <Block title="Süresi gelen takipler" ids={dueFollowUps.map(({ c }) => c.id)} onStartQueue={startQueue}>
             {dueFollowUps.map(({ t, c }) => (
               <Row key={t.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
                 meta={`takip ${(t.stepNo || 1) > 1 ? `#${t.stepNo} · ` : ''}${fmt(t.followUpAt)}${(t.stepNo || 1) > 1 && c.draftText ? ' · taslak hazır' : ''}`} />
             ))}
           </Block>
 
-          <Block title="Karar bekleyenler">
+          <Block title="Karar bekleyenler" ids={decisionReady.map((c) => c.id)} onStartQueue={startQueue}>
             {decisionReady.map((c) => (
               <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
                 meta={c.presentedAt ? `sunuldu ${String(c.presentedAt).slice(0, 10)} · karar bekliyor` : 'görüşme eşiği hazır'} />
             ))}
           </Block>
 
-          <Block title="Süresi dolan kapılar">
+          <Block title="Süresi dolan kapılar" ids={dueGates.map(({ c }) => c.id)} onStartQueue={startQueue}>
             {dueGates.map(({ g, c }) => (
               <Row key={g.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName} meta={`Kapı ${g.gate} · vade ${fmt(g.dueAt)}`} />
             ))}
           </Block>
 
-          <Block title="Bayatlamış kartlar">
+          <Block title="Bayatlamış kartlar" ids={stale.map(({ c }) => c.id)} onStartQueue={startQueue}>
             {stale.map(({ c, s }) => (
               <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
                 meta={`${STAGE_LABEL[c.stage]} · ${s.days} gün`}
@@ -165,7 +224,7 @@ export default function TodayPage({ onGoto }) {
             ))}
           </Block>
 
-          <Block title="Yeni rol için arşivden aday">
+          <Block title="Yeni rol için arşivden aday" ids={roleReminders.map(({ c }) => c.id)} onStartQueue={startQueue}>
             {roleReminders.map(({ c, role, score }) => (
               <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
                 meta={`→ ${role.title} · ${score} puan uyum · arşivde (${c.archiveReason === 'no_time' ? 'vakti yoktu' : 'çıtanın altında'})`} />
@@ -175,6 +234,7 @@ export default function TodayPage({ onGoto }) {
       )}
 
       {openId && <CandidatePanel candidateId={openId} onClose={() => setOpenId(null)} />}
+      {queue && <QueueModal title={queue.title} ids={queue.ids} onClose={() => setQueue(null)} />}
     </div>
   );
 }
