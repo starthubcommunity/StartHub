@@ -1,7 +1,7 @@
 // new-candidate.jsx — elle tek aday ekleme (v2 §6). Wizard: 4 soru.
 import React, { useMemo } from 'react';
 import { useHubStore } from '../hub-store';
-import { SOURCES } from '../hub-constants';
+import { OUTBOUND_SOURCES } from '../hub-constants';
 import { findDuplicate } from '../hub-parse';
 import HubWizard from '../components/wizard';
 
@@ -25,7 +25,7 @@ export default function NewCandidateModal({ onClose, presetRoleId }) {
   const steps = useMemo(() => [
     { key: 'fullName', type: 'text', q: 'Adayın adı soyadı?', ph: 'Ada Yılmaz' },
     { key: 'link', type: 'text', q: 'Tek link (GitHub / LinkedIn / e-posta)?', ph: 'github.com/adayilmaz', optional: true, sub: 'Tip otomatik algılanır.' },
-    { key: 'source', type: 'options', q: 'Kaynak?', options: SOURCES.map((s) => ({ value: s.value, label: s.label })) },
+    { key: 'source', type: 'options', q: 'Kaynak?', options: OUTBOUND_SOURCES.map((s) => ({ value: s.value, label: s.label })) },
     // A6 — "neden bu kişi" ZORUNLU (optional yok): AI taslağının ve eleme kararının tek girdisi
     { key: 'whyThisOne', type: 'textarea', q: 'Neden bu kişi?', ph: 'Ne yapmış? Somut bir iş, proje veya sonuç yaz.',
       sub: 'Sıfat değil, somut eser: repo / proje / yarışma / yazı / etkinlik.' },

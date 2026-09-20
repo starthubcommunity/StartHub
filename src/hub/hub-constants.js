@@ -41,6 +41,10 @@ export const SOURCES = [
 ];
 export const SOURCE_LABEL = toLabelMap(SOURCES);
 
+// Elle / içe aktarmayla aday eklerken seçilebilen kaynaklar — 'inbound' HARİÇ:
+// site başvuruları Inbound hattında (applications) yaşar, Outbound'a elle eklenmez.
+export const OUTBOUND_SOURCES = SOURCES.filter((s) => s.value !== 'inbound');
+
 // ─── Sonraki aksiyon (v3 §3 — TÜRETİLİR) ────────────────────────────
 // v3: elle seçilen alan kaldırıldı. Etiketler artık hub-rules.js
 // nextAction() içinde; sabit liste tutulmuyor.

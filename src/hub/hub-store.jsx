@@ -18,7 +18,13 @@ import { STAGE_ORDER } from './hub-constants';
 // loadHistory() ile; touches/gates Bugün ekranı için; stageLog dönüşüm için.
 const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
 
-const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
+const EMPTY = { ...COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {}), hiddenInbound: [] };
+
+// Inbound / Outbound ayrımı (0036): web formundan gelip HÂLÂ dokunulmamış ('pool')
+// eski inbound adayları Outbound'da görünmez — onlar Inbound ekranında
+// (applications tablosu) değerlendirilir. İlerlemiş (temas/görüşme/…) olanlar
+// Outbound'da kalır. Gizlenenler silinmez; yalnızca mükerrer kontrolü için tutulur.
+const isHiddenInbound = (c) => c.source === 'inbound' && c.stage === 'pool';
 
 const HubStoreContext = createContext(null);
 export function useHubStore() {
@@ -59,6 +65,8 @@ export function HubStoreProvider({ children }) {
           next[c] = (res.data || []).map(HUB_TABLES[c].fromDb);
         }
       });
+      next.hiddenInbound = next.candidates.filter(isHiddenInbound);
+      next.candidates = next.candidates.filter((c) => !isHiddenInbound(c));
       setData(next);
       setLoadError(firstErr ? firstErr.message : null);
       setLoading(false);
@@ -493,7 +501,7 @@ export function HubStoreProvider({ children }) {
     // Blok D düzeltmesi (mükerrer): önizleme yalnızca HAVUZa karşı bakıyordu;
     // aynı partide iki kez geçen kişi iki kayıt oluyordu. Burada büyüyen bir
     // havuza (mevcut + bu partide açılanlar) karşı tekrar bakılır.
-    const pool = data.candidates.slice();
+    const pool = [...data.candidates, ...data.hiddenInbound];
     for (const r of accepted) {
       // ── Mevcut kartı güncelle (yeni kayıt açma) ──────────────
       let dupId = (r._mode === 'update' && r._dupId) ? r._dupId : null;

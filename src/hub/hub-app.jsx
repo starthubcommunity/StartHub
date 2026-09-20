@@ -18,7 +18,11 @@ import MetricsPage from './pages/metrics';
 import SourcesPage from './pages/sources';
 import SettingsPage from './pages/settings';
 import RolesPage from './pages/roles';
-import ApplicationsPage from './pages/applications';
+import OverviewPage from './pages/overview';
+import InboundOverviewPage from './pages/inbound-overview';
+import InboundBoardPage from './pages/inbound-board';
+import { INBOUND_CHANGED } from './use-inbound';
+import '../styles/inbound.css';
 import SponsorsPage from './pages/sponsors';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
@@ -329,36 +333,65 @@ function HubNoAccess({ email, onLogout }) {
   );
 }
 
-// ─── Uygulama kabuğu (v2 §1) ──────────────────────────────────────────
-// Sol menü ÜÇ madde: Bugün · Adaylar · Roller. "Yönetim" altında: Şablonlar,
-// Metrikler, Yetkiler, Ayarlar. Her öğe bir has_perm anahtarına bağlı;
-// yetkisi olmayan öğe menüde HİÇ görünmez.
-// Site başvuruları (topluluk/proje) 0022 tetikleyicisiyle otomatik Adaylar'a
-// düşer — ayrı bir "Başvurular" sekmesine gerek yok (kullanıcı kararı,
-// 2026-09-16). Mentörlük/destekçilik başvuruları hâlâ ayrı bir kategori
-// (hiring pipeline'a girmezler) — Yönetim altında "Diğer Başvurular".
-const MAIN_NAV = [
-  { id: 'today',        label: 'Bugün',        icon: 'dashboard', perm: null },
-  { id: 'candidates',   label: 'Adaylar',      icon: 'layers',    perm: 'candidates.read' },
-  { id: 'roles',        label: 'Açık Pozisyonlar', icon: 'rocket', perm: 'roles.read' },
-  { id: 'archive',      label: 'Arşiv',        icon: 'trash',     perm: 'candidates.read' },
+// ─── Uygulama kabuğu ─────────────────────────────────────────────────
+// Sol menüde İKİ hat (2026-09-21): **Inbound** (web formundan gelen başvurular —
+// applications tablosu, kendi aşamaları/notları) ve **Outbound** (bizim aradığımız
+// adaylar — hub_candidates, 5 aşamalı hat). Ortak havuz YOK: site başvuruları
+// artık hub_candidates'a düşmez (0036). Yönetim (şablon, metrik, yetki…) iki hat
+// için ortak. Her öğe bir has_perm anahtarına bağlı; yetkisi olmayan öğe menüde
+// HİÇ görünmez.
+const OUTBOUND_NAV = [
+  { id: 'today',        label: 'Bugün',            icon: 'dashboard', perm: null },
+  { id: 'candidates',   label: 'Adaylar',          icon: 'layers',    perm: 'candidates.read' },
+  { id: 'roles',        label: 'Açık Pozisyonlar', icon: 'rocket',    perm: 'roles.read' },
+  { id: 'archive',      label: 'Arşiv',            icon: 'trash',     perm: 'candidates.read' },
 ];
+const INBOUND_NAV = [
+  { id: 'inbound-overview', label: 'Genel Bakış', icon: 'dashboard', perm: 'applications.read' },
+  { id: 'inbound',          label: 'Başvurular',  icon: 'layers',    perm: 'applications.read' },
+];
+// İki hattı birlikte gösteren üst düzey özet (sol menüde ayrı düğme).
+const OVERVIEW_ITEM = { id: 'overview', label: 'Genel Bakış', icon: 'dashboard', perm: null };
 const GEAR_NAV = [
   { id: 'templates',    label: 'Şablonlar',       icon: 'penEdit',    perm: 'templates.read' },
   { id: 'metrics',      label: 'Metrikler',       icon: 'trendingUp', perm: 'metrics.read' },
   { id: 'sources',      label: 'Kaynaklar',       icon: 'layers',     perm: 'sources.read' },
   { id: 'sponsors',     label: 'Destekçiler',     icon: 'handshake',  perm: 'sponsors.read' },
-  { id: 'applications', label: 'Diğer Başvurular', icon: 'penEdit',   perm: 'applications.read' },
   { id: 'members',      label: 'Yetkiler',        icon: 'users',      perm: 'members.manage' },
   { id: 'settings',     label: 'Ayarlar',         icon: 'settings',   perm: 'settings.write' },
 ];
-const ALL_NAV = [...MAIN_NAV, ...GEAR_NAV];
+const MODES = {
+  inbound:  { label: 'Inbound',  sub: 'Form başvuruları' },
+  outbound: { label: 'Outbound', sub: 'Aday avı' },
+};
+const modeOfPage = (id) => (INBOUND_NAV.some((n) => n.id === id) ? 'inbound' : OUTBOUND_NAV.some((n) => n.id === id) ? 'outbound' : null);
+const ALL_NAV = [OVERVIEW_ITEM, ...OUTBOUND_NAV, ...INBOUND_NAV, ...GEAR_NAV];
+
+// Sol menü rozeti: yanıt bekleyen (aşaması 'new') başvuru sayısı.
+function useInboundNewCount(enabled) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let active = true;
+    const load = () => supabase.from('applications').select('id', { count: 'exact', head: true })
+      .or('status.is.null,status.eq.new')
+      .then(({ count }) => { if (active) setN(count || 0); });
+    load();
+    const t = setInterval(load, 60000);
+    window.addEventListener(INBOUND_CHANGED, load);
+    return () => { active = false; clearInterval(t); window.removeEventListener(INBOUND_CHANGED, load); };
+  }, [enabled]);
+  return n;
+}
 
 function HubApp({ email, onLogout }) {
   // Rules of Hooks: TÜM hook'lar koşulsuz ve her erken return'den ÖNCE.
   const role = useHubMember();
   const { can, loading: permsLoading } = usePerms();
-  const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'today');
+  const [page, setPage] = useState(() => {
+    const saved = sessionStorage.getItem('sh_hub_page') || 'overview';
+    return saved === 'applications' ? 'inbound' : saved; // eski "Diğer Başvurular" → Inbound
+  });
   // B2 — çip/filtre seçimi sayfa yenilenince korunur.
   const [filters, setFilters] = useState(() => {
     try { return { ...EMPTY_FILTERS, ...JSON.parse(sessionStorage.getItem('sh_hub_filters') || '{}') }; }
@@ -370,10 +403,31 @@ function HubApp({ email, onLogout }) {
     try { sessionStorage.setItem('sh_hub_filters', JSON.stringify(filters)); } catch { /* yoksay */ }
   }, [filters]);
 
-  const mainNav = MAIN_NAV.filter((n) => !n.perm || can(n.perm));
-  const gearNav = GEAR_NAV.filter((n) => !n.perm || can(n.perm));
-  const nav = [...mainNav, ...gearNav];
+  const allowed = (n) => !n.perm || can(n.perm);
+  const outboundNav = OUTBOUND_NAV.filter(allowed);
+  const inboundNav = INBOUND_NAV.filter(allowed);
+  const gearNav = GEAR_NAV.filter(allowed);
+  const hasOverview = outboundNav.length > 0 || inboundNav.length > 0; // en az bir hattı görebilen özet görür
+  const nav = [...(hasOverview ? [OVERVIEW_ITEM] : []), ...outboundNav, ...inboundNav, ...gearNav];
   const activePage = nav.some((n) => n.id === page) ? page : (nav[0]?.id || 'today');
+  // Hat (mod): sayfa bir hatta aitse o hat; ortak (Yönetim) sayfalarında son hat korunur.
+  const [lastMode, setLastMode] = useState(() => sessionStorage.getItem('sh_hub_mode') || 'outbound');
+  const pageMode = modeOfPage(activePage);
+  const mode = pageMode || (lastMode === 'inbound' && inboundNav.length ? 'inbound' : outboundNav.length ? 'outbound' : 'inbound');
+  useEffect(() => {
+    if (!pageMode) return;
+    setLastMode(pageMode);
+    sessionStorage.setItem('sh_hub_mode', pageMode);
+    sessionStorage.setItem('sh_hub_page_' + pageMode, activePage);
+  }, [pageMode, activePage]);
+  const newCount = useInboundNewCount(inboundNav.length > 0);
+  const modeNav = mode === 'inbound' ? inboundNav : outboundNav;
+  const switchMode = (m) => {
+    if (m === mode && pageMode) return;
+    const list = m === 'inbound' ? inboundNav : outboundNav;
+    const remembered = sessionStorage.getItem('sh_hub_page_' + m);
+    setPage(list.some((n) => n.id === remembered) ? remembered : (list[0]?.id || page));
+  };
 
   // Hook'ların HEPSİNDEN sonra: yükleniyor / erişim yok dalları.
   if (permsLoading) return <HubLoading />;
@@ -385,6 +439,9 @@ function HubApp({ email, onLogout }) {
       onClick={() => setPage(n.id)}>
       <AIcon name={n.icon} size={17} />
       <span>{n.label}</span>
+      {n.id === 'inbound' && newCount > 0 && (
+        <span className="hub-mode__badge" style={{ position: 'static', marginLeft: 'auto' }}>{newCount > 99 ? '99+' : newCount}</span>
+      )}
     </button>
   );
   const gearActive = gearNav.some((n) => n.id === activePage);
@@ -399,8 +456,25 @@ function HubApp({ email, onLogout }) {
             <div className="hub-sidebar__sub">{role}</div>
           </div>
         </div>
+        {hasOverview && (
+          <button className={`hub-overview-btn${activePage === 'overview' ? ' hub-overview-btn--on' : ''}`} onClick={() => setPage('overview')}>
+            <AIcon name="dashboard" size={17} /> Genel Bakış
+          </button>
+        )}
+        {inboundNav.length > 0 && outboundNav.length > 0 && (
+          <div className="hub-mode" role="tablist" aria-label="Hat seçimi">
+            {['inbound', 'outbound'].map((m) => (
+              <button key={m} role="tab" aria-selected={mode === m}
+                className={`hub-mode__btn${mode === m && pageMode ? ' hub-mode__btn--on' : ''}`} onClick={() => switchMode(m)}>
+                {MODES[m].label}<small>{MODES[m].sub}</small>
+                {m === 'inbound' && newCount > 0 && <span className="hub-mode__badge">{newCount > 99 ? '99+' : newCount}</span>}
+              </button>
+            ))}
+          </div>
+        )}
         <nav className="hub-sidebar__nav">
-          {mainNav.map(NavLink)}
+          <div className="hub-navlabel">{MODES[mode].label}</div>
+          {modeNav.map(NavLink)}
           {gearNav.length > 0 && (
             <>
               <button className="hub-sidebar__link" onClick={() => setGearOpen((v) => !v)} style={{ marginTop: 8, opacity: 0.85 }}>
@@ -422,16 +496,18 @@ function HubApp({ email, onLogout }) {
       <div className="hub-main">
         <div className="hub-topbar">
           <span style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>
-            {ALL_NAV.find((n) => n.id === activePage)?.label}
+            {pageMode ? `${MODES[pageMode].label} › ` : ''}{ALL_NAV.find((n) => n.id === activePage)?.label}
           </span>
           <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
         </div>
         <div className="hub-content">
-          {activePage === 'today' ? <TodayPage onGoto={setPage} />
+          {activePage === 'overview' ? <OverviewPage onGoto={setPage} />
+            : activePage === 'today' ? <TodayPage onGoto={setPage} />
             : activePage === 'candidates' ? <CandidatesListPage filters={filters} setFilters={setFilters} />
             : activePage === 'archive' ? <ArchivePage />
             : activePage === 'roles' ? <RolesPage onGoto={setPage} setFilters={setFilters} />
-            : activePage === 'applications' ? <ApplicationsPage />
+            : activePage === 'inbound-overview' ? <InboundOverviewPage onGoto={setPage} />
+            : activePage === 'inbound' ? <InboundBoardPage />
             : activePage === 'templates' ? <TemplatesPage />
             : activePage === 'metrics' ? <MetricsPage />
             : activePage === 'sources' ? <SourcesPage />
