@@ -169,6 +169,38 @@ function BlogPage({ navigate }) {
 // ============================================
 // KATIL (JOIN)
 // ============================================
+// Kart tür renkleri (animasyon + vurgu için --jt-c).
+const JT_COLOR = { community: '#DC2626', mentor: '#2563EB', sponsor: '#D97706' };
+
+// Seçili kartın ARKASINDA oynayan hafif, dekoratif efekt (yalnızca CSS animasyonu).
+//   community → roket süzülür + iz + yıldız kıvılcımları
+//   mentor    → yayılan halkalar + parıltılar
+//   sponsor   → yükselen madeni paralar
+function CardFx({ type }) {
+  const dot = (cls, x, y, d, extra = {}) => <i className={cls} style={{ '--x': x, '--y': y, '--d': d, ...extra }} />;
+  return (
+    <span className="jt-fx" aria-hidden="true">
+      {type === 'community' && (
+        <>
+          {dot('jt-star', '78%', '22%', '0s')}{dot('jt-star', '58%', '40%', '.9s')}{dot('jt-star', '86%', '58%', '1.6s')}{dot('jt-star', '34%', '16%', '2.2s')}
+          <span className="jt-rocket"><span className="jt-trail" /><Icon name="rocket" size={48} /></span>
+        </>
+      )}
+      {type === 'mentor' && (
+        <>
+          <i className="jt-ring" /><i className="jt-ring jt-ring--b" />
+          {dot('jt-spark', '80%', '20%', '0s', { '--s': '13px' })}{dot('jt-spark', '64%', '58%', '1.1s', { '--s': '9px' })}{dot('jt-spark', '88%', '66%', '1.9s', { '--s': '11px' })}
+        </>
+      )}
+      {type === 'sponsor' && (
+        <>
+          {dot('jt-coin', '18%', '', '0s')}{dot('jt-coin', '42%', '', '1.1s')}{dot('jt-coin', '66%', '', '2.1s')}{dot('jt-coin', '84%', '', '.6s')}
+        </>
+      )}
+    </span>
+  );
+}
+
 function JoinPage({ navigate, projectId }) {
   const { lang, t } = useLang();
   const { startups } = useStartups();
@@ -491,26 +523,23 @@ function JoinPage({ navigate, projectId }) {
           {/* 3-card type selector — only when not project context */}
           {!project && (
             <div className="join-type-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 36 }}>
-              {typeCards.map(card => {
+              {typeCards.map((card, i) => {
                 const active = joinType === card.key;
                 return (
                   <div
                     key={card.key}
-                    className="join-type-card"
+                    className={`join-type-card jt-card jt-card--${card.key}${active ? ' jt-card--on' : ''}`}
+                    style={{ '--jt-c': JT_COLOR[card.key], '--i': i }}
+                    role="button" tabIndex={0} aria-pressed={active}
                     onClick={() => selectType(card.key)}
-                    style={{
-                      padding: '22px 18px', borderRadius: 16, cursor: 'pointer',
-                      border: active ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                      background: active ? 'color-mix(in srgb, var(--accent) 5%, var(--card-bg))' : 'var(--card-bg)',
-                      boxShadow: active ? '0 4px 20px rgba(220,38,38,0.12)' : 'none',
-                      transition: 'border-color 0.18s, box-shadow 0.18s, background 0.18s',
-                    }}
-                    onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(220,38,38,0.08)'; } }}
-                    onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; } }}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectType(card.key); } }}
                   >
-                    <div style={{ fontSize: 30, marginBottom: 10 }}>{card.emoji}</div>
-                    <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, marginBottom: 6, color: active ? 'var(--accent)' : 'var(--text-primary)', lineHeight: 1.3 }}>{card.title}</div>
-                    <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>{card.desc}</p>
+                    {active && <CardFx type={card.key} />}
+                    <div className="jt-body">
+                      <div className="jt-emoji">{card.emoji}</div>
+                      <div className="jt-title">{card.title}</div>
+                      <p className="jt-desc">{card.desc}</p>
+                    </div>
                   </div>
                 );
               })}

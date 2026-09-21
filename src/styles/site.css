@@ -1097,3 +1097,76 @@ textarea.form-input { min-height: 120px; resize: vertical; }
   .pd-head { flex-direction: column; }
   .pd-metrics { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Katıl sayfası — 3 tür kartı animasyonu (.jt-*)
+   Sade kart + seçilince arkada hafif, dekoratif hareket:
+   topluluk → roket, mentör → halkalar/parıltı, destekçi → yükselen paralar.
+   Yalnızca transform/opacity/left/top animasyonu; reduced-motion'da kapalı.
+   ══════════════════════════════════════════════════════════════ */
+.jt-card {
+  --jt-c: var(--accent);
+  position: relative; overflow: hidden; isolation: isolate; cursor: pointer;
+  padding: 22px 18px; border-radius: 16px;
+  border: 1.5px solid var(--border); background: var(--card-bg);
+  transition: border-color .2s, box-shadow .3s, background .3s, transform .3s cubic-bezier(.2,.7,.2,1);
+  animation: jt-rise .55s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 90ms);
+}
+.jt-card:hover { transform: translateY(-3px); border-color: var(--jt-c); box-shadow: 0 12px 28px -16px var(--jt-c); }
+.jt-card:focus-visible { outline: 2px solid var(--jt-c); outline-offset: 2px; }
+.jt-card--on {
+  border-color: var(--jt-c);
+  background: color-mix(in srgb, var(--jt-c) 5%, var(--card-bg));
+  box-shadow: 0 0 0 1px var(--jt-c), 0 16px 34px -18px var(--jt-c);
+}
+.jt-body { position: relative; z-index: 1; }
+.jt-emoji { display: inline-block; font-size: 30px; margin-bottom: 10px; transform-origin: 50% 85%; transition: transform .35s cubic-bezier(.2,1.4,.4,1); }
+.jt-title { font-family: var(--font-heading); font-weight: 700; font-size: 14px; margin-bottom: 6px; line-height: 1.3; color: var(--text-primary); transition: color .2s; }
+.jt-card--on .jt-title, .jt-card:hover .jt-title { color: var(--jt-c); }
+.jt-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin: 0; }
+
+/* emoji: üzerine gelince küçük bir tepki, seçilince zıplama + süzülme */
+.jt-card--community:hover .jt-emoji { transform: translateY(-4px) rotate(-10deg); }
+.jt-card--mentor:hover    .jt-emoji { transform: translateY(-3px) rotate(12deg); }
+.jt-card--sponsor:hover   .jt-emoji { transform: scale(1.14) rotate(-6deg); }
+.jt-card--on .jt-emoji { animation: jt-pop .6s cubic-bezier(.2,1.5,.4,1) both, jt-bob 3.4s ease-in-out .6s infinite; }
+
+/* efekt katmanı */
+.jt-fx { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; animation: jt-fade .5s ease both; }
+
+/* roket (topluluk) — sol alttan sağ üste süzülür, arkasında iz */
+.jt-rocket { position: absolute; left: -15%; top: 112%; width: 0; height: 0; color: var(--jt-c); animation: jt-fly 4.6s cubic-bezier(.35,.1,.55,.95) infinite; }
+.jt-rocket svg { position: absolute; left: -24px; top: -24px; opacity: .2; filter: drop-shadow(0 0 6px var(--jt-c)); }
+.jt-trail { position: absolute; right: 0; top: -2px; width: 96px; height: 4px; border-radius: 4px; transform-origin: 100% 50%; transform: rotate(-45deg); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--jt-c) 40%, transparent)); box-shadow: 0 0 10px color-mix(in srgb, var(--jt-c) 35%, transparent); }
+.jt-star { position: absolute; left: var(--x); top: var(--y); width: 3px; height: 3px; border-radius: 50%; background: var(--jt-c); opacity: 0; animation: jt-twinkle 2.6s ease-in-out infinite; animation-delay: var(--d); }
+
+/* halkalar + parıltı (mentör) */
+.jt-ring { position: absolute; left: 33px; top: 40px; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; border: 2px solid var(--jt-c); opacity: 0; animation: jt-ring 2.8s ease-out infinite; }
+.jt-ring--b { animation-delay: 1.4s; }
+.jt-spark { position: absolute; left: var(--x); top: var(--y); font-style: normal; font-size: var(--s, 11px); color: var(--jt-c); opacity: 0; animation: jt-twinkle 2.8s ease-in-out infinite; animation-delay: var(--d); }
+.jt-spark::before { content: '\2726'; }
+
+/* yükselen paralar (destekçi) */
+.jt-coin { position: absolute; left: var(--x); bottom: -16px; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--jt-c); opacity: 0; animation: jt-coin 3.6s ease-in infinite; animation-delay: var(--d); }
+.jt-coin::after { content: ''; position: absolute; inset: 2.5px; border-radius: 50%; background: color-mix(in srgb, var(--jt-c) 55%, transparent); }
+
+@keyframes jt-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes jt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes jt-pop { 0% { transform: scale(.6) rotate(-14deg); } 100% { transform: none; } }
+@keyframes jt-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes jt-fly {
+  0%   { left: -15%; top: 112%; opacity: 0; }
+  8%   { opacity: 1; }
+  58%  { left: 112%; top: -18%; opacity: 1; }
+  60%  { left: 112%; top: -18%; opacity: 0; }
+  100% { left: 112%; top: -18%; opacity: 0; }
+}
+@keyframes jt-twinkle { 0%, 100% { opacity: 0; transform: scale(.4); } 50% { opacity: .6; transform: scale(1.25); } }
+@keyframes jt-ring { 0% { transform: scale(.6); opacity: .32; } 100% { transform: scale(3.4); opacity: 0; } }
+@keyframes jt-coin { 0% { transform: translateY(0) scale(.7); opacity: 0; } 15% { opacity: .55; } 100% { transform: translateY(-240px) scale(1); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .jt-card, .jt-fx, .jt-fx *, .jt-card--on .jt-emoji { animation: none !important; }
+  .jt-card, .jt-emoji { transition: none; }
+  .jt-fx * { opacity: .25; }
+}
