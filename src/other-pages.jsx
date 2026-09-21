@@ -208,6 +208,78 @@ function CardFx({ type }) {
   );
 }
 
+// ── Topluluk mu, Startup mı? ──────────────────────────────────────────
+// Üç kartın (Katıl / Mentör / Destekçi) altında yan yana iki seçenek. "Hub / Lab"
+// jargonunu bilmeyen de anlasın diye başlıklar sade Türkçe; HUB/LAB yalnızca küçük
+// bir etiket. Seçim applications.target'a ('community' | 'startup') yazılır.
+const TARGET_COPY = {
+  tr: {
+    community: {
+      q: 'Nerede yer almak istersin?',
+      community: ['Toplulukta Yer Al', 'Etkinlik, buluşma ve ekiplerle topluluğun içinde ol.'],
+      startup:   ["Bir Startup'ta Yer Al", 'Bir girişim ekibine katıl ya da kendi fikrini hayata geçir.'],
+    },
+    mentor: {
+      q: 'Kime mentörlük yapmak istersin?',
+      community: ['Topluluğa Mentör Ol', 'Etkinlik ve atölyelerde topluluk üyelerine rehberlik et.'],
+      startup:   ["Bir Startup'a Mentör Ol", 'Bir girişim ekibine yol göster.'],
+    },
+    sponsor: {
+      q: 'Kime destek olmak istersin?',
+      community: ['Topluluğa Destek Ol', 'Etkinlik ve topluluk faaliyetlerine destek ver.'],
+      startup:   ["Bir Startup'a Destek Ol", 'Bir girişime yatırım, kaynak ya da imkân sağla.'],
+    },
+  },
+  en: {
+    community: {
+      q: 'Where do you want to take part?',
+      community: ['Join the Community', 'Be part of events, meetups and teams.'],
+      startup:   ['Join a Startup', 'Join a venture team or build your own idea.'],
+    },
+    mentor: {
+      q: 'Who do you want to mentor?',
+      community: ['Mentor the Community', 'Guide members at events and workshops.'],
+      startup:   ['Mentor a Startup', 'Guide a venture team.'],
+    },
+    sponsor: {
+      q: 'Who do you want to support?',
+      community: ['Support the Community', 'Back our events and community activities.'],
+      startup:   ['Support a Startup', 'Invest in or provide resources to a venture.'],
+    },
+  },
+};
+
+function TargetPicker({ type, value, onPick, lang }) {
+  const c = (TARGET_COPY[lang] || TARGET_COPY.tr)[type];
+  const opts = [
+    { key: 'community', tag: 'HUB', color: '#DC2626', icon: 'users' },
+    { key: 'startup',   tag: 'LAB', color: '#2563EB', icon: 'rocket' },
+  ];
+  return (
+    <div className="jtg" key={type}>
+      <div className="jtg__q">{c.q}</div>
+      <div className="jtg__grid" role="radiogroup" aria-label={c.q}>
+        {opts.map((o, i) => {
+          const on = value === o.key;
+          return (
+            <button key={o.key} type="button" role="radio" aria-checked={on}
+              className={`jtg__opt${on ? ' jtg__opt--on' : ''}`} style={{ '--jt-c': o.color, '--i': i }}
+              onClick={() => onPick(o.key)}>
+              <span className="jtg__icon"><Icon name={o.icon} size={20} /></span>
+              <span className="jtg__body">
+                <span className="jtg__tag">{o.tag}</span>
+                <span className="jtg__title">{c[o.key][0]}</span>
+                <span className="jtg__desc">{c[o.key][1]}</span>
+              </span>
+              <span className="jtg__check" aria-hidden="true">{on && <Icon name="check" size={13} />}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function JoinPage({ navigate, projectId }) {
   const { lang, t } = useLang();
   const { startups } = useStartups();
@@ -241,6 +313,13 @@ function JoinPage({ navigate, projectId }) {
   })();
 
   const [joinType, setJoinType] = useStateOP(initialType);
+  // Topluluk mu, startup mı? (kartın altındaki iki seçenek) — seçilmeden form açılmaz.
+  const [joinTarget, setJoinTarget] = useStateOP(() => {
+    try {
+      const v = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_target') : null;
+      return (v === 'community' || v === 'startup') && initialType ? v : null;
+    } catch { return null; }
+  });
   const [fxTick, setFxTick] = useStateOP(0); // her kart tıklamasında artar → animasyon yeniden başlar
 
   const [communityForm, setCommunityForm] = useStateOP({
@@ -274,13 +353,21 @@ function JoinPage({ navigate, projectId }) {
   useEffectOP(() => {
     if (project) setCommunityForm(p => (p.intent === 'project' ? p : { ...p, intent: 'project' }));
   }, [project]);
+  // Sayfa yenilenip hedef sessionStorage'dan geri gelirse niyet (intent) de hedefle uyumlu olsun.
+  useEffectOP(() => {
+    if (!joinTarget || project) return;
+    const ok = joinTarget === 'startup' ? ['project', 'founder_lead', 'idea_application'] : ['community', 'hub'];
+    setCommunityForm(p => (ok.includes(p.intent) ? p : { ...p, intent: joinTarget === 'startup' ? 'project' : 'community' }));
+  }, [joinTarget]); // eslint-disable-line react-hooks/exhaustive-deps
   const [mentorForm, setMentorForm] = useStateOP({
     name: '', email: '', expertise: '', experience_years: '',
     current_company: '', hours_per_week: '', linkedin: '', mentor_note: '',
+    projectId: '',   // hedef startup olan mentörlükte (opsiyonel)
   });
   const [sponsorForm, setSponsorForm] = useStateOP({
     contact_name: '', email: '', company: '', website: '',
     collab_types: [], sponsor_message: '',
+    projectId: '',   // hedef startup olan desteklerde (opsiyonel)
   });
 
   const clearInvalid = (f) => setInvalidFields(prev => { if (!prev.has(f)) return prev; const next = new Set(prev); next.delete(f); return next; });
@@ -296,14 +383,32 @@ function JoinPage({ navigate, projectId }) {
 
   // Kart tıklanınca sayfa KAYDIRILMAZ (kartın animasyonu görünür kalsın); form kartların altında açılır.
   const selectType = (type) => {
+    if (type !== joinType) {           // kart değişince önceki "topluluk/startup" seçimi geçersiz
+      setJoinTarget(null);
+      try { sessionStorage.removeItem('sh_join_target'); } catch { /* yok say */ }
+    }
     setJoinType(type);
     setFxTick(t => t + 1);
     if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('sh_join_type', type);
   };
 
+  const pickTarget = (target) => {
+    setJoinTarget(target);
+    try { sessionStorage.setItem('sh_join_target', target); } catch { /* yok say */ }
+    if (target === joinTarget) return;
+    // Seçime göre alan varsayılanları: topluluk → 'community'; startup → 'project'.
+    setCommunityForm(p => {
+      const ok = target === 'startup' ? ['project', 'founder_lead', 'idea_application'] : ['community', 'hub'];
+      return ok.includes(p.intent) ? p : { ...p, intent: target === 'startup' ? 'project' : 'community' };
+    });
+    setSponsorForm(p => ({ ...p, collab_types: [], projectId: '' }));   // seçenek listeleri farklı
+    setMentorForm(p => ({ ...p, projectId: '' }));
+  };
+
   const clearProject = () => {
     sessionStorage.removeItem('sh_join_role');
     sessionStorage.removeItem('sh_join_type');
+    sessionStorage.removeItem('sh_join_target');
     navigate('join');
   };
 
@@ -349,8 +454,12 @@ function JoinPage({ navigate, projectId }) {
     setSubmitError('');
     try {
       let insertData = {};
+      const findStartup = (id) => (id ? startups.find(x => String(x.id) === String(id)) : null);
       if (activeType === 'mentor') {
+        const mProject = joinTarget === 'startup' ? findStartup(mentorForm.projectId) : null;
         insertData = {
+          target: joinTarget === 'startup' ? 'startup' : 'community',
+          project_id: mProject?.id || null, project_name: mProject?.name || null,
           name: mentorForm.name, email: mentorForm.email,
           expertise: mentorForm.expertise || null,
           experience_years: mentorForm.experience_years || null,
@@ -361,7 +470,10 @@ function JoinPage({ navigate, projectId }) {
           intent: 'mentor_application',
         };
       } else if (activeType === 'sponsor') {
+        const sProject = joinTarget === 'startup' ? findStartup(sponsorForm.projectId) : null;
         insertData = {
+          target: joinTarget === 'startup' ? 'startup' : 'community',
+          project_id: sProject?.id || null, project_name: sProject?.name || null,
           name: sponsorForm.contact_name, email: sponsorForm.email,
           company_name: sponsorForm.company || null,
           website: sponsorForm.website || null,
@@ -378,6 +490,7 @@ function JoinPage({ navigate, projectId }) {
           ? (ideaProjects || []).find(s => String(s.id) === String(communityForm.ideaProjectId)) : null;
         const pickedProject = project || inFormProject || ideaProject;
         insertData = {
+          target: (project || ['project', 'founder_lead', 'idea_application'].includes(communityForm.intent)) ? 'startup' : 'community',
           name: communityForm.name, email: communityForm.email,
           university: communityForm.university || null,
           department: communityForm.department || null,
@@ -403,7 +516,7 @@ function JoinPage({ navigate, projectId }) {
       if (error) throw error;
       setSubmittedType(activeType);
       setSubmitted(true);
-      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('sh_join_type');
+      if (typeof sessionStorage !== 'undefined') { sessionStorage.removeItem('sh_join_type'); sessionStorage.removeItem('sh_join_target'); }
     } catch (err) {
       console.error('Form gönderim hatası:', err);
       setSubmitError(lang === 'tr'
@@ -496,9 +609,25 @@ function JoinPage({ navigate, projectId }) {
       desc:  lang === 'tr' ? fs('sponsor_card_desc_tr', 'Finansal, mentorluk ya da etkinlik desteğiyle katkı sağla.') : 'Support via funding, mentorship, or events.' },
   ];
 
-  const collabOptions = lang === 'tr'
-    ? ['Finansal Destek', 'Mentorluk', 'Etkinlik Sponsorluğu', 'Staj İmkanı', 'Diğer']
-    : ['Financial Support', 'Mentorship', 'Event Sponsorship', 'Internship', 'Other'];
+  // Destek türleri seçilen hedefe göre değişir (topluluk: etkinlik/mekân; startup: yatırım/staj).
+  const collabOptions = joinTarget === 'startup'
+    ? (lang === 'tr'
+      ? ['Yatırım', 'Finansal Destek', 'Mentorluk', 'Staj İmkanı', 'Ürün / Hizmet Desteği', 'Diğer']
+      : ['Investment', 'Financial Support', 'Mentorship', 'Internship', 'Product / Service', 'Other'])
+    : (lang === 'tr'
+      ? ['Etkinlik Sponsorluğu', 'Finansal Destek', 'Mekan / Ekipman', 'Ürün / Hizmet Desteği', 'Mentorluk', 'Diğer']
+      : ['Event Sponsorship', 'Financial Support', 'Venue / Equipment', 'Product / Service', 'Mentorship', 'Other']);
+
+  // Startup seçimi (mentör / destekçi formları): yayındaki startup'lar; boş = henüz belirli değil.
+  const startupPick = (value, onChange, label) => (
+    <div className="form-group">
+      <label className="form-label">{label} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>({lang === 'tr' ? 'opsiyonel' : 'optional'})</span></label>
+      <select className="form-input form-select" value={value} onChange={e => onChange(e.target.value)}>
+        <option value="">{lang === 'tr' ? 'Henüz belirli bir startup yok / birden fazlası' : 'No specific startup yet / several'}</option>
+        {startups.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+      </select>
+    </div>
+  );
 
   const submitBtn = (
     <div style={{ paddingTop: 12 }}>
@@ -552,11 +681,16 @@ function JoinPage({ navigate, projectId }) {
             </div>
           )}
 
+          {/* Kartın altında: Topluluk mu, Startup mı? (seçilmeden form açılmaz) */}
+          {!project && joinType && (
+            <TargetPicker type={joinType} value={joinTarget} onPick={pickTarget} lang={lang} />
+          )}
+
           {projectContextCard}
           {roleDescCard}
 
-          {/* Forms — appear after type selection */}
-          {(joinType || project) && (
+          {/* Forms — appear after type + target selection */}
+          {(project || (joinType && joinTarget)) && (
             <div id="join-form-section">
 
               {/* COMMUNITY FORM */}
@@ -586,8 +720,9 @@ function JoinPage({ navigate, projectId }) {
                     <div className="form-group">
                       <label className="form-label">{t('join.intent')}</label>
                       <select className="form-input form-select" value={communityForm.intent} onChange={e => handleC('intent', e.target.value)}>
-                        <option value="community">{lang === 'tr' ? 'Topluluğa Katılmak İstiyorum' : 'Join the community'}</option>
-                        {Object.entries(t('join.intents')).filter(([k]) => !['mentor','sponsor'].includes(k)).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        {(joinTarget === 'startup' ? ['project', 'founder_lead', 'idea_application'] : ['community', 'hub']).map(k => (
+                          <option key={k} value={k}>{k === 'community' ? (lang === 'tr' ? 'Topluluğa Katılmak İstiyorum' : 'Join the community') : t('join.intents')[k]}</option>
+                        ))}
                       </select>
                     </div>
                   )}
@@ -721,6 +856,11 @@ function JoinPage({ navigate, projectId }) {
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
                     </div>
                   </div>
+                  {joinTarget === 'startup'
+                    ? startupPick(mentorForm.projectId, v => handleM('projectId', v), lang === 'tr' ? "Hangi startup'a mentörlük yapmak istersin?" : 'Which startup do you want to mentor?')
+                    : <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 18 }}>
+                        {lang === 'tr' ? 'Topluluk etkinliklerinde, atölyelerde ve buluşmalarda üyelere rehberlik edeceksin.' : 'You will guide members at community events, workshops and meetups.'}
+                      </p>}
                   <div className="form-group">
                     <label className="form-label">{fl('m_expertise', lang === 'tr' ? 'Uzmanlık Alanı' : 'Area of Expertise')}</label>
                     <input className="form-input" placeholder={lang === 'tr' ? 'ör. Fintech, Ürün Yönetimi, Pazarlama' : 'e.g. Fintech, Product Management, Marketing'} value={mentorForm.expertise} onChange={e => handleM('expertise', e.target.value)} />
@@ -787,6 +927,7 @@ function JoinPage({ navigate, projectId }) {
                       <input className="form-input" placeholder="https://..." value={sponsorForm.website} onChange={e => handleS('website', e.target.value)} />
                     </div>
                   </div>
+                  {joinTarget === 'startup' && startupPick(sponsorForm.projectId, v => handleS('projectId', v), lang === 'tr' ? "Hangi startup'a destek olmak istersin?" : 'Which startup do you want to support?')}
                   <div className="form-group">
                     <label className="form-label" style={{ marginBottom: 10 }}>{fl('s_collab', lang === 'tr' ? 'İşbirliği Türü' : 'Collaboration Type')}</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
