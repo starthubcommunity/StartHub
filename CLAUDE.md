@@ -26,42 +26,18 @@ bir uçtan uca test) + `node src/hub/hub-rules.test.mjs`.
 
 **Hub sayfaları:** `today.jsx` · `candidates-list.jsx` · `candidate.jsx`
 (+`GateCard`) · `archive.jsx` · `roles.jsx` · `templates.jsx` · `metrics.jsx` ·
-`settings.jsx` · `inbound-overview.jsx` + `inbound-board.jsx` (Inbound hattı,
-aşağıya bak; eski `applications.jsx` "Diğer Başvurular" bunun içine katlandı,
-silindi) · `sponsors.jsx` (destekçiler — admin panelden taşındı, yalnızca cofounder).
+`settings.jsx` · `applications.jsx` ("Diğer Başvurular" — yalnızca
+mentor/sponsor/idea_application; community/project artık elle aktarım
+gerektirmiyor, 0022 tetikleyicisiyle otomatik Adaylar'a düşüyor, bkz. §16) ·
+`sponsors.jsx` (destekçiler — admin panelden taşındı, yalnızca cofounder).
 Destek dosyaları: `new-candidate.jsx` (`presetRoleId` ile "bu role aday ekle"
 akışını da karşılar), `import-simple.jsx` (CSV), `paste-import.jsx`
 (yapıştır-ayrıştır — v3 ana yöntem), `triage.jsx` (hızlı eleme), `hub-ai-draft.js`
 + `supabase/functions/hub-ai-draft/`.
 
-**Inbound / Outbound (2026-09-21):** sol menünün üstünde iki hatlı anahtar
-(`hub-app.jsx`: `OUTBOUND_NAV` / `INBOUND_NAV` / `GEAR_NAV`).
-- **Genel Bakış** (`overview.jsx`, sol menüde ayrı düğme, varsayılan açılış): iki hattı birlikte gösteren
-  komuta ekranı — hat KPI'ları + huniler, ortak "dikkat gerektirenler" akışı (Inbound SLA aşımı +
-  Outbound bayat/kapı/takip/karar), 8 haftalık akış, son katılanlar, açık pozisyonlar. Yalnızca okur.
-- **Alım süreci:** Inbound'da aşama `accepted` olunca çekmecede tür bazlı "Alım adımları" listesi
-  (WhatsApp'a eklendi, ekiple tanıştırıldı, projeye atandı…) — `activity` içinde `{type:'onboard'}`
-  kayıtları, yeni kolon yok (`onboardingItems` / `onboardingDone`, `inbound-model.js`).
-- **Outbound** = bizim aradığımız adaylar: Bugün → Adaylar → Açık Pozisyonlar →
-  Arşiv (`hub_candidates`, 5 aşamalı hat, rubrik/kapılar — değişmedi).
-- **Inbound** = Katıl formundan gelen her başvuru (topluluk, ekip üyesi, kurucu,
-  yeni fikir, proje, eşleşme havuzu, mentör, destekçi): Genel Bakış (KPI, SLA,
-  haftalık akış) + Başvurular (pano/liste/çekmece). Veri doğrudan `applications`
-  tablosu; aşama `applications.status` (new · reviewed · interview · waitlist ·
-  accepted · rejected), ek CRM kolonları `owner_email, stage_changed_at,
-  last_contact_at, rating, activity(jsonb)` (0036). Mantık `inbound-model.js`,
-  yükleme/güncelleme `use-inbound.js`. Yetki: `applications.read/write`.
-- **Ortak havuz YOK:** `applications → hub_candidates` tetikleyicisi 0036'da
-  kapatıldı (fonksiyon yerinde, çağrılmıyor). Eski inbound adaylardan aşaması
-  hâlâ `pool` olanlar Outbound'da gizlenir (`hub-store.jsx` `isHiddenInbound`,
-  silinmedi, yalnızca mükerrer kontrolünde tutulur); ilerlemiş olanlar Outbound'da
-  kalır. Outbound'a elle/içe aktarmayla aday eklerken kaynak olarak
-  `inbound` seçilemez (`OUTBOUND_SOURCES`).
-- Yönetim (Şablonlar/Metrikler/Kaynaklar/Destekçiler/Yetkiler/Ayarlar) iki hat
-  için ortak. Eski `sh_hub_page='applications'` → `inbound`.
-
-**Navigasyon (Outbound içi, 2026-09-16):** Bugün → Adaylar → Açık Pozisyonlar →
-Arşiv.
+**Navigasyon (2026-09-16):** Bugün → Adaylar → Açık Pozisyonlar → Arşiv →
+(altta, katlanır) Yönetim (Şablonlar/Metrikler/Kaynaklar/Destekçiler/Diğer
+Başvurular/Yetkiler/Ayarlar). "Başvurular" ayrı bir ana sekme değil.
 
 **Bugün = kuyruk modu (2026-09-20):** her blok başlığında (mesajı varsa) bir
 "Başlat" düğmesi — bloğu liste olarak taramak yerine `QueueModal`
@@ -105,7 +81,7 @@ proje oluşturur (`startups.team_app_id` = o ekibin id'si).
 `hub_role_log`, `hub_interviews` (0009 RLS'i bunlara bağlı). **Cron aktif**
 (`0015_hub_cron.sql`, 2026-09-13'te uygulandı — Vault'taki `project_url` +
 `service_role_key` doğrulandı, `hub-daily`/`hub-weekly` her gece/pazartesi
-gerçekten çalışıyor). v3 migration'ları `0013`'ten devam eder (son: `0036`);
+gerçekten çalışıyor). v3 migration'ları `0013`'ten devam eder (son: `0037` — 0035–0037 geri alınan bir denemedir: HUB/LAB Katıl akışı + Inbound/Outbound ayrımı 2026-09-21'de yayınlandı, kullanıcı beğenmeyince aynı gün geri alındı; ilgili kolonlar DB'de yerinde ama kullanılmıyor, tetikleyici 0033 hâlinde);
 `drop column` yapılmaz (kolon UI'dan gizlenir). Edge function'lar: `send-mail`,
 `invite-member`, `hub-ai-draft`, `hub-daily`, `hub-weekly`, `hub-move-to-team`
 (C4 — gerçekte Team App'in kendi projesindeki `hub-bridge-add-member`'ı
@@ -115,20 +91,8 @@ sunucuda), `team-project-save` (proje CRUD, main proje), `hub-bridge-add-member`
 (main proje — Açık Pozisyonlar'da kurucu hattı rol açarken fikir-aşaması
 proje taslağı oluşturur, `hub_role()` cofounder/recruiter kontrolü).
 
-**Katıl formu HUB / LAB (v3.2, 2026-09-21):** `JoinPage` artık `src/join-flow.jsx`
-(`other-pages.jsx` Blog'u barındırır ve JoinPage'i geriye dönük uyum için
-yeniden dışa aktarır; `app.jsx` oradan import eder). Akış: Seçim (HUB | LAB | mentör/destekçi kısa yolu) → Yol → Form →
-Tamam (WhatsApp/Instagram/LinkedIn bağlantıları). HUB: `community`,
-`club_team` (role = ekip adı). LAB: `founder_lead`, `idea_application`,
-`project`, `pool_match` (yeni). applications'a yeni kolon eklenmedi (taraf
-`intent`'ten çıkar). Ekip alanları, kart metinleri ve bağlantılar
-`join_form_settings` tablosunda (0035; `team_areas` jsonb, `hub_/lab_*_url`) —
-admin panel → Site Ayarları → Katılım Formu'ndan düzenlenir; `join-defaults.js`
-varsayılanları. Stil: `src/styles/join.css` (`.jn-*`).
-
-**Katıl formu ↔ Hub (v3.1, §16, 2026-09-16) — TARİHSEL, 0036'dan beri geçersiz:**
-aşağıdaki trigger anlatımı artık işlemiyor (tetikleyici kapalı, başvurular
-Inbound'da). `JoinPage` 5 seçenekli: topluluk/bölüm/proje-üyeliği/kurucu-liderliği/yeni-fikir. Trigger
+**Katıl formu ↔ Hub (v3.1, §16, 2026-09-16):** `JoinPage` (`src/other-pages.jsx`)
+5 seçenekli: topluluk/bölüm/proje-üyeliği/kurucu-liderliği/yeni-fikir. Trigger
 (`applications_to_hub_candidate`, 0033) artık `role_type`'ı eşliyor (website
 6 kategori → Hub 4 kategori), proje+pozisyon tam eşleşirse role otomatik
 bağlıyor, `founder_lead`'i `track:'founder'` ile Havuz'a düşürüyor,

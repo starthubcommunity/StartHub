@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { Field, Input, Select } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { OUTBOUND_SOURCES } from '../hub-constants';
+import { SOURCES } from '../hub-constants';
 import { parsePastedText, findDuplicate } from '../hub-parse';
 import BulkDraft from '../components/bulk-draft';
 
@@ -179,7 +179,7 @@ export default function PasteImport({ onClose }) {
                 <div className="adm-form-grid">
                   <Field label="Kaynak">
                     <Select value={meta.source} onChange={(v) => setMeta((m) => ({ ...m, source: v }))}
-                      options={OUTBOUND_SOURCES.map((s) => ({ value: s.value, label: s.label }))} />
+                      options={SOURCES.map((s) => ({ value: s.value, label: s.label }))} />
                   </Field>
                   <Field label="Parti etiketi" hint="Örn. Teknofest 2026 ulaşım finalistleri">
                     <Input value={meta.importBatchLabel} onChange={(v) => setMeta((m) => ({ ...m, importBatchLabel: v }))} />

@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { Field, Input, Select } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { OUTBOUND_SOURCES } from '../hub-constants';
+import { SOURCES } from '../hub-constants';
 import { findDuplicate } from '../hub-parse';
 import BulkDraft from '../components/bulk-draft';
 
@@ -203,7 +203,7 @@ export default function ImportSimple({ onClose }) {
                 ))}
                 <div className="adm-form-grid" style={{ marginTop: 12 }}>
                   <Field label="Kaynak"><Select value={meta.source} onChange={(v) => setMeta((m) => ({ ...m, source: v }))}
-                    options={OUTBOUND_SOURCES.map((s) => ({ value: s.value, label: s.label }))} /></Field>
+                    options={SOURCES.map((s) => ({ value: s.value, label: s.label }))} /></Field>
                   <Field label="Parti etiketi" hint="Örn. Ekim hackathon listesi">
                     <Input value={meta.importBatchLabel} onChange={(v) => setMeta((m) => ({ ...m, importBatchLabel: v }))} />
                   </Field>
