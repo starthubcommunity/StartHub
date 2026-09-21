@@ -241,6 +241,7 @@ function JoinPage({ navigate, projectId }) {
   })();
 
   const [joinType, setJoinType] = useStateOP(initialType);
+  const [fxTick, setFxTick] = useStateOP(0); // her kart tıklamasında artar → animasyon yeniden başlar
 
   const [communityForm, setCommunityForm] = useStateOP({
     name: '', email: '', university: '', department: '', role: '',
@@ -293,13 +294,11 @@ function JoinPage({ navigate, projectId }) {
       : [...p.collab_types, type],
   }));
 
+  // Kart tıklanınca sayfa KAYDIRILMAZ (kartın animasyonu görünür kalsın); form kartların altında açılır.
   const selectType = (type) => {
     setJoinType(type);
+    setFxTick(t => t + 1);
     if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('sh_join_type', type);
-    setTimeout(() => {
-      const el = document.getElementById('join-form-section');
-      if (el) { const y = el.getBoundingClientRect().top + window.scrollY - 100; window.scrollTo({ top: y, behavior: 'smooth' }); }
-    }, 60);
   };
 
   const clearProject = () => {
@@ -541,9 +540,9 @@ function JoinPage({ navigate, projectId }) {
                     onClick={() => selectType(card.key)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectType(card.key); } }}
                   >
-                    {active && <CardFx type={card.key} />}
+                    {active && <CardFx key={fxTick} type={card.key} />}
                     <div className="jt-body">
-                      <div className="jt-emo"><span className="jt-glyph">{card.emoji}</span>{active && <EmojiFx type={card.key} />}</div>
+                      <div className="jt-emo" key={active ? fxTick : 'off'}><span className="jt-glyph">{card.emoji}</span>{active && <EmojiFx type={card.key} />}</div>
                       <div className="jt-title">{card.title}</div>
                       <p className="jt-desc">{card.desc}</p>
                     </div>
