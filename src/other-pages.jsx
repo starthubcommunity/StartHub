@@ -209,9 +209,10 @@ function CardFx({ type }) {
 }
 
 // ── Topluluk mu, Startup mı? ──────────────────────────────────────────
-// Üç kartın (Katıl / Mentör / Destekçi) altında yan yana iki seçenek. "Hub / Lab"
-// jargonunu bilmeyen de anlasın diye başlıklar sade Türkçe; HUB/LAB yalnızca küçük
-// bir etiket. Seçim applications.target'a ('community' | 'startup') yazılır.
+// Üç kartın (Katıl / Mentör / Destekçi) altında tek bir ikili seçim çubuğu; başlıklar
+// "Hub / Lab" jargonunu bilmeyen de anlasın diye sade Türkçe. Seçim
+// applications.target'a ('community' | 'startup') yazılır. Topluluğa Katıl kartında
+// seçimin altında ikinci adım (radyo satırları) niyeti (intent) belirler.
 const TARGET_COPY = {
   tr: {
     community: {
@@ -221,13 +222,13 @@ const TARGET_COPY = {
     },
     mentor: {
       q: 'Kime mentörlük yapmak istersin?',
-      community: ['Topluluğa Mentör Ol', 'Etkinlik ve atölyelerde topluluk üyelerine rehberlik et.'],
+      community: ['Topluluğa Mentör Ol', 'Topluluğun destekçi mentörü olacaksın.'],
       startup:   ["Bir Startup'a Mentör Ol", 'Bir girişim ekibine yol göster.'],
     },
     sponsor: {
-      q: 'Kime destek olmak istersin?',
-      community: ['Topluluğa Destek Ol', 'Etkinlik ve topluluk faaliyetlerine destek ver.'],
-      startup:   ["Bir Startup'a Destek Ol", 'Bir girişime yatırım, kaynak ya da imkân sağla.'],
+      q: 'Kimi desteklemek istersin?',
+      community: ['Topluluğa Sponsor Ol', 'Etkinlik ve topluluk faaliyetlerine sponsorluk sağla.'],
+      startup:   ["Bir Startup'a Yatırım / Kaynak Sağla", 'Yatırım, hizmet ya da imkân sunarak bir girişimin büyümesine katkı ver.'],
     },
   },
   en: {
@@ -238,44 +239,72 @@ const TARGET_COPY = {
     },
     mentor: {
       q: 'Who do you want to mentor?',
-      community: ['Mentor the Community', 'Guide members at events and workshops.'],
+      community: ['Mentor the Community', 'You will be a supporting mentor of the community.'],
       startup:   ['Mentor a Startup', 'Guide a venture team.'],
     },
     sponsor: {
-      q: 'Who do you want to support?',
-      community: ['Support the Community', 'Back our events and community activities.'],
-      startup:   ['Support a Startup', 'Invest in or provide resources to a venture.'],
+      q: 'Who do you want to back?',
+      community: ['Sponsor the Community', 'Sponsor our events and community activities.'],
+      startup:   ['Invest in / Resource a Startup', 'Help a venture grow with investment, services or resources.'],
     },
   },
 };
 
-function TargetPicker({ type, value, onPick, lang }) {
-  const c = (TARGET_COPY[lang] || TARGET_COPY.tr)[type];
-  const opts = [
-    { key: 'community', tag: 'HUB', color: '#DC2626', icon: 'users' },
-    { key: 'startup',   tag: 'LAB', color: '#2563EB', icon: 'rocket' },
-  ];
+// İkinci adım (yalnızca Topluluğa Katıl kartı): [intent, etiket, ipucu]
+const INTENT_COPY = {
+  tr: {
+    community: [
+      ['community', 'Topluluğa katılmak istiyorum', ''],
+      ['hub', 'Ekipte yer almak istiyorum', 'Bir ekipte görev alarak topluluğu birlikte yürüt.'],
+    ],
+    startup: [
+      ['project', 'Devam eden bir projeye katılmak istiyorum', 'Projede açık bir liderlik pozisyonu varsa onu da seçebilirsin.'],
+      ['idea_application', 'Yeni bir fikrim var, toplulukla geliştirmek istiyorum', ''],
+    ],
+  },
+  en: {
+    community: [
+      ['community', 'I want to join the community', ''],
+      ['hub', 'I want to take a place in a team', 'Take a role in a team and help run the community.'],
+    ],
+    startup: [
+      ['project', 'I want to join an ongoing project', 'If the project has an open leadership role, you can pick that too.'],
+      ['idea_application', 'I have a new idea I want to build with the community', ''],
+    ],
+  },
+};
+
+function TargetPicker({ type, value, onPick, intent, onIntent, lang }) {
+  const L = lang === 'tr' ? 'tr' : 'en';
+  const c = TARGET_COPY[L][type];
+  const rows = type === 'community' && value ? INTENT_COPY[L][value] : null;
   return (
-    <div className="jtg" key={type}>
-      <div className="jtg__q">{c.q}</div>
-      <div className="jtg__grid" role="radiogroup" aria-label={c.q}>
-        {opts.map((o, i) => {
-          const on = value === o.key;
-          return (
-            <button key={o.key} type="button" role="radio" aria-checked={on}
-              className={`jtg__opt${on ? ' jtg__opt--on' : ''}`} style={{ '--jt-c': o.color, '--i': i }}
-              onClick={() => onPick(o.key)}>
-              <span className="jtg__icon"><Icon name={o.icon} size={20} /></span>
-              <span className="jtg__body">
-                <span className="jtg__tag">{o.tag}</span>
-                <span className="jtg__title">{c[o.key][0]}</span>
-                <span className="jtg__desc">{c[o.key][1]}</span>
-              </span>
-              <span className="jtg__check" aria-hidden="true">{on && <Icon name="check" size={13} />}</span>
-            </button>
-          );
-        })}
+    <div className="jsel" key={type} style={{ '--jt-c': JT_COLOR[type] }}>
+      <div className="jsel__q">{c.q}</div>
+      <div className="jseg" role="radiogroup" aria-label={c.q}>
+        {['community', 'startup'].map(k => (
+          <button key={k} type="button" role="radio" aria-checked={value === k}
+            className={`jseg__btn${value === k ? ' jseg__btn--on' : ''}`} onClick={() => onPick(k)}>
+            <span className="jseg__title">{c[k][0]}</span>
+            <span className="jseg__desc">{c[k][1]}</span>
+          </button>
+        ))}
       </div>
+      {rows && (
+        <div className="jrows" role="radiogroup" key={value}>
+          <div className="jrows__q">{L === 'tr' ? 'Nasıl yer almak istersin?' : 'How would you like to take part?'}</div>
+          {rows.map(([k, label, hint]) => (
+            <button key={k} type="button" role="radio" aria-checked={intent === k}
+              className={`jrow${intent === k ? ' jrow--on' : ''}`} onClick={() => onIntent(k)}>
+              <span className="jrow__dot" />
+              <span className="jrow__text">
+                <span className="jrow__label">{label}</span>
+                {hint && <span className="jrow__hint">{hint}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -356,7 +385,7 @@ function JoinPage({ navigate, projectId }) {
   // Sayfa yenilenip hedef sessionStorage'dan geri gelirse niyet (intent) de hedefle uyumlu olsun.
   useEffectOP(() => {
     if (!joinTarget || project) return;
-    const ok = joinTarget === 'startup' ? ['project', 'founder_lead', 'idea_application'] : ['community', 'hub'];
+    const ok = joinTarget === 'startup' ? ['project', 'idea_application'] : ['community', 'hub'];
     setCommunityForm(p => (ok.includes(p.intent) ? p : { ...p, intent: joinTarget === 'startup' ? 'project' : 'community' }));
   }, [joinTarget]); // eslint-disable-line react-hooks/exhaustive-deps
   const [mentorForm, setMentorForm] = useStateOP({
@@ -398,7 +427,7 @@ function JoinPage({ navigate, projectId }) {
     if (target === joinTarget) return;
     // Seçime göre alan varsayılanları: topluluk → 'community'; startup → 'project'.
     setCommunityForm(p => {
-      const ok = target === 'startup' ? ['project', 'founder_lead', 'idea_application'] : ['community', 'hub'];
+      const ok = target === 'startup' ? ['project', 'idea_application'] : ['community', 'hub'];
       return ok.includes(p.intent) ? p : { ...p, intent: target === 'startup' ? 'project' : 'community' };
     });
     setSponsorForm(p => ({ ...p, collab_types: [], projectId: '' }));   // seçenek listeleri farklı
@@ -683,7 +712,7 @@ function JoinPage({ navigate, projectId }) {
 
           {/* Kartın altında: Topluluk mu, Startup mı? (seçilmeden form açılmaz) */}
           {!project && joinType && (
-            <TargetPicker type={joinType} value={joinTarget} onPick={pickTarget} lang={lang} />
+            <TargetPicker type={joinType} value={joinTarget} onPick={pickTarget} intent={communityForm.intent} onIntent={(k) => handleC('intent', k)} lang={lang} />
           )}
 
           {projectContextCard}
@@ -716,16 +745,7 @@ function JoinPage({ navigate, projectId }) {
                       <input className="form-input" value={communityForm.department} onChange={e => handleC('department', e.target.value)} />
                     </div>
                   </div>
-                  {!project && (
-                    <div className="form-group">
-                      <label className="form-label">{t('join.intent')}</label>
-                      <select className="form-input form-select" value={communityForm.intent} onChange={e => handleC('intent', e.target.value)}>
-                        {(joinTarget === 'startup' ? ['project', 'founder_lead', 'idea_application'] : ['community', 'hub']).map(k => (
-                          <option key={k} value={k}>{k === 'community' ? (lang === 'tr' ? 'Topluluğa Katılmak İstiyorum' : 'Join the community') : t('join.intents')[k]}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  {/* "Nasıl yer almak istersin?" seçimi kartların altındaki TargetPicker'da */}
 
                   {/* option 3 — devam eden bir projeye üye ol: proje + (varsa) pozisyon seçici */}
                   {!project && communityForm.intent === 'project' && (
@@ -750,6 +770,7 @@ function JoinPage({ navigate, projectId }) {
                               <option value="">{t('join.rolePickAny')}</option>
                               {roles.map(r => <option key={r.title} value={r.title}>{r.title}</option>)}
                             </select>
+                            <p style={{ fontSize: 12.5, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>{lang === 'tr' ? 'Projede açık bir liderlik pozisyonu varsa buradan seçebilirsin.' : 'If the project has an open leadership role, you can pick it here.'}</p>
                           </div>
                         );
                       })()}
@@ -859,7 +880,7 @@ function JoinPage({ navigate, projectId }) {
                   {joinTarget === 'startup'
                     ? startupPick(mentorForm.projectId, v => handleM('projectId', v), lang === 'tr' ? "Hangi startup'a mentörlük yapmak istersin?" : 'Which startup do you want to mentor?')
                     : <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 18 }}>
-                        {lang === 'tr' ? 'Topluluk etkinliklerinde, atölyelerde ve buluşmalarda üyelere rehberlik edeceksin.' : 'You will guide members at community events, workshops and meetups.'}
+                        {lang === 'tr' ? 'Topluluğun destekçi mentörü olarak etkinliklerde, atölyelerde ve buluşmalarda üyelere rehberlik edeceksin.' : 'As a supporting mentor of the community, you will guide members at events, workshops and meetups.'}
                       </p>}
                   <div className="form-group">
                     <label className="form-label">{fl('m_expertise', lang === 'tr' ? 'Uzmanlık Alanı' : 'Area of Expertise')}</label>
@@ -927,7 +948,11 @@ function JoinPage({ navigate, projectId }) {
                       <input className="form-input" placeholder="https://..." value={sponsorForm.website} onChange={e => handleS('website', e.target.value)} />
                     </div>
                   </div>
-                  {joinTarget === 'startup' && startupPick(sponsorForm.projectId, v => handleS('projectId', v), lang === 'tr' ? "Hangi startup'a destek olmak istersin?" : 'Which startup do you want to support?')}
+                  {joinTarget === 'startup'
+                    ? startupPick(sponsorForm.projectId, v => handleS('projectId', v), lang === 'tr' ? "Hangi startup'a yatırım / kaynak sağlamak istersin?" : 'Which startup do you want to invest in / resource?')
+                    : <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 18 }}>
+                        {lang === 'tr' ? 'Topluluğun etkinliklerine, ekiplerine ve faaliyetlerine sponsor olarak katkı sağlayacaksın.' : 'You will contribute as a sponsor to the community\'s events, teams and activities.'}
+                      </p>}
                   <div className="form-group">
                     <label className="form-label" style={{ marginBottom: 10 }}>{fl('s_collab', lang === 'tr' ? 'İşbirliği Türü' : 'Collaboration Type')}</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>

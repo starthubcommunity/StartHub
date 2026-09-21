@@ -107,8 +107,11 @@ düzeltilmedi** — bu ayrı, kullanıcı onayı gerektiren bir karar.
 Destekçi Ol kartlarının altında yan yana iki seçenek (HUB = topluluk, LAB = startup;
 sade başlıklar: "Toplulukta Yer Al" / "Bir Startup'ta Yer Al" vb.; `TargetPicker`,
 `other-pages.jsx`). Seçilmeden form açılmaz; seçim `applications.target`'a
-('community' | 'startup') yazılır. Niyet listesi hedefe göre daralır (topluluk: community/hub;
-startup: project/founder_lead/idea_application); mentör/destekçi startup seçerse
+('community' | 'startup') yazılır. İkinci adım (yalnızca Topluluğa Katıl kartı) radyo satırlarıdır: Topluluk → "Topluluğa
+katılmak istiyorum" (community) / "Ekipte yer almak istiyorum" (hub); Startup → "Devam eden bir projeye
+katılmak istiyorum" (project; açık lider pozisyonu da o projenin pozisyon listesinden seçilir —
+founder_lead seçeneği UI'dan kalktı) / "Yeni bir fikrim var…" (idea_application). Tasarım: ikili
+seçim çubuğu `.jseg` + `.jrow` (site.css). mentör/destekçi startup seçerse
 `project_id/project_name` dolar, destek türleri hedefe göre değişir. Tetikleyici/Hub
 akışı DEĞİŞMEDİ (0033 hâli). Proje sayfasından gelen deep-link seçimi atlar.
 
