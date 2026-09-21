@@ -115,6 +115,14 @@ seçim çubuğu `.jseg` + `.jrow` (site.css). mentör/destekçi startup seçerse
 `project_id/project_name` dolar, destek türleri hedefe göre değişir. Tetikleyici/Hub
 akışı DEĞİŞMEDİ (0033 hâli). Proje sayfasından gelen deep-link seçimi atlar.
 
+**Katıl formu güncellemesi (2026-09-21, 0040):** başlıkların yanında renkli küçük (HUB)/(LAB).
+Startup tarafında 3. şık "İlgi alanıma uygun bir proje çıkınca katılmak istiyorum" (intent
+`pool_match`): normal katılımcı gibi ilgi alanı + yetenek/bio/link doldurur, Adaylar havuzuna düşer;
+proje şıkkının satır açıklaması yok. HUB tarafında (topluluk / ekip) ilgi alanı, yetenek, GitHub,
+LinkedIn SORULMAZ — yerine opsiyonel telefon (`applications.phone`, tetikleyici `hub_candidates.phone`'a
+kopyalar). "Ekipte yer almak" (intent `hub`) → birim seçimi: Sosyal Medya / Tasarım / Organizasyon /
+Sponsorluk (`HUB_UNITS`, `role` alanına TR ad yazılır; tetikleyici role_type türetir).
+
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile

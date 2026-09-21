@@ -255,24 +255,36 @@ const INTENT_COPY = {
   tr: {
     community: [
       ['community', 'Topluluğa katılmak istiyorum', ''],
-      ['hub', 'Ekipte yer almak istiyorum', 'Bir ekipte görev alarak topluluğu birlikte yürüt.'],
+      ['hub', 'Ekipte yer almak istiyorum', ''],
     ],
     startup: [
-      ['project', 'Devam eden bir projeye katılmak istiyorum', 'Projede açık bir liderlik pozisyonu varsa onu da seçebilirsin.'],
+      ['project', 'Devam eden bir projeye katılmak istiyorum', ''],
       ['idea_application', 'Yeni bir fikrim var, toplulukla geliştirmek istiyorum', ''],
+      ['pool_match', 'İlgi alanıma uygun bir proje çıkınca katılmak istiyorum',
+        'İlgi alanını ve yeteneklerini paylaş; projelerde yer açıldığında seninle iletişime geçelim.'],
     ],
   },
   en: {
     community: [
       ['community', 'I want to join the community', ''],
-      ['hub', 'I want to take a place in a team', 'Take a role in a team and help run the community.'],
+      ['hub', 'I want to take a place in a team', ''],
     ],
     startup: [
-      ['project', 'I want to join an ongoing project', 'If the project has an open leadership role, you can pick that too.'],
+      ['project', 'I want to join an ongoing project', ''],
       ['idea_application', 'I have a new idea I want to build with the community', ''],
+      ['pool_match', 'I want to join when a project fits my interests',
+        'Share your interests and skills; we will reach out when a project has room.'],
     ],
   },
 };
+
+// Ekipte yer almak isteyenlere gösterilen birimler (role alanına TR ad yazılır).
+const HUB_UNITS = [
+  { tr: 'Sosyal Medya', en: 'Social Media' },
+  { tr: 'Tasarım', en: 'Design' },
+  { tr: 'Organizasyon', en: 'Events & Operations' },
+  { tr: 'Sponsorluk', en: 'Sponsorship' },
+];
 
 function TargetPicker({ type, value, onPick, intent, onIntent, lang }) {
   const L = lang === 'tr' ? 'tr' : 'en';
@@ -285,7 +297,7 @@ function TargetPicker({ type, value, onPick, intent, onIntent, lang }) {
         {['community', 'startup'].map(k => (
           <button key={k} type="button" role="radio" aria-checked={value === k}
             className={`jseg__btn${value === k ? ' jseg__btn--on' : ''}`} onClick={() => onPick(k)}>
-            <span className="jseg__title">{c[k][0]}</span>
+            <span className="jseg__title">{c[k][0]} <span className={`jseg__tag jseg__tag--${k}`}>({k === 'community' ? 'HUB' : 'LAB'})</span></span>
             <span className="jseg__desc">{c[k][1]}</span>
           </button>
         ))}
@@ -353,6 +365,7 @@ function JoinPage({ navigate, projectId }) {
 
   const [communityForm, setCommunityForm] = useStateOP({
     name: '', email: '', university: '', department: '', role: '',
+    phone: '', unit: '',   // HUB tarafı: telefon + ekip birimi
     intent: project ? 'project' : 'community',
     bio: '', linkedin: '', portfolio: '', skills: '',
     // v3.1 — option 3 (devam eden projeye katıl) ve option 4 (liderlik) için:
@@ -385,7 +398,7 @@ function JoinPage({ navigate, projectId }) {
   // Sayfa yenilenip hedef sessionStorage'dan geri gelirse niyet (intent) de hedefle uyumlu olsun.
   useEffectOP(() => {
     if (!joinTarget || project) return;
-    const ok = joinTarget === 'startup' ? ['project', 'idea_application'] : ['community', 'hub'];
+    const ok = joinTarget === 'startup' ? ['project', 'idea_application', 'pool_match'] : ['community', 'hub'];
     setCommunityForm(p => (ok.includes(p.intent) ? p : { ...p, intent: joinTarget === 'startup' ? 'project' : 'community' }));
   }, [joinTarget]); // eslint-disable-line react-hooks/exhaustive-deps
   const [mentorForm, setMentorForm] = useStateOP({
@@ -427,7 +440,7 @@ function JoinPage({ navigate, projectId }) {
     if (target === joinTarget) return;
     // Seçime göre alan varsayılanları: topluluk → 'community'; startup → 'project'.
     setCommunityForm(p => {
-      const ok = target === 'startup' ? ['project', 'idea_application'] : ['community', 'hub'];
+      const ok = target === 'startup' ? ['project', 'idea_application', 'pool_match'] : ['community', 'hub'];
       return ok.includes(p.intent) ? p : { ...p, intent: target === 'startup' ? 'project' : 'community' };
     });
     setSponsorForm(p => ({ ...p, collab_types: [], projectId: '' }));   // seçenek listeleri farklı
@@ -458,6 +471,8 @@ function JoinPage({ navigate, projectId }) {
       if (!project && communityForm.intent === 'idea_application') {
         check(communityForm.pitch.trim(), 'pitch', lang === 'tr' ? 'Fikrin' : 'Your idea');
       }
+      if (!project && communityForm.intent === 'hub') check(communityForm.unit, 'unit', lang === 'tr' ? 'Birim' : 'Unit');
+      if (!project && communityForm.intent === 'pool_match') check(communityForm.role, 'role', lang === 'tr' ? 'İlgi Alanı' : 'Area of interest');
     }
     if (missing.length) {
       setInvalidFields(new Set(missing.map(([f]) => f)));
@@ -469,6 +484,13 @@ function JoinPage({ navigate, projectId }) {
     if (!EMAIL_RE.test(email.trim())) {
       setInvalidFields(new Set(['email']));
       return lang === 'tr' ? 'Lütfen geçerli bir e-posta adresi girin.' : 'Please enter a valid email address.';
+    }
+    if (activeType === 'community' && !project && ['community', 'hub'].includes(communityForm.intent) && communityForm.phone.trim()) {
+      const digits = communityForm.phone.replace(/\D/g, '');
+      if (digits.length < 10 || digits.length > 13) {
+        setInvalidFields(new Set(['phone']));
+        return lang === 'tr' ? 'Lütfen geçerli bir telefon numarası girin.' : 'Please enter a valid phone number.';
+      }
     }
     setInvalidFields(new Set());
     return null;
@@ -519,14 +541,15 @@ function JoinPage({ navigate, projectId }) {
           ? (ideaProjects || []).find(s => String(s.id) === String(communityForm.ideaProjectId)) : null;
         const pickedProject = project || inFormProject || ideaProject;
         insertData = {
-          target: (project || ['project', 'founder_lead', 'idea_application'].includes(communityForm.intent)) ? 'startup' : 'community',
+          target: (project || ['project', 'founder_lead', 'idea_application', 'pool_match'].includes(communityForm.intent)) ? 'startup' : 'community',
+          ...(!project && ['community', 'hub'].includes(communityForm.intent) ? { phone: communityForm.phone.trim() || null } : {}),
           name: communityForm.name, email: communityForm.email,
           university: communityForm.university || null,
           department: communityForm.department || null,
           // Proje sayfasından belirli bir pozisyona tıklanarak gelindiyse
           // (savedRole), o daha spesifik bilgi genel kategori seçiminden
           // önceliklidir — tıklanan pozisyon adı artık kayboluyordu.
-          role: savedRole || communityForm.role || null,
+          role: communityForm.intent === 'hub' ? (communityForm.unit || null) : (savedRole || communityForm.role || null),
           intent: communityForm.intent || 'community',
           bio: communityForm.bio || null,
           skills: communityForm.skills || null,
@@ -735,6 +758,12 @@ function JoinPage({ navigate, projectId }) {
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
                     </div>
                   </div>
+                  {!project && ['community', 'hub'].includes(communityForm.intent) && (
+                    <div className="form-group">
+                      <label className="form-label">{lang === 'tr' ? 'Telefon' : 'Phone'} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>({lang === 'tr' ? 'opsiyonel' : 'optional'})</span></label>
+                      <input type="tel" inputMode="tel" className={`form-input${invalidFields.has('phone') ? ' form-input--invalid' : ''}`} placeholder="05xx xxx xx xx" value={communityForm.phone} onChange={e => handleC('phone', e.target.value)} />
+                    </div>
+                  )}
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('c_university', t('join.university'))}</label>
@@ -746,6 +775,21 @@ function JoinPage({ navigate, projectId }) {
                     </div>
                   </div>
                   {/* "Nasıl yer almak istersin?" seçimi kartların altındaki TargetPicker'da */}
+
+                  {/* Ekipte yer almak: birim seçimi (yetenek/GitHub/LinkedIn sorulmaz — onlar Lab'a özel) */}
+                  {!project && communityForm.intent === 'hub' && (
+                    <div className="form-group">
+                      <label className="form-label">{lang === 'tr' ? 'Hangi birimde yer almak istiyorsun?' : 'Which unit do you want to join?'} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
+                      <div className={`jchips${invalidFields.has('unit') ? ' jchips--invalid' : ''}`} role="radiogroup" style={{ '--jt-c': JT_COLOR.community }}>
+                        {HUB_UNITS.map(u => (
+                          <button key={u.tr} type="button" role="radio" aria-checked={communityForm.unit === u.tr}
+                            className={`jchip${communityForm.unit === u.tr ? ' jchip--on' : ''}`} onClick={() => handleC('unit', u.tr)}>
+                            {lang === 'tr' ? u.tr : u.en}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* option 3 — devam eden bir projeye üye ol: proje + (varsa) pozisyon seçici */}
                   {!project && communityForm.intent === 'project' && (
@@ -825,19 +869,26 @@ function JoinPage({ navigate, projectId }) {
                     </>
                   )}
 
-                  {/* option 1/2 (topluluk/bölüm) ve deep-link proje bağlamı — İlgi Alanı kategori dropdown'ı */}
-                  {(project || ['community', 'hub'].includes(communityForm.intent)) && (
+                  {/* Proje havuzu (ve deep-link proje bağlamı) — İlgi Alanı; HUB tarafında (topluluk/ekip) sorulmaz */}
+                  {!project && communityForm.intent === 'pool_match' && (
+                    <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 18 }}>
+                      {lang === 'tr'
+                        ? 'Proje havuzuna ekleniyorsun. Bir projede senin ilgi alanına ve yeteneklerine uygun yer açıldığında seninle iletişime geçeceğiz.'
+                        : 'You will be added to the project pool. When a project has a spot that fits your interests and skills, we will contact you.'}
+                    </p>
+                  )}
+                  {(project || communityForm.intent === 'pool_match') && (
                     <div className="form-group">
-                      <label className="form-label">{fl('c_role', t('join.role'))}</label>
-                      <select className="form-input form-select" value={communityForm.role} onChange={e => handleC('role', e.target.value)}>
+                      <label className="form-label">{fl('c_role', t('join.role'))}{!project && <> <span style={{ color: 'var(--red, #DC2626)' }}>*</span></>}</label>
+                      <select className={`form-input form-select${invalidFields.has('role') ? ' form-input--invalid' : ''}`} value={communityForm.role} onChange={e => handleC('role', e.target.value)}>
                         <option value="">—</option>
                         {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
                     </div>
                   )}
 
-                  {/* Bio/Yetenekler/Linkler — option 4/5 dışındaki tüm dallarda (kendi alanlarını yukarıda gösterdiler) */}
-                  {(project || ['community', 'hub', 'project'].includes(communityForm.intent)) && (
+                  {/* Bio/Yetenekler/Linkler — yalnızca Lab kolları (proje / proje havuzu); HUB tarafında sorulmaz */}
+                  {(project || ['project', 'pool_match'].includes(communityForm.intent)) && (
                     <>
                       <div className="form-group">
                         <label className="form-label">{fl('c_bio', t('join.bio'))}</label>
