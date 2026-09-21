@@ -123,6 +123,14 @@ LinkedIn SORULMAZ — yerine opsiyonel telefon (`applications.phone`, tetikleyic
 kopyalar). "Ekipte yer almak" (intent `hub`) → birim seçimi: Sosyal Medya / Tasarım / Organizasyon /
 Sponsorluk (`HUB_UNITS`, `role` alanına TR ad yazılır; tetikleyici role_type türetir).
 
+**Başvuru sonrası bağlantı kartları (2026-09-21):** form bitince iki kart — HUB (topluluk) başvurusu →
+WhatsApp Topluluk Grubu + Instagram; LAB (startup) başvurusu → WhatsApp Lab Grubu + LinkedIn (mentör/destekçi
+de seçtikleri tarafa göre). Adresler `join_form_settings` (`hub_whatsapp_url`, `hub_instagram_url`,
+`lab_whatsapp_url`, `lab_linkedin_url`, `hub_success_note_tr`, `lab_success_note_tr`) — admin panel → Site
+Ayarları → Katılım Formu → "Başvuru Sonrası Bağlantı Kartları". Boş bağlantının kartı gösterilmez; Instagram
+boşsa `site_settings.instagram_url`, LinkedIn boşsa `site_settings.company_linkedin` yedektir. Bitiş ekranı
+`.jdone / .jlink` (site.css).
+
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile

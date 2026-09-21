@@ -2,7 +2,7 @@
 import { useState as useStateOP, useEffect as useEffectOP } from 'react';
 import { useLang, usePosts, useEvents, useStartups } from './data';
 import { supabase } from './lib/supabase';
-import { Icon, Button, PostCard, EventCard, Reveal } from './ui-components';
+import { Icon, Button, PostCard, EventCard, Reveal, externalUrl } from './ui-components';
 import { CTASection, PageHeader } from './layout';
 import { getRoleDescription } from './detail-pages';
 
@@ -326,6 +326,7 @@ function JoinPage({ navigate, projectId }) {
   const { startups } = useStartups();
   const [submitted, setSubmitted] = useStateOP(false);
   const [submittedType, setSubmittedType] = useStateOP('community');
+  const [submittedSide, setSubmittedSide] = useStateOP('hub');   // 'hub' | 'lab' → bitiş ekranındaki bağlantı kartları
   const [submitting, setSubmitting] = useStateOP(false);
   const [submitError, setSubmitError] = useStateOP('');
   const [invalidFields, setInvalidFields] = useStateOP(new Set());
@@ -333,9 +334,13 @@ function JoinPage({ navigate, projectId }) {
   // Panelden düzenlenebilir katılım formu metinleri — yüklenene kadar / boşsa
   // sabit çeviriler (t()) kullanılır, hiçbir zaman boş görünmez.
   const [formSettings, setFormSettings] = useStateOP(null);
+  const [siteLinks, setSiteLinks] = useStateOP({});   // Site Ayarları'ndaki Instagram / şirket LinkedIn (yedek)
   useEffectOP(() => {
     supabase.from('join_form_settings').select('*').eq('id', 1).single()
       .then(({ data }) => { if (data) setFormSettings(data); })
+      .catch(() => {});
+    supabase.from('site_settings').select('instagram_url, company_linkedin').eq('id', 1).single()
+      .then(({ data }) => { if (data) setSiteLinks(data); })
       .catch(() => {});
   }, []);
   const fs = (key, fallback) => (formSettings && formSettings[key]) || fallback;
@@ -567,6 +572,7 @@ function JoinPage({ navigate, projectId }) {
       const { error } = await supabase.from('applications').insert(insertData);
       if (error) throw error;
       setSubmittedType(activeType);
+      setSubmittedSide(project || joinTarget === 'startup' ? 'lab' : 'hub');
       setSubmitted(true);
       if (typeof sessionStorage !== 'undefined') { sessionStorage.removeItem('sh_join_type'); sessionStorage.removeItem('sh_join_target'); }
     } catch (err) {
@@ -595,16 +601,58 @@ function JoinPage({ navigate, projectId }) {
       },
     };
     const copy = successCopy[submittedType] || successCopy.community;
+
+    // Başvuru bitince tarafa göre iki bağlantı kartı (admin panel → Site Ayarları → Katılım Formu):
+    //   HUB (topluluk): WhatsApp grubu + Instagram   ·   LAB (startup): WhatsApp grubu + LinkedIn
+    // Boş bağlantının kartı gösterilmez; Instagram / LinkedIn boşsa Site Ayarları'ndaki adres yedektir.
+    const isHub = submittedSide === 'hub';
+    const tr = lang === 'tr';
+    const waUrl = externalUrl(fs(isHub ? 'hub_whatsapp_url' : 'lab_whatsapp_url', ''));
+    const secondUrl = externalUrl(isHub
+      ? (fs('hub_instagram_url', '') || siteLinks.instagram_url)
+      : (fs('lab_linkedin_url', '') || siteLinks.company_linkedin));
+    const successNote = tr ? fs(isHub ? 'hub_success_note_tr' : 'lab_success_note_tr', '') : '';
+    const linkCards = [];
+    if (waUrl) linkCards.push({
+      kind: 'whatsapp', icon: 'whatsapp', href: waUrl,
+      title: isHub ? (tr ? 'WhatsApp Topluluk Grubu' : 'WhatsApp Community Group') : (tr ? 'WhatsApp Lab Grubu' : 'WhatsApp Lab Group'),
+      desc: isHub ? (tr ? 'Duyurular ve sohbet için gruba katıl' : 'Join for announcements and chat') : (tr ? 'Startup ekipleri ve kurucularla tanış' : 'Meet startup teams and founders'),
+    });
+    if (secondUrl) linkCards.push(isHub
+      ? { kind: 'instagram', icon: 'instagram', href: secondUrl, title: 'Instagram', desc: tr ? 'Etkinlikleri ve topluluk hayatını takip et' : 'Follow events and community life' }
+      : { kind: 'linkedin', icon: 'linkedin', href: secondUrl, title: 'LinkedIn', desc: tr ? 'Sayfamızı takip et, ağını büyüt' : 'Follow our page and grow your network' });
+
     return (
       <div className="page-transition">
-        <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 'var(--nav-h)' }}>
-          <div style={{ textAlign: 'center', maxWidth: 400 }}>
-            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-              <Icon name="check" size={40} style={{ color: 'var(--green)' }} />
-            </div>
+        <div className="jdone-wrap">
+          <div className={`jdone jdone--${submittedSide}`}>
+            <div className="jdone__ring"><Icon name="check" size={40} /></div>
             <h2 className="text-h2" style={{ marginBottom: 12 }}>{copy.title}</h2>
-            <p style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 32 }}>{copy.desc}</p>
-            <Button variant="primary" onClick={() => { navigate('home'); window.scrollTo({ top: 0 }); }}>{t('nav.home')}</Button>
+            <p style={{ fontSize: 16, color: 'var(--text-secondary)', maxWidth: 440, margin: '0 auto' }}>{copy.desc}</p>
+            {successNote && <div className="jdone__note">{successNote}</div>}
+            {linkCards.length > 0 && (
+              <>
+                <div className="jdone__label">
+                  <span className="jdone__pill">{isHub ? 'HUB' : 'LAB'}</span>
+                  {tr ? 'Bizimle bağlantıda kal' : 'Stay connected with us'}
+                </div>
+                <div className="jdone__cards">
+                  {linkCards.map((k, i) => (
+                    <a key={k.kind} className={`jlink jlink--${k.kind}`} style={{ '--i': i }} href={k.href} target="_blank" rel="noreferrer">
+                      <span className="jlink__icon"><Icon name={k.icon} size={24} /></span>
+                      <span className="jlink__body">
+                        <span className="jlink__title">{k.title}</span>
+                        <span className="jlink__desc">{k.desc}</span>
+                      </span>
+                      <Icon name="arrowUpRight" size={18} className="jlink__go" />
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
+            <div style={{ marginTop: 34 }}>
+              <Button variant="secondary" onClick={() => { navigate('home'); window.scrollTo({ top: 0 }); }}>{t('nav.home')}</Button>
+            </div>
           </div>
         </div>
       </div>

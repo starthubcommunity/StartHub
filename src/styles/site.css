@@ -1300,3 +1300,37 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .jchip--on { border-color: var(--jt-c); background: color-mix(in srgb, var(--jt-c) 6%, var(--card-bg)); color: var(--jt-c); box-shadow: 0 0 0 1px var(--jt-c); }
 .jchips--invalid .jchip { border-color: #FCA5A5; }
 @media (max-width: 640px) { .jchips { grid-template-columns: repeat(2, 1fr); } }
+
+/* ══════════════════════════════════════════════════════════════
+   Katıl — başvuru bitince bağlantı kartları (.jdone / .jlink)
+   HUB: WhatsApp + Instagram · LAB: WhatsApp + LinkedIn (admin panelden düzenlenir)
+   ══════════════════════════════════════════════════════════════ */
+.jdone-wrap { min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: calc(var(--nav-h) + 24px) 16px 56px; }
+.jdone { --jt-c: var(--accent); width: 100%; max-width: 620px; text-align: center; animation: jt-rise .5s cubic-bezier(.2,.7,.2,1) both; }
+.jdone--hub { --jt-c: #DC2626; }
+.jdone--lab { --jt-c: #2563EB; }
+.jdone__ring { width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 22px; display: flex; align-items: center; justify-content: center; background: var(--green-light); color: var(--green); box-shadow: 0 0 0 10px color-mix(in srgb, var(--green) 8%, transparent); animation: jdone-pop .55s cubic-bezier(.2,1.4,.4,1) both; }
+.jdone__note { margin: 18px auto 0; max-width: 460px; padding: 11px 16px; border-radius: 12px; font-size: 14px; line-height: 1.55; color: var(--text-secondary); background: color-mix(in srgb, var(--jt-c) 6%, var(--card-bg)); border: 1px solid color-mix(in srgb, var(--jt-c) 18%, var(--border)); }
+.jdone__label { display: inline-flex; align-items: center; gap: 10px; margin: 34px 0 14px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); }
+.jdone__pill { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; padding: 2px 9px; border-radius: 999px; color: var(--jt-c); background: color-mix(in srgb, var(--jt-c) 11%, transparent); }
+.jdone__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; text-align: left; }
+.jlink {
+  --lk: var(--jt-c);
+  display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: 16px; text-decoration: none; color: inherit;
+  border: 1.5px solid var(--border); background: var(--card-bg);
+  transition: transform .25s cubic-bezier(.2,.7,.2,1), border-color .2s, box-shadow .25s;
+  animation: jt-rise .5s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 90ms + 200ms);
+}
+.jlink:hover { transform: translateY(-3px); border-color: var(--lk); box-shadow: 0 16px 30px -18px var(--lk); }
+.jlink__icon { flex-shrink: 0; width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--lk); }
+.jlink__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.jlink__title { font-family: var(--font-heading); font-weight: 700; font-size: 15.5px; color: var(--text-primary); }
+.jlink__desc { font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
+.jlink__go { flex-shrink: 0; color: var(--text-tertiary); transition: color .2s, transform .2s; }
+.jlink:hover .jlink__go { color: var(--lk); transform: translate(2px, -2px); }
+.jlink--whatsapp { --lk: #25D366; }
+.jlink--instagram { --lk: #E1306C; }
+.jlink--instagram .jlink__icon { background: linear-gradient(135deg, #F58529, #DD2A7B 55%, #8134AF); }
+.jlink--linkedin { --lk: #0A66C2; }
+@keyframes jdone-pop { from { transform: scale(.5); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .jdone, .jdone__ring, .jlink { animation: none !important; } .jlink { transition: none; } }
