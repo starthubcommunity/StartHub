@@ -18,7 +18,13 @@ import { STAGE_ORDER } from './hub-constants';
 // loadHistory() ile; touches/gates Bugün ekranı için; stageLog dönüşüm için.
 const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
 
-const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
+const EMPTY = { ...COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {}), hiddenHub: [] };
+
+// HR yalnızca LAB (startup) başvurularını alır (0041). Eskiden HUB (topluluk) başvurusu olarak
+// otomatik Adaylar'a düşmüş, henüz dokunulmamış ('pool') kayıtlar burada görünmez — bu kişiler
+// Hub başvuru tablosuna (Google Sheets) aktarılır. Silinmez; yalnızca mükerrer kontrolünde tutulur.
+const isHubOrigin = (c) => c.source === 'inbound' && c.stage === 'pool'
+  && /^(community|hub)(\s—|$)|^Hub ·/.test(c.whyThisOne || '');
 
 const HubStoreContext = createContext(null);
 export function useHubStore() {
@@ -59,6 +65,8 @@ export function HubStoreProvider({ children }) {
           next[c] = (res.data || []).map(HUB_TABLES[c].fromDb);
         }
       });
+      next.hiddenHub = next.candidates.filter(isHubOrigin);
+      next.candidates = next.candidates.filter((c) => !isHubOrigin(c));
       setData(next);
       setLoadError(firstErr ? firstErr.message : null);
       setLoading(false);
@@ -493,7 +501,7 @@ export function HubStoreProvider({ children }) {
     // Blok D düzeltmesi (mükerrer): önizleme yalnızca HAVUZa karşı bakıyordu;
     // aynı partide iki kez geçen kişi iki kayıt oluyordu. Burada büyüyen bir
     // havuza (mevcut + bu partide açılanlar) karşı tekrar bakılır.
-    const pool = data.candidates.slice();
+    const pool = [...data.candidates, ...data.hiddenHub];
     for (const r of accepted) {
       // ── Mevcut kartı güncelle (yeni kayıt açma) ──────────────
       let dupId = (r._mode === 'update' && r._dupId) ? r._dupId : null;

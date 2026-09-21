@@ -41,6 +41,24 @@ export const SOURCES = [
 ];
 export const SOURCE_LABEL = toLabelMap(SOURCES);
 
+// ─── İlgi alanları (Katıl formu › Startup › ilgi alanı) ─────────────────
+// Adaylar sayfasında kutucuk olarak listelenir (tıklayınca o alandaki adaylar gelir).
+// `icon`: AIcon adı. 'dev' eski kayıtların genel "Yazılım" kategorisi (yeni formda yok).
+export const INTEREST_AREAS = [
+  { value: 'frontend',  label: 'Frontend',           icon: 'code' },
+  { value: 'backend',   label: 'Backend',            icon: 'layers' },
+  { value: 'mobile',    label: 'Mobil',              icon: 'zap' },
+  { value: 'data',      label: 'Veri & Yapay Zekâ',  icon: 'trendingUp' },
+  { value: 'design',    label: 'UI/UX Tasarım',      icon: 'penEdit' },
+  { value: 'product',   label: 'Ürün & Proje',       icon: 'briefcase' },
+  { value: 'marketing', label: 'Pazarlama & Growth', icon: 'target' },
+  { value: 'business',  label: 'İş Geliştirme',      icon: 'building' },
+  { value: 'content',   label: 'İçerik & Yazı',      icon: 'edit' },
+  { value: 'other',     label: 'Diğer',              icon: 'star' },
+];
+export const INTEREST_LABEL = { ...toLabelMap(INTEREST_AREAS), dev: 'Yazılım (genel)' };
+export const INTEREST_NONE = 'none';   // ilgi alanı boş olan adaylar için sanal anahtar
+
 // ─── Sonraki aksiyon (v3 §3 — TÜRETİLİR) ────────────────────────────
 // v3: elle seçilen alan kaldırıldı. Etiketler artık hub-rules.js
 // nextAction() içinde; sabit liste tutulmuyor.

@@ -4,6 +4,7 @@ import { rubricCompleteFor, isStale } from './hub-rules.js';
 
 export const EMPTY_FILTERS = {
   q: '', stage: [], source: [], openRoleId: [], chip: '',
+  interest: [],   // ilgi alanı kutucukları (boş ilgi alanı = 'none')
 };
 
 // Hazır çipler (HUB_SPEC v3 §5). Tek seçim; sessionStorage'da kalır.
@@ -62,6 +63,7 @@ export function applyFilters(candidates, filters, ctx = {}) {
     if (f.stage.length && !f.stage.includes(c.stage)) return false;
     if (f.source.length && !f.source.includes(c.source)) return false;
     if (f.openRoleId.length && !f.openRoleId.includes(c.openRoleId || '')) return false;
+    if (f.interest.length && !f.interest.includes(c.interest || 'none')) return false;
     if (chipFn && !chipFn(c)) return false;
     return true;
   });
@@ -69,6 +71,6 @@ export function applyFilters(candidates, filters, ctx = {}) {
 
 export function countActiveFilters(filters) {
   const f = { ...EMPTY_FILTERS, ...(filters || {}) };
-  return ['stage', 'source', 'openRoleId'].reduce((n, k) => n + f[k].length, 0)
+  return ['stage', 'source', 'openRoleId', 'interest'].reduce((n, k) => n + f[k].length, 0)
     + (f.q.trim() ? 1 : 0) + (f.chip ? 1 : 0);
 }

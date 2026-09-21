@@ -208,6 +208,20 @@ function CardFx({ type }) {
   );
 }
 
+// Startup (LAB) tarafındaki ilgi alanları — HR'da Adaylar sayfasında kutucuk olur (INTEREST_AREAS ile aynı anahtarlar).
+const JOIN_INTERESTS = [
+  { key: 'frontend',  tr: 'Frontend',            en: 'Frontend' },
+  { key: 'backend',   tr: 'Backend',             en: 'Backend' },
+  { key: 'mobile',    tr: 'Mobil Uygulama',      en: 'Mobile apps' },
+  { key: 'data',      tr: 'Veri & Yapay Zekâ',   en: 'Data & AI' },
+  { key: 'design',    tr: 'UI/UX Tasarım',       en: 'UI/UX Design' },
+  { key: 'product',   tr: 'Ürün & Proje Yönetimi', en: 'Product & Project Mgmt' },
+  { key: 'marketing', tr: 'Pazarlama & Growth',  en: 'Marketing & Growth' },
+  { key: 'business',  tr: 'İş Geliştirme',       en: 'Business Development' },
+  { key: 'content',   tr: 'İçerik & Yazı',       en: 'Content & Writing' },
+  { key: 'other',     tr: 'Diğer',               en: 'Other' },
+];
+
 // ── Topluluk mu, Startup mı? ──────────────────────────────────────────
 // Üç kartın (Katıl / Mentör / Destekçi) altında tek bir ikili seçim çubuğu; başlıklar
 // "Hub / Lab" jargonunu bilmeyen de anlasın diye sade Türkçe. Seçim
@@ -371,6 +385,7 @@ function JoinPage({ navigate, projectId }) {
   const [communityForm, setCommunityForm] = useStateOP({
     name: '', email: '', university: '', department: '', role: '',
     phone: '', unit: '',   // HUB tarafı: telefon + ekip birimi
+    interest: '',          // LAB tarafı: ilgi alanı (JOIN_INTERESTS anahtarı)
     intent: project ? 'project' : 'community',
     bio: '', linkedin: '', portfolio: '', skills: '',
     // v3.1 — option 3 (devam eden projeye katıl) ve option 4 (liderlik) için:
@@ -477,7 +492,7 @@ function JoinPage({ navigate, projectId }) {
         check(communityForm.pitch.trim(), 'pitch', lang === 'tr' ? 'Fikrin' : 'Your idea');
       }
       if (!project && communityForm.intent === 'hub') check(communityForm.unit, 'unit', lang === 'tr' ? 'Birim' : 'Unit');
-      if (!project && communityForm.intent === 'pool_match') check(communityForm.role, 'role', lang === 'tr' ? 'İlgi Alanı' : 'Area of interest');
+      if (!project && communityForm.intent === 'pool_match') check(communityForm.interest, 'interest', lang === 'tr' ? 'İlgi Alanı' : 'Area of interest');
     }
     if (missing.length) {
       setInvalidFields(new Set(missing.map(([f]) => f)));
@@ -555,6 +570,7 @@ function JoinPage({ navigate, projectId }) {
           // (savedRole), o daha spesifik bilgi genel kategori seçiminden
           // önceliklidir — tıklanan pozisyon adı artık kayboluyordu.
           role: communityForm.intent === 'hub' ? (communityForm.unit || null) : (savedRole || communityForm.role || null),
+          ...(project || ['project', 'pool_match'].includes(communityForm.intent) ? { interest: communityForm.interest || null } : {}),
           intent: communityForm.intent || 'community',
           bio: communityForm.bio || null,
           skills: communityForm.skills || null,
@@ -925,12 +941,14 @@ function JoinPage({ navigate, projectId }) {
                         : 'You will be added to the project pool. When a project has a spot that fits your interests and skills, we will contact you.'}
                     </p>
                   )}
-                  {(project || communityForm.intent === 'pool_match') && (
+                  {(project || ['pool_match', 'project'].includes(communityForm.intent)) && (
                     <div className="form-group">
-                      <label className="form-label">{fl('c_role', t('join.role'))}{!project && <> <span style={{ color: 'var(--red, #DC2626)' }}>*</span></>}</label>
-                      <select className={`form-input form-select${invalidFields.has('role') ? ' form-input--invalid' : ''}`} value={communityForm.role} onChange={e => handleC('role', e.target.value)}>
+                      <label className="form-label">{fl('c_role', t('join.role'))}{!project && communityForm.intent === 'pool_match'
+                        ? <> <span style={{ color: 'var(--red, #DC2626)' }}>*</span></>
+                        : <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> ({lang === 'tr' ? 'opsiyonel' : 'optional'})</span>}</label>
+                      <select className={`form-input form-select${invalidFields.has('interest') ? ' form-input--invalid' : ''}`} value={communityForm.interest} onChange={e => handleC('interest', e.target.value)}>
                         <option value="">—</option>
-                        {Object.entries(t('join.roles')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        {JOIN_INTERESTS.map(o => <option key={o.key} value={o.key}>{lang === 'tr' ? o.tr : o.en}</option>)}
                       </select>
                     </div>
                   )}

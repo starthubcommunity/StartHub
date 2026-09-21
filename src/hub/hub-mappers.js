@@ -35,6 +35,7 @@ export function mapCandidateToDb(c) {
     data_trust:  c.dataTrust  || 'guess',
     // yetkinlik
     role_type:    c.roleType    ?? null,
+    interest:     orUndef(c.interest),   // 0041 — ilgi alanı (yoksa gönderilmez)
     skills:       c.skills      || [],
     languages:    c.languages   || [],
     weekly_hours: c.weeklyHours ?? null,
@@ -116,6 +117,7 @@ export function mapCandidateFromDb(r) {
     dataTrust:  r.data_trust || 'guess',
     // yetkinlik
     roleType:    r.role_type    ?? null,
+    interest:    r.interest     ?? null,
     skills:      r.skills       || [],
     languages:   r.languages    || [],
     weeklyHours: r.weekly_hours ?? null,

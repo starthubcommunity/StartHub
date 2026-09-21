@@ -131,6 +131,18 @@ Ayarları → Katılım Formu → "Başvuru Sonrası Bağlantı Kartları". Boş
 boşsa `site_settings.instagram_url`, LinkedIn boşsa `site_settings.company_linkedin` yedektir. Bitiş ekranı
 `.jdone / .jlink` (site.css).
 
+**HR yalnızca LAB (2026-09-21, 0041):** Katıl formunda HUB (topluluk, `applications.target='community'`)
+başvuruları HR'a DÜŞMEZ — `applications_to_hub_sheet` tetikleyicisi her yeni HUB başvurusunu Google Sheets'e
+(Apps Script web uygulaması, `net.http_post`) satır olarak yollar, yönetim tabloda yapılır. Kurulum HR › Ayarlar ›
+"Hub Başvuru Tablosu" (`hub-sheet.jsx`; URL + gizli anahtar `hub_sheet_config`ta, servis hesabı GEREKMEZ; kod
+`hub-sheet-script.js`; "Test satırı" ve "Mevcut başvuruları aktar" RPC'leri, ID'ye göre tekrarı eler). LAB tarafı:
+`project`/`pool_match` → tetikleyici `hub_candidates`a düşürür (`interest` kolonu: frontend, backend, mobile, data,
+design, product, marketing, business, content, other; role_type ondan türer) → Adaylar sayfasında ilgi alanı
+kutucukları (`InterestTiles`, `filters.interest`); mentör/destekçi/fikir → HR'da Mentörler / Destekçiler /
+Fikirler sayfaları (`applications.jsx kind=…`; `target` boş (eski) veya 'startup' olanlar). Eski HUB kaynaklı,
+dokunulmamış ('pool') adaylar HR'da gizlenir (`hub-store.jsx isHubOrigin`, silinmedi). Anasayfa logo şeridi
+sayfası menüde "Site Destekçileri" (Yönetim altında).
+
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile

@@ -6,6 +6,7 @@ import { AIcon, Field, Input, Select, Modal, ConfirmDialog } from '../../admin/a
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
+import HubSheetSettings from './hub-sheet';
 import {
   HUB_ROLES, HUB_ROLE_LABEL, RUBRIC_AXES, THRESHOLD, STALE, GATE,
 } from '../hub-constants';
@@ -89,6 +90,9 @@ export default function SettingsPage() {
           <p className="adm-page-head__desc">Yalnızca kurucu. Yetki RLS'te de uygulanır.</p>
         </div>
       </div>
+
+      {/* ── Hub başvuru tablosu (Google Sheets) ── */}
+      <HubSheetSettings />
 
       {/* ── Üyeler ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

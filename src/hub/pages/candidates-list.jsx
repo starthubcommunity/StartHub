@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { AIcon, PageHead } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS, DEFAULT_TRACK } from '../hub-constants';
+import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS, DEFAULT_TRACK, INTEREST_AREAS, INTEREST_LABEL } from '../hub-constants';
 import { thresholdMet, rubricComplete, nextAction, gateDueAt } from '../hub-rules';
 import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
@@ -55,6 +55,39 @@ function RowRight({ c, touchesByCand, gatesByCand }) {
   return null;
 }
 
+// İlgi alanına göre kutucuklar (frontend, backend, tasarım …): tıkladıkça o alandaki adaylar listelenir.
+// Yalnızca en az bir adayın ilgi alanı varsa gösterilir; birden fazla kutucuk birlikte seçilebilir.
+function InterestTiles({ candidates, selected, onToggle, onClear }) {
+  const counts = {};
+  candidates.filter((c) => c.stage !== 'archived').forEach((c) => { const k = c.interest || 'none'; counts[k] = (counts[k] || 0) + 1; });
+  const withInterest = Object.keys(counts).some((k) => k !== 'none');
+  if (!withInterest) return null;
+  const order = [...INTEREST_AREAS.map((a) => a.value), 'dev', 'none'];
+  const tiles = order.filter((k) => counts[k] || selected.includes(k)).map((k) => ({
+    key: k,
+    label: k === 'none' ? 'Belirtilmemiş' : INTEREST_LABEL[k],
+    icon: INTEREST_AREAS.find((a) => a.value === k)?.icon || (k === 'dev' ? 'code' : 'users'),
+    n: counts[k] || 0,
+  }));
+  return (
+    <div className="hub-tiles">
+      <div className="hub-tiles__head">
+        <span>İlgi alanına göre</span>
+        {selected.length > 0 && <button type="button" className="hub-tiles__clear" onClick={onClear}>Seçimi temizle</button>}
+      </div>
+      <div className="hub-tiles__grid">
+        {tiles.map((t) => (
+          <button key={t.key} type="button" className={`hub-tile${selected.includes(t.key) ? ' hub-tile--on' : ''}`} onClick={() => onToggle(t.key)}>
+            <span className="hub-tile__icon"><AIcon name={t.icon} size={16} /></span>
+            <span className="hub-tile__label">{t.label}</span>
+            <span className="hub-tile__n">{t.n}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function CandidatesListPage({ filters, setFilters }) {
   const store = useHubStore();
   const { candidates, members, openRoles, touches, gates, currentMember, loading } = store;
@@ -97,7 +130,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
   // D3 — hızlı eleme: filtre yoksa varsayılan "hiç mesaj atılmamış".
   const startTriage = () => {
     const empty = !filters.chip && !filters.stage.length && !filters.source.length
-      && !filters.openRoleId.length && !filters.q.trim();
+      && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim();
     const f = empty ? { ...filters, chip: 'no_message' } : filters;
     if (empty) setFilters(f);
     const list = applyFilters(candidates, f, ctx).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -162,6 +195,10 @@ export default function CandidatesListPage({ filters, setFilters }) {
         ) : null
       } />
 
+      <InterestTiles candidates={candidates} selected={filters.interest || []}
+        onToggle={(k) => { const cur = filters.interest || []; setFilters({ ...filters, interest: cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k] }); }}
+        onClear={() => setFilters({ ...filters, interest: [] })} />
+
       <FilterBar filters={filters} onChange={setFilters} candidates={candidates} openRoles={openRoles} ctx={ctx} />
 
       {can('candidates.write') && rows.length > 0 && (
@@ -187,6 +224,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <strong style={{ fontSize: 14, color: '#1C1917' }}>{c.fullName}</strong>
                   <span className="hub-pill hub-pill--stage">{STAGE_LABEL[c.stage] || c.stage}</span>
+                  {c.interest && <span className="hub-pill hub-pill--source">{INTEREST_LABEL[c.interest] || c.interest}</span>}
                 </div>
                 <div style={{ fontSize: 12, color: '#A29D94', marginTop: 3 }}>
                   {SOURCE_LABEL[c.source] || c.source} · {memberName(c.ownerId)}
