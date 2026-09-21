@@ -172,31 +172,38 @@ function BlogPage({ navigate }) {
 // Kart tür renkleri (animasyon + vurgu için --jt-c).
 const JT_COLOR = { community: '#DC2626', mentor: '#2563EB', sponsor: '#D97706' };
 
-// Seçili kartın ARKASINDA oynayan hafif, dekoratif efekt (yalnızca CSS animasyonu).
-//   community → roket süzülür + iz + yıldız kıvılcımları
-//   mentor    → yayılan halkalar + parıltılar
-//   sponsor   → yükselen madeni paralar
+// Seçili kartta EMOJİNİN kendisi hareket eder ve emojiye uygun küçük bir efekt eşlik eder
+// (yalnızca CSS animasyonu, dekoratif):
+//   🚀 topluluk → motor titremesi, alev izi + duman ile fırlar, sol alttan geri süzülür
+//   🎓 mentör   → kep havaya atılıp döner, inerken konfeti saçılır
+//   🤝 destekçi → el sıkışır gibi sallanır, sonunda "anlaşma" halkası + kıvılcım
+const CONFETTI = [['#2563EB', -34, -14, 200], ['#F59E0B', 34, -20, -160], ['#DC2626', -22, 12, 120], ['#16A34A', 30, 10, -220], ['#7C3AED', 2, -32, 90]];
+function EmojiFx({ type }) {
+  if (type === 'community') return (
+    <>
+      <i className="jt-flame" />
+      {[['0s', '-16px', '22px'], ['.12s', '-4px', '30px'], ['.24s', '-28px', '12px']].map(([d, dx, dy]) => <i key={d} className="jt-smoke" style={{ '--d': d, '--dx': dx, '--dy': dy }} />)}
+    </>
+  );
+  if (type === 'mentor') return (
+    <>{CONFETTI.map(([c, dx, dy, r]) => <i key={c} className="jt-conf" style={{ '--c': c, '--dx': dx + 'px', '--dy': dy + 'px', '--r': r + 'deg' }} />)}</>
+  );
+  return (
+    <>
+      <i className="jt-deal" />
+      {[['-30px', '-22px', '0s'], ['30px', '-18px', '.08s'], ['-24px', '18px', '.16s'], ['28px', '20px', '.04s']].map(([x, y, d], i) => <i key={i} className="jt-sprk" style={{ '--x': x, '--y': y, '--d': d }} />)}
+    </>
+  );
+}
+
+// Kart seviyesinde yalnızca topluluk için: gökyüzü gibi yanıp sönen küçük yıldızlar.
 function CardFx({ type }) {
-  const dot = (cls, x, y, d, extra = {}) => <i className={cls} style={{ '--x': x, '--y': y, '--d': d, ...extra }} />;
+  if (type !== 'community') return null;
   return (
     <span className="jt-fx" aria-hidden="true">
-      {type === 'community' && (
-        <>
-          {dot('jt-star', '78%', '22%', '0s')}{dot('jt-star', '58%', '40%', '.9s')}{dot('jt-star', '86%', '58%', '1.6s')}{dot('jt-star', '34%', '16%', '2.2s')}
-          <span className="jt-rocket"><span className="jt-trail" /><Icon name="rocket" size={48} /></span>
-        </>
-      )}
-      {type === 'mentor' && (
-        <>
-          <i className="jt-ring" /><i className="jt-ring jt-ring--b" />
-          {dot('jt-spark', '80%', '20%', '0s', { '--s': '13px' })}{dot('jt-spark', '64%', '58%', '1.1s', { '--s': '9px' })}{dot('jt-spark', '88%', '66%', '1.9s', { '--s': '11px' })}
-        </>
-      )}
-      {type === 'sponsor' && (
-        <>
-          {dot('jt-coin', '18%', '', '0s')}{dot('jt-coin', '42%', '', '1.1s')}{dot('jt-coin', '66%', '', '2.1s')}{dot('jt-coin', '84%', '', '.6s')}
-        </>
-      )}
+      {[['78%', '22%', '0s'], ['58%', '46%', '.9s'], ['86%', '62%', '1.6s'], ['40%', '14%', '2.2s']].map(([x, y, d]) => (
+        <i key={d} className="jt-star" style={{ '--x': x, '--y': y, '--d': d }} />
+      ))}
     </span>
   );
 }
@@ -536,7 +543,7 @@ function JoinPage({ navigate, projectId }) {
                   >
                     {active && <CardFx type={card.key} />}
                     <div className="jt-body">
-                      <div className="jt-emoji">{card.emoji}</div>
+                      <div className="jt-emo"><span className="jt-glyph">{card.emoji}</span>{active && <EmojiFx type={card.key} />}</div>
                       <div className="jt-title">{card.title}</div>
                       <p className="jt-desc">{card.desc}</p>
                     </div>
