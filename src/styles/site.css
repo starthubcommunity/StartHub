@@ -1125,23 +1125,24 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .jt-card--on .jt-title, .jt-card:hover .jt-title { color: var(--jt-c); }
 .jt-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin: 0; }
 
-/* ikon rozeti kabı: halka + noktalar tam rozetin ortasına konumlanır */
+/* emoji rozeti kabı: halka + noktalar tam rozetin ortasına konumlanır */
 .jt-emo { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; margin-bottom: 12px; }
 .jt-badge {
   position: relative; z-index: 2; width: 52px; height: 52px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: color-mix(in srgb, var(--jt-c) 12%, var(--card-bg)); color: var(--jt-c);
+  background: color-mix(in srgb, var(--jt-c) 10%, var(--card-bg));
   box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--jt-c) 45%, transparent);
   transition: transform .3s cubic-bezier(.2,1.4,.4,1);
 }
 .jt-card:hover .jt-badge { transform: translateY(-2px) scale(1.05); }
+.jt-glyph { display: inline-block; font-size: 26px; line-height: 1; }
 .jt-ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--jt-c); opacity: 0; pointer-events: none; }
 .jt-dot { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--jt-c); opacity: 0; pointer-events: none; }
 
-/* seçilince tek seferlik: rozet "pop", halka darbesi genişler, ikon hafif dönerek belirir, noktalar dışa sürüklenir */
+/* seçilince tek seferlik: rozet "pop", halka darbesi genişler, emoji hafif dönerek belirir, noktalar dışa sürüklenir */
 .jt-card--on .jt-badge { animation: jt-badge-pop .5s cubic-bezier(.34,1.56,.64,1) both; }
 .jt-card--on .jt-ring { animation: jt-ring-pulse .8s cubic-bezier(.2,.8,.2,1) both; }
-.jt-card--on .jt-badge svg { animation: jt-icon-in .4s ease .16s both; }
+.jt-card--on .jt-badge .jt-glyph { animation: jt-icon-in .4s ease .16s both; }
 .jt-dot { animation: jt-dot-fly .7s ease-out both; }
 
 @keyframes jt-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }

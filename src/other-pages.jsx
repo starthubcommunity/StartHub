@@ -172,16 +172,16 @@ function BlogPage({ navigate }) {
 // Kart tür renkleri (animasyon + vurgu için --jt-c).
 const JT_COLOR = { community: '#DC2626', mentor: '#2563EB', sponsor: '#D97706' };
 
-// Seçili kartta: emoji yerine sade bir ikon rozeti — rozet "pop" ile belirir, etrafında
-// ince bir halka darbesi genişleyip söner, birkaç küçük nokta kartın renginde dışa doğru
-// sürüklenir. Tek biçim, üç kartta da aynı; tek fark ikon + kartın kendi rengi.
-const CARD_ICON = { community: 'rocket', mentor: 'graduationCap', sponsor: 'handshake' };
+// Seçili kartta: emoji bir rozetin içinde — rozet "pop" ile belirir, etrafında ince bir
+// halka darbesi genişleyip söner, birkaç küçük nokta kartın renginde dışa doğru sürüklenir.
+// Tek biçim, üç kartta da aynı; tek fark emoji + kartın kendi rengi.
+const CARD_EMOJI = { community: '🚀', mentor: '🎓', sponsor: '🤝' };
 const DOT_OFFSETS = [['30px', '-26px'], ['-28px', '-22px'], ['26px', '24px'], ['-26px', '26px']];
 function CardIconFx({ type }) {
   return (
     <>
       <span className="jt-ring" aria-hidden="true" />
-      <span className="jt-badge"><Icon name={CARD_ICON[type]} size={26} /></span>
+      <span className="jt-badge"><span className="jt-glyph">{CARD_EMOJI[type]}</span></span>
       {DOT_OFFSETS.map(([dx, dy], i) => (
         <i key={i} className="jt-dot" style={{ '--dx': dx, '--dy': dy, animationDelay: `${i * 0.06}s` }} />
       ))}
@@ -217,7 +217,7 @@ const TARGET_COPY = {
     },
     mentor: {
       q: 'Kime mentörlük yapmak istersin?',
-      community: ['Topluluğa Mentör Ol', 'Topluluğun destekçi mentörü olacaksın.'],
+      community: ['Topluluğa Mentör Ol', 'Topluluğun destekçi mentörü olabilirsin.'],
       startup:   ["Bir Startup'a Mentör Ol", 'Bir girişim ekibine yol göster.'],
     },
     sponsor: {
@@ -276,19 +276,19 @@ const INTENT_COPY = {
 // Ekipte yer almak isteyenlere gösterilen birimler (role alanına TR ad yazılır).
 const HUB_UNITS = [
   { tr: 'Sosyal Medya', en: 'Social Media',
-    descTr: 'Topluluğun sosyal medya hesaplarını yönetir, içerik üretir ve etkinlikleri duyurursun.',
+    descTr: 'Topluluğun sosyal medya hesaplarını yönetebilir, içerik üretebilir ve etkinlikleri duyurabilirsin.',
     descEn: 'Manage our social media accounts, create content and promote events.' },
   { tr: 'Tasarım', en: 'Design',
-    descTr: 'Görsel kimliğimizi, etkinlik afişlerini ve sosyal medya tasarımlarını hazırlarsın.',
+    descTr: 'Görsel kimliğimizi, etkinlik afişlerini ve sosyal medya tasarımlarını hazırlayabilirsin.',
     descEn: 'Create our visual identity, event posters and social media designs.' },
   { tr: 'Organizasyon', en: 'Events & Operations',
-    descTr: 'Etkinlik, buluşma ve atölyelerin planlanmasında ve yürütülmesinde yer alırsın.',
+    descTr: 'Etkinlik, buluşma ve atölyelerin planlanmasında ve yürütülmesinde yer alabilirsin.',
     descEn: 'Help plan and run events, meetups and workshops.' },
   { tr: 'Sponsorluk', en: 'Sponsorship',
-    descTr: 'Sponsor ve destekçi ilişkilerini yönetir, topluluk için yeni işbirliği fırsatları geliştirirsin.',
+    descTr: 'Sponsor ve destekçi ilişkilerini yönetebilir, topluluk için yeni işbirliği fırsatları geliştirebilirsin.',
     descEn: 'Manage sponsor and partner relationships and develop new collaboration opportunities.' },
   { tr: 'Erasmus+', en: 'Erasmus+',
-    descTr: 'Avrupa Birliği Erasmus+ proje yazma ekibimizde yer alır; bu ekiple birlikte proje yazıp hibe almaya yönelik çalışmalar yürütürsün.',
+    descTr: 'Avrupa Birliği Erasmus+ proje yazma ekibimizde yer alabilir, bu ekiple birlikte proje yazıp hibe almaya yönelik çalışmalar yürütebilirsin.',
     descEn: 'Join our EU Erasmus+ project-writing team and help prepare grant applications to bring new funding to the community.' },
 ];
 
@@ -1263,7 +1263,7 @@ function JoinPage({ navigate, projectId }) {
                   {joinTarget === 'startup'
                     ? startupPick(sponsorForm.projectId, v => handleS('projectId', v), lang === 'tr' ? "Hangi startup'a yatırım / kaynak sağlamak istersin?" : 'Which startup do you want to invest in / resource?')
                     : <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 18 }}>
-                        {lang === 'tr' ? 'Topluluğun etkinliklerine, ekiplerine ve faaliyetlerine sponsor olarak katkı sağlayacaksın.' : 'You will contribute as a sponsor to the community\'s events, teams and activities.'}
+                        {lang === 'tr' ? 'Topluluğun etkinliklerine, ekiplerine ve faaliyetlerine sponsor olarak katkı sağlayabilirsin.' : 'You will contribute as a sponsor to the community\'s events, teams and activities.'}
                       </p>}
                   <div className="form-group">
                     <label className="form-label" style={{ marginBottom: 10 }}>{fl('s_collab', lang === 'tr' ? 'İşbirliği Türü' : 'Collaboration Type')}</label>
