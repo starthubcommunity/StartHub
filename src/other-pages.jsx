@@ -335,12 +335,42 @@ function TargetPicker({ type, value, onPick, intent, onIntent, lang }) {
   );
 }
 
+// Ülke koduna göre beklenen yerel numara uzunluğu (ulusal numara haneleri —
+// resmi E.164 hane sayıları). Fazla/eksik yazmayı önlemek için hem yazarken
+// (fazlası kabul edilmez) hem gönderirken (validate) kullanılır. Listede
+// olmayan / "Diğer ülke" için esnek bir üst sınır (DEFAULT_PHONE_MAX) geçerli.
+const COUNTRY_PHONE_LEN = {
+  '90': 10, '994': 9, '993': 8, '998': 9, '996': 9, '992': 9, '7': 10, '995': 9, '374': 8,
+  '98': 10, '964': 10, '963': 9, '970': 9, '962': 9, '961': 8, '966': 9, '971': 9, '965': 8,
+  '974': 8, '973': 8, '968': 8, '967': 9, '20': 10, '218': 9, '249': 9, '212': 9, '213': 9,
+  '216': 8, '252': 8, '234': 10, '254': 9, '27': 9, '93': 9, '92': 10, '91': 10, '880': 10,
+  '86': 11, '976': 8, '82': 10, '81': 10, '84': 9, '62': 11, '60': 9, '63': 10, '380': 9,
+  '375': 9, '355': 9, '387': 8, '389': 8, '383': 8, '381': 9, '30': 10, '359': 9, '40': 9,
+  '48': 9, '49': 11, '33': 9, '44': 10, '39': 10, '34': 9, '351': 9, '31': 9, '32': 9,
+  '46': 9, '47': 8, '45': 8, '358': 9, '41': 9, '43': 11, '36': 9, '420': 9, '1': 10,
+  '55': 11, '52': 10,
+};
+const DEFAULT_PHONE_MAX = 13;                              // "Diğer ülke…" — üst sınır
+const phoneMaxFor = (cc) => COUNTRY_PHONE_LEN[cc] || DEFAULT_PHONE_MAX;
+
 // Yerel numarayı normalize eder: rakam dışı her şeyi ve baştaki tek "0" (şehir/trunk
-// öneki) düşer. Ülke kodu ayrı bir seçiciyle alınıyor, burada karışmıyor.
-const phoneLocalDigits = (v) => {
+// öneki) düşer, ülkeye göre beklenenden fazla hane yazılmasına izin vermez. Ülke kodu
+// ayrı bir seçiciyle alınıyor, burada karışmıyor.
+const phoneLocalDigits = (v, max = DEFAULT_PHONE_MAX) => {
   let d = String(v || '').replace(/\D/g, '');
   if (d.startsWith('0')) d = d.slice(1);
-  return d.slice(0, 14);
+  return d.slice(0, max);
+};
+
+// Yazarken okunaklı olsun diye haneleri gruplar (TR/KZ/RU: 5xx xxx xx xx; diğerlerinde
+// genel 3'erli gruplama) — gönderilen/saklanan değer yine yalnızca rakamlardır, bu
+// yalnızca ekranda gösterim biçimi.
+const formatPhoneDisplay = (digits, cc) => {
+  if (!digits) return '';
+  if (cc === '90' || cc === '7') {
+    return [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 8), digits.slice(8, 10)].filter(Boolean).join(' ');
+  }
+  return digits.match(/.{1,3}/g)?.join(' ') || digits;
 };
 
 // Uluslararası öğrenciler de başvuracağı için ülke kodu seçilebilir — varsayılan
@@ -424,10 +454,22 @@ const COUNTRY_CODES = [
 ];
 
 // Ülke kodu seçilebilir telefon alanı — varsayılan Türkiye, listede yoksa "Diğer
-// ülke…" ile elle kod girilir. Kullanıcı yalnızca yerel numarayı yazar. Sayfa dili
-// İngilizce'yse ülke isimleri de İngilizce gösterilir.
+// ülke…" ile elle kod girilir. Kullanıcı yalnızca yerel numarayı yazar (haneler
+// yazarken gruplanır, örn. "532 123 45 67"), sayfa dili İngilizce'yse ülke isimleri
+// de İngilizce gösterilir. Profesyonel sitelerdeki gibi: ülkeye göre beklenen hane
+// sayısından fazlası yazılamaz, eksik/tam durumu canlı bir sayaçla gösterilir.
 function PhoneField({ ccValue, onCcChange, value, onChange, invalid, lang, required }) {
   const known = COUNTRY_CODES.some(c => c.code === ccValue);
+  const maxLen = phoneMaxFor(known ? ccValue : '');
+  const complete = value.length === maxLen;
+
+  const handleCc = (cc) => {
+    const nextCc = cc === PHONE_OTHER_CC ? '' : cc;
+    onCcChange(nextCc);
+    const nextMax = phoneMaxFor(cc === PHONE_OTHER_CC ? '' : nextCc);
+    if (value.length > nextMax) onChange(value.slice(0, nextMax));
+  };
+
   return (
     <div className="form-group">
       <label className="form-label">
@@ -437,8 +479,7 @@ function PhoneField({ ccValue, onCcChange, value, onChange, invalid, lang, requi
           : <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>({lang === 'tr' ? 'opsiyonel' : 'optional'})</span>}
       </label>
       <div className={`jphone${invalid ? ' jphone--invalid' : ''}`}>
-        <select className="jphone__cc" value={known ? ccValue : PHONE_OTHER_CC}
-          onChange={e => onCcChange(e.target.value === PHONE_OTHER_CC ? '' : e.target.value)}>
+        <select className="jphone__cc" value={known ? ccValue : PHONE_OTHER_CC} onChange={e => handleCc(e.target.value)}>
           {COUNTRY_CODES.map(c => <option key={c.code + c.tr} value={c.code}>+{c.code} {lang === 'tr' ? c.tr : c.en}</option>)}
           <option value={PHONE_OTHER_CC}>{lang === 'tr' ? 'Diğer ülke…' : 'Other country…'}</option>
         </select>
@@ -447,9 +488,26 @@ function PhoneField({ ccValue, onCcChange, value, onChange, invalid, lang, requi
             value={ccValue} onChange={e => onCcChange(e.target.value.replace(/\D/g, '').slice(0, 4))} />
         )}
         <input type="tel" inputMode="tel" className="jphone__input" placeholder={lang === 'tr' ? 'telefon numarası' : 'phone number'}
-          value={value} onChange={e => onChange(phoneLocalDigits(e.target.value))} />
+          value={formatPhoneDisplay(value, ccValue)} onChange={e => onChange(phoneLocalDigits(e.target.value, maxLen))} />
       </div>
+      {value && (
+        <div style={{ fontSize: 11.5, marginTop: 5, color: complete ? '#16A34A' : 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          {complete && <AIconInline name="check" />}
+          {value.length}/{maxLen} {lang === 'tr' ? 'hane' : 'digits'}
+        </div>
+      )}
     </div>
+  );
+}
+
+// Küçük satır-içi onay ikonu — hane sayacı tamamlanınca (ui-components'teki AIcon'a
+// bağımlı olmamak için burada minimal bir SVG, PhoneField dışında kullanılmıyor).
+function AIconInline({ name }) {
+  if (name !== 'check') return null;
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
   );
 }
 
@@ -630,10 +688,11 @@ function JoinPage({ navigate, projectId }) {
     const phoneCcVal = activeType === 'mentor' ? mentorForm.phoneCC : activeType === 'sponsor' ? sponsorForm.phoneCC : communityForm.phoneCC;
     if (phoneVal.trim()) {
       const digits = phoneLocalDigits(phoneVal);
-      // Türkiye numaraları için 10 hane (5xx xxx xx xx) kesin kontrol edilir; diğer
-      // ülke kodlarında (uluslararası öğrenciler) uzunluk ülkeden ülkeye değiştiği
-      // için yalnızca makul bir aralık (6–14 hane) + kodun boş olmaması kontrol edilir.
-      const lenOk = phoneCcVal === '90' ? digits.length === 10 : digits.length >= 6 && digits.length <= 14;
+      const knownCc = Object.prototype.hasOwnProperty.call(COUNTRY_PHONE_LEN, phoneCcVal);
+      // Listedeki bir ülke kodu seçiliyse o ülkenin tam hane sayısı aranır (fazla/eksik
+      // yazma önlenmiş oluyor — arayüz zaten yazarken bu sayıyı aşırtmıyor). "Diğer
+      // ülke" için (kodu bilmediğimiz için) yalnızca makul bir aralık (6–13 hane) kontrol edilir.
+      const lenOk = knownCc ? digits.length === COUNTRY_PHONE_LEN[phoneCcVal] : digits.length >= 6 && digits.length <= DEFAULT_PHONE_MAX;
       if (!phoneCcVal.trim() || !lenOk) {
         setInvalidFields(new Set(['phone']));
         return lang === 'tr' ? 'Lütfen geçerli bir ülke kodu ve telefon numarası girin.' : 'Please enter a valid country code and phone number.';
