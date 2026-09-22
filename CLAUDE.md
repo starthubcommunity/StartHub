@@ -37,7 +37,12 @@ akışını da karşılar), `import-simple.jsx` (CSV), `paste-import.jsx`
 
 **Navigasyon (2026-09-16):** Bugün → Adaylar → Açık Pozisyonlar → Arşiv →
 (altta, katlanır) Yönetim (Şablonlar/Metrikler/Kaynaklar/Destekçiler/Diğer
-Başvurular/Yetkiler/Ayarlar). "Başvurular" ayrı bir ana sekme değil.
+Başvurular/Yetkiler/Ayarlar). "Başvurular" ayrı bir ana sekme değil. **"Bugün" artık
+"Genel Bakış" (2026-09-23)** — nav `id` hâlâ `today` (sessionStorage/route kırılmasın diye),
+yalnızca etiket ve sayfa başlığı değişti; `today.jsx`'teki kuyruk mantığı (aşağıdaki not)
+AYNEN duruyor, üstüne `OverviewStats` bileşeni eklendi (aktif aday + aşama dağılımı store'dan,
+Mentör/Destekçi/Fikir başvuru sayıları + Hub Sheet bağlantı durumu `applications`/
+`hub_sheet_config`'ten hafif bir sorguyla).
 
 **Bugün = kuyruk modu (2026-09-20):** her blok başlığında (mesajı varsa) bir
 "Başlat" düğmesi — bloğu liste olarak taramak yerine `QueueModal`
@@ -166,6 +171,19 @@ ile yolluyor. `hub_sheet_row()` LAB'a özel alanları da (proje, ilgi alanı, po
 fikir/problem/ilerleme) 'detay' sütununa ekliyor. `hub_sheet_backfill()` artık HER İKİ tarafı da tarar. HR ›
 Ayarlar'da iki ayrı sekme adı alanı var (HUB / LAB yedek). Mevcut 8 başvuru (5 HUB + 3 LAB) geriye dönük
 aktarıldı, doğrulandı.
+
+**Aday kartı — iletişim bilgileri üstte (2026-09-23):** `CandidatePanel`de (`candidate.jsx`) e-posta/telefon/
+ilgi alanı önceden yalnızca dolaylı yoldan görünüyordu (e-posta yalnızca github/linkedin boşsa "Link" alanında,
+telefon hiç gösterilmiyordu). `ContactBlock` bileşeni panel başlığının hemen altına (Detay akordeonu açılmadan,
+her aşamada görünür) e-posta/telefon/okul/ilgi alanını mailto:/tel: linkli satırlar olarak ekliyor; "Detay"
+akordeonuna da E-posta/Telefon/İlgi alanı düzenlenebilir alanlar olarak eklendi. `phone` ikonu (`ui-components.jsx
+iconSvgs`) yoktu, eklendi.
+
+**Adaylar — ilgi alanı kutucukları kanban kartına döndü (2026-09-23):** `InterestTiles` (0041) aynı filtreleme
+mantığıyla duruyor, yalnızca görünümü değişti: küçük yatay pill yerine dikey "kanban" kartı (üstte ikon, ortada
+büyük sayı, altta etiket) — `.hub-tile`/`.hub-tiles__grid` (hub.css).
+
+**Genel Bakış üst özeti (2026-09-23):** yukarıdaki nav notuna bkz. — `OverviewStats` (today.jsx).
 
 ## Proje kuralları
 

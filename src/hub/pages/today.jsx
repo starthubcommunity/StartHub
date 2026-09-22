@@ -4,12 +4,13 @@
 //   3) Karar bekleyenler (Görüşme'de eşik/rubrik hazır + sunulmuş bekleyen)
 //   4) Süresi dolan kapılar (Deneme'de)
 // Boş blok gizlenir; hepsi boşsa tek satırlık davet.
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AIcon } from '../../admin/admin-ui';
+import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { isStale, thresholdMet, rubricCompleteFor, gateStatus } from '../hub-rules';
-import { WEEKLY_TARGET, STAGE_LABEL } from '../hub-constants';
+import { WEEKLY_TARGET, STAGE_LABEL, STAGES, INTEREST_LABEL } from '../hub-constants';
 import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
 import CandidatePanel from './candidate';
 
@@ -101,6 +102,79 @@ function Row({ onClick, main, meta, action, av }) {
   );
 }
 
+// ── Genel Bakış — üst şerit (2026-09-23) ────────────────────────────
+// "Bugün" tek başına yalnızca bekleyen işleri gösteriyordu; bu, HR ekibinin
+// panele girer girmez "şu an durum ne" sorusuna cevap alabileceği bir özet
+// ekliyor. Aday sayıları store'dan (client-side), Mentör/Destekçi/Fikir ve
+// Hub Sheet bağlantı durumu applications/hub_sheet_config'ten (hafif, tek
+// seferlik sorgu — hub-sheet.jsx'teki desenle aynı).
+function OverviewStats({ candidates }) {
+  const [appStats, setAppStats] = useState(null); // { mentors, sponsors, ideas, sheetOk }
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      supabase.from('applications').select('id', { count: 'exact', head: true }).eq('intent', 'mentor_application'),
+      supabase.from('applications').select('id', { count: 'exact', head: true }).eq('intent', 'sponsor_application'),
+      supabase.from('applications').select('id', { count: 'exact', head: true }).eq('intent', 'idea_application'),
+      supabase.from('hub_sheet_config').select('spreadsheet_id, enabled').eq('id', 1).single(),
+    ]).then(([m, s, i, cfg]) => {
+      if (!alive) return;
+      setAppStats({
+        mentors: m.count ?? 0, sponsors: s.count ?? 0, ideas: i.count ?? 0,
+        sheetOk: !!(cfg.data?.spreadsheet_id && cfg.data?.enabled),
+      });
+    }).catch(() => { if (alive) setAppStats({ mentors: 0, sponsors: 0, ideas: 0, sheetOk: false }); });
+    return () => { alive = false; };
+  }, []);
+
+  const active = candidates.filter((c) => c.stage !== 'archived');
+  const byStage = Object.fromEntries(STAGES.map((s) => [s.value, active.filter((c) => c.stage === s.value).length]));
+  const interestCounts = {};
+  active.forEach((c) => { const k = c.interest; if (k) interestCounts[k] = (interestCounts[k] || 0) + 1; });
+  const topInterests = Object.entries(interestCounts).sort((a, b) => b[1] - a[1]).slice(0, 4);
+
+  return (
+    <div className="hub-overview">
+      <div className="hub-overview__row">
+        <div className="hub-ov-card hub-ov-card--big">
+          <span className="hub-ov-card__n">{active.length}</span>
+          <span className="hub-ov-card__l">Aktif aday (LAB)</span>
+        </div>
+        {STAGES.map((s) => (
+          <div key={s.value} className="hub-ov-card">
+            <span className="hub-ov-card__n">{byStage[s.value] || 0}</span>
+            <span className="hub-ov-card__l">{s.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="hub-overview__row">
+        <div className="hub-ov-card">
+          <span className="hub-ov-card__n">{appStats?.mentors ?? '—'}</span>
+          <span className="hub-ov-card__l">Mentör başvurusu</span>
+        </div>
+        <div className="hub-ov-card">
+          <span className="hub-ov-card__n">{appStats?.sponsors ?? '—'}</span>
+          <span className="hub-ov-card__l">Destekçi başvurusu</span>
+        </div>
+        <div className="hub-ov-card">
+          <span className="hub-ov-card__n">{appStats?.ideas ?? '—'}</span>
+          <span className="hub-ov-card__l">Fikir başvurusu</span>
+        </div>
+        <div className={`hub-ov-card hub-ov-card--pill ${appStats?.sheetOk ? 'hub-ov-card--ok' : 'hub-ov-card--warn'}`}>
+          <span className="hub-ov-card__n" style={{ fontSize: 15 }}>{appStats == null ? '—' : appStats.sheetOk ? '✓ Bağlı' : 'Kurulmadı'}</span>
+          <span className="hub-ov-card__l">Hub Başvuru Tablosu</span>
+        </div>
+        {topInterests.length > 0 && topInterests.map(([k, n]) => (
+          <div key={k} className="hub-ov-card hub-ov-card--muted">
+            <span className="hub-ov-card__n">{n}</span>
+            <span className="hub-ov-card__l">{INTEREST_LABEL[k] || k}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TodayPage({ onGoto }) {
   const store = useHubStore();
   const { candidates, touches, gates, openRoles, currentMember } = store;
@@ -167,14 +241,16 @@ export default function TodayPage({ onGoto }) {
     <div className="hub-today">
       <div className="adm-page-head">
         <div>
-          <h1 className="adm-page-head__title">Bugün</h1>
-          <p className="adm-page-head__desc">Sistemin her sabah açıldığı yer.</p>
+          <h1 className="adm-page-head__title">Genel Bakış</h1>
+          <p className="adm-page-head__desc">Şu an durum ne + bugün bekleyen işler.</p>
         </div>
       </div>
 
+      <OverviewStats candidates={candidates} />
+
       {allEmpty ? (
         <div className="adm-empty">
-          Bugün temiz.
+          Bekleyen iş yok.
           <button className="adm-btn adm-btn--primary adm-btn--sm" style={{ marginTop: 10 }} onClick={() => onGoto?.('candidates')}>
             <AIcon name="layers" size={14} /> Adaylara git
           </button>

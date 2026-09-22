@@ -78,9 +78,9 @@ function InterestTiles({ candidates, selected, onToggle, onClear }) {
       <div className="hub-tiles__grid">
         {tiles.map((t) => (
           <button key={t.key} type="button" className={`hub-tile${selected.includes(t.key) ? ' hub-tile--on' : ''}`} onClick={() => onToggle(t.key)}>
-            <span className="hub-tile__icon"><AIcon name={t.icon} size={16} /></span>
-            <span className="hub-tile__label">{t.label}</span>
+            <span className="hub-tile__icon"><AIcon name={t.icon} size={17} /></span>
             <span className="hub-tile__n">{t.n}</span>
+            <span className="hub-tile__label">{t.label}</span>
           </button>
         ))}
       </div>

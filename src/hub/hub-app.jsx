@@ -336,7 +336,7 @@ function HubNoAccess({ email, onLogout }) {
 //  • HUB (topluluk) başvuruları HR'a düşmez → Google Sheets tablosu (Ayarlar › Hub Başvuru Tablosu)
 // Her öğe bir has_perm anahtarına bağlı; yetkisi olmayan öğe menüde HİÇ görünmez.
 const MAIN_NAV = [
-  { id: 'today',        label: 'Bugün',            icon: 'dashboard',     perm: null },
+  { id: 'today',        label: 'Genel Bakış',      icon: 'dashboard',     perm: null },
   { id: 'candidates',   label: 'Adaylar',          icon: 'layers',        perm: 'candidates.read' },
   { id: 'roles',        label: 'Açık Pozisyonlar', icon: 'rocket',        perm: 'roles.read' },
   { id: 'mentors',      label: 'Mentörler',        icon: 'graduationCap', perm: 'applications.read' },
