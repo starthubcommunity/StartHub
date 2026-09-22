@@ -133,15 +133,26 @@ boşsa `site_settings.instagram_url`, LinkedIn boşsa `site_settings.company_lin
 
 **HR yalnızca LAB (2026-09-21, 0041):** Katıl formunda HUB (topluluk, `applications.target='community'`)
 başvuruları HR'a DÜŞMEZ — `applications_to_hub_sheet` tetikleyicisi her yeni HUB başvurusunu Google Sheets'e
-(Apps Script web uygulaması, `net.http_post`) satır olarak yollar, yönetim tabloda yapılır. Kurulum HR › Ayarlar ›
-"Hub Başvuru Tablosu" (`hub-sheet.jsx`; URL + gizli anahtar `hub_sheet_config`ta, servis hesabı GEREKMEZ; kod
-`hub-sheet-script.js`; "Test satırı" ve "Mevcut başvuruları aktar" RPC'leri, ID'ye göre tekrarı eler). LAB tarafı:
+satır olarak yollar, yönetim tabloda yapılır. Kurulum HR › Ayarlar › "Hub Başvuru Tablosu" (`hub-sheet.jsx`);
+"Test satırı" ve "Mevcut başvuruları aktar" RPC'leri, ID'ye göre tekrarı eler. **Bağlantı yöntemi 0042'de
+değişti** (bkz. aşağı) — Apps Script artık kullanılmıyor. LAB tarafı:
 `project`/`pool_match` → tetikleyici `hub_candidates`a düşürür (`interest` kolonu: frontend, backend, mobile, data,
 design, product, marketing, business, content, other; role_type ondan türer) → Adaylar sayfasında ilgi alanı
 kutucukları (`InterestTiles`, `filters.interest`); mentör/destekçi/fikir → HR'da Mentörler / Destekçiler /
 Fikirler sayfaları (`applications.jsx kind=…`; `target` boş (eski) veya 'startup' olanlar). Eski HUB kaynaklı,
 dokunulmamış ('pool') adaylar HR'da gizlenir (`hub-store.jsx isHubOrigin`, silinmedi). Anasayfa logo şeridi
 sayfası menüde "Site Destekçileri" (Yönetim altında).
+
+**Hub Başvuru Tablosu — servis hesabı (2026-09-22, 0042):** Apps Script web-uygulaması yöntemi kaldırıldı
+(`hub-sheet-script.js` silindi); yerine `hub-sheet-sync` edge function'ı Google servis hesabıyla (RS256 JWT →
+OAuth2 access token, `crypto.subtle`) doğrudan Sheets API'ye yazıyor. Kullanıcı yalnızca tabloyu servis hesabı
+e-postasıyla paylaşır ve spreadsheet ID'sini HR › Ayarlar'a yapıştırır — kod kopyalama/yapıştırma yok.
+`hub_sheet_config`'e `spreadsheet_id`, `sheet_name`, `service_account_email` (gizli değil, yalnızca paylaşım
+için gösterilir) eklendi; `webhook_url`/`secret` DB'de duruyor ama kullanılmıyor (drop yok). Tetikleyici artık
+`net.http_post` ile doğrudan `hub-sheet-sync`'i (Vault'taki `project_url`/`service_role_key`, `0015_hub_cron.sql`
+ile aynı desen) çağırıyor. Edge function secret'ları `GOOGLE_SA_EMAIL`/`GOOGLE_SA_PRIVATE_KEY` **henüz
+ayarlanmadı** — kullanıcıdan servis hesabı JSON'u beklendikçe fonksiyon zararsızca `ok:false` döner, hiçbir
+başvuruyu engellemez (deploy edildi, smoke-test edildi: `curl` ile boş sonuç doğrulandı).
 
 ## Proje kuralları
 
