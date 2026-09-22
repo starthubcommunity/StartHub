@@ -1293,7 +1293,7 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .jseg__tag--startup { color: #2563EB; }
 
 /* Ekip birimi seçimi (Sosyal Medya / Tasarım / Organizasyon / Sponsorluk) */
-.jchips { --jt-c: var(--accent); display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.jchips { --jt-c: var(--accent); display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
 .jchip { padding: 11px 8px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--card-bg); font-family: var(--font-body); font-size: 13.5px; font-weight: 600; color: var(--text-primary); cursor: pointer; text-align: center; transition: border-color .15s, background .15s, color .15s, box-shadow .15s; }
 .jchip:hover { border-color: var(--jt-c); }
 .jchip:focus-visible { outline: 2px solid var(--jt-c); outline-offset: 1px; }

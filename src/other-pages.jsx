@@ -298,6 +298,7 @@ const HUB_UNITS = [
   { tr: 'Tasarım', en: 'Design' },
   { tr: 'Organizasyon', en: 'Events & Operations' },
   { tr: 'Sponsorluk', en: 'Sponsorship' },
+  { tr: 'Erasmus+', en: 'Erasmus+' },
 ];
 
 function TargetPicker({ type, value, onPick, intent, onIntent, lang }) {
@@ -479,7 +480,7 @@ function PhoneField({ ccValue, onCcChange, value, onChange, invalid, lang, requi
           : <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>({lang === 'tr' ? 'opsiyonel' : 'optional'})</span>}
       </label>
       <div className={`jphone${invalid ? ' jphone--invalid' : ''}`}>
-        <select className="jphone__cc" value={known ? ccValue : PHONE_OTHER_CC} onChange={e => handleCc(e.target.value)}>
+        <select name="tel-country-code" autoComplete="tel-country-code" className="jphone__cc" value={known ? ccValue : PHONE_OTHER_CC} onChange={e => handleCc(e.target.value)}>
           {COUNTRY_CODES.map(c => <option key={c.code + c.tr} value={c.code}>+{c.code} {lang === 'tr' ? c.tr : c.en}</option>)}
           <option value={PHONE_OTHER_CC}>{lang === 'tr' ? 'Diğer ülke…' : 'Other country…'}</option>
         </select>
@@ -487,7 +488,8 @@ function PhoneField({ ccValue, onCcChange, value, onChange, invalid, lang, requi
           <input className="jphone__cc-custom" placeholder={lang === 'tr' ? '+kod' : '+code'} inputMode="numeric"
             value={ccValue} onChange={e => onCcChange(e.target.value.replace(/\D/g, '').slice(0, 4))} />
         )}
-        <input type="tel" inputMode="tel" className="jphone__input" placeholder={lang === 'tr' ? 'telefon numarası' : 'phone number'}
+        <input type="tel" name="tel-national" autoComplete="tel-national" inputMode="tel" className="jphone__input"
+          placeholder={ccValue === '90' || ccValue === '7' ? '(5xx) xxx xx xx' : '(xxx) xxx xx xx'}
           value={formatPhoneDisplay(value, ccValue)} onChange={e => onChange(phoneLocalDigits(e.target.value, maxLen))} />
       </div>
       {value && (
@@ -539,13 +541,17 @@ function JoinPage({ navigate, projectId }) {
   const project = projectId ? startups.find(s => s.id === projectId || s.slug === projectId) : null;
   const savedRole = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_role') : null;
 
+  // Genel "Katıl" düğmesi (üstteki nav, footer, hero) hiçbir tip belirtmeden bu sayfaya
+  // gelir — bu durumda varsayılan olarak Topluluğa Katıl kartı + HUB (topluluk) tarafı
+  // zaten açık gelsin diye ikisi de "community" ile başlar. Bir önceki oturumdan kalan
+  // seçim (sayfa yenilenmesi) veya proje deep-link'i her zaman bu varsayılanın önündedir.
   const initialType = (() => {
     if (project) return 'community';
     if (typeof sessionStorage !== 'undefined') {
       const s = sessionStorage.getItem('sh_join_type');
       if (s === 'community' || s === 'mentor' || s === 'sponsor') return s;
     }
-    return null;
+    return 'community';
   })();
 
   const [joinType, setJoinType] = useStateOP(initialType);
@@ -553,8 +559,10 @@ function JoinPage({ navigate, projectId }) {
   const [joinTarget, setJoinTarget] = useStateOP(() => {
     try {
       const v = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_target') : null;
-      return (v === 'community' || v === 'startup') && initialType ? v : null;
-    } catch { return null; }
+      if ((v === 'community' || v === 'startup') && initialType) return v;
+    } catch { /* yok say */ }
+    // Deep-link/proje bağlamı yokken (genel "Katıl") varsayılan HUB tarafı açık gelsin.
+    return (!project && initialType === 'community') ? 'community' : null;
   });
   const [fxTick, setFxTick] = useStateOP(0); // her kart tıklamasında artar → animasyon yeniden başlar
 
@@ -1003,18 +1011,18 @@ function JoinPage({ navigate, projectId }) {
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('c_name', t('join.name'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
-                      <input className={`form-input${invalidFields.has('name') ? ' form-input--invalid' : ''}`} value={communityForm.name} onChange={e => handleC('name', e.target.value)} />
+                      <input name="name" autoComplete="name" className={`form-input${invalidFields.has('name') ? ' form-input--invalid' : ''}`} value={communityForm.name} onChange={e => handleC('name', e.target.value)} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">{fl('c_email', t('join.email'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
-                      <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
+                      <input type="email" name="email" autoComplete="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
                     </div>
                   </div>
                   <PhoneField value={communityForm.phone} onChange={v => handleC('phone', v)} ccValue={communityForm.phoneCC} onCcChange={v => handleC('phoneCC', v)} invalid={invalidFields.has('phone')} lang={lang} required />
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('c_university', t('join.university'))}</label>
-                      <input className="form-input" value={communityForm.university} onChange={e => handleC('university', e.target.value)} />
+                      <input name="organization" autoComplete="organization" className="form-input" value={communityForm.university} onChange={e => handleC('university', e.target.value)} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">{fl('c_department', t('join.department'))}</label>
@@ -1099,7 +1107,7 @@ function JoinPage({ navigate, projectId }) {
                       </div>
                       <div className="form-group">
                         <label className="form-label">{fl('c_linkedin', t('join.linkedin'))}</label>
-                        <input className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
+                        <input name="url" autoComplete="url" className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
                       </div>
                     </>
                   )}
@@ -1156,11 +1164,11 @@ function JoinPage({ navigate, projectId }) {
                       <div className="grid grid-2">
                         <div className="form-group">
                           <label className="form-label">{fl('c_linkedin', t('join.linkedin'))}</label>
-                          <input className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
+                          <input name="url" autoComplete="url" className="form-input" placeholder="linkedin.com/in/..." value={communityForm.linkedin} onChange={e => handleC('linkedin', e.target.value)} />
                         </div>
                         <div className="form-group">
                           <label className="form-label">{fl('c_portfolio', t('join.portfolio'))}</label>
-                          <input className="form-input" placeholder="github.com/..." value={communityForm.portfolio} onChange={e => handleC('portfolio', e.target.value)} />
+                          <input name="portfolio-url" autoComplete="url" className="form-input" placeholder="github.com/..." value={communityForm.portfolio} onChange={e => handleC('portfolio', e.target.value)} />
                         </div>
                       </div>
                     </>
@@ -1176,11 +1184,11 @@ function JoinPage({ navigate, projectId }) {
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('m_name', t('join.name'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
-                      <input className={`form-input${invalidFields.has('name') ? ' form-input--invalid' : ''}`} value={mentorForm.name} onChange={e => handleM('name', e.target.value)} />
+                      <input name="name" autoComplete="name" className={`form-input${invalidFields.has('name') ? ' form-input--invalid' : ''}`} value={mentorForm.name} onChange={e => handleM('name', e.target.value)} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">{fl('m_email', t('join.email'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
-                      <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
+                      <input type="email" name="email" autoComplete="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
                     </div>
                   </div>
                   <PhoneField value={mentorForm.phone} onChange={v => handleM('phone', v)} ccValue={mentorForm.phoneCC} onCcChange={v => handleM('phoneCC', v)} invalid={invalidFields.has('phone')} lang={lang} required />
@@ -1216,11 +1224,11 @@ function JoinPage({ navigate, projectId }) {
                   </div>
                   <div className="form-group">
                     <label className="form-label">{fl('m_company', lang === 'tr' ? 'Mevcut Şirket / Kurum' : 'Current Company / Organization')}</label>
-                    <input className="form-input" value={mentorForm.current_company} onChange={e => handleM('current_company', e.target.value)} />
+                    <input name="organization" autoComplete="organization" className="form-input" value={mentorForm.current_company} onChange={e => handleM('current_company', e.target.value)} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">{fl('m_linkedin', 'LinkedIn')}</label>
-                    <input className="form-input" placeholder="linkedin.com/in/..." value={mentorForm.linkedin} onChange={e => handleM('linkedin', e.target.value)} />
+                    <input name="url" autoComplete="url" className="form-input" placeholder="linkedin.com/in/..." value={mentorForm.linkedin} onChange={e => handleM('linkedin', e.target.value)} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">{fl('m_note', lang === 'tr' ? 'Neden mentör olmak istiyorsunuz?' : 'Why do you want to mentor?')}</label>
@@ -1238,22 +1246,22 @@ function JoinPage({ navigate, projectId }) {
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('s_contact', lang === 'tr' ? 'İletişim Kişisi' : 'Contact Name')} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
-                      <input className={`form-input${invalidFields.has('contact_name') ? ' form-input--invalid' : ''}`} value={sponsorForm.contact_name} onChange={e => handleS('contact_name', e.target.value)} />
+                      <input name="name" autoComplete="name" className={`form-input${invalidFields.has('contact_name') ? ' form-input--invalid' : ''}`} value={sponsorForm.contact_name} onChange={e => handleS('contact_name', e.target.value)} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">{fl('s_email', t('join.email'))} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
-                      <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={sponsorForm.email} onChange={e => handleS('email', e.target.value)} />
+                      <input type="email" name="email" autoComplete="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={sponsorForm.email} onChange={e => handleS('email', e.target.value)} />
                     </div>
                   </div>
                   <PhoneField value={sponsorForm.phone} onChange={v => handleS('phone', v)} ccValue={sponsorForm.phoneCC} onCcChange={v => handleS('phoneCC', v)} invalid={invalidFields.has('phone')} lang={lang} />
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('s_company', lang === 'tr' ? 'Şirket / Kurum Adı' : 'Company / Organization')}</label>
-                      <input className="form-input" value={sponsorForm.company} onChange={e => handleS('company', e.target.value)} />
+                      <input name="organization" autoComplete="organization" className="form-input" value={sponsorForm.company} onChange={e => handleS('company', e.target.value)} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">{fl('s_website', lang === 'tr' ? 'Web Sitesi' : 'Website')}</label>
-                      <input className="form-input" placeholder="https://..." value={sponsorForm.website} onChange={e => handleS('website', e.target.value)} />
+                      <input name="url" autoComplete="url" className="form-input" placeholder="https://..." value={sponsorForm.website} onChange={e => handleS('website', e.target.value)} />
                     </div>
                   </div>
                   {joinTarget === 'startup'
