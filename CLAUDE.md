@@ -183,6 +183,12 @@ iconSvgs`) yoktu, eklendi.
 mantığıyla duruyor, yalnızca görünümü değişti: küçük yatay pill yerine dikey "kanban" kartı (üstte ikon, ortada
 büyük sayı, altta etiket) — `.hub-tile`/`.hub-tiles__grid` (hub.css).
 
+**Adaylar — sayfaya girince önce kartlar (2026-09-23):** `candidates-list.jsx`'te hiçbir filtre aktif değilken
+(`noFilterActive`) aday LİSTESİ artık gösterilmiyor — yalnızca ilgi alanı kartları + arama çubuğu görünür; bir
+kart seçilince, aranınca ya da herhangi bir filtre uygulanınca (`showList`) liste açılır. "Ya da tüm adayları
+göster (N)" ghost butonu (`browseAll` state) bu varsayılanı aşıp listeyi yine de açar, "← Kartlara dön" ile geri
+dönülür. `applyFilters`/`InterestTiles`'ın kendisi DEĞİŞMEDİ, yalnızca listenin görünürlük koşulu eklendi.
+
 **Genel Bakış üst özeti (2026-09-23):** yukarıdaki nav notuna bkz. — `OverviewStats` (today.jsx).
 
 ## Proje kuralları

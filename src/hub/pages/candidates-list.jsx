@@ -98,6 +98,10 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const [triageIds, setTriageIds] = useState(null);   // D3
   const [actOn, setActOn] = useState(null);     // satırdan arşivle/sil için aday
   const [toast, setToast] = useState('');
+  // 2026-09-23 — sayfaya girince önce ilgi alanı kartları görünsün, liste
+  // yalnızca bir kart/arama/filtre seçilince açılsın (göz karışıklığı azalsın).
+  // "Tüm adayları göster" bu varsayılanı aşıp listeyi yine de açar.
+  const [browseAll, setBrowseAll] = useState(false);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
 
   const memberName = (id) => members.find((m) => m.id === id)?.fullName || members.find((m) => m.id === id)?.email || '—';
@@ -127,10 +131,13 @@ export default function CandidatesListPage({ filters, setFilters }) {
     [candidates, filters, ctx]
   );
 
+  const noFilterActive = !filters.chip && !filters.stage.length && !filters.source.length
+    && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim();
+  const showList = browseAll || !noFilterActive;
+
   // D3 — hızlı eleme: filtre yoksa varsayılan "hiç mesaj atılmamış".
   const startTriage = () => {
-    const empty = !filters.chip && !filters.stage.length && !filters.source.length
-      && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim();
+    const empty = noFilterActive;
     const f = empty ? { ...filters, chip: 'no_message' } : filters;
     if (empty) setFilters(f);
     const list = applyFilters(candidates, f, ctx).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -199,6 +206,20 @@ export default function CandidatesListPage({ filters, setFilters }) {
         onToggle={(k) => { const cur = filters.interest || []; setFilters({ ...filters, interest: cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k] }); }}
         onClear={() => setFilters({ ...filters, interest: [] })} />
 
+      {noFilterActive && (
+        <div style={{ margin: '-6px 0 14px' }}>
+          {!browseAll ? (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setBrowseAll(true)}>
+              Ya da tüm adayları göster ({activeCount})
+            </button>
+          ) : (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setBrowseAll(false)}>
+              ← Kartlara dön
+            </button>
+          )}
+        </div>
+      )}
+
       <FilterBar filters={filters} onChange={setFilters} candidates={candidates} openRoles={openRoles} ctx={ctx} />
 
       {can('candidates.write') && rows.length > 0 && (
@@ -211,7 +232,8 @@ export default function CandidatesListPage({ filters, setFilters }) {
 
       {loading ? (
         <div className="adm-empty">Yükleniyor…</div>
-      ) : rows.length === 0 ? (
+      ) : !showList ? null
+      : rows.length === 0 ? (
         <div className="adm-empty">{activeCount === 0 ? 'İlk adayını ekle — sağ üstteki “Aday ekle”.' : 'Bu filtreyle eşleşen aktif aday yok.'}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
