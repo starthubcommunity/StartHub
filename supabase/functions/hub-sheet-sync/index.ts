@@ -10,10 +10,15 @@
 //   GOOGLE_SA_PRIVATE_KEY  — servis hesabının private_key'i (PEM, \n kaçışlı da olabilir)
 // Sheet ID'si ve sekme adı hub_sheet_config tablosundan (service role ile) okunur.
 //
-// İstek gövdesi: { rows: [{ id, created_at, type, name, email, phone, university,
-//   department, unit, organization, detail, status }, ...] }
-// Satırın son sütunu ID'dir; tabloda zaten var olan ID'ler tekrar eklenmez (idempotent —
-// hem tetikleyici hem "Mevcut başvuruları aktar" için güvenli).
+// İstek gövdesi: { sheet_name?, rows: [{ id, created_at, type, name, email, phone,
+//   university, department, unit, organization, detail, status }, ...] }
+// `sheet_name` verilmezse hub_sheet_config.sheet_name kullanılır. Satırın son sütunu
+// ID'dir; tabloda zaten var olan ID'ler tekrar eklenmez (idempotent — hem tetikleyici
+// hem "Mevcut başvuruları aktar" için güvenli).
+//
+// 0043: yalnızca HUB değil, LAB başvuruları da (aynı tabloda AYRI bir sekmeye —
+// varsayılan "Sayfa1") yedek olarak gönderiliyor; site/DB'ye erişilemese bile
+// başvurular Sheets'te duruyor. Yönlendirme kararı (hangi sekme) DB tetikleyicisinde.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -96,7 +101,7 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const rows: Array<Record<string, unknown>> = Array.isArray(body.rows) ? body.rows : [];
-    const sheetName = cfg.sheet_name || "Hub Başvuruları";
+    const sheetName = (typeof body.sheet_name === "string" && body.sheet_name.trim()) || cfg.sheet_name || "Hub Başvuruları";
     const spreadsheetId = cfg.spreadsheet_id;
 
     const token = await getAccessToken();

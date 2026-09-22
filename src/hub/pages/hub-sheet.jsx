@@ -1,8 +1,9 @@
-// hub-sheet.jsx — HR › Ayarlar › "Hub Başvuru Tablosu" (Google Sheets bağlantısı).
-// HUB (topluluk) tarafı başvuruları HR'a düşmez; veritabanı tetikleyicisi her yeni
-// başvuruyu bir Google servis hesabıyla doğrudan Sheets API'ye yazar (hub-sheet-sync
-// edge function) — kullanıcı tarafında Apps Script/kod kurulumu GEREKMEZ. Tek elle
-// adım: tablo bir kere servis hesabı e-postasıyla paylaşılır, ID buraya yapıştırılır.
+// hub-sheet.jsx — HR › Ayarlar › "Başvuru Tablosu (Google Sheets)".
+// HUB (topluluk) tarafı HR'a düşmez, tabloya (varsayılan "Hub Başvuruları" sekmesi)
+// gider. LAB (startup) tarafı HR'a düşmeye devam eder — AMA 0043'ten itibaren aynı
+// tabloda ayrı bir sekmeye (varsayılan "Sayfa1") yedek olarak da yazılır: site/DB'ye
+// erişilemese bile başvurular Sheets'te durur. Servis hesabıyla otomatik çalışır —
+// kullanıcı tarafında Apps Script/kod kurulumu GEREKMEZ.
 import React, { useState, useEffect } from 'react';
 import { AIcon, Field, Input } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
@@ -22,8 +23,10 @@ export default function HubSheetSettings() {
   const [cfg, setCfg] = useState(null);
   const [sheetId, setSheetId] = useState('');
   const [sheetName, setSheetName] = useState('Hub Başvuruları');
+  const [labSheetName, setLabSheetName] = useState('Sayfa1');
   const [enabled, setEnabled] = useState(true);
   const [hubCount, setHubCount] = useState(null);
+  const [labCount, setLabCount] = useState(null);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(null);      // { text, err }
   const [copied, setCopied] = useState(false);
@@ -34,6 +37,7 @@ export default function HubSheetSettings() {
     setCfg(data);
     setSheetId(data.spreadsheet_id || '');
     setSheetName(data.sheet_name || 'Hub Başvuruları');
+    setLabSheetName(data.lab_sheet_name || 'Sayfa1');
     setEnabled(data.spreadsheet_id ? !!data.enabled : true);
   };
   useEffect(() => {
@@ -41,6 +45,9 @@ export default function HubSheetSettings() {
     supabase.from('applications').select('id', { count: 'exact', head: true })
       .or('target.eq.community,and(target.is.null,intent.in.(community,hub))')
       .then(({ count }) => setHubCount(count ?? null));
+    supabase.from('applications').select('id', { count: 'exact', head: true })
+      .or('target.eq.startup,and(target.is.null,intent.not.in.(community,hub))')
+      .then(({ count }) => setLabCount(count ?? null));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!can('settings.write')) return null;
@@ -59,6 +66,7 @@ export default function HubSheetSettings() {
     setBusy('save');
     const { error } = await supabase.from('hub_sheet_config').upsert({
       id: 1, spreadsheet_id: id || null, sheet_name: sheetName.trim() || 'Hub Başvuruları',
+      lab_sheet_name: labSheetName.trim() || 'Sayfa1',
       enabled: !!id && enabled, updated_at: new Date().toISOString(),
     });
     setBusy('');
@@ -73,7 +81,7 @@ export default function HubSheetSettings() {
     setBusy('');
     if (error) { flash(`${label} başarısız: ${error.message}`, true); return; }
     flash(fn === 'hub_sheet_backfill'
-      ? `${data} başvuru tabloya gönderildi (tabloda zaten olanlar tekrar eklenmez).`
+      ? `${data} başvuru tarandı, iki sekmeye dağıtıldı (tabloda zaten olanlar tekrar eklenmez).`
       : 'Test satırı gönderildi — birkaç saniye içinde tabloda görünmeli.');
     load();
   };
@@ -91,13 +99,14 @@ export default function HubSheetSettings() {
   return (
     <div style={{ marginBottom: 28 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <h3 className="hub-h4" style={{ margin: 0 }}>Hub Başvuru Tablosu (Google Sheets)</h3>
+        <h3 className="hub-h4" style={{ margin: 0 }}>Başvuru Tablosu (Google Sheets)</h3>
         <span className={`hub-pill ${connected ? 'hub-pill--ok' : 'hub-pill--warn'}`}>{connected ? '✓ bağlı' : 'kurulmadı'}</span>
       </div>
       <p style={{ fontSize: 13, color: 'var(--adm-text-dim)', margin: '6px 0 12px', maxWidth: 720 }}>
-        Katıl formunda <b>Topluluk (HUB)</b> tarafını dolduranlar HR'a düşmez; her yeni başvuru bu tabloya satır olarak eklenir ve
-        yönetim orada yapılır. HR yalnızca <b>Startup (LAB)</b> başvurularını alır. Bağlantı bir servis hesabıyla otomatik çalışır —
-        kod yapıştırma / Apps Script kurulumu yok.
+        Katıl formunda <b>Topluluk (HUB)</b> tarafını dolduranlar HR'a düşmez — bu tabloya (HUB sekmesi) yazılır, yönetim orada
+        yapılır. <b>Startup (LAB)</b> başvuruları HR'a düşmeye devam eder, ama artık aynı tabloda ayrı bir sekmeye <b>yedek</b>
+        olarak da yazılır — site veya veritabanına erişilemese bile başvurular elde kalır. Bağlantı bir servis hesabıyla otomatik
+        çalışır — kod yapıştırma / Apps Script kurulumu yok.
       </p>
 
       <div className="adm-card">
@@ -126,12 +135,21 @@ export default function HubSheetSettings() {
                   <Field label="Google Sheets linki veya ID">
                     <Input value={sheetId} onChange={setSheetId} placeholder="https://docs.google.com/spreadsheets/d/…/edit veya sadece ID" />
                   </Field>
-                  <Field label="Sekme adı">
-                    <Input value={sheetName} onChange={setSheetName} placeholder="Hub Başvuruları" />
-                  </Field>
+                  <div className="grid grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <Field label="HUB sekmesi (topluluk)">
+                      <Input value={sheetName} onChange={setSheetName} placeholder="Hub Başvuruları" />
+                    </Field>
+                    <Field label="LAB yedek sekmesi (startup)">
+                      <Input value={labSheetName} onChange={setLabSheetName} placeholder="Sayfa1" />
+                    </Field>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '-2px 0 10px' }}>
+                    LAB sekmesi yalnızca <b>yedek</b> — yönetim yine HR'da (Adaylar / Mentörler / Destekçiler / Fikirler) yapılır.
+                    Genelde Sheets'in kendiliğinden oluşturduğu boş "Sayfa1" sekmesi bunun için kullanılabilir.
+                  </p>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
                     <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} style={{ accentColor: '#DC2626' }} />
-                    Yeni başvuruları otomatik gönder
+                    Yeni başvuruları otomatik gönder (HUB + LAB yedeği)
                   </label>
                   <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy === 'save'} onClick={save}>
                     <AIcon name="save" size={13} /> {busy === 'save' ? 'Kaydediliyor…' : 'Bağlantıyı kaydet'}
@@ -144,7 +162,7 @@ export default function HubSheetSettings() {
               {busy === 'hub_sheet_test' ? 'Gönderiliyor…' : 'Test satırı gönder'}
             </button>
             <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={!cfg?.spreadsheet_id || !!busy} onClick={() => rpc('hub_sheet_backfill', 'Aktarım')}>
-              {busy === 'hub_sheet_backfill' ? 'Aktarılıyor…' : `Mevcut Hub başvurularını tabloya aktar${hubCount != null ? ` (${hubCount})` : ''}`}
+              {busy === 'hub_sheet_backfill' ? 'Aktarılıyor…' : `Mevcut tüm başvuruları tabloya aktar${hubCount != null && labCount != null ? ` (${hubCount} HUB, ${labCount} LAB)` : ''}`}
             </button>
             <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginLeft: 'auto' }}>
               Son gönderim: {fmt(cfg?.last_sent_at)}{cfg?.last_error ? ` · hata: ${cfg.last_error}` : ''}
