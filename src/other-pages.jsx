@@ -335,6 +335,34 @@ function TargetPicker({ type, value, onPick, intent, onIntent, lang }) {
   );
 }
 
+// Yerel numarayı (0/90/+90 önekleri ne olursa olsun) 10 haneli TR mobil biçimine indirger.
+const phoneLocalDigits = (v) => {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.startsWith('90') && d.length > 10) d = d.slice(2);
+  if (d.startsWith('0')) d = d.slice(1);
+  return d;
+};
+
+// +90 önekli telefon alanı — uluslararası öğrenciler de dahil herkes aynı biçimde
+// girsin diye ülke kodu sabit gösterilir, kullanıcı yalnızca yerel numarayı yazar.
+function PhoneField({ value, onChange, invalid, lang, required }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">
+        {lang === 'tr' ? 'Telefon' : 'Phone'}{' '}
+        {required
+          ? <span style={{ color: 'var(--red, #DC2626)' }}>*</span>
+          : <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>({lang === 'tr' ? 'opsiyonel' : 'optional'})</span>}
+      </label>
+      <div className={`jphone${invalid ? ' jphone--invalid' : ''}`}>
+        <span className="jphone__cc">+90</span>
+        <input type="tel" inputMode="tel" className="jphone__input" placeholder="5xx xxx xx xx"
+          value={value} onChange={e => onChange(phoneLocalDigits(e.target.value))} maxLength={10} />
+      </div>
+    </div>
+  );
+}
+
 function JoinPage({ navigate, projectId }) {
   const { lang, t } = useLang();
   const { startups } = useStartups();
@@ -422,14 +450,14 @@ function JoinPage({ navigate, projectId }) {
     setCommunityForm(p => (ok.includes(p.intent) ? p : { ...p, intent: joinTarget === 'startup' ? 'project' : 'community' }));
   }, [joinTarget]); // eslint-disable-line react-hooks/exhaustive-deps
   const [mentorForm, setMentorForm] = useStateOP({
-    name: '', email: '', expertise: '', experience_years: '',
+    name: '', email: '', phone: '', expertise: '', experience_years: '',
     current_company: '', hours_per_week: '', linkedin: '', mentor_note: '',
     projectId: '',   // hedef startup olan mentörlükte (opsiyonel)
   });
   const [sponsorForm, setSponsorForm] = useStateOP({
-    contact_name: '', email: '', company: '', website: '',
+    contact_name: '', email: '', phone: '', company: '', website: '',
     collab_types: [], sponsor_message: '',
-    projectId: '',   // hedef startup olan desteklerde (opsiyonel)
+    projectId: '',   // hedef startup olan desteklerde (opsiyonel) — telefon da opsiyonel
   });
 
   const clearInvalid = (f) => setInvalidFields(prev => { if (!prev.has(f)) return prev; const next = new Set(prev); next.delete(f); return next; });
@@ -482,20 +510,20 @@ function JoinPage({ navigate, projectId }) {
     if (activeType === 'mentor') {
       check(mentorForm.name.trim(), 'name', lang === 'tr' ? 'Ad Soyad' : 'Full Name');
       check(mentorForm.email.trim(), 'email', lang === 'tr' ? 'E-posta' : 'Email');
+      check(mentorForm.phone.trim(), 'phone', lang === 'tr' ? 'Telefon' : 'Phone');
     } else if (activeType === 'sponsor') {
       check(sponsorForm.contact_name.trim(), 'contact_name', lang === 'tr' ? 'İletişim Kişisi' : 'Contact Name');
       check(sponsorForm.email.trim(), 'email', lang === 'tr' ? 'E-posta' : 'Email');
+      // Telefon burada BİLEREK opsiyonel — destekçiler vermek istemeyebilir.
     } else {
       check(communityForm.name.trim(), 'name', lang === 'tr' ? 'Ad Soyad' : 'Full Name');
       check(communityForm.email.trim(), 'email', lang === 'tr' ? 'E-posta' : 'Email');
+      check(communityForm.phone.trim(), 'phone', lang === 'tr' ? 'Telefon' : 'Phone');
       if (!project && communityForm.intent === 'idea_application') {
         check(communityForm.pitch.trim(), 'pitch', lang === 'tr' ? 'Fikrin' : 'Your idea');
       }
       if (!project && communityForm.intent === 'hub') check(communityForm.unit, 'unit', lang === 'tr' ? 'Birim' : 'Unit');
       if (!project && communityForm.intent === 'pool_match') check(communityForm.interest, 'interest', lang === 'tr' ? 'İlgi Alanı' : 'Area of interest');
-      if (!project && ['community', 'hub'].includes(communityForm.intent)) {
-        check(communityForm.phone.trim(), 'phone', lang === 'tr' ? 'Telefon' : 'Phone');
-      }
     }
     if (missing.length) {
       setInvalidFields(new Set(missing.map(([f]) => f)));
@@ -508,12 +536,10 @@ function JoinPage({ navigate, projectId }) {
       setInvalidFields(new Set(['email']));
       return lang === 'tr' ? 'Lütfen geçerli bir e-posta adresi girin.' : 'Please enter a valid email address.';
     }
-    if (activeType === 'community' && !project && ['community', 'hub'].includes(communityForm.intent) && communityForm.phone.trim()) {
-      const digits = communityForm.phone.replace(/\D/g, '');
-      if (digits.length < 10 || digits.length > 13) {
-        setInvalidFields(new Set(['phone']));
-        return lang === 'tr' ? 'Lütfen geçerli bir telefon numarası girin.' : 'Please enter a valid phone number.';
-      }
+    const phoneVal = activeType === 'mentor' ? mentorForm.phone : activeType === 'sponsor' ? sponsorForm.phone : communityForm.phone;
+    if (phoneVal.trim() && phoneLocalDigits(phoneVal).length !== 10) {
+      setInvalidFields(new Set(['phone']));
+      return lang === 'tr' ? 'Lütfen geçerli bir telefon numarası girin (10 haneli, örn. 5xx xxx xx xx).' : 'Please enter a valid phone number (10 digits, e.g. 5xx xxx xx xx).';
     }
     setInvalidFields(new Set());
     return null;
@@ -535,6 +561,7 @@ function JoinPage({ navigate, projectId }) {
           target: joinTarget === 'startup' ? 'startup' : 'community',
           project_id: mProject?.id || null, project_name: mProject?.name || null,
           name: mentorForm.name, email: mentorForm.email,
+          phone: mentorForm.phone ? '+90' + mentorForm.phone : null,
           expertise: mentorForm.expertise || null,
           experience_years: mentorForm.experience_years || null,
           company: mentorForm.current_company || null,
@@ -549,6 +576,7 @@ function JoinPage({ navigate, projectId }) {
           target: joinTarget === 'startup' ? 'startup' : 'community',
           project_id: sProject?.id || null, project_name: sProject?.name || null,
           name: sponsorForm.contact_name, email: sponsorForm.email,
+          phone: sponsorForm.phone ? '+90' + sponsorForm.phone : null,
           company_name: sponsorForm.company || null,
           website: sponsorForm.website || null,
           collaboration_types: sponsorForm.collab_types.length ? sponsorForm.collab_types : null,
@@ -565,7 +593,7 @@ function JoinPage({ navigate, projectId }) {
         const pickedProject = project || inFormProject || ideaProject;
         insertData = {
           target: (project || ['project', 'founder_lead', 'idea_application', 'pool_match'].includes(communityForm.intent)) ? 'startup' : 'community',
-          ...(!project && ['community', 'hub'].includes(communityForm.intent) ? { phone: communityForm.phone.trim() || null } : {}),
+          phone: communityForm.phone ? '+90' + communityForm.phone : null,
           name: communityForm.name, email: communityForm.email,
           university: communityForm.university || null,
           department: communityForm.department || null,
@@ -825,12 +853,7 @@ function JoinPage({ navigate, projectId }) {
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
                     </div>
                   </div>
-                  {!project && ['community', 'hub'].includes(communityForm.intent) && (
-                    <div className="form-group">
-                      <label className="form-label">{lang === 'tr' ? 'Telefon' : 'Phone'} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
-                      <input type="tel" inputMode="tel" className={`form-input${invalidFields.has('phone') ? ' form-input--invalid' : ''}`} placeholder="05xx xxx xx xx" value={communityForm.phone} onChange={e => handleC('phone', e.target.value)} />
-                    </div>
-                  )}
+                  <PhoneField value={communityForm.phone} onChange={v => handleC('phone', v)} invalid={invalidFields.has('phone')} lang={lang} required />
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('c_university', t('join.university'))}</label>
@@ -1003,6 +1026,7 @@ function JoinPage({ navigate, projectId }) {
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
                     </div>
                   </div>
+                  <PhoneField value={mentorForm.phone} onChange={v => handleM('phone', v)} invalid={invalidFields.has('phone')} lang={lang} required />
                   {joinTarget === 'startup'
                     ? startupPick(mentorForm.projectId, v => handleM('projectId', v), lang === 'tr' ? "Hangi startup'a mentörlük yapmak istersin?" : 'Which startup do you want to mentor?')
                     : <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 18 }}>
@@ -1064,6 +1088,7 @@ function JoinPage({ navigate, projectId }) {
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={sponsorForm.email} onChange={e => handleS('email', e.target.value)} />
                     </div>
                   </div>
+                  <PhoneField value={sponsorForm.phone} onChange={v => handleS('phone', v)} invalid={invalidFields.has('phone')} lang={lang} />
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('s_company', lang === 'tr' ? 'Şirket / Kurum Adı' : 'Company / Organization')}</label>
