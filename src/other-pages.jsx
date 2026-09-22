@@ -493,6 +493,9 @@ function JoinPage({ navigate, projectId }) {
       }
       if (!project && communityForm.intent === 'hub') check(communityForm.unit, 'unit', lang === 'tr' ? 'Birim' : 'Unit');
       if (!project && communityForm.intent === 'pool_match') check(communityForm.interest, 'interest', lang === 'tr' ? 'İlgi Alanı' : 'Area of interest');
+      if (!project && ['community', 'hub'].includes(communityForm.intent)) {
+        check(communityForm.phone.trim(), 'phone', lang === 'tr' ? 'Telefon' : 'Phone');
+      }
     }
     if (missing.length) {
       setInvalidFields(new Set(missing.map(([f]) => f)));
@@ -824,7 +827,7 @@ function JoinPage({ navigate, projectId }) {
                   </div>
                   {!project && ['community', 'hub'].includes(communityForm.intent) && (
                     <div className="form-group">
-                      <label className="form-label">{lang === 'tr' ? 'Telefon' : 'Phone'} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>({lang === 'tr' ? 'opsiyonel' : 'optional'})</span></label>
+                      <label className="form-label">{lang === 'tr' ? 'Telefon' : 'Phone'} <span style={{ color: 'var(--red, #DC2626)' }}>*</span></label>
                       <input type="tel" inputMode="tel" className={`form-input${invalidFields.has('phone') ? ' form-input--invalid' : ''}`} placeholder="05xx xxx xx xx" value={communityForm.phone} onChange={e => handleC('phone', e.target.value)} />
                     </div>
                   )}
@@ -838,6 +841,12 @@ function JoinPage({ navigate, projectId }) {
                       <input className="form-input" value={communityForm.department} onChange={e => handleC('department', e.target.value)} />
                     </div>
                   </div>
+                  {!project && ['community', 'hub'].includes(communityForm.intent) && (
+                    <div className="form-group">
+                      <label className="form-label">{lang === 'tr' ? 'Kısa Bio' : 'Short Bio'} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>({lang === 'tr' ? 'opsiyonel' : 'optional'})</span></label>
+                      <textarea className="form-input" placeholder={t('join.bioPlaceholder')} value={communityForm.bio} onChange={e => handleC('bio', e.target.value)} />
+                    </div>
+                  )}
                   {/* "Nasıl yer almak istersin?" seçimi kartların altındaki TargetPicker'da */}
 
                   {/* Ekipte yer almak: birim seçimi (yetenek/GitHub/LinkedIn sorulmaz — onlar Lab'a özel) */}
