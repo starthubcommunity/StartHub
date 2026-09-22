@@ -152,7 +152,20 @@ için gösterilir) eklendi; `webhook_url`/`secret` DB'de duruyor ama kullanılm�
 `net.http_post` ile doğrudan `hub-sheet-sync`'i (Vault'taki `project_url`/`service_role_key`, `0015_hub_cron.sql`
 ile aynı desen) çağırıyor. Edge function secret'ları `GOOGLE_SA_EMAIL`/`GOOGLE_SA_PRIVATE_KEY` **henüz
 ayarlanmadı** — kullanıcıdan servis hesabı JSON'u beklendikçe fonksiyon zararsızca `ok:false` döner, hiçbir
-başvuruyu engellemez (deploy edildi, smoke-test edildi: `curl` ile boş sonuç doğrulandı).
+başvuruyu engellemez (deploy edildi, smoke-test edildi: `curl` ile boş sonuç doğrulandı). **Kurulum tamamlandı
+(2026-09-22):** `GOOGLE_SA_EMAIL`/`GOOGLE_SA_PRIVATE_KEY` secret'ları eklendi, `hub_sheet_config.spreadsheet_id`
+dolduruldu, bağlantı etkin — tablo: `docs.google.com/spreadsheets/d/17nlUjebAyX1kU5AxBC3h73NmqfXbLe1_DiFcnAEaVxA`.
+
+**LAB başvuruları da Sheets'e yedekleniyor (2026-09-22, 0043):** "site giderse elimizde yedek bulunsun" — artık
+yalnızca HUB değil, LAB (startup) başvuruları da kayıt olunca AYNI tabloda AYRI bir sekmeye (varsayılan
+"Sayfa1" — Sheets'in kendiliğinden oluşturduğu boş sekme; `hub_sheet_config.lab_sheet_name`) yedek olarak
+yazılıyor. HR'ın kendi akışı (LAB → Adaylar/Mentörler/Destekçiler/Fikirler) DEĞİŞMEDİ — bu yalnızca ek, salt
+okunur bir yedekleme kanalı; yönetim hâlâ HR'da. `applications_to_hub_sheet()` artık HUB için erken çıkış
+yapmıyor, hedef sekmeyi `is_hub_application()`e göre seçip `hub_sheet_post_batch()` (ortak gönderim yardımcısı)
+ile yolluyor. `hub_sheet_row()` LAB'a özel alanları da (proje, ilgi alanı, pozisyon, yetenek, linkedin/portfolyo,
+fikir/problem/ilerleme) 'detay' sütununa ekliyor. `hub_sheet_backfill()` artık HER İKİ tarafı da tarar. HR ›
+Ayarlar'da iki ayrı sekme adı alanı var (HUB / LAB yedek). Mevcut 8 başvuru (5 HUB + 3 LAB) geriye dönük
+aktarıldı, doğrulandı.
 
 ## Proje kuralları
 
