@@ -335,17 +335,98 @@ function TargetPicker({ type, value, onPick, intent, onIntent, lang }) {
   );
 }
 
-// Yerel numarayı (0/90/+90 önekleri ne olursa olsun) 10 haneli TR mobil biçimine indirger.
+// Yerel numarayı normalize eder: rakam dışı her şeyi ve baştaki tek "0" (şehir/trunk
+// öneki) düşer. Ülke kodu ayrı bir seçiciyle alınıyor, burada karışmıyor.
 const phoneLocalDigits = (v) => {
   let d = String(v || '').replace(/\D/g, '');
-  if (d.startsWith('90') && d.length > 10) d = d.slice(2);
   if (d.startsWith('0')) d = d.slice(1);
-  return d;
+  return d.slice(0, 14);
 };
 
-// +90 önekli telefon alanı — uluslararası öğrenciler de dahil herkes aynı biçimde
-// girsin diye ülke kodu sabit gösterilir, kullanıcı yalnızca yerel numarayı yazar.
-function PhoneField({ value, onChange, invalid, lang, required }) {
+// Uluslararası öğrenciler de başvuracağı için ülke kodu seçilebilir — varsayılan
+// Türkiye (+90), listede olmayan bir ülke için "Diğer ülke…" ile elle kod girilir.
+const PHONE_OTHER_CC = '__other';
+const COUNTRY_CODES = [
+  { code: '90', name: 'Türkiye' },
+  { code: '994', name: 'Azerbaycan' },
+  { code: '993', name: 'Türkmenistan' },
+  { code: '998', name: 'Özbekistan' },
+  { code: '996', name: 'Kırgızistan' },
+  { code: '992', name: 'Tacikistan' },
+  { code: '7', name: 'Kazakistan / Rusya' },
+  { code: '995', name: 'Gürcistan' },
+  { code: '374', name: 'Ermenistan' },
+  { code: '98', name: 'İran' },
+  { code: '964', name: 'Irak' },
+  { code: '963', name: 'Suriye' },
+  { code: '970', name: 'Filistin' },
+  { code: '962', name: 'Ürdün' },
+  { code: '961', name: 'Lübnan' },
+  { code: '966', name: 'Suudi Arabistan' },
+  { code: '971', name: 'BAE' },
+  { code: '965', name: 'Kuveyt' },
+  { code: '974', name: 'Katar' },
+  { code: '973', name: 'Bahreyn' },
+  { code: '968', name: 'Umman' },
+  { code: '967', name: 'Yemen' },
+  { code: '20', name: 'Mısır' },
+  { code: '218', name: 'Libya' },
+  { code: '249', name: 'Sudan' },
+  { code: '212', name: 'Fas' },
+  { code: '213', name: 'Cezayir' },
+  { code: '216', name: 'Tunus' },
+  { code: '252', name: 'Somali' },
+  { code: '234', name: 'Nijerya' },
+  { code: '254', name: 'Kenya' },
+  { code: '27', name: 'Güney Afrika' },
+  { code: '93', name: 'Afganistan' },
+  { code: '92', name: 'Pakistan' },
+  { code: '91', name: 'Hindistan' },
+  { code: '880', name: 'Bangladeş' },
+  { code: '86', name: 'Çin' },
+  { code: '976', name: 'Moğolistan' },
+  { code: '82', name: 'Güney Kore' },
+  { code: '81', name: 'Japonya' },
+  { code: '84', name: 'Vietnam' },
+  { code: '62', name: 'Endonezya' },
+  { code: '60', name: 'Malezya' },
+  { code: '63', name: 'Filipinler' },
+  { code: '380', name: 'Ukrayna' },
+  { code: '375', name: 'Belarus' },
+  { code: '355', name: 'Arnavutluk' },
+  { code: '387', name: 'Bosna Hersek' },
+  { code: '389', name: 'Kuzey Makedonya' },
+  { code: '383', name: 'Kosova' },
+  { code: '381', name: 'Sırbistan' },
+  { code: '30', name: 'Yunanistan' },
+  { code: '359', name: 'Bulgaristan' },
+  { code: '40', name: 'Romanya' },
+  { code: '48', name: 'Polonya' },
+  { code: '49', name: 'Almanya' },
+  { code: '33', name: 'Fransa' },
+  { code: '44', name: 'Birleşik Krallık' },
+  { code: '39', name: 'İtalya' },
+  { code: '34', name: 'İspanya' },
+  { code: '351', name: 'Portekiz' },
+  { code: '31', name: 'Hollanda' },
+  { code: '32', name: 'Belçika' },
+  { code: '46', name: 'İsveç' },
+  { code: '47', name: 'Norveç' },
+  { code: '45', name: 'Danimarka' },
+  { code: '358', name: 'Finlandiya' },
+  { code: '41', name: 'İsviçre' },
+  { code: '43', name: 'Avusturya' },
+  { code: '36', name: 'Macaristan' },
+  { code: '420', name: 'Çekya' },
+  { code: '1', name: 'ABD / Kanada' },
+  { code: '55', name: 'Brezilya' },
+  { code: '52', name: 'Meksika' },
+];
+
+// Ülke kodu seçilebilir telefon alanı — varsayılan Türkiye, listede yoksa "Diğer
+// ülke…" ile elle kod girilir. Kullanıcı yalnızca yerel numarayı yazar.
+function PhoneField({ ccValue, onCcChange, value, onChange, invalid, lang, required }) {
+  const known = COUNTRY_CODES.some(c => c.code === ccValue);
   return (
     <div className="form-group">
       <label className="form-label">
@@ -355,9 +436,17 @@ function PhoneField({ value, onChange, invalid, lang, required }) {
           : <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>({lang === 'tr' ? 'opsiyonel' : 'optional'})</span>}
       </label>
       <div className={`jphone${invalid ? ' jphone--invalid' : ''}`}>
-        <span className="jphone__cc">+90</span>
-        <input type="tel" inputMode="tel" className="jphone__input" placeholder="5xx xxx xx xx"
-          value={value} onChange={e => onChange(phoneLocalDigits(e.target.value))} maxLength={10} />
+        <select className="jphone__cc" value={known ? ccValue : PHONE_OTHER_CC}
+          onChange={e => onCcChange(e.target.value === PHONE_OTHER_CC ? '' : e.target.value)}>
+          {COUNTRY_CODES.map(c => <option key={c.name} value={c.code}>+{c.code} {c.name}</option>)}
+          <option value={PHONE_OTHER_CC}>{lang === 'tr' ? 'Diğer ülke…' : 'Other country…'}</option>
+        </select>
+        {!known && (
+          <input className="jphone__cc-custom" placeholder="+kod" inputMode="numeric"
+            value={ccValue} onChange={e => onCcChange(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+        )}
+        <input type="tel" inputMode="tel" className="jphone__input" placeholder={lang === 'tr' ? 'telefon numarası' : 'phone number'}
+          value={value} onChange={e => onChange(phoneLocalDigits(e.target.value))} />
       </div>
     </div>
   );
@@ -412,7 +501,7 @@ function JoinPage({ navigate, projectId }) {
 
   const [communityForm, setCommunityForm] = useStateOP({
     name: '', email: '', university: '', department: '', role: '',
-    phone: '', unit: '',   // HUB tarafı: telefon + ekip birimi
+    phone: '', phoneCC: '90', unit: '',   // HUB tarafı: telefon (+ülke kodu) + ekip birimi
     interest: '',          // LAB tarafı: ilgi alanı (JOIN_INTERESTS anahtarı)
     intent: project ? 'project' : 'community',
     bio: '', linkedin: '', portfolio: '', skills: '',
@@ -450,12 +539,12 @@ function JoinPage({ navigate, projectId }) {
     setCommunityForm(p => (ok.includes(p.intent) ? p : { ...p, intent: joinTarget === 'startup' ? 'project' : 'community' }));
   }, [joinTarget]); // eslint-disable-line react-hooks/exhaustive-deps
   const [mentorForm, setMentorForm] = useStateOP({
-    name: '', email: '', phone: '', expertise: '', experience_years: '',
+    name: '', email: '', phone: '', phoneCC: '90', expertise: '', experience_years: '',
     current_company: '', hours_per_week: '', linkedin: '', mentor_note: '',
     projectId: '',   // hedef startup olan mentörlükte (opsiyonel)
   });
   const [sponsorForm, setSponsorForm] = useStateOP({
-    contact_name: '', email: '', phone: '', company: '', website: '',
+    contact_name: '', email: '', phone: '', phoneCC: '90', company: '', website: '',
     collab_types: [], sponsor_message: '',
     projectId: '',   // hedef startup olan desteklerde (opsiyonel) — telefon da opsiyonel
   });
@@ -537,9 +626,17 @@ function JoinPage({ navigate, projectId }) {
       return lang === 'tr' ? 'Lütfen geçerli bir e-posta adresi girin.' : 'Please enter a valid email address.';
     }
     const phoneVal = activeType === 'mentor' ? mentorForm.phone : activeType === 'sponsor' ? sponsorForm.phone : communityForm.phone;
-    if (phoneVal.trim() && phoneLocalDigits(phoneVal).length !== 10) {
-      setInvalidFields(new Set(['phone']));
-      return lang === 'tr' ? 'Lütfen geçerli bir telefon numarası girin (10 haneli, örn. 5xx xxx xx xx).' : 'Please enter a valid phone number (10 digits, e.g. 5xx xxx xx xx).';
+    const phoneCcVal = activeType === 'mentor' ? mentorForm.phoneCC : activeType === 'sponsor' ? sponsorForm.phoneCC : communityForm.phoneCC;
+    if (phoneVal.trim()) {
+      const digits = phoneLocalDigits(phoneVal);
+      // Türkiye numaraları için 10 hane (5xx xxx xx xx) kesin kontrol edilir; diğer
+      // ülke kodlarında (uluslararası öğrenciler) uzunluk ülkeden ülkeye değiştiği
+      // için yalnızca makul bir aralık (6–14 hane) + kodun boş olmaması kontrol edilir.
+      const lenOk = phoneCcVal === '90' ? digits.length === 10 : digits.length >= 6 && digits.length <= 14;
+      if (!phoneCcVal.trim() || !lenOk) {
+        setInvalidFields(new Set(['phone']));
+        return lang === 'tr' ? 'Lütfen geçerli bir ülke kodu ve telefon numarası girin.' : 'Please enter a valid country code and phone number.';
+      }
     }
     setInvalidFields(new Set());
     return null;
@@ -561,7 +658,7 @@ function JoinPage({ navigate, projectId }) {
           target: joinTarget === 'startup' ? 'startup' : 'community',
           project_id: mProject?.id || null, project_name: mProject?.name || null,
           name: mentorForm.name, email: mentorForm.email,
-          phone: mentorForm.phone ? '+90' + mentorForm.phone : null,
+          phone: mentorForm.phone ? '+' + (mentorForm.phoneCC || '90') + mentorForm.phone : null,
           expertise: mentorForm.expertise || null,
           experience_years: mentorForm.experience_years || null,
           company: mentorForm.current_company || null,
@@ -576,7 +673,7 @@ function JoinPage({ navigate, projectId }) {
           target: joinTarget === 'startup' ? 'startup' : 'community',
           project_id: sProject?.id || null, project_name: sProject?.name || null,
           name: sponsorForm.contact_name, email: sponsorForm.email,
-          phone: sponsorForm.phone ? '+90' + sponsorForm.phone : null,
+          phone: sponsorForm.phone ? '+' + (sponsorForm.phoneCC || '90') + sponsorForm.phone : null,
           company_name: sponsorForm.company || null,
           website: sponsorForm.website || null,
           collaboration_types: sponsorForm.collab_types.length ? sponsorForm.collab_types : null,
@@ -593,7 +690,7 @@ function JoinPage({ navigate, projectId }) {
         const pickedProject = project || inFormProject || ideaProject;
         insertData = {
           target: (project || ['project', 'founder_lead', 'idea_application', 'pool_match'].includes(communityForm.intent)) ? 'startup' : 'community',
-          phone: communityForm.phone ? '+90' + communityForm.phone : null,
+          phone: communityForm.phone ? '+' + (communityForm.phoneCC || '90') + communityForm.phone : null,
           name: communityForm.name, email: communityForm.email,
           university: communityForm.university || null,
           department: communityForm.department || null,
@@ -853,7 +950,7 @@ function JoinPage({ navigate, projectId }) {
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={communityForm.email} onChange={e => handleC('email', e.target.value)} />
                     </div>
                   </div>
-                  <PhoneField value={communityForm.phone} onChange={v => handleC('phone', v)} invalid={invalidFields.has('phone')} lang={lang} required />
+                  <PhoneField value={communityForm.phone} onChange={v => handleC('phone', v)} ccValue={communityForm.phoneCC} onCcChange={v => handleC('phoneCC', v)} invalid={invalidFields.has('phone')} lang={lang} required />
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('c_university', t('join.university'))}</label>
@@ -1026,7 +1123,7 @@ function JoinPage({ navigate, projectId }) {
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={mentorForm.email} onChange={e => handleM('email', e.target.value)} />
                     </div>
                   </div>
-                  <PhoneField value={mentorForm.phone} onChange={v => handleM('phone', v)} invalid={invalidFields.has('phone')} lang={lang} required />
+                  <PhoneField value={mentorForm.phone} onChange={v => handleM('phone', v)} ccValue={mentorForm.phoneCC} onCcChange={v => handleM('phoneCC', v)} invalid={invalidFields.has('phone')} lang={lang} required />
                   {joinTarget === 'startup'
                     ? startupPick(mentorForm.projectId, v => handleM('projectId', v), lang === 'tr' ? "Hangi startup'a mentörlük yapmak istersin?" : 'Which startup do you want to mentor?')
                     : <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 18 }}>
@@ -1088,7 +1185,7 @@ function JoinPage({ navigate, projectId }) {
                       <input type="email" className={`form-input${invalidFields.has('email') ? ' form-input--invalid' : ''}`} value={sponsorForm.email} onChange={e => handleS('email', e.target.value)} />
                     </div>
                   </div>
-                  <PhoneField value={sponsorForm.phone} onChange={v => handleS('phone', v)} invalid={invalidFields.has('phone')} lang={lang} />
+                  <PhoneField value={sponsorForm.phone} onChange={v => handleS('phone', v)} ccValue={sponsorForm.phoneCC} onCcChange={v => handleS('phoneCC', v)} invalid={invalidFields.has('phone')} lang={lang} />
                   <div className="grid grid-2">
                     <div className="form-group">
                       <label className="form-label">{fl('s_company', lang === 'tr' ? 'Şirket / Kurum Adı' : 'Company / Organization')}</label>
