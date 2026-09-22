@@ -1309,7 +1309,14 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .jphone__cc-custom { flex: 0 0 60px; width: 60px; padding: 12px 6px; border: none; border-right: 1px solid var(--border); background: transparent; font-size: 15px; color: var(--text-primary); outline: none; text-align: center; }
 .jphone__input { flex: 1; min-width: 0; padding: 12px 16px; border: none; background: transparent; font-size: 15px; color: var(--text-primary); outline: none; }
 .jphone__input::placeholder, .jphone__cc-custom::placeholder { color: var(--text-tertiary); }
-@media (max-width: 480px) { .jphone__cc { max-width: 108px; font-size: 12px; padding-left: 10px; } }
+/* Dar ekranlarda ülke kodu adı kısalır/kırpılır; tam otursun diye kendi satırına alınır —
+   ülke adı seçici üstte tam genişlik, numara (varsa +kod ile) altta ayrı satırda. */
+@media (max-width: 480px) {
+  .jphone { flex-wrap: wrap; }
+  .jphone__cc { flex: 1 1 100%; max-width: none; border-right: none; border-bottom: 1px solid var(--border); }
+  .jphone__cc-custom { flex: 0 0 68px; border-bottom: none; }
+  .jphone__input { flex: 1 1 auto; min-width: 0; border-bottom: none; }
+}
 
 /* ══════════════════════════════════════════════════════════════
    Katıl — başvuru bitince bağlantı kartları (.jdone / .jlink)
