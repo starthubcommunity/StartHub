@@ -172,39 +172,20 @@ function BlogPage({ navigate }) {
 // Kart tür renkleri (animasyon + vurgu için --jt-c).
 const JT_COLOR = { community: '#DC2626', mentor: '#2563EB', sponsor: '#D97706' };
 
-// Seçili kartta EMOJİNİN kendisi hareket eder ve emojiye uygun küçük bir efekt eşlik eder
-// (yalnızca CSS animasyonu, dekoratif):
-//   🚀 topluluk → motor titremesi, alev izi + duman ile fırlar, sol alttan geri süzülür
-//   🎓 mentör   → kep havaya atılıp döner, inerken konfeti saçılır
-//   🤝 destekçi → el sıkışır gibi sallanır, sonunda "anlaşma" halkası + kıvılcım
-const CONFETTI = [['#2563EB', -34, -14, 200], ['#F59E0B', 34, -20, -160], ['#DC2626', -22, 12, 120], ['#16A34A', 30, 10, -220], ['#7C3AED', 2, -32, 90]];
-function EmojiFx({ type }) {
-  if (type === 'community') return (
-    <>
-      <i className="jt-flame" />
-      {[['0s', '-16px', '22px'], ['.12s', '-4px', '30px'], ['.24s', '-28px', '12px']].map(([d, dx, dy]) => <i key={d} className="jt-smoke" style={{ '--d': d, '--dx': dx, '--dy': dy }} />)}
-    </>
-  );
-  if (type === 'mentor') return (
-    <>{CONFETTI.map(([c, dx, dy, r]) => <i key={c} className="jt-conf" style={{ '--c': c, '--dx': dx + 'px', '--dy': dy + 'px', '--r': r + 'deg' }} />)}</>
-  );
+// Seçili kartta: emoji yerine sade bir ikon rozeti — rozet "pop" ile belirir, etrafında
+// ince bir halka darbesi genişleyip söner, birkaç küçük nokta kartın renginde dışa doğru
+// sürüklenir. Tek biçim, üç kartta da aynı; tek fark ikon + kartın kendi rengi.
+const CARD_ICON = { community: 'rocket', mentor: 'graduationCap', sponsor: 'handshake' };
+const DOT_OFFSETS = [['30px', '-26px'], ['-28px', '-22px'], ['26px', '24px'], ['-26px', '26px']];
+function CardIconFx({ type }) {
   return (
     <>
-      <i className="jt-deal" />
-      {[['-30px', '-22px', '0s'], ['30px', '-18px', '.08s'], ['-24px', '18px', '.16s'], ['28px', '20px', '.04s']].map(([x, y, d], i) => <i key={i} className="jt-sprk" style={{ '--x': x, '--y': y, '--d': d }} />)}
-    </>
-  );
-}
-
-// Kart seviyesinde yalnızca topluluk için: gökyüzü gibi yanıp sönen küçük yıldızlar.
-function CardFx({ type }) {
-  if (type !== 'community') return null;
-  return (
-    <span className="jt-fx" aria-hidden="true">
-      {[['78%', '22%', '0s'], ['58%', '46%', '.9s'], ['86%', '62%', '1.6s'], ['40%', '14%', '2.2s']].map(([x, y, d]) => (
-        <i key={d} className="jt-star" style={{ '--x': x, '--y': y, '--d': d }} />
+      <span className="jt-ring" aria-hidden="true" />
+      <span className="jt-badge"><Icon name={CARD_ICON[type]} size={26} /></span>
+      {DOT_OFFSETS.map(([dx, dy], i) => (
+        <i key={i} className="jt-dot" style={{ '--dx': dx, '--dy': dy, animationDelay: `${i * 0.06}s` }} />
       ))}
-    </span>
+    </>
   );
 }
 
@@ -294,11 +275,21 @@ const INTENT_COPY = {
 
 // Ekipte yer almak isteyenlere gösterilen birimler (role alanına TR ad yazılır).
 const HUB_UNITS = [
-  { tr: 'Sosyal Medya', en: 'Social Media' },
-  { tr: 'Tasarım', en: 'Design' },
-  { tr: 'Organizasyon', en: 'Events & Operations' },
-  { tr: 'Sponsorluk', en: 'Sponsorship' },
-  { tr: 'Erasmus+', en: 'Erasmus+' },
+  { tr: 'Sosyal Medya', en: 'Social Media',
+    descTr: 'Topluluğun sosyal medya hesaplarını yönetir, içerik üretir ve etkinlikleri duyurursun.',
+    descEn: 'Manage our social media accounts, create content and promote events.' },
+  { tr: 'Tasarım', en: 'Design',
+    descTr: 'Görsel kimliğimizi, etkinlik afişlerini ve sosyal medya tasarımlarını hazırlarsın.',
+    descEn: 'Create our visual identity, event posters and social media designs.' },
+  { tr: 'Organizasyon', en: 'Events & Operations',
+    descTr: 'Etkinlik, buluşma ve atölyelerin planlanmasında ve yürütülmesinde yer alırsın.',
+    descEn: 'Help plan and run events, meetups and workshops.' },
+  { tr: 'Sponsorluk', en: 'Sponsorship',
+    descTr: 'Sponsor ve destekçi ilişkilerini yönetir, topluluk için yeni işbirliği fırsatları geliştirirsin.',
+    descEn: 'Manage sponsor and partner relationships and develop new collaboration opportunities.' },
+  { tr: 'Erasmus+', en: 'Erasmus+',
+    descTr: 'Avrupa Birliği Erasmus+ proje yazma ekibimizde yer alır; bu ekiple birlikte proje yazıp hibe almaya yönelik çalışmalar yürütürsün.',
+    descEn: 'Join our EU Erasmus+ project-writing team and help prepare grant applications to bring new funding to the community.' },
 ];
 
 function TargetPicker({ type, value, onPick, intent, onIntent, lang }) {
@@ -910,13 +901,13 @@ function JoinPage({ navigate, projectId }) {
   })() : null;
 
   const typeCards = [
-    { key: 'community', emoji: '🚀',
+    { key: 'community',
       title: lang === 'tr' ? fs('community_card_title_tr', 'Topluluğa Katıl') : 'Join the Community',
       desc:  lang === 'tr' ? fs('community_card_desc_tr', 'Öğrenci, mezun ya da genç profesyonel olarak ekosisteme dahil ol.') : 'Join as a student, graduate, or young professional.' },
-    { key: 'mentor', emoji: '🎓',
+    { key: 'mentor',
       title: lang === 'tr' ? fs('mentor_card_title_tr', 'Mentör Ol') : 'Become a Mentor',
       desc:  lang === 'tr' ? fs('mentor_card_desc_tr', 'Deneyimini paylaş, ekiplere ve girişimcilere rehberlik et.') : 'Share your expertise and guide teams and founders.' },
-    { key: 'sponsor', emoji: '🤝',
+    { key: 'sponsor',
       title: lang === 'tr' ? fs('sponsor_card_title_tr', 'Destekçi / Sponsor Ol') : 'Become a Supporter',
       desc:  lang === 'tr' ? fs('sponsor_card_desc_tr', 'Finansal, mentorluk ya da etkinlik desteğiyle katkı sağla.') : 'Support via funding, mentorship, or events.' },
   ];
@@ -981,9 +972,8 @@ function JoinPage({ navigate, projectId }) {
                     onClick={() => selectType(card.key)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectType(card.key); } }}
                   >
-                    {active && <CardFx key={fxTick} type={card.key} />}
                     <div className="jt-body">
-                      <div className="jt-emo" key={active ? fxTick : 'off'}><span className="jt-glyph">{card.emoji}</span>{active && <EmojiFx type={card.key} />}</div>
+                      <div className="jt-emo" key={active ? fxTick : 'off'}><CardIconFx type={card.key} /></div>
                       <div className="jt-title">{card.title}</div>
                       <p className="jt-desc">{card.desc}</p>
                     </div>
@@ -1049,6 +1039,12 @@ function JoinPage({ navigate, projectId }) {
                           </button>
                         ))}
                       </div>
+                      {(() => {
+                        const picked = HUB_UNITS.find(u => u.tr === communityForm.unit);
+                        return picked && (
+                          <p key={picked.tr} className="jchips__desc">{lang === 'tr' ? picked.descTr : picked.descEn}</p>
+                        );
+                      })()}
                     </div>
                   )}
 

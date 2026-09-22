@@ -1100,9 +1100,10 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 
 /* ══════════════════════════════════════════════════════════════
    Katıl sayfası — 3 tür kartı animasyonu (.jt-*)
-   Sade kart; seçilince EMOJİNİN kendisi hareket eder + emojiye uygun efekt:
-   🚀 fırlar (alev/duman) · 🎓 havaya atılır (konfeti) · 🤝 el sıkışır (anlaşma halkası)
-   Yalnızca transform/opacity animasyonu; reduced-motion'da kapalı.
+   Sade kart; seçilince bir ikon rozeti "pop" ile belirir, etrafında ince bir halka
+   darbesi genişleyip söner, birkaç nokta kartın kendi renginde dışa sürüklenir.
+   Üç kart da aynı biçimi kullanır — yalnızca ikon + renk değişir. Yalnızca
+   transform/opacity animasyonu; reduced-motion'da kapalı.
    ══════════════════════════════════════════════════════════════ */
 .jt-card {
   --jt-c: var(--accent);
@@ -1124,131 +1125,36 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .jt-card--on .jt-title, .jt-card:hover .jt-title { color: var(--jt-c); }
 .jt-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin: 0; }
 
-/* emoji kabı: efekt parçaları tam emojinin ortasına konumlanır */
-.jt-emo { position: relative; display: inline-block; margin-bottom: 10px; }
-.jt-emo > i { position: absolute; left: 50%; top: 50%; pointer-events: none; }
-.jt-glyph { display: inline-block; font-size: 30px; line-height: 1.2; transform-origin: 50% 80%; transition: transform .35s cubic-bezier(.2,1.4,.4,1); }
-
-/* üzerine gelince kısa tepki (seçili değilken) */
-.jt-card--community:hover .jt-glyph { transform: translate(3px, -4px) rotate(-6deg); }
-.jt-card--mentor:hover    .jt-glyph { transform: translateY(-4px) rotate(14deg); }
-.jt-card--sponsor:hover   .jt-glyph { transform: scale(1.14) rotate(-7deg); }
-
-/* kart seviyesi efekt katmanı (topluluk: yıldızlı gökyüzü) */
-.jt-fx { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; animation: jt-fade .5s ease both; }
-.jt-star { position: absolute; left: var(--x); top: var(--y); width: 3px; height: 3px; border-radius: 50%; background: var(--jt-c); opacity: 0; animation: jt-twinkle 2.6s ease-in-out both; animation-delay: var(--d); }
-
-/* ── 🚀 topluluk: motor titremesi → fırlama → sol alttan geri süzülme (tıklayınca 1 kez) ── */
-.jt-card--community.jt-card--on .jt-glyph { animation: jt-launch 3.6s both; }
-.jt-flame {
-  width: 78px; height: 5px; margin-top: -2px; border-radius: 5px; opacity: 0; transform-origin: 100% 50%;
-  background: linear-gradient(90deg, transparent, rgba(251,146,60,.7), rgba(254,240,138,.95));
-  box-shadow: 0 0 10px rgba(251,146,60,.4);
-  animation: jt-flame 3.6s cubic-bezier(.4,0,.6,1) both;
+/* ikon rozeti kabı: halka + noktalar tam rozetin ortasına konumlanır */
+.jt-emo { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; margin-bottom: 12px; }
+.jt-badge {
+  position: relative; z-index: 2; width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--jt-c) 12%, var(--card-bg)); color: var(--jt-c);
+  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--jt-c) 45%, transparent);
+  transition: transform .3s cubic-bezier(.2,1.4,.4,1);
 }
-.jt-smoke {
-  width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; opacity: 0;
-  background: rgba(168,162,158,.38);
-  animation: jt-smoke 3.6s ease-out both; animation-delay: var(--d);
-}
+.jt-card:hover .jt-badge { transform: translateY(-2px) scale(1.05); }
+.jt-ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--jt-c); opacity: 0; pointer-events: none; }
+.jt-dot { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--jt-c); opacity: 0; pointer-events: none; }
 
-/* ── 🎓 mentör: havaya atılıp döner, inerken konfeti (tıklayınca 1 kez) ── */
-.jt-card--mentor.jt-card--on .jt-glyph { animation: jt-toss 3.6s both -1s; }
-.jt-conf {
-  width: 5px; height: 8px; margin: -4px 0 0 -2px; border-radius: 1.5px; background: var(--c); opacity: 0;
-  animation: jt-conf 3.6s ease-out both -1s;
-}
-
-/* ── 🤝 destekçi: el sıkışır gibi sallanır, sonda "anlaşma" halkası + kıvılcım (tıklayınca 1 kez) ── */
-.jt-card--sponsor.jt-card--on .jt-glyph { animation: jt-shake 3.2s ease-in-out both; }
-.jt-deal {
-  width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; border: 2px solid var(--jt-c); opacity: 0;
-  animation: jt-deal 3.2s ease-out both;
-}
-.jt-sprk { margin: -6px 0 0 -6px; font-style: normal; font-size: 12px; line-height: 1; color: var(--jt-c); opacity: 0; animation: jt-sprk 3.2s ease-out both; animation-delay: var(--d); }
-.jt-sprk::before { content: '\2726'; }
+/* seçilince tek seferlik: rozet "pop", halka darbesi genişler, ikon hafif dönerek belirir, noktalar dışa sürüklenir */
+.jt-card--on .jt-badge { animation: jt-badge-pop .5s cubic-bezier(.34,1.56,.64,1) both; }
+.jt-card--on .jt-ring { animation: jt-ring-pulse .8s cubic-bezier(.2,.8,.2,1) both; }
+.jt-card--on .jt-badge svg { animation: jt-icon-in .4s ease .16s both; }
+.jt-dot { animation: jt-dot-fly .7s ease-out both; }
 
 @keyframes jt-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes jt-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes jt-twinkle { 0%, 100% { opacity: 0; transform: scale(.4); } 50% { opacity: .6; transform: scale(1.25); } }
-
-/* 🚀 — emoji sağ üste bakar; 45° çizgide fırlar, sol kenardan hafif yükselerek geri süzülür */
-@keyframes jt-launch {
-  0%   { transform: translate(0, 0); }
-  3%   { transform: translate(-1px, 1px); }
-  6%   { transform: translate(1px, -1px); }
-  9%   { transform: translate(-1.5px, 0); }
-  12%  { transform: translate(1.5px, 1px); }
-  15%  { transform: translate(-1px, -1px); }
-  18%  { transform: translate(1px, 1px); }
-  20%  { transform: translate(0, 0); animation-timing-function: cubic-bezier(.5, 0, 1, .6); }
-  33%  { transform: translate(80px, -80px); opacity: 1; }
-  34%  { transform: translate(80px, -80px); opacity: 0; }
-  35%  { transform: translate(-72px, 20px); opacity: 0; }
-  37%  { transform: translate(-66px, 18px); opacity: 1; animation-timing-function: cubic-bezier(.2, .7, .3, 1); }
-  62%  { transform: translate(0, 0); opacity: 1; }
-  100% { transform: translate(0, 0); opacity: 1; }
-}
-@keyframes jt-flame {
-  0%, 19% { opacity: 0; transform: translate(0, 0) rotate(-45deg) scaleX(.3); }
-  22%     { opacity: .9; transform: translate(0, 0) rotate(-45deg) scaleX(.5); }
-  33%     { opacity: .9; transform: translate(72px, -72px) rotate(-45deg) scaleX(1); }
-  34%     { opacity: 0; transform: translate(80px, -80px) rotate(-45deg) scaleX(1); }
-  35%     { opacity: 0; transform: translate(-72px, 20px) rotate(-45deg) scaleX(.8); }
-  40%     { opacity: .45; }
-  62%     { opacity: 0; transform: translate(0, 0) rotate(-45deg) scaleX(.5); }
-  100%    { opacity: 0; }
-}
-@keyframes jt-smoke {
-  0%, 21% { opacity: 0; transform: translate(0, 0) scale(.4); }
-  25%     { opacity: .6; }
-  48%     { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(2.6); }
-  100%    { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(2.6); }
-}
-
-/* 🎓 — atılır (yavaşlayarak çıkar), döner, inerken hafif ezilir */
-@keyframes jt-toss {
-  0%, 28% { transform: none; animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
-  50%     { transform: translateY(-20px) rotate(180deg) scale(1.12); animation-timing-function: cubic-bezier(.6, 0, .8, .4); }
-  66%     { transform: translateY(0) rotate(360deg) scale(1); }
-  70%     { transform: translateY(2px) rotate(360deg) scale(1.1, .88); }
-  76%     { transform: translateY(0) rotate(360deg) scale(1); }
-  100%    { transform: rotate(360deg); }
-}
-@keyframes jt-conf {
-  0%, 44% { opacity: 0; transform: translate(0, -16px) rotate(0); }
-  47%     { opacity: 1; }
-  70%     { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)); }
-  100%    { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)); }
-}
-
-/* 🤝 — dört kez aşağı-yukarı sıkma, sonra anlaşma */
-@keyframes jt-shake {
-  0%, 44%, 100% { transform: none; }
-  6%  { transform: translateY(-4px) rotate(-9deg) scale(1.08); }
-  13% { transform: translateY(3px) rotate(7deg) scale(1.08); }
-  20% { transform: translateY(-4px) rotate(-9deg) scale(1.08); }
-  27% { transform: translateY(3px) rotate(7deg) scale(1.08); }
-  34% { transform: translateY(-2px) rotate(-4deg) scale(1.1); }
-  40% { transform: scale(1.14); }
-}
-@keyframes jt-deal {
-  0%, 38% { opacity: 0; transform: scale(.5); }
-  41%     { opacity: .5; }
-  72%     { opacity: 0; transform: scale(2.6); }
-  100%    { opacity: 0; transform: scale(2.6); }
-}
-@keyframes jt-sprk {
-  0%, 38% { opacity: 0; transform: translate(0, 0) scale(.3); }
-  46%     { opacity: .85; transform: translate(var(--x), var(--y)) scale(1.1); }
-  72%     { opacity: 0; transform: translate(calc(var(--x) * 1.35), calc(var(--y) * 1.35)) scale(.6); }
-  100%    { opacity: 0; }
-}
+@keyframes jt-badge-pop { 0% { opacity: 0; transform: scale(.55); } 65% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes jt-ring-pulse { 0% { opacity: .55; transform: scale(.75); } 100% { opacity: 0; transform: scale(1.65); } }
+@keyframes jt-icon-in { 0% { opacity: 0; transform: scale(.55) rotate(-10deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+@keyframes jt-dot-fly { 0%, 15% { opacity: 0; transform: translate(0, 0) scale(.4); } 32% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .jt-card, .jt-fx, .jt-fx *, .jt-glyph, .jt-emo > i { animation: none !important; }
-  .jt-card, .jt-glyph { transition: none; }
-  .jt-emo > i { display: none; }
+  .jt-card, .jt-badge, .jt-ring, .jt-dot { animation: none !important; }
+  .jt-card, .jt-badge { transition: none; }
+  .jt-ring, .jt-dot { display: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1300,6 +1206,7 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .jchip--on { border-color: var(--jt-c); background: color-mix(in srgb, var(--jt-c) 6%, var(--card-bg)); color: var(--jt-c); box-shadow: 0 0 0 1px var(--jt-c); }
 .jchips--invalid .jchip { border-color: #FCA5A5; }
 @media (max-width: 640px) { .jchips { grid-template-columns: repeat(2, 1fr); } }
+.jchips__desc { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--jt-c) 6%, var(--bg-secondary)); border: 1px solid color-mix(in srgb, var(--jt-c) 16%, var(--border)); font-size: 13px; line-height: 1.55; color: var(--text-secondary); animation: jt-rise .3s ease both; }
 
 /* Telefon — seçilebilir ülke kodu (uluslararası öğrenciler dahil, varsayılan Türkiye +90) */
 .jphone { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--card-bg); overflow: hidden; transition: border-color .2s, box-shadow .2s; }
