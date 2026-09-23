@@ -626,7 +626,7 @@ function JoinPage({ navigate, projectId }) {
     if (project) return 'community';
     if (typeof sessionStorage !== 'undefined') {
       const s = sessionStorage.getItem('sh_join_type');
-      if (s === 'community' || s === 'mentor' || s === 'sponsor') return s;
+      if (s === 'community' || s === 'mentor') return s;
     }
     return 'community';
   })();
@@ -995,9 +995,11 @@ function JoinPage({ navigate, projectId }) {
     { key: 'mentor', emoji: '🎓',
       title: lang === 'tr' ? fs('mentor_card_title_tr', 'Mentör Ol') : 'Become a Mentor',
       desc:  lang === 'tr' ? fs('mentor_card_desc_tr', 'Deneyimini paylaş, ekiplere ve girişimcilere rehberlik et.') : 'Share your expertise and guide teams and founders.' },
-    { key: 'sponsor', emoji: '🤝',
-      title: lang === 'tr' ? fs('sponsor_card_title_tr', 'Destekçi / Sponsor Ol') : 'Become a Supporter',
-      desc:  lang === 'tr' ? fs('sponsor_card_desc_tr', 'Finansal, mentorluk ya da etkinlik desteğiyle katkı sağla.') : 'Support via funding, mentorship, or events.' },
+    // 'sponsor' kartı 2026-09-23'te kaldırıldı — destekçiler artık başvuru almadan
+    // admin panelden elle ekleniyor (Site Destekçileri). Alttaki form/validate/submit
+    // dalları ve HR'daki Destekçiler sayfası BİLİNÇLİ OLARAK silinmedi (dead ama
+    // zararsız, proje kuralı: kaldırma yerine gizleme) — sessionStorage'daki eski
+    // 'sponsor' değeri de initialType'ta artık kabul edilmiyor.
   ];
 
   // Destek türleri seçilen hedefe göre değişir (topluluk: etkinlik/mekân; startup: yatırım/staj).
@@ -1046,9 +1048,9 @@ function JoinPage({ navigate, projectId }) {
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container" style={{ maxWidth: 680 }}>
 
-          {/* 3-card type selector — only when not project context */}
+          {/* Tip seçici kartlar — only when not project context (sponsor kartı 2026-09-23'te kaldırıldı) */}
           {!project && (
-            <div className="join-type-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 36 }}>
+            <div className="join-type-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${typeCards.length}, 1fr)`, gap: 14, marginBottom: 36 }}>
               {typeCards.map((card, i) => {
                 const active = joinType === card.key;
                 return (
