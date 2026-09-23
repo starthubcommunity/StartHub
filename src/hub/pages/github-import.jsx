@@ -8,9 +8,12 @@ import { Field, Input, Select } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
+import { INTEREST_AREAS } from '../hub-constants';
 import BulkDraft from '../components/bulk-draft';
 
 const KNOWN_LANGS = ['TypeScript', 'JavaScript', 'Python', 'Go', 'Rust', 'Swift', 'Kotlin', 'Java', 'C++', 'C#', 'Ruby', 'PHP', 'Dart'];
+// GitHub taraması teknik profillere odaklı — dört ilgili alan önerilir, gerekirse Diğer.
+const GITHUB_INTERESTS = INTEREST_AREAS.filter((a) => ['frontend', 'backend', 'mobile', 'data', 'other'].includes(a.value));
 
 export default function GithubImport({ onClose }) {
   const store = useHubStore();
@@ -18,6 +21,7 @@ export default function GithubImport({ onClose }) {
   const { openRoles } = store;
   const [p, setP] = useState({ location: 'Turkey', language: 'TypeScript', minRepos: 3, minFollowers: 0, activeMonths: 12, limit: 6 });
   const [roleId, setRoleId] = useState('');
+  const [interest, setInterest] = useState('');
   const [rows, setRows] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -36,6 +40,7 @@ export default function GithubImport({ onClose }) {
   };
 
   const add = async () => {
+    if (!interest) { setErr('İlgi alanı zorunlu — görev dağılımı buna göre yapılıyor.'); return; }
     setBusy(true); setErr('');
     try {
       const payload = (rows || []).map((r) => ({
@@ -52,7 +57,7 @@ export default function GithubImport({ onClose }) {
         aiScoreNote: r.prescore?.note,
       }));
       const { created } = await store.importCandidates(
-        { source: 'github', sourceDetail: 'GitHub taraması', roleId: roleId || null },
+        { source: 'github', sourceDetail: 'GitHub taraması', roleId: roleId || null, interest },
         payload,
       );
       setDone({ created });
@@ -95,6 +100,10 @@ export default function GithubImport({ onClose }) {
                   {openRoles.filter((r) => ['sourcing', 'shortlist'].includes(r.status)).map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
                 </select>
               </Field>
+              <Field label="İlgi alanı *" hint="Tüm partiye yazılır — görev dağılımı buna göre yapılıyor.">
+                <Select value={interest} onChange={setInterest} placeholder="— seç —"
+                  options={GITHUB_INTERESTS.map((a) => ({ value: a.value, label: a.label }))} />
+              </Field>
             </div>
             <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={scan}>
               {busy && !rows ? 'Taranıyor… (API sınırı, ~2 sn/kullanıcı)' : 'Tara'}
@@ -121,7 +130,7 @@ export default function GithubImport({ onClose }) {
           </div>
           {err && <div className="hub-wz__err">{err}</div>}
           <div className="hub-wz__foot">
-            {rows && <button className="hub-wz__next" disabled={busy || takeN === 0} onClick={add}>{busy ? 'Ekleniyor…' : `${takeN} adayı ekle`}</button>}
+            {rows && <button className="hub-wz__next" disabled={busy || takeN === 0 || !interest} onClick={add}>{busy ? 'Ekleniyor…' : `${takeN} adayı ekle`}</button>}
           </div>
         </>)}
       </div>

@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { Field, Input, Select } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { SOURCES } from '../hub-constants';
+import { SOURCES, INTEREST_AREAS } from '../hub-constants';
 import { parsePastedText, findDuplicate } from '../hub-parse';
 import BulkDraft from '../components/bulk-draft';
 
@@ -24,7 +24,7 @@ export default function PasteImport({ onClose }) {
   const [step, setStep] = useState(1);
   const [raw, setRaw] = useState('');
   const [rows, setRows] = useState([]);            // parsePastedText().rows
-  const [meta, setMeta] = useState({ source: 'hackathon', importBatchLabel: '', commonWhy: '', roleId: '' });
+  const [meta, setMeta] = useState({ source: 'hackathon', importBatchLabel: '', commonWhy: '', roleId: '', interest: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(null);
@@ -61,6 +61,7 @@ export default function PasteImport({ onClose }) {
 
   const commit = async () => {
     if (!meta.commonWhy.trim()) { setErr('Ortak "Neden bu kişi" cümlesi zorunlu.'); return; }
+    if (!meta.interest) { setErr('İlgi alanı zorunlu — görev dağılımı buna göre yapılıyor.'); return; }
     setBusy(true); setErr('');
     try {
       const payload = rows.map((r) => ({
@@ -80,6 +81,7 @@ export default function PasteImport({ onClose }) {
           source: meta.source,
           importBatchLabel: meta.importBatchLabel.trim() || null,
           roleId: meta.roleId || null,
+          interest: meta.interest,
         },
         payload,
       );
@@ -185,6 +187,10 @@ export default function PasteImport({ onClose }) {
                     <Input value={meta.importBatchLabel} onChange={(v) => setMeta((m) => ({ ...m, importBatchLabel: v }))} />
                   </Field>
                 </div>
+                <Field label="İlgi alanı *" hint="Tüm partiye yazılır — görev dağılımı buna göre yapılıyor.">
+                  <Select value={meta.interest} onChange={(v) => setMeta((m) => ({ ...m, interest: v }))}
+                    placeholder="— seç —" options={INTEREST_AREAS.map((a) => ({ value: a.value, label: a.label }))} />
+                </Field>
                 <Field label="Ortak “Neden bu kişi” *" hint="Tüm partiye yazılır. Somut: ne yapmışlar? Örn. Teknofest 2026 ulaşım kategorisi finalisti.">
                   <Input value={meta.commonWhy} onChange={(v) => setMeta((m) => ({ ...m, commonWhy: v }))} />
                 </Field>
@@ -207,7 +213,7 @@ export default function PasteImport({ onClose }) {
             {step === 1 && <button className="hub-wz__next" onClick={parse} disabled={!raw.trim()}>Ayrıştır →</button>}
             {step === 2 && <button className="hub-wz__next" onClick={toPreview}>İleri →</button>}
             {step === 3 && (
-              <button className="hub-wz__next" onClick={commit} disabled={busy || !meta.commonWhy.trim()}>
+              <button className="hub-wz__next" onClick={commit} disabled={busy || !meta.commonWhy.trim() || !meta.interest}>
                 {busy ? 'Ekleniyor…' : `${takenCount} adayı ekle`}
               </button>
             )}

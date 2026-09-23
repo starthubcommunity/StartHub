@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { Field, Input, Select } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { SOURCES } from '../hub-constants';
+import { SOURCES, INTEREST_AREAS } from '../hub-constants';
 import { findDuplicate } from '../hub-parse';
 import BulkDraft from '../components/bulk-draft';
 
@@ -41,8 +41,19 @@ const TARGETS = [
   { key: 'email',        label: 'E-posta',        hints: ['e-posta', 'eposta', 'email', 'mail', 'e posta'] },
   { key: 'whyThisOne',   label: 'Neden bu kişi',  hints: ['neden', 'why', 'gerekçe', 'not', 'açıklama'] },
   { key: 'sourceDetail', label: 'Kaynak detayı',  hints: ['kaynak', 'source', 'detay', 'etkinlik', 'nereden'] },
+  { key: 'interest',     label: 'İlgi alanı',     hints: ['ilgi', 'interest', 'alan', 'kategori', 'uzmanlık'] },
 ];
 const norm = (s) => String(s || '').toLowerCase().replace(/[_\-.]/g, ' ').trim();
+const INTEREST_VALUES = new Set(INTEREST_AREAS.map((a) => a.value));
+// CSV hücresindeki serbest metni (ör. "Frontend", "ön yüz") bilinen bir ilgi alanı
+// anahtarına eşler; eşleşmezse boş döner (uydurmaz — ortak alandan tamamlanır).
+const matchInterest = (raw) => {
+  const n = norm(raw);
+  if (!n) return '';
+  if (INTEREST_VALUES.has(n)) return n;
+  const hit = INTEREST_AREAS.find((a) => norm(a.label) === n || n.includes(norm(a.label)) || norm(a.label).includes(n));
+  return hit?.value || '';
+};
 function guessMap(headers) {
   const map = {};
   TARGETS.forEach((t) => {
@@ -76,7 +87,7 @@ export default function ImportSimple({ onClose }) {
   const [step, setStep] = useState(1);
   const [grid, setGrid] = useState(null);       // string[][]
   const [map, setMap] = useState({});           // targetKey -> columnIndex
-  const [meta, setMeta] = useState({ source: 'hackathon', importBatchLabel: '', commonWhy: '' });
+  const [meta, setMeta] = useState({ source: 'hackathon', importBatchLabel: '', commonWhy: '', interest: '' });
   const [take, setTake] = useState([]);         // bool[]
   const [dups, setDups] = useState([]);         // (findDuplicate | null)[]  — D2
   const [modes, setModes] = useState([]);       // ('new'|'update'|'skip')[]
@@ -110,6 +121,12 @@ export default function ImportSimple({ onClose }) {
       setErr('"Neden bu kişi" sütunu yok — tüm partiye uygulanacak ortak bir cümle yaz.');
       return;
     }
+    // 2026-09-23 — görev dağılımı ilgi alanına göre yapılıyor: sütun eşlenmediyse
+    // (ya da eşlense de tanınmayan satırlar için) tüm partiye ortak bir ilgi alanı zorunlu.
+    if (map.interest == null && !meta.interest) {
+      setErr('"İlgi alanı" sütunu yok — tüm partiye uygulanacak ortak bir ilgi alanı seç.');
+      return;
+    }
     setErr('');
     // D2 — mükerrer tespiti (e-posta / link; CSV'de okul kolonu genelde yok).
     const d = body.map((r) => {
@@ -139,6 +156,7 @@ export default function ImportSimple({ onClose }) {
           email: val('email') || undefined,
           whyThisOne: val('whyThisOne') || meta.commonWhy.trim() || null,
           sourceDetail: val('sourceDetail') || null,
+          interest: matchInterest(val('interest')) || meta.interest || null,
         };
       });
       const { created, updated } = await store.importCandidates(
@@ -211,6 +229,12 @@ export default function ImportSimple({ onClose }) {
                 {map.whyThisOne == null && (
                   <Field label="Ortak “Neden bu kişi” *" hint="Sütun eşlenmedi — tüm partiye bu cümle yazılır. Örn. Teknofest 2026 ulaşım kategorisi finalisti.">
                     <Input value={meta.commonWhy} onChange={(v) => setMeta((m) => ({ ...m, commonWhy: v }))} />
+                  </Field>
+                )}
+                {map.interest == null && (
+                  <Field label="Ortak İlgi Alanı *" hint="Sütun eşlenmedi — tüm partiye bu ilgi alanı yazılır (görev dağılımı buna göre yapılıyor).">
+                    <Select value={meta.interest} onChange={(v) => setMeta((m) => ({ ...m, interest: v }))}
+                      placeholder="— seç —" options={INTEREST_AREAS.map((a) => ({ value: a.value, label: a.label }))} />
                   </Field>
                 )}
               </div>

@@ -517,6 +517,7 @@ export function HubStoreProvider({ children }) {
           if (!ex.linkedin && r.linkedin) patch.linkedin = r.linkedin;
           if (!ex.github && r.github) patch.github = r.github;
           if (!ex.university && r.university) patch.university = r.university;
+          if (!ex.interest && (r.interest || batchInfo.interest)) patch.interest = r.interest || batchInfo.interest;
           if (!ex.whyThisOne && r.whyThisOne) patch.whyThisOne = r.whyThisOne;
           if (!ex.sourceDetail && (r.sourceDetail || batchInfo.sourceDetail)) {
             patch.sourceDetail = r.sourceDetail || batchInfo.sourceDetail;
@@ -541,6 +542,7 @@ export function HubStoreProvider({ children }) {
         linkedin: r.linkedin || null,
         github: r.github || null,
         university: r.university || null,
+        interest: r.interest || batchInfo.interest || null,
         roleType: r.roleType || batchInfo.roleType || null,
         source: batchInfo.source || 'other',
         sourceDetail: r.sourceDetail || batchInfo.sourceDetail || null,

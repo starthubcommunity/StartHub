@@ -219,6 +219,58 @@ form) BİLEREK cross-import edilmedi — HR paketine site sayfası kodu (layout/
 `join-form-fields.jsx` kendi küçük kopyasını tutuyor (anahtarlar birebir aynı olmalı). Canlı DB'de geçici bir
 override yazılıp Katıl sayfasında göründüğü doğrulandı, sonra `null`'a geri alındı.
 
+**İlgi alanı — outbound aday eklemede de zorunlu (2026-09-23):** İnbound (Katıl formu) için zaten zorunlu
+olan ilgi alanı, HR'ın kendi ekleme yollarında da (tümü `hub_store.js`'teki `addCandidate`/`importCandidates`e
+`interest` geçiriyor, `mapCandidateToDb` zaten destekliyordu — yalnızca UI eksikti) zorunlu: `new-candidate.jsx`
+(tek aday, yeni wizard adımı) · `paste-import.jsx`/`import-simple.jsx` (yapıştır/CSV — parti bazlı ortak alan;
+CSV'de "İlgi alanı" sütunu da eşlenebilir, `matchInterest()` serbest metni anahtara çevirir) · `github-import.jsx`
+(tarama — 4 teknik alan + Diğer). **Yan düzeltme (`wizard.jsx`):** `HubWizard`'da ARA adımdaki `type:'options'`
+soruları önceden hiç seçim yapılmadan "İleri" ile sessizce atlanabiliyordu (`canNext` bunu es geçiyordu) — bu
+yalnızca yeni 'interest' adımını değil, Kaynak/Rol tipi/Hangi proje gibi TÜM mevcut zorunlu options adımlarını
+etkiliyordu. Düzeltildi: `canNext = optional || filled` (tip farkı yok); `next()` yalnızca genel "İleri"
+tıklamasında (deliberate bir seçenek tıklaması değilken) zorunlu kontrolü yapıyor — kasıtlı "boş" seçenekler
+(ör. roles.jsx'teki "— henüz belli değil", value `''`) hâlâ geçerli bir cevap sayılıyor, yanlışlıkla
+reddedilmiyor. Node ile üç senaryo (zorunlu adım atlama engellendi / kasıtlı boş seçenek kabul edildi / normal
+seçim çalışıyor) izole simülasyonla doğrulandı.
+
+**Adaylar — inbound (Katıl formu) adaylar öne çıkarılıyor (2026-09-23):** `candidates-list.jsx`'te
+`source==='inbound'` olan satırlar artık (1) listede en üstte (aynı grup içinde en yeni önce) ve (2) sarı
+çerçeveyle (`.hub-c--inbound`, hub.css) + "Site başvurusu" rozetiyle (`.hub-pill--inbound`) diğerlerinden
+ayırt ediliyor — formdan gelen başvurular gözden kaçmasın diye.
+
+**Çözüldü: `talha@starthub-community.com` artık `hub_members.role='cofounder'` (2026-09-23).** Önceden
+`recruiter`'dı — bu rol BİLEREK `decide`/`flags.override`/`members.manage`/`settings.write`/`candidates.purge`
+HARİÇ her şeyi alır (0009_permissions.sql), bu yüzden HR › Ayarlar sekmesi hiç görünmüyordu ("ayarlar kısmını
+bulamadım" şikâyetinin kaynağı — UI hatası değil, izin modeliydi). Rolü `cofounder` yapmak izin yükseltme
+olduğu için Claude Code'un otomatik izin sınıflandırıcısı önce engelledi; kullanıcıya `AskUserQuestion` ile
+açıkça soruldu, onay alındıktan sonra uygulandı.
+
+**Proje sahibi artık HR'a girmiyor (2026-09-23, karar değişikliği):** `project_owner` rolü ve
+`decide` izni eskiden beri DB'de vardı (0009_permissions.sql, §12.7 — yalnızca kendi projesine
+sunulmuş adayı görüp karar verebiliyordu). Kullanıcı bu yönü değiştirdi: proje sahipleri HR
+paneline hiç girmeyecek, sunulan aday/teklif kararı ileride kendi (ayrı) ekip yönetim sistemlerine
+taşınacak — o entegrasyon henüz yapılmadı, sonraya bırakıldı. Şimdilik yapılan: `hub-app.jsx`'teki
+giriş kapısı `role==='project_owner'` ise `ProjectOwnerRedirectPage` gösteriyor (panele hiç
+girilmiyor); Ayarlar'daki üye ekleme formunda rol artık seçilemiyor (`HUB_ROLES_ASSIGNABLE`,
+hub-constants.js). DB'deki `permission_presets`/`hub_members.role='project_owner'` satırları ve
+candidate.jsx/roles.jsx'teki eski `role==='project_owner'` dallanmaları BİLİNÇLİ OLARAK silinmedi
+— proje kuralı gereği (kolon/DB satırı silinmez, yalnızca UI'dan gizlenir) dead-ama-zararsız duruyor.
+
+**Katıl — 'Destekçi Ol' kartı kaldırıldı (2026-09-23):** Kullanıcı başvuru akışını gereksiz buldu —
+"biz bunu siteye destekçileri manuel olarak ekleriz daha mantıklı" (zaten var olan admin panel →
+Site Destekçileri elle-ekleme akışıyla karışıyordu). `typeCards`'tan 'sponsor' girdisi çıkarıldı,
+grid `repeat(typeCards.length, 1fr)` ile dinamikleşti, sessionStorage'daki eski `sh_join_type=sponsor`
+değeri artık kart seçimine dönüştürülmüyor. Form/validate/submit dalları (`sponsorForm`,
+`intent:'sponsor_application'`) ve HR'daki Destekçiler sayfası (`applications.jsx kind='sponsor'`)
+BİLİNÇLİ OLARAK silinmedi — yeni başvuru gelmeyecek ama eski kayıtlar HR'da görülebilsin diye duruyor.
+
+**2026-09-23 — repoda ikinci bir katkıcı (Kadir) var, doğrudan GitHub'a push yapabiliyor.** Kendi ayrı
+`hub-v3` dalındaki paralel HR çalışmasını "Merge origin/main (arkadaşımın HR rework'ü) into hub-v3" commit'iyle
+(`f7d0fe9`) doğrudan `main`'e merge etti — oturum dışından, kullanıcının bundan haberi yoktu. Doğrulandı: bu
+merge'ün son ağacı, o anki origin/main ile BİREBİR AYNI (`git diff` boş) — dosya kaybı/çakışma/üzerine yazma
+yok, yalnızca git geçmişi birleşti. Ama önemli: repoya kullanıcı dışında en az bir kişi daha yazabiliyor —
+gelecekte gerçek çakışmalar veya beklenmedik değişiklikler olabilir, `git log`/`git fetch` ile kontrol etmeden
+"origin/main güncel" varsayılmamalı.
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile

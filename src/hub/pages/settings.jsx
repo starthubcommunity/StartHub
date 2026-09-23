@@ -9,7 +9,7 @@ import { usePerms } from '../../lib/use-perms';
 import HubSheetSettings from './hub-sheet';
 import JoinFormFields from './join-form-fields';
 import {
-  HUB_ROLES, HUB_ROLE_LABEL, RUBRIC_AXES, THRESHOLD, STALE, GATE,
+  HUB_ROLES_ASSIGNABLE, HUB_ROLE_LABEL, RUBRIC_AXES, THRESHOLD, STALE, GATE,
 } from '../hub-constants';
 
 const BLANK_MEMBER = { email: '', fullName: '', role: 'recruiter', startupIds: [], active: true };
@@ -20,12 +20,8 @@ function MemberForm({ value, onChange }) {
       <Field label="E-posta" required><Input value={value.email} onChange={(v) => onChange({ ...value, email: v })} /></Field>
       <div className="adm-form-grid">
         <Field label="Ad"><Input value={value.fullName} onChange={(v) => onChange({ ...value, fullName: v })} /></Field>
-        <Field label="Rol"><Select value={value.role} onChange={(v) => onChange({ ...value, role: v })} options={HUB_ROLES} /></Field>
+        <Field label="Rol"><Select value={value.role} onChange={(v) => onChange({ ...value, role: v })} options={HUB_ROLES_ASSIGNABLE} /></Field>
       </div>
-      <Field label="Proje kapsamı (startup_id, virgülle) — yalnızca project_owner" hint="Boş = tüm projeler yok">
-        <Input value={(value.startupIds || []).join(',')}
-          onChange={(v) => onChange({ ...value, startupIds: v.split(',').map((x) => x.trim()).filter(Boolean).map(Number) })} />
-      </Field>
       <Field label="Aktif">
         <Select value={value.active ? '1' : '0'} onChange={(v) => onChange({ ...value, active: v === '1' })}
           options={[{ value: '1', label: 'Evet' }, { value: '0', label: 'Hayır' }]} />
