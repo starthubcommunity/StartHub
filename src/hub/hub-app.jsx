@@ -306,6 +306,25 @@ function NoAccessPage({ email, onLogout }) {
   );
 }
 
+// ─── Proje sahibi — HR'a girmez (2026-09-23 karar değişikliği) ─────────
+// project_owner rolü DB'de (0009_permissions.sql) duruyor ama artık bu
+// kapıdan içeri hiç alınmıyor: aday sunma/karar akışı ileride kendi ekip
+// yönetim sistemlerine taşınacak. Burada rol bilerek dead-ama-zararsız
+// bırakıldı (kolonu silmeme kuralıyla aynı mantık) — yalnızca giriş kapısı
+// kapatıldı.
+function ProjectOwnerRedirectPage({ onLogout }) {
+  return (
+    <AuthShell title="Bu panel proje sahipleri için değil" desc="Sunulan adaylar hakkındaki kararlar ekip yönetim sisteminizden yürütülecek.">
+      <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
+        Kurucu Hattı paneli yalnızca kurucu ekip tarafından kullanılıyor. Size sunulan
+        adaylarla ilgili teklif ve karar akışı yakında kendi ekip yönetim sisteminize
+        taşınacak.
+      </p>
+      <button onClick={onLogout} style={btnGhost}>Çıkış</button>
+    </AuthShell>
+  );
+}
+
 // ─── Yetkiler yüklenirken (uygulama kabuğu içindeyken) ─────────────────
 function HubLoading() {
   return (
@@ -535,6 +554,7 @@ function HubRootFlow() {
   if (!session)    return <LoginPage />;
   if (roleLoading) return <AuthLoading />;
   if (!role)       return <NoAccessPage email={session.user.email || ''} onLogout={handleLogout} />;
+  if (role === 'project_owner') return <ProjectOwnerRedirectPage onLogout={handleLogout} />;
 
   return (
     <PermsProvider area="hub">

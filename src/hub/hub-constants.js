@@ -222,9 +222,15 @@ export const KVKK_NOTICE_LINE =
   `Verilerini nasıl işlediğimiz: ${KVKK_NOTICE_URL} · silinmesini istersen yaz, kaydını kaldırırız.`;
 
 // ─── Roller (§5) ─────────────────────────────────────────────────
+// project_owner artık HR'a giremiyor (2026-09-23 karar değişikliği — aday
+// karar akışı ileride ekiplerin kendi yönetim sistemine taşınacak). Rol,
+// eski kayıtların etiketini gösterebilmek için listede duruyor ama
+// HUB_ROLES_ASSIGNABLE'da (Ayarlar › üye ekleme) YOK — yeni üyelere
+// verilemiyor.
 export const HUB_ROLES = [
   { value: 'cofounder',     label: 'Kurucu' },
   { value: 'recruiter',     label: 'İşe alım' },
   { value: 'project_owner', label: 'Proje sahibi' },
 ];
+export const HUB_ROLES_ASSIGNABLE = HUB_ROLES.filter((r) => r.value !== 'project_owner');
 export const HUB_ROLE_LABEL = toLabelMap(HUB_ROLES);
