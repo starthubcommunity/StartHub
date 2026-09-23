@@ -238,12 +238,20 @@ seçim çalışıyor) izole simülasyonla doğrulandı.
 çerçeveyle (`.hub-c--inbound`, hub.css) + "Site başvurusu" rozetiyle (`.hub-pill--inbound`) diğerlerinden
 ayırt ediliyor — formdan gelen başvurular gözden kaçmasın diye.
 
-**Bilinen açık: `talha@starthub-community.com` `hub_members.role='recruiter'`, `settings.write` yok
-(2026-09-23).** `recruiter` rolü BİLEREK `decide`/`flags.override`/`members.manage`/`settings.write`/
-`candidates.purge` HARİÇ her şeyi alır (0009_permissions.sql). Bu yüzden HR › Ayarlar sekmesi bu hesapta hiç
-görünmüyor ("ayarlar kısmını bulamadım" şikâyetinin kaynağı) — UI hatası değil, izin modeli. Rolü `cofounder`
-yapmak (`update hub_members set role='cofounder' where email=…`) izin yükseltme olduğu için Claude Code'un
-otomatik izin sınıflandırıcısı tarafından engellendi; kullanıcı onayı bekleniyor.
+**Çözüldü: `talha@starthub-community.com` artık `hub_members.role='cofounder'` (2026-09-23).** Önceden
+`recruiter`'dı — bu rol BİLEREK `decide`/`flags.override`/`members.manage`/`settings.write`/`candidates.purge`
+HARİÇ her şeyi alır (0009_permissions.sql), bu yüzden HR › Ayarlar sekmesi hiç görünmüyordu ("ayarlar kısmını
+bulamadım" şikâyetinin kaynağı — UI hatası değil, izin modeliydi). Rolü `cofounder` yapmak izin yükseltme
+olduğu için Claude Code'un otomatik izin sınıflandırıcısı önce engelledi; kullanıcıya `AskUserQuestion` ile
+açıkça soruldu, onay alındıktan sonra uygulandı.
+
+**2026-09-23 — repoda ikinci bir katkıcı (Kadir) var, doğrudan GitHub'a push yapabiliyor.** Kendi ayrı
+`hub-v3` dalındaki paralel HR çalışmasını "Merge origin/main (arkadaşımın HR rework'ü) into hub-v3" commit'iyle
+(`f7d0fe9`) doğrudan `main`'e merge etti — oturum dışından, kullanıcının bundan haberi yoktu. Doğrulandı: bu
+merge'ün son ağacı, o anki origin/main ile BİREBİR AYNI (`git diff` boş) — dosya kaybı/çakışma/üzerine yazma
+yok, yalnızca git geçmişi birleşti. Ama önemli: repoya kullanıcı dışında en az bir kişi daha yazabiliyor —
+gelecekte gerçek çakışmalar veya beklenmedik değişiklikler olabilir, `git log`/`git fetch` ile kontrol etmeden
+"origin/main güncel" varsayılmamalı.
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
