@@ -345,6 +345,8 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 .hub-c { background: #FFFFFF; border: 1px solid #E7E0D2; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); padding: 20px; }
 .hub-c--tight { padding: 14px 16px; }
 .hub-c--lead { border-left: 4px solid var(--hub-lead, #E7E0D2); }
+/* Inbound (site başvurusu) adaylar sarı çerçeveyle ayırt edilir — 2026-09-23 */
+.hub-c--inbound { border: 2px solid #F59E0B; border-left: 4px solid var(--hub-lead, #F59E0B); box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03), 0 0 0 1px rgba(245,158,11,.12); }
 .adm-card { background: #FFFFFF; border: 1px solid #E7E0D2; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); overflow: hidden; }
 .adm-card__header { padding: 16px 20px; border-bottom: 1px solid #F0EADE; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .adm-card__body { padding: 18px 20px; }
@@ -376,6 +378,7 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 .hub-pill--flag   { background: #FEF2F2; color: #DC2626; }
 .hub-pill--stage  { background: #F5F3FF; color: #7C3AED; }
 .hub-pill--source { background: #EFF6FF; color: #2563EB; }
+.hub-pill--inbound { background: #FFFBEB; color: #B45309; }
 .hub-pill--ok     { background: #F0FDF4; color: #16A34A; }
 .hub-pill--warn   { background: #FFF7ED; color: #EA580C; }
 .hub-pill--track-founder { background: #F5F3FF; color: #7C3AED; }

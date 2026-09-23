@@ -219,6 +219,31 @@ form) BİLEREK cross-import edilmedi — HR paketine site sayfası kodu (layout/
 `join-form-fields.jsx` kendi küçük kopyasını tutuyor (anahtarlar birebir aynı olmalı). Canlı DB'de geçici bir
 override yazılıp Katıl sayfasında göründüğü doğrulandı, sonra `null`'a geri alındı.
 
+**İlgi alanı — outbound aday eklemede de zorunlu (2026-09-23):** İnbound (Katıl formu) için zaten zorunlu
+olan ilgi alanı, HR'ın kendi ekleme yollarında da (tümü `hub_store.js`'teki `addCandidate`/`importCandidates`e
+`interest` geçiriyor, `mapCandidateToDb` zaten destekliyordu — yalnızca UI eksikti) zorunlu: `new-candidate.jsx`
+(tek aday, yeni wizard adımı) · `paste-import.jsx`/`import-simple.jsx` (yapıştır/CSV — parti bazlı ortak alan;
+CSV'de "İlgi alanı" sütunu da eşlenebilir, `matchInterest()` serbest metni anahtara çevirir) · `github-import.jsx`
+(tarama — 4 teknik alan + Diğer). **Yan düzeltme (`wizard.jsx`):** `HubWizard`'da ARA adımdaki `type:'options'`
+soruları önceden hiç seçim yapılmadan "İleri" ile sessizce atlanabiliyordu (`canNext` bunu es geçiyordu) — bu
+yalnızca yeni 'interest' adımını değil, Kaynak/Rol tipi/Hangi proje gibi TÜM mevcut zorunlu options adımlarını
+etkiliyordu. Düzeltildi: `canNext = optional || filled` (tip farkı yok); `next()` yalnızca genel "İleri"
+tıklamasında (deliberate bir seçenek tıklaması değilken) zorunlu kontrolü yapıyor — kasıtlı "boş" seçenekler
+(ör. roles.jsx'teki "— henüz belli değil", value `''`) hâlâ geçerli bir cevap sayılıyor, yanlışlıkla
+reddedilmiyor. Node ile üç senaryo (zorunlu adım atlama engellendi / kasıtlı boş seçenek kabul edildi / normal
+seçim çalışıyor) izole simülasyonla doğrulandı.
+
+**Adaylar — inbound (Katıl formu) adaylar öne çıkarılıyor (2026-09-23):** `candidates-list.jsx`'te
+`source==='inbound'` olan satırlar artık (1) listede en üstte (aynı grup içinde en yeni önce) ve (2) sarı
+çerçeveyle (`.hub-c--inbound`, hub.css) + "Site başvurusu" rozetiyle (`.hub-pill--inbound`) diğerlerinden
+ayırt ediliyor — formdan gelen başvurular gözden kaçmasın diye.
+
+**Bilinen açık: `talha@starthub-community.com` `hub_members.role='recruiter'`, `settings.write` yok
+(2026-09-23).** `recruiter` rolü BİLEREK `decide`/`flags.override`/`members.manage`/`settings.write`/
+`candidates.purge` HARİÇ her şeyi alır (0009_permissions.sql). Bu yüzden HR › Ayarlar sekmesi bu hesapta hiç
+görünmüyor ("ayarlar kısmını bulamadım" şikâyetinin kaynağı) — UI hatası değil, izin modeli. Rolü `cofounder`
+yapmak (`update hub_members set role='cofounder' where email=…`) izin yükseltme olduğu için Claude Code'un
+otomatik izin sınıflandırıcısı tarafından engellendi; kullanıcı onayı bekleniyor.
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile

@@ -126,8 +126,15 @@ export default function CandidatesListPage({ filters, setFilters }) {
 
   const activeCount = useMemo(() => candidates.filter((c) => c.stage !== 'archived').length, [candidates]);
 
+  // 2026-09-23 — inbound (formdan gelen) adaylar en üstte + sarı çerçeveyle ayırt
+  // edilsin diye önce kaynak (inbound önce), sonra en yeni.
   const rows = useMemo(
-    () => applyFilters(candidates, filters, ctx).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
+    () => applyFilters(candidates, filters, ctx).sort((a, b) => {
+      const ai = a.source === 'inbound' ? 0 : 1;
+      const bi = b.source === 'inbound' ? 0 : 1;
+      if (ai !== bi) return ai - bi;
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    }),
     [candidates, filters, ctx]
   );
 
@@ -238,7 +245,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
           {rows.map((c) => (
-            <div key={c.id} className="hub-c hub-c--tight hub-c--lead"
+            <div key={c.id} className={`hub-c hub-c--tight hub-c--lead${c.source === 'inbound' ? ' hub-c--inbound' : ''}`}
               style={{ '--hub-lead': STAGE_COLOR[c.stage] || '#E7E0D2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
               onClick={() => setOpenId(c.id)}>
               <div className="hub-av">{initials(c.fullName)}</div>
@@ -246,6 +253,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <strong style={{ fontSize: 14, color: '#1C1917' }}>{c.fullName}</strong>
                   <span className="hub-pill hub-pill--stage">{STAGE_LABEL[c.stage] || c.stage}</span>
+                  {c.source === 'inbound' && <span className="hub-pill hub-pill--inbound">Site başvurusu</span>}
                   {c.interest && <span className="hub-pill hub-pill--source">{INTEREST_LABEL[c.interest] || c.interest}</span>}
                 </div>
                 <div style={{ fontSize: 12, color: '#A29D94', marginTop: 3 }}>

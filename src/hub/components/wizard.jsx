@@ -59,8 +59,11 @@ export default function HubWizard({
   const isLast = i === total - 1;
   const val = answers[def?.key];
   const filled = val != null && String(val).trim() !== '';
-  // Son adımda "İleri/Uygula" ancak bir değer seçili/girilmişse aktif.
-  const canNext = def?.optional || filled || (def?.type === 'options' && !isLast);
+  // "İleri/Uygula" ancak bir değer seçili/girilmişse ya da adım opsiyonelse aktif —
+  // 'options' adımlarında da öyle (2026-09-23 düzeltmesi: önceden ARA adımdaki
+  // 'options' soruları hiç seçim yapılmadan "İleri" ile atlanabiliyordu, zorunlu
+  // sorular — Kaynak, İlgi alanı, Rol tipi vb. — sessizce boş geçilebiliyordu).
+  const canNext = def?.optional || filled;
 
   const set = (v) => setAnswers((a) => ({ ...a, [def.key]: v }));
 
@@ -78,7 +81,12 @@ export default function HubWizard({
 
   const next = (overrideVal) => {
     const a = overrideVal === undefined ? answers : { ...answers, [def.key]: overrideVal };
-    if (!def.optional && (overrideVal === undefined ? !filled : String(overrideVal).trim() === '') && def.type !== 'options') {
+    // overrideVal TANIMLIYSA bir seçenek butonuna deliberate tıklanmış demektir (bkz.
+    // StepBody onPick) — değeri boş string olsa bile (ör. "— henüz belli değil" gibi
+    // kasıtlı "boş" seçenekler) bu her zaman geçerli bir cevaptır, zorunlu kontrolü
+    // yalnızca genel "İleri" düğmesine (overrideVal === undefined) hiç seçim
+    // yapılmadan basılırsa uygulanır.
+    if (overrideVal === undefined && !def.optional && !filled) {
       setErr('Bu alan zorunlu.'); return;
     }
     setErr('');
