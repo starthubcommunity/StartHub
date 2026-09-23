@@ -256,6 +256,14 @@ hub-constants.js). DB'deki `permission_presets`/`hub_members.role='project_owner
 candidate.jsx/roles.jsx'teki eski `role==='project_owner'` dallanmaları BİLİNÇLİ OLARAK silinmedi
 — proje kuralı gereği (kolon/DB satırı silinmez, yalnızca UI'dan gizlenir) dead-ama-zararsız duruyor.
 
+**Katıl — 'Destekçi Ol' kartı kaldırıldı (2026-09-23):** Kullanıcı başvuru akışını gereksiz buldu —
+"biz bunu siteye destekçileri manuel olarak ekleriz daha mantıklı" (zaten var olan admin panel →
+Site Destekçileri elle-ekleme akışıyla karışıyordu). `typeCards`'tan 'sponsor' girdisi çıkarıldı,
+grid `repeat(typeCards.length, 1fr)` ile dinamikleşti, sessionStorage'daki eski `sh_join_type=sponsor`
+değeri artık kart seçimine dönüştürülmüyor. Form/validate/submit dalları (`sponsorForm`,
+`intent:'sponsor_application'`) ve HR'daki Destekçiler sayfası (`applications.jsx kind='sponsor'`)
+BİLİNÇLİ OLARAK silinmedi — yeni başvuru gelmeyecek ama eski kayıtlar HR'da görülebilsin diye duruyor.
+
 **2026-09-23 — repoda ikinci bir katkıcı (Kadir) var, doğrudan GitHub'a push yapabiliyor.** Kendi ayrı
 `hub-v3` dalındaki paralel HR çalışmasını "Merge origin/main (arkadaşımın HR rework'ü) into hub-v3" commit'iyle
 (`f7d0fe9`) doğrudan `main`'e merge etti — oturum dışından, kullanıcının bundan haberi yoktu. Doğrulandı: bu
