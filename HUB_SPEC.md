@@ -687,3 +687,86 @@ gerçek drop ayrı migration'da ve teyitle.
 | Ana içe aktarma | CSV | yapıştır-ayrıştır |
 | Geri alma | yok | var — ekibe alma dâhil (C4 öncesi); kapı sonucu hariç |
 | Team entegrasyonu | yok (sahte) | gerçek (`people` + `invite-member`) |
+
+---
+
+## 16. Katıl formu entegrasyonu — v3.1 (2026-09-16)
+
+> **Neden:** Site başvuru formu (`JoinPage`) ve `applications_to_hub_candidate`
+> tetikleyicisi (0022) hiç güncellenmemişti. Sonuç: website'den gelen adayların
+> `role_type`'ı hep boştu (ne filtrede görünüyor ne role otomatik bağlanıyordu),
+> kurucu/liderlik başvurusu için giriş kapısı yoktu, "yeni fikir" (aday
+> değerlendirmesi değil, proje teklifi) havuza karışıyordu. Ayrıca inceleme
+> sırasında **bağımsız bir hata** bulundu (aşağıya bkz.) ve aynı migration'da
+> düzeltildi.
+
+**Katıl formu — 5 seçenek** (`community.intent`, tek dropdown'da — kullanıcı
+kararı: yeni kartlar yerine mevcut "Topluluğa Katıl" kartının içinde kalır,
+yapısal değişiklik minimum):
+
+1. `community` — topluluğa normal üye (değişmedi).
+2. `hub` — bir bölümde/ekipte görev al (İlgi Alanı dropdown'ı, değişmedi).
+3. `project` — devam eden bir projeye üye ol: **proje seçici** (yayındaki
+   `startups`) → seçilince o projenin `openRolesLive`'ından **pozisyon seçici**
+   (boşsa "açık pozisyon yok, ilgi alanına göre havuza eklenecek"). Var olan
+   proje-sayfası deep-link akışıyla (`sh_join_role`/`sh_join_type`) AYNI
+   `communityForm.role`/`project_id`/`project_name` alanlarını doldurur —
+   iki ayrı kod yolu yok.
+4. `founder_lead` (yeni) — fikir aşamasındaki bir projenin liderliğine/
+   ortaklığına talip olma. `stage:'idea'` olan projeler varsa listelenir
+   (RLS zaten `pub_read_startups using(true)` — published olmasa da anon
+   okuyabilir); yoksa/seçilmezse serbest metin ("Hangi konuya ilgin var, neden
+   sen?", `applications.pitch`). Ayrıca deneyim/motivasyon (`bio`) sorulur.
+   **Havuz'a `track:'founder'` ile düşer**, normal aday değerlendirmesiyle
+   aynı pipeline'da ama Bugün ekranında ayrı görünür (aşağıya bkz.).
+5. `idea_application` (yeni) — yeni bir proje fikri, toplulukla geliştirme
+   isteği. Proje/rol/bio/skills/linkedin/portfolio **sorulmaz** — bunun yerine
+   `pitch` (zorunlu, 2-3 cümle), `problem`, `progress` (opsiyonel).
+   **`hub_candidates`'a hiç düşmez** — bir aday değerlendirmesi değil, bir
+   proje teklifi; `applications` tablosunda kalır, "Diğer Başvurular"
+   ekranında 3. filtre olarak görünür (kullanıcı kararı — yeni bir "Fikir
+   Havuzu" sayfası açılmadı, düşük efor/yüksek tutarlılık tercih edildi).
+
+`mentor_application`/`sponsor_application` davranışı **değişmedi** (regresyon
+yok) — hâlâ ayrı üst-seviye kartlar, hâlâ `hub_candidates`'a düşmüyor.
+
+**Rol tipi eşlemesi (B1, kullanıcı kararı):** Website'nin 6 İlgi Alanı
+kategorisi Hub'ın 4 `ROLE_TYPES`'ına: `dev→technical`, `design→design`,
+`marketing→business`, `business→business`, `content→business`,
+`other→operations`. Website listesi değişmedi (4 kategoriye indirilmedi).
+Eşleme yalnızca SQL'de (`applications_to_hub_candidate`, migration 0033) —
+`hub-constants.js`'e ayrı bir JS sabiti eklenmedi çünkü onu tüketen JS kodu
+yok (trigger sunucu tarafında çalışıyor); mapping'in tek kaynağı migration
+dosyasıdır. `new.role` bazen kategori anahtarı yerine spesifik bir pozisyon
+adı taşır (deep-link/proje seçici) — bu durumda eşleşme olmaz, `role_type`
+null kalır (zararsız, önceki davranışla aynı).
+
+**Otomatik rol bağlama (B2, kullanıcı kararı):** `applications.project_id`
+doluysa ve `role`, aynı `startup_id` altındaki bir `hub_open_roles.title`
+ile **TAM** eşleşiyorsa, aday o role otomatik bağlanır (`open_role_id`) ve
+`track` o rolden miras alınır (JS `linkCandidateRole`/`inheritedTrack` ile
+aynı öncelik). Kısmi/olası eşleşme **sessizce atlanır** — yeni bir "olası
+eşleşme, kontrol et" arayüzü eklenmedi; mevcut tetikleyicinin "asla hata
+gösterme" felsefesiyle tutarlı kalındı.
+
+**Bugün ekranında liderlik görünürlüğü (B3, kullanıcı kararı):** HUB_SPEC'in
+4 (+2) blok yapısı bozulmadı — `track:'founder'` olan, arşiv/ekipte dışındaki
+tüm adaylar için ayrı küçük bir **"Liderlik başvuruları"** bloğu eklendi
+(mevcut "Karar bekleyenler"e karıştırılmadı — ortaklık kararı farklı ağırlıkta).
+
+**Bağımsız bulunan ve aynı migration'da düzeltilen hata:** `hub_candidates.track`
+kolonunun DB default'u `'founder'` — eski tetikleyici `track`'i hiç
+YAZMIYORDU. Yani bugüne kadar site üzerinden gelen **her** `community`/`hub`/
+`project` adayı (normal üye adayları) sessizce `track:'founder'` ile açılıyor
+ve daha sıkı `THRESHOLD.founder` (min 10 toplam, her eksen ≥3, iletişim
+zorunlu) ile değerlendiriliyordu — doğrusu `THRESHOLD.member` (bitirmişlik≥3,
+kapasite≥3) olmalıydı. Migration 0033 `track`'i artık her zaman açıkça yazıyor:
+`founder_lead` → `founder`, bağlanan rolün track'i varsa o, aksi halde
+`member`. **Geriye dönük düzeltme (backfill) yapılmadı** — yalnızca yeni
+kayıtlar etkilenir; mevcut adayların `track`'ini elle değiştirmek ayrı,
+kullanıcı onayı gerektiren bir karar (bkz. `CLAUDE.md` not).
+
+**Şema:** `applications`'a 3 nullable kolon (migration 0033): `pitch`,
+`problem`, `progress`. `drop column` yok. Doğrulama: `supabase db query
+--linked` ile 4 senaryo (B1/B2/B3/B4) canlıda gerçek insert ile test edildi,
+sonuçlar teyit edildi, test satırları temizlendi (bkz. commit mesajı).

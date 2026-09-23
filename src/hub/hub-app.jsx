@@ -18,6 +18,8 @@ import MetricsPage from './pages/metrics';
 import SourcesPage from './pages/sources';
 import SettingsPage from './pages/settings';
 import RolesPage from './pages/roles';
+import ApplicationsPage from './pages/applications';
+import SponsorsPage from './pages/sponsors';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -327,22 +329,28 @@ function HubNoAccess({ email, onLogout }) {
   );
 }
 
-// ─── Uygulama kabuğu (v2 §1) ──────────────────────────────────────────
-// Sol menü ÜÇ madde: Bugün · Adaylar · Roller. "Yönetim" altında: Şablonlar,
-// Metrikler, Yetkiler, Ayarlar. Her öğe bir has_perm anahtarına bağlı;
-// yetkisi olmayan öğe menüde HİÇ görünmez.
+// ─── Uygulama kabuğu ─────────────────────────────────────────────────
+// HR yalnızca LAB (startup) tarafını yönetir (2026-09-21, 0041):
+//  • Adaylar     : LAB'a başvuran normal adaylar (proje / proje havuzu) — ilgi alanı kutucuklarıyla
+//  • Mentörler / Destekçiler / Fikirler : LAB tarafı mentör, destekçi ve yeni fikir başvuruları
+//  • HUB (topluluk) başvuruları HR'a düşmez → Google Sheets tablosu (Ayarlar › Hub Başvuru Tablosu)
+// Her öğe bir has_perm anahtarına bağlı; yetkisi olmayan öğe menüde HİÇ görünmez.
 const MAIN_NAV = [
-  { id: 'today',      label: 'Bugün',   icon: 'dashboard', perm: null },
-  { id: 'candidates', label: 'Adaylar', icon: 'layers',    perm: 'candidates.read' },
-  { id: 'archive',    label: 'Arşiv',   icon: 'trash',     perm: 'candidates.read' },
-  { id: 'roles',      label: 'Roller',  icon: 'rocket',    perm: 'roles.read' },
+  { id: 'today',        label: 'Genel Bakış',      icon: 'dashboard',     perm: null },
+  { id: 'candidates',   label: 'Adaylar',          icon: 'layers',        perm: 'candidates.read' },
+  { id: 'roles',        label: 'Açık Pozisyonlar', icon: 'rocket',        perm: 'roles.read' },
+  { id: 'mentors',      label: 'Mentörler',        icon: 'graduationCap', perm: 'applications.read' },
+  { id: 'sponsor-apps', label: 'Destekçiler',      icon: 'handshake',     perm: 'applications.read' },
+  { id: 'ideas',        label: 'Fikirler',         icon: 'zap',           perm: 'applications.read' },
+  { id: 'archive',      label: 'Arşiv',            icon: 'trash',         perm: 'candidates.read' },
 ];
 const GEAR_NAV = [
-  { id: 'templates', label: 'Şablonlar', icon: 'penEdit',    perm: 'templates.read' },
-  { id: 'metrics',   label: 'Metrikler', icon: 'trendingUp', perm: 'metrics.read' },
-  { id: 'sources',   label: 'Kaynaklar', icon: 'layers',     perm: 'sources.read' },
-  { id: 'members',   label: 'Yetkiler',  icon: 'users',      perm: 'members.manage' },
-  { id: 'settings',  label: 'Ayarlar',   icon: 'settings',   perm: 'settings.write' },
+  { id: 'templates',    label: 'Şablonlar',        icon: 'penEdit',    perm: 'templates.read' },
+  { id: 'metrics',      label: 'Metrikler',        icon: 'trendingUp', perm: 'metrics.read' },
+  { id: 'sources',      label: 'Kaynaklar',        icon: 'layers',     perm: 'sources.read' },
+  { id: 'sponsors',     label: 'Site Destekçileri', icon: 'building',  perm: 'sponsors.read' },   // anasayfa logo şeridi
+  { id: 'members',      label: 'Yetkiler',         icon: 'users',      perm: 'members.manage' },
+  { id: 'settings',     label: 'Ayarlar',          icon: 'settings',   perm: 'settings.write' },
 ];
 const ALL_NAV = [...MAIN_NAV, ...GEAR_NAV];
 
@@ -350,7 +358,10 @@ function HubApp({ email, onLogout }) {
   // Rules of Hooks: TÜM hook'lar koşulsuz ve her erken return'den ÖNCE.
   const role = useHubMember();
   const { can, loading: permsLoading } = usePerms();
-  const [page, setPage] = useState(() => sessionStorage.getItem('sh_hub_page') || 'today');
+  const [page, setPage] = useState(() => {
+    const saved = sessionStorage.getItem('sh_hub_page') || 'today';
+    return saved === 'applications' ? 'mentors' : saved;   // eski "Diğer Başvurular"
+  });
   // B2 — çip/filtre seçimi sayfa yenilenince korunur.
   const [filters, setFilters] = useState(() => {
     try { return { ...EMPTY_FILTERS, ...JSON.parse(sessionStorage.getItem('sh_hub_filters') || '{}') }; }
@@ -422,10 +433,14 @@ function HubApp({ email, onLogout }) {
           {activePage === 'today' ? <TodayPage onGoto={setPage} />
             : activePage === 'candidates' ? <CandidatesListPage filters={filters} setFilters={setFilters} />
             : activePage === 'archive' ? <ArchivePage />
-            : activePage === 'roles' ? <RolesPage />
+            : activePage === 'roles' ? <RolesPage onGoto={setPage} setFilters={setFilters} />
+            : activePage === 'mentors' ? <ApplicationsPage kind="mentor" />
+            : activePage === 'sponsor-apps' ? <ApplicationsPage kind="sponsor" />
+            : activePage === 'ideas' ? <ApplicationsPage kind="idea" />
             : activePage === 'templates' ? <TemplatesPage />
             : activePage === 'metrics' ? <MetricsPage />
             : activePage === 'sources' ? <SourcesPage />
+            : activePage === 'sponsors' ? <SponsorsPage />
             : activePage === 'members' ? <PermissionsScreen area="hub" />
             : activePage === 'settings' ? <SettingsPage />
             : <div className="adm-empty">Bu ekran yok.</div>}

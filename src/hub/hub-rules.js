@@ -6,7 +6,7 @@
 // v2: 5 aşama (pool → contact → interview → trial → member) + archived.
 // Kapı A/B ayrı aşama DEĞİL — trial içinde hub_gates.gate ile. Üye hattında
 // Kapı B yoktur; bu tek fark, ayrı sıra (stageOrderFor) gerektirmez.
-import { THRESHOLD, STALE, STAGE_LABEL, STAGE_ORDER } from './hub-constants.js';
+import { THRESHOLD, STALE, STAGE_LABEL, STAGE_ORDER, DEFAULT_TRACK } from './hub-constants.js';
 
 const DAY_MS = 86400000;
 const daysBetween = (from, to) => Math.floor((to - from) / DAY_MS);
@@ -22,7 +22,7 @@ export function rubricComplete(c) {
 // Bu HATTIN rubriği dolu mu? Kurucu: üç eksen. Üye: bitirmişlik + kapasite
 // (iletişim yalnızca rol needs_communication ise).
 export function rubricCompleteFor(c, openRole = null) {
-  if ((c?.track || 'founder') === 'member') {
+  if ((c?.track || DEFAULT_TRACK) === 'member') {
     if (c?.scoreFinishing == null || c?.scoreCapacity == null) return false;
     if (openRole?.needsCommunication && c?.scoreCommunication == null) return false;
     return true;
@@ -33,7 +33,7 @@ export function rubricCompleteFor(c, openRole = null) {
 // Puan eşiği — HAT BAZINDA. Kırmızı bayrak kuralı ayrı — bkz. canAdvance('trial').
 export function thresholdMet(c, openRole = null) {
   if (!c) return false;
-  if ((c.track || 'founder') === 'member') {
+  if ((c.track || DEFAULT_TRACK) === 'member') {
     const t = THRESHOLD.member;
     if (c.scoreFinishing == null || c.scoreCapacity == null) return false;
     if (c.scoreFinishing < t.minFinishing || c.scoreCapacity < t.minCapacity) return false;
@@ -50,7 +50,7 @@ export function thresholdMet(c, openRole = null) {
 }
 
 // İnsan-okunur eşik açıklaması — ham formül değil, cümle (v2 §2.3).
-export function thresholdText(track = 'founder', openRole = null) {
+export function thresholdText(track = DEFAULT_TRACK, openRole = null) {
   if (track === 'member') {
     const t = THRESHOLD.member;
     return `bitirmişlik ≥ ${t.minFinishing} ve kapasite ≥ ${t.minCapacity}` +
@@ -63,7 +63,7 @@ export function thresholdText(track = 'founder', openRole = null) {
 // Hedefin kendi çıkış koşulu. Sıra kontrolü ayrı — canAdvance.
 function targetGate(c, toStage, ctx = {}) {
   const { touchCount = null, openRole = null } = ctx;
-  const track = c.track || 'founder';
+  const track = c.track || DEFAULT_TRACK;
 
   switch (toStage) {
     case 'contact': {
@@ -148,7 +148,7 @@ export function canAdvance(candidate, toStage, ctx = {}) {
 export function presentGate(candidate, openRole) {
   const c = candidate || {};
   if (!openRole) return { ok: false, reason: 'Aday bir açık role bağlanmalı.' };
-  const track = c.track || 'founder';
+  const track = c.track || DEFAULT_TRACK;
   if (!thresholdMet(c, openRole)) {
     return { ok: false, reason: `Eşik sağlanmadı (${track === 'member' ? 'üye' : 'kurucu'} hattı): ${thresholdText(track, openRole)}.` };
   }
@@ -158,8 +158,8 @@ export function presentGate(candidate, openRole) {
 // inheritedTrack(role, currentTrack) -> aday hattı (§10)
 // Bir aday açık role bağlandığında track ROLDEN miras alınır. Rol yoksa
 // mevcut track korunur — bağlantı kaldırılınca geri alma YOKTUR.
-export function inheritedTrack(role, currentTrack = 'founder') {
-  return role?.track || currentTrack || 'founder';
+export function inheritedTrack(role, currentTrack = DEFAULT_TRACK) {
+  return role?.track || currentTrack || DEFAULT_TRACK;
 }
 
 // roleStatusAfterReject(role, roleCandidates, rejectedId) -> yeni durum

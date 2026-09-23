@@ -41,6 +41,24 @@ export const SOURCES = [
 ];
 export const SOURCE_LABEL = toLabelMap(SOURCES);
 
+// ─── İlgi alanları (Katıl formu › Startup › ilgi alanı) ─────────────────
+// Adaylar sayfasında kutucuk olarak listelenir (tıklayınca o alandaki adaylar gelir).
+// `icon`: AIcon adı. 'dev' eski kayıtların genel "Yazılım" kategorisi (yeni formda yok).
+export const INTEREST_AREAS = [
+  { value: 'frontend',  label: 'Frontend',           icon: 'code' },
+  { value: 'backend',   label: 'Backend',            icon: 'layers' },
+  { value: 'mobile',    label: 'Mobil',              icon: 'zap' },
+  { value: 'data',      label: 'Veri & Yapay Zekâ',  icon: 'trendingUp' },
+  { value: 'design',    label: 'UI/UX Tasarım',      icon: 'penEdit' },
+  { value: 'product',   label: 'Ürün & Proje',       icon: 'briefcase' },
+  { value: 'marketing', label: 'Pazarlama & Growth', icon: 'target' },
+  { value: 'business',  label: 'İş Geliştirme',      icon: 'building' },
+  { value: 'content',   label: 'İçerik & Yazı',      icon: 'edit' },
+  { value: 'other',     label: 'Diğer',              icon: 'star' },
+];
+export const INTEREST_LABEL = { ...toLabelMap(INTEREST_AREAS), dev: 'Yazılım (genel)' };
+export const INTEREST_NONE = 'none';   // ilgi alanı boş olan adaylar için sanal anahtar
+
 // ─── Sonraki aksiyon (v3 §3 — TÜRETİLİR) ────────────────────────────
 // v3: elle seçilen alan kaldırıldı. Etiketler artık hub-rules.js
 // nextAction() içinde; sabit liste tutulmuyor.
@@ -98,6 +116,15 @@ export const TRACKS = [
 ];
 export const TRACK_LABEL = toLabelMap(TRACKS);
 
+// track alanı boş/bilinmeyen bir adayın varsayılan hattı. 2026-09-16
+// düzeltmesi: önceden kodun her yerinde `c.track || 'founder'` deseni
+// vardı (hub_candidates.track DB default'u da 'founder'ydı) — yani
+// track'i hiç yazmayan HER yol (site trigger'ı 0022, elle aday ekleme,
+// yapıştır/CSV/GitHub içe aktarma) sessizce kurucu hattına düşüyor ve
+// çok daha ağır THRESHOLD.founder ile değerlendiriliyordu. Doğrusu
+// hub_open_roles.track'in zaten kullandığı 'member' varsayılanı.
+export const DEFAULT_TRACK = 'member';
+
 // ─── Eşik değerleri — HAT BAZINDA (v2 §2.3) ────────────────────────
 // Kurucu: toplam ≥ minTotal VE her eksen ≥ minAxis, iletişim ekseni zorunlu.
 // Üye: bitirmişlik ≥ minFinishing VE kapasite ≥ minCapacity; iletişim yalnızca
@@ -110,18 +137,27 @@ export const THRESHOLD = {
 
 // ─── Açık rol durum makinesi (v2 §10.1 — 7→4) ─────────────────────
 // Talep/onay el sıkışması yok: rol doğrudan 'sourcing'e düşer.
+// 'sourcing' = "Yayında" (web sitesinde görünür, aday aranıyor). 'shortlist'
+// artık ELLE ulaşılabilir bir durum DEĞİL — yalnızca bir aday proje sahibine
+// gerçekten SUNULDUĞUNDA sistem otomatik olarak buraya geçer (bkz. hub-
+// store.jsx presentCandidate / hub-rules.js roleStatusAfterReject). Kullanıcı
+// kararı: "Kısa listeye al" butonu (gerçek bir sunum olmadan elle bu duruma
+// geçme) kaldırıldı çünkü sitede görünürlük açısından sourcing'den farksızdı
+// ve kafa karıştırıyordu — etiket/rozet, otomatik oluştuğunda hâlâ doğru
+// gösteriliyor, sadece manuel buton gitti.
 export const ROLE_STATUSES = [
   { value: 'draft',     label: 'Taslak' },
-  { value: 'sourcing',  label: 'Aranıyor' },
+  { value: 'sourcing',  label: 'Yayında' },
   { value: 'shortlist', label: 'Kısa liste' },
   { value: 'filled',    label: 'Dolduruldu' },
 ];
 export const ROLE_STATUS_LABEL = toLabelMap(ROLE_STATUSES);
 
 // filled sisteme aittir (aday `member` olunca otomatik).
+// sourcing -> shortlist ELLE yok (yukarıdaki not) — yalnızca geri dönüş var.
 export const ROLE_STATUS_NEXT = {
   draft:     ['sourcing'],
-  sourcing:  ['shortlist', 'draft'],
+  sourcing:  ['draft'],
   shortlist: ['sourcing'],   // filled otomatik
   filled:    [],
 };

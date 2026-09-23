@@ -10,7 +10,8 @@ import {
   RUBRIC_AXES, AI_PRESCORE_FINISHING, ROLE_TYPES, ARCHIVE_REASONS,
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
   GATE_RESULT_LABEL, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
-  GATE, GATE_EXTENSIONS, KVKK_NOTICE_URL, KVKK_NOTICE_LINE,
+  GATE, GATE_EXTENSIONS, KVKK_NOTICE_URL, KVKK_NOTICE_LINE, DEFAULT_TRACK,
+  INTEREST_LABEL, INTEREST_AREAS,
 } from '../hub-constants';
 import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI, nextAction, undoPlan } from '../hub-rules';
 import { fillTemplate } from './templates';
@@ -20,6 +21,29 @@ import { lastChannel, rememberChannel } from '../hub-channel';
 
 const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunication', capacity: 'scoreCapacity' };
 const PRESCORE_LABEL = Object.fromEntries(AI_PRESCORE_FINISHING.map((x) => [x.value, x.when]));
+
+// ── İletişim / form bilgileri — panel açılır açılmaz görünsün diye üstte,
+// "Detay" akordeonunun arkasına gizlenmiyor (2026-09-23: e-posta/telefon/ilgi
+// alanı önceden yalnızca dolaylı yoldan görünüyordu, HR'ın en çok aradığı
+// bilgiler bunlar).
+function ContactBlock({ c }) {
+  const rows = [
+    c.email && { icon: 'mail', label: c.email, href: `mailto:${c.email}` },
+    c.phone && { icon: 'phone', label: c.phone, href: `tel:${c.phone.replace(/\s/g, '')}` },
+    c.university && { icon: 'building', label: c.university },
+    c.interest && { icon: 'target', label: INTEREST_LABEL[c.interest] || c.interest },
+  ].filter(Boolean);
+  if (!rows.length) return null;
+  return (
+    <div className="hub-contact">
+      {rows.map((r, i) => (
+        r.href
+          ? <a key={i} className="hub-contact__row hub-contact__row--link" href={r.href}><AIcon name={r.icon} size={14} />{r.label}</a>
+          : <span key={i} className="hub-contact__row"><AIcon name={r.icon} size={14} />{r.label}</span>
+      ))}
+    </div>
+  );
+}
 
 // ── Aşama şeridi (§Ek) ───────────────────────────────────────────
 const STRIPE = [
@@ -171,8 +195,8 @@ export default function CandidatePanel({ candidateId, onClose }) {
             {/* A5 — rol ve hat üst şeritte ETİKET; form alanı değil, aşamada tekrar sorulmaz */}
             <div style={{ fontSize: 12, color: '#A29D94', marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <span className="hub-pill hub-pill--stage">{STAGE_LABEL[stage]}</span>
-              <span className={`hub-pill hub-pill--track-${(c.track || 'founder') === 'member' ? 'member' : 'founder'}`}>
-                {TRACK_LABEL[c.track || 'founder']} hattı
+              <span className={`hub-pill hub-pill--track-${(c.track || DEFAULT_TRACK) === 'member' ? 'member' : 'founder'}`}>
+                {TRACK_LABEL[c.track || DEFAULT_TRACK]} hattı
               </span>
               {openRole && <span className="hub-pill">{openRole.title}</span>}
               <span className="hub-pill hub-pill--source">{SOURCE_LABEL[c.source] || c.source}</span>
@@ -180,6 +204,7 @@ export default function CandidatePanel({ candidateId, onClose }) {
                 <span className="hub-pill hub-pill--ok">→ {nextAction(c, store.touches, store.gates).label}</span>
               )}
             </div>
+            <ContactBlock c={c} />
           </div>
           <button className="adm-icon-btn" onClick={onClose}><AIcon name="x" size={18} /></button>
         </div>
@@ -229,8 +254,11 @@ export default function CandidatePanel({ candidateId, onClose }) {
             <div style={{ marginTop: 8 }}>
               <div className="adm-form-grid">
                 <LField label="Ad Soyad" value={c.fullName} onCommit={(v) => save({ fullName: v })} />
-                <LField label="Link" value={c.github || c.linkedin || c.email || ''}
-                  onCommit={(v) => save(detectLink(v))} hint="GitHub / LinkedIn / e-posta" />
+                <LField label="E-posta" type="email" value={c.email || ''} onCommit={(v) => save({ email: v || null })} />
+                <LField label="Telefon" value={c.phone || ''} onCommit={(v) => save({ phone: v || null })} />
+                <LField label="İlgi alanı" value={c.interest || ''} onCommit={(v) => save({ interest: v || null })} options={INTEREST_AREAS} />
+                <LField label="Link" value={c.github || c.linkedin || ''}
+                  onCommit={(v) => save(detectLink(v))} hint="GitHub / LinkedIn" />
                 <LField label="Okul / durum" value={c.university} onCommit={(v) => save({ university: v })} hint="Serbest — örn. Boğaziçi, 3. sınıf" />
                 <LField label="Rol tipi" value={c.roleType} onCommit={(v) => save({ roleType: v || null })} options={ROLE_TYPES} />
                 <LField label="Haftalık saat" type="number" value={c.weeklyHours ?? ''} onCommit={(v) => save({ weeklyHours: v === '' ? null : Number(v) })} />
@@ -335,7 +363,7 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
             </Field>
             {isCofounder && (
               <Field label="Hat (geçersiz kıl · kurucu)">
-                <select className="adm-input adm-select" value={c.track || 'founder'}
+                <select className="adm-input adm-select" value={c.track || DEFAULT_TRACK}
                   onChange={(e) => store.updateCandidate(c.id, { ...c, track: e.target.value }).then(() => flash?.('Hat değişti.')).catch((err) => flash?.(err.message))}>
                   {TRACKS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
@@ -625,7 +653,7 @@ function DecisionMail({ kind, c, role, openRole, onCancel, onDone, flash }) {
 
 // ── Görüşme (rubrik + serbest not) — v3: kırmızı bayrak YOK ────────
 function InterviewSection({ c, save, role, openRole, flash, onDone }) {
-  const track = c.track || 'founder';
+  const track = c.track || DEFAULT_TRACK;
   const trialChk = canAdvance({ ...c, stage: 'interview' }, 'trial', { role, openRole });
   const [decision, setDecision] = useState(null);   // 'invite' | 'reject' | null
 
@@ -823,7 +851,7 @@ function TrialSection({ c }) {
   const gates = store.gates.filter((g) => g.candidateId === c.id);
   const gateA = gates.filter((g) => g.gate === 'A').sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))[0];
   const gateB = gates.filter((g) => g.gate === 'B').sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
-  const founder = (c.track || 'founder') === 'founder';
+  const founder = (c.track || DEFAULT_TRACK) === 'founder';
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [wiz, setWiz] = useState(null);   // 'startA' | 'startB' | { extend: gateId }

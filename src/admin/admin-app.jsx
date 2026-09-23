@@ -7,8 +7,7 @@ import { DashboardPage, ProjectsPage } from './admin-pages';
 import { ContentPage } from './admin-pages3';
 import { AutomationPage } from './admin-automation';
 import { AnalyticsPage } from './admin-analytics';
-import { PeoplePage, SponsorsPage, TrashPage } from './admin-pages2';
-import { ApplicationsPage } from './admin-applications';
+import { PeoplePage, TrashPage } from './admin-pages2';
 import { SettingsPage } from './admin-settings';
 import PermissionsScreen from './permissions-screen';
 import { supabase, setRememberMe } from '../lib/supabase';
@@ -351,13 +350,11 @@ function AdminApp() {
   // menüde HİÇ görünmez. Asıl kapı RLS'tir; bu yalnızca kafa karışıklığını önler.
   const NAV = [
     { id: 'dashboard',     label: 'Dashboard',       icon: 'dashboard',  perm: null },
-    { id: 'projects',      label: 'Projeler',         icon: 'rocket',    perm: 'projects.read' },
+    { id: 'projects',      label: 'Projeler',        icon: 'rocket',    perm: 'projects.read' },
     { id: 'posts',         label: 'Yazılar',          icon: 'layers',    perm: 'posts.read' },
     { id: 'analytics',     label: 'Analitik',         icon: 'trendingUp', perm: 'analytics.read' },
     { id: 'automation',    label: 'Otomasyon',        icon: 'zap',       perm: 'automation.read' },
     { id: 'people',        label: 'Ekip & Mentörler', icon: 'users',     perm: 'people.read' },
-    { id: 'sponsors',      label: 'Destekçiler',      icon: 'handshake', perm: 'sponsors.read' },
-    { id: 'applications',  label: 'Başvurular',       icon: 'penEdit',   perm: 'applications.read' },
     { id: 'members',       label: 'Yetkiler',         icon: 'users',     perm: 'members.manage' },
     { id: 'settings',      label: 'Site Ayarları',    icon: 'settings',  perm: 'settings.write' },
     { id: 'trash',         label: 'Son Silinenler',   icon: 'trash', badge: trash.length, perm: 'trash.read' },
@@ -372,8 +369,6 @@ function AdminApp() {
       case 'analytics':  return <AnalyticsPage />;
       case 'automation': return <AutomationPage />;
       case 'people':     return <PeoplePage />;
-      case 'sponsors':      return <SponsorsPage />;
-      case 'applications':  return <ApplicationsPage />;
       case 'members':       return <PermissionsScreen area="admin" />;
       case 'settings':      return <SettingsPage />;
       case 'trash':         return <TrashPage />;

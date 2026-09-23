@@ -606,4 +606,19 @@ t('"neden bu kişi": somut esere atıf, sıfat yok', () => {
   assert.doesNotMatch(w, /yetenekli|başarılı|harika|etkileyici/i);
 });
 
+t('applyFilters: ilgi alanı kutucukları (interest) — çoklu seçim + boş = none (0041)', () => {
+  const ics = [
+    { id: 'a', stage: 'pool', interest: 'frontend' },
+    { id: 'b', stage: 'pool', interest: 'backend' },
+    { id: 'c', stage: 'pool', interest: 'frontend' },
+    { id: 'd', stage: 'pool' },
+    { id: 'e', stage: 'archived', interest: 'frontend' },
+  ];
+  assert.deepEqual(applyFilters(ics, { interest: ['frontend'] }, {}).map((x) => x.id), ['a', 'c']);
+  assert.deepEqual(applyFilters(ics, { interest: ['frontend', 'backend'] }, {}).map((x) => x.id), ['a', 'b', 'c']);
+  assert.deepEqual(applyFilters(ics, { interest: ['none'] }, {}).map((x) => x.id), ['d']);
+  assert.equal(applyFilters(ics, { interest: [] }, {}).length, 4);
+  assert.equal(countActiveFilters({ interest: ['frontend', 'backend'] }), 2);
+});
+
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { AIcon, PageHead } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS } from '../hub-constants';
+import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS, DEFAULT_TRACK, INTEREST_AREAS, INTEREST_LABEL } from '../hub-constants';
 import { thresholdMet, rubricComplete, nextAction, gateDueAt } from '../hub-rules';
 import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
@@ -31,7 +31,7 @@ function RowRight({ c, touchesByCand, gatesByCand }) {
     return <span className="hub-pill">takip {fmtDate(last?.followUpAt)}</span>;
   }
   if (c.stage === 'interview') {
-    if (!rubricComplete(c) && (c.track || 'founder') === 'founder') {
+    if (!rubricComplete(c) && (c.track || DEFAULT_TRACK) === 'founder') {
       return <span className="hub-pill" style={{ color: 'var(--adm-text-dim)' }}>puan bekliyor</span>;
     }
     const met = thresholdMet(c);
@@ -55,15 +55,53 @@ function RowRight({ c, touchesByCand, gatesByCand }) {
   return null;
 }
 
+// İlgi alanına göre kutucuklar (frontend, backend, tasarım …): tıkladıkça o alandaki adaylar listelenir.
+// Yalnızca en az bir adayın ilgi alanı varsa gösterilir; birden fazla kutucuk birlikte seçilebilir.
+function InterestTiles({ candidates, selected, onToggle, onClear }) {
+  const counts = {};
+  candidates.filter((c) => c.stage !== 'archived').forEach((c) => { const k = c.interest || 'none'; counts[k] = (counts[k] || 0) + 1; });
+  const withInterest = Object.keys(counts).some((k) => k !== 'none');
+  if (!withInterest) return null;
+  const order = [...INTEREST_AREAS.map((a) => a.value), 'dev', 'none'];
+  const tiles = order.filter((k) => counts[k] || selected.includes(k)).map((k) => ({
+    key: k,
+    label: k === 'none' ? 'Belirtilmemiş' : INTEREST_LABEL[k],
+    icon: INTEREST_AREAS.find((a) => a.value === k)?.icon || (k === 'dev' ? 'code' : 'users'),
+    n: counts[k] || 0,
+  }));
+  return (
+    <div className="hub-tiles">
+      <div className="hub-tiles__head">
+        <span>İlgi alanına göre</span>
+        {selected.length > 0 && <button type="button" className="hub-tiles__clear" onClick={onClear}>Seçimi temizle</button>}
+      </div>
+      <div className="hub-tiles__grid">
+        {tiles.map((t) => (
+          <button key={t.key} type="button" className={`hub-tile${selected.includes(t.key) ? ' hub-tile--on' : ''}`} onClick={() => onToggle(t.key)}>
+            <span className="hub-tile__icon"><AIcon name={t.icon} size={17} /></span>
+            <span className="hub-tile__n">{t.n}</span>
+            <span className="hub-tile__label">{t.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function CandidatesListPage({ filters, setFilters }) {
   const store = useHubStore();
   const { candidates, members, openRoles, touches, gates, currentMember, loading } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(null);   // 'one' | 'import' | 'paste' | null
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [triageIds, setTriageIds] = useState(null);   // D3
   const [actOn, setActOn] = useState(null);     // satırdan arşivle/sil için aday
   const [toast, setToast] = useState('');
+  // 2026-09-23 — sayfaya girince önce ilgi alanı kartları görünsün, liste
+  // yalnızca bir kart/arama/filtre seçilince açılsın (göz karışıklığı azalsın).
+  // "Tüm adayları göster" bu varsayılanı aşıp listeyi yine de açar.
+  const [browseAll, setBrowseAll] = useState(false);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
 
   const memberName = (id) => members.find((m) => m.id === id)?.fullName || members.find((m) => m.id === id)?.email || '—';
@@ -82,8 +120,8 @@ export default function CandidatesListPage({ filters, setFilters }) {
   }, [gates]);
 
   const ctx = useMemo(
-    () => ({ currentMemberId: currentMember?.id ?? null, touchesByCand, now: Date.now() }),
-    [currentMember, touchesByCand]
+    () => ({ currentMemberId: currentMember?.id ?? null, touchesByCand, now: Date.now(), openRoles }),
+    [currentMember, touchesByCand, openRoles]
   );
 
   const activeCount = useMemo(() => candidates.filter((c) => c.stage !== 'archived').length, [candidates]);
@@ -93,10 +131,13 @@ export default function CandidatesListPage({ filters, setFilters }) {
     [candidates, filters, ctx]
   );
 
+  const noFilterActive = !filters.chip && !filters.stage.length && !filters.source.length
+    && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim();
+  const showList = browseAll || !noFilterActive;
+
   // D3 — hızlı eleme: filtre yoksa varsayılan "hiç mesaj atılmamış".
   const startTriage = () => {
-    const empty = !filters.chip && !filters.stage.length && !filters.source.length
-      && !filters.openRoleId.length && !filters.q.trim();
+    const empty = noFilterActive;
     const f = empty ? { ...filters, chip: 'no_message' } : filters;
     if (empty) setFilters(f);
     const list = applyFilters(candidates, f, ctx).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -128,24 +169,56 @@ export default function CandidatesListPage({ filters, setFilters }) {
     <div>
       <PageHead title="Adaylar" desc={`${rows.length} / ${activeCount} aktif aday`} actions={
         can('candidates.write') ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setAdding('one')}>
-              <AIcon name="plus" size={14} /> Tek aday
+          <div style={{ position: 'relative' }}>
+            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAddMenuOpen((v) => !v)}>
+              <AIcon name="plus" size={14} /> Aday Ekle
             </button>
-            <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('import')}>
-              <AIcon name="upload" size={14} /> CSV
-            </button>
-            {can('scan.run') && (
-              <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAdding('github')}>
-                <AIcon name="rocket" size={14} /> GitHub
-              </button>
+            {addMenuOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setAddMenuOpen(false)} />
+                <div style={{
+                  position: 'absolute', top: '110%', right: 0, zIndex: 11, minWidth: 210,
+                  background: 'var(--adm-bg-card)', border: '1px solid var(--adm-border-light)', borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.14)', padding: 6, display: 'flex', flexDirection: 'column', gap: 2,
+                }}>
+                  {[
+                    { key: 'paste', icon: 'edit', label: 'Yapıştır ve ekle', hint: 'ana yöntem' },
+                    { key: 'one', icon: 'plus', label: 'Tek aday' },
+                    { key: 'import', icon: 'upload', label: 'CSV' },
+                    ...(can('scan.run') ? [{ key: 'github', icon: 'rocket', label: 'GitHub' }] : []),
+                  ].map((opt) => (
+                    <button key={opt.key} onClick={() => { setAdding(opt.key); setAddMenuOpen(false); }}
+                      className="adm-btn adm-btn--ghost adm-btn--sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start', border: 'none', width: '100%' }}>
+                      <AIcon name={opt.icon} size={14} />
+                      <span style={{ flex: 1, textAlign: 'left' }}>{opt.label}</span>
+                      {opt.hint && <span style={{ fontSize: 10.5, color: 'var(--adm-text-dim)' }}>{opt.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
-            <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAdding('paste')}>
-              <AIcon name="edit" size={14} /> Yapıştır ve ekle
-            </button>
           </div>
         ) : null
       } />
+
+      <InterestTiles candidates={candidates} selected={filters.interest || []}
+        onToggle={(k) => { const cur = filters.interest || []; setFilters({ ...filters, interest: cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k] }); }}
+        onClear={() => setFilters({ ...filters, interest: [] })} />
+
+      {noFilterActive && (
+        <div style={{ margin: '-6px 0 14px' }}>
+          {!browseAll ? (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setBrowseAll(true)}>
+              Ya da tüm adayları göster ({activeCount})
+            </button>
+          ) : (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setBrowseAll(false)}>
+              ← Kartlara dön
+            </button>
+          )}
+        </div>
+      )}
 
       <FilterBar filters={filters} onChange={setFilters} candidates={candidates} openRoles={openRoles} ctx={ctx} />
 
@@ -159,7 +232,8 @@ export default function CandidatesListPage({ filters, setFilters }) {
 
       {loading ? (
         <div className="adm-empty">Yükleniyor…</div>
-      ) : rows.length === 0 ? (
+      ) : !showList ? null
+      : rows.length === 0 ? (
         <div className="adm-empty">{activeCount === 0 ? 'İlk adayını ekle — sağ üstteki “Aday ekle”.' : 'Bu filtreyle eşleşen aktif aday yok.'}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
@@ -172,6 +246,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <strong style={{ fontSize: 14, color: '#1C1917' }}>{c.fullName}</strong>
                   <span className="hub-pill hub-pill--stage">{STAGE_LABEL[c.stage] || c.stage}</span>
+                  {c.interest && <span className="hub-pill hub-pill--source">{INTEREST_LABEL[c.interest] || c.interest}</span>}
                 </div>
                 <div style={{ fontSize: 12, color: '#A29D94', marginTop: 3 }}>
                   {SOURCE_LABEL[c.source] || c.source} · {memberName(c.ownerId)}

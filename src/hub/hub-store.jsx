@@ -18,7 +18,13 @@ import { STAGE_ORDER } from './hub-constants';
 // loadHistory() ile; touches/gates Bugün ekranı için; stageLog dönüşüm için.
 const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
 
-const EMPTY = COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {});
+const EMPTY = { ...COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {}), hiddenHub: [] };
+
+// HR yalnızca LAB (startup) başvurularını alır (0041). Eskiden HUB (topluluk) başvurusu olarak
+// otomatik Adaylar'a düşmüş, henüz dokunulmamış ('pool') kayıtlar burada görünmez — bu kişiler
+// Hub başvuru tablosuna (Google Sheets) aktarılır. Silinmez; yalnızca mükerrer kontrolünde tutulur.
+const isHubOrigin = (c) => c.source === 'inbound' && c.stage === 'pool'
+  && /^(community|hub)(\s—|$)|^Hub ·/.test(c.whyThisOne || '');
 
 const HubStoreContext = createContext(null);
 export function useHubStore() {
@@ -59,6 +65,8 @@ export function HubStoreProvider({ children }) {
           next[c] = (res.data || []).map(HUB_TABLES[c].fromDb);
         }
       });
+      next.hiddenHub = next.candidates.filter(isHubOrigin);
+      next.candidates = next.candidates.filter((c) => !isHubOrigin(c));
       setData(next);
       setLoadError(firstErr ? firstErr.message : null);
       setLoading(false);
@@ -96,7 +104,14 @@ export function HubStoreProvider({ children }) {
   const updateItem = useCallback((collection, id, updates) => {
     const entry = HUB_TABLES[collection];
     if (!entry) return Promise.reject(new Error(`Bilinmeyen koleksiyon: ${collection}`));
-    const dbRecord = entry.toDb(updates);
+    // toDb() mapper'ları TAM bir öğe bekler (eksik alanı ''/false/null
+    // varsayılanına çevirir) — admin-store.jsx'te aynı desenin kısmi bir
+    // `updates` ile çağrılınca tüm satırı sessizce boşalttığı canlı bir
+    // olayla ortaya çıktı (bkz. 2026-09-15 postmortem). Buradaki tüm
+    // mevcut çağıranlar zaten tam nesne gönderiyor ama önlem olarak aynı
+    // kök-düzeltme: DB'ye yazmadan önce mevcut bilinen öğeyle birleştir.
+    const current = (data[collection] || []).find((it) => it.id === id) || {};
+    const dbRecord = entry.toDb({ ...current, ...updates });
     delete dbRecord.id; // PK asla güncellenmez
     return supabase.from(entry.table).update(dbRecord).eq('id', id).select().single()
       .then(({ data: row, error }) => {
@@ -486,7 +501,7 @@ export function HubStoreProvider({ children }) {
     // Blok D düzeltmesi (mükerrer): önizleme yalnızca HAVUZa karşı bakıyordu;
     // aynı partide iki kez geçen kişi iki kayıt oluyordu. Burada büyüyen bir
     // havuza (mevcut + bu partide açılanlar) karşı tekrar bakılır.
-    const pool = data.candidates.slice();
+    const pool = [...data.candidates, ...data.hiddenHub];
     for (const r of accepted) {
       // ── Mevcut kartı güncelle (yeni kayıt açma) ──────────────
       let dupId = (r._mode === 'update' && r._dupId) ? r._dupId : null;

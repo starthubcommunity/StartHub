@@ -55,6 +55,14 @@ function SettingsPage() {
   const [fieldLabels, setFieldLabels] = useState({});
   const setFieldLabel = (key, value) => setFieldLabels(prev => ({ ...prev, [key]: value }));
 
+  // Başvuru sonrası bağlantı kartları (Katıl sayfası bitiş ekranı): HUB → WhatsApp + Instagram, LAB → WhatsApp + LinkedIn
+  const [hubWhatsapp,  setHubWhatsapp]  = useState('');
+  const [hubInstagram, setHubInstagram] = useState('');
+  const [labWhatsapp,  setLabWhatsapp]  = useState('');
+  const [labLinkedin,  setLabLinkedin]  = useState('');
+  const [hubNoteTr, setHubNoteTr] = useState('');
+  const [labNoteTr, setLabNoteTr] = useState('');
+
   useEffect(() => {
     supabase.from('site_settings').select('*').eq('id', 1).single().then(({ data }) => {
       if (data) {
@@ -84,6 +92,12 @@ function SettingsPage() {
         if (data.sponsor_card_title_tr != null)   setSponsorTitleTr(data.sponsor_card_title_tr);
         if (data.sponsor_card_desc_tr != null)    setSponsorDescTr(data.sponsor_card_desc_tr);
         if (data.field_labels && typeof data.field_labels === 'object') setFieldLabels(data.field_labels);
+        if (data.hub_whatsapp_url != null)  setHubWhatsapp(data.hub_whatsapp_url);
+        if (data.hub_instagram_url != null) setHubInstagram(data.hub_instagram_url);
+        if (data.lab_whatsapp_url != null)  setLabWhatsapp(data.lab_whatsapp_url);
+        if (data.lab_linkedin_url != null)  setLabLinkedin(data.lab_linkedin_url);
+        if (data.hub_success_note_tr != null) setHubNoteTr(data.hub_success_note_tr);
+        if (data.lab_success_note_tr != null) setLabNoteTr(data.lab_success_note_tr);
       }
       setJoinLoaded(true);
     });
@@ -104,6 +118,12 @@ function SettingsPage() {
       sponsor_card_title_tr:   sponsorTitleTr,
       sponsor_card_desc_tr:    sponsorDescTr,
       field_labels: fieldLabels,
+      hub_whatsapp_url:  hubWhatsapp.trim(),
+      hub_instagram_url: hubInstagram.trim(),
+      lab_whatsapp_url:  labWhatsapp.trim(),
+      lab_linkedin_url:  labLinkedin.trim(),
+      hub_success_note_tr: hubNoteTr,
+      lab_success_note_tr: labNoteTr,
       updated_at: new Date().toISOString(),
     });
     if (e) setJoinError(e.message);
@@ -232,7 +252,7 @@ function SettingsPage() {
       </button>
 
       <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 18, color: 'var(--adm-text)', margin: '36px 0 4px', letterSpacing: '-0.01em' }}>Katılım Formu</div>
-      <div style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 16 }}>Katıl sayfasındaki başlık, açıklama ve 3 kartın metinleri — boş bırakılan alanlar varsayılan metni kullanır.</div>
+      <div style={{ fontSize: 13, color: 'var(--adm-text-dim)', marginBottom: 16 }}>Katıl sayfasındaki başlık, 3 kartın metinleri ve başvuru sonrası bağlantı kartları — boş bırakılan metinler varsayılanı kullanır.</div>
 
       {!joinLoaded ? (
         <div style={{ padding: 20, color: 'var(--adm-text-dim)', fontSize: 14 }}>Yükleniyor…</div>
@@ -261,6 +281,46 @@ function SettingsPage() {
                 <Field label="Mentör — Açıklama"><Textarea value={mentorDescTr} onChange={setMentorDescTr} rows={2} placeholder="Deneyimini paylaş..." /></Field>
                 <Field label="Destekçi — Açıklama"><Textarea value={sponsorDescTr} onChange={setSponsorDescTr} rows={2} placeholder="Startup ekosistemine katkı sağla." /></Field>
               </div>
+            </div>
+          </div>
+
+          <div className="adm-card" style={{ marginBottom: 20 }}>
+            <div className="adm-card__header"><h3>Başvuru Sonrası Bağlantı Kartları</h3></div>
+            <div className="adm-card__body">
+              <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginBottom: 16 }}>
+                Başvuru tamamlanınca "Teşekkürler" ekranında çıkan iki kart. Topluluk (HUB) başvurusu yapana HUB kartları, startup (LAB) başvurusu yapana LAB kartları gösterilir.
+                Boş bırakılan bağlantının kartı gösterilmez.
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.1em', padding: '2px 9px', borderRadius: 999, color: '#DC2626', background: '#DC26261A' }}>HUB</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--adm-text)' }}>Topluluk başvurusu bitince</span>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: !!hubWhatsapp.trim() ? '#F0FDF4' : '#F5F5F4', color: !!hubWhatsapp.trim() ? '#16A34A' : '#A29D94' }}>{!!hubWhatsapp.trim() ? '✓ ' : '— '}WhatsApp</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: !!(hubInstagram.trim() || instagramUrl.trim()) ? '#F0FDF4' : '#F5F5F4', color: !!(hubInstagram.trim() || instagramUrl.trim()) ? '#16A34A' : '#A29D94' }}>{!!(hubInstagram.trim() || instagramUrl.trim()) ? '✓ ' : '— '}Instagram</span>
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <Field label="WhatsApp Grup Linki" hint="Boşsa WhatsApp kartı gösterilmez."><Input value={hubWhatsapp} onChange={setHubWhatsapp} placeholder="https://chat.whatsapp.com/..." /></Field>
+                <Field label="Instagram Sayfa Linki" hint="Boşsa Site Ayarları'ndaki Instagram kullanılır."><Input value={hubInstagram} onChange={setHubInstagram} placeholder="https://instagram.com/..." /></Field>
+              </div>
+              <Field label="HUB — Ek Not (opsiyonel)" hint="Teşekkür metninin altında küçük bir bilgi kutusu olarak görünür."><Textarea value={hubNoteTr} onChange={setHubNoteTr} rows={2} placeholder="ör. Bu hafta perşembe 19:00'da tanışma buluşmamız var!" /></Field>
+
+              <div style={{ height: 1, background: 'var(--adm-border-light)', margin: '18px 0' }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.1em', padding: '2px 9px', borderRadius: 999, color: '#2563EB', background: '#2563EB1A' }}>LAB</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--adm-text)' }}>Startup başvurusu bitince</span>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: !!labWhatsapp.trim() ? '#F0FDF4' : '#F5F5F4', color: !!labWhatsapp.trim() ? '#16A34A' : '#A29D94' }}>{!!labWhatsapp.trim() ? '✓ ' : '— '}WhatsApp</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: !!(labLinkedin.trim() || companyLinkedin.trim()) ? '#F0FDF4' : '#F5F5F4', color: !!(labLinkedin.trim() || companyLinkedin.trim()) ? '#16A34A' : '#A29D94' }}>{!!(labLinkedin.trim() || companyLinkedin.trim()) ? '✓ ' : '— '}LinkedIn</span>
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <Field label="WhatsApp Grup Linki" hint="Boşsa WhatsApp kartı gösterilmez."><Input value={labWhatsapp} onChange={setLabWhatsapp} placeholder="https://chat.whatsapp.com/..." /></Field>
+                <Field label="LinkedIn Sayfa Linki" hint="Boşsa Site Ayarları'ndaki şirket LinkedIn'i kullanılır."><Input value={labLinkedin} onChange={setLabLinkedin} placeholder="https://www.linkedin.com/company/..." /></Field>
+              </div>
+              <Field label="LAB — Ek Not (opsiyonel)" hint="Teşekkür metninin altında küçük bir bilgi kutusu olarak görünür."><Textarea value={labNoteTr} onChange={setLabNoteTr} rows={2} placeholder="ör. Başvurunu 3 iş günü içinde değerlendiriyoruz." /></Field>
             </div>
           </div>
 

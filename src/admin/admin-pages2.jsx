@@ -9,6 +9,15 @@ import { usePerms } from '../lib/use-perms';
 // ============================================
 const PERSON_TYPES = { team: 'Ekip', project_member: 'Proje Üyesi', mentor: 'Mentör', author: 'Yazar' };
 
+// "linkedin.com/in/..." gibi protokolsüz girilen linkler mutlak değil site
+// içi göreli yol sayılıyordu (tıklayınca LinkedIn yerine anasayfaya
+// düşülüyordu, 2026-09-16 canlı raporu — bkz. src/ui-components.jsx aynı yama).
+function externalUrl(url) {
+  const s = (url || '').trim();
+  if (!s || s === '#') return '';
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+}
+
 function PeoplePage() {
   const { data, addItem, updateItem, deleteItem } = useAdmin();
   const { can } = usePerms();
@@ -66,29 +75,33 @@ function PeoplePage() {
         </div>
         <div className="adm-card__body">
           <div className="adm-people-grid">
-            {filtered.map(p => (
-              <div key={p.id} className="adm-person-card">
-                <div className="adm-person-card__avatar" style={{ background: p.color }}>
-                  {p.photo ? <img src={p.photo} alt="" /> : <span>{p.name[0]}</span>}
+            {filtered.map(p => {
+              const li = externalUrl(p.linkedin);
+              return (
+                <div key={p.id} className="adm-person-card" onClick={() => li && window.open(li, '_blank', 'noopener,noreferrer')}
+                  style={{ cursor: li ? 'pointer' : 'default' }} title={li ? 'LinkedIn’i aç' : ''}>
+                  <div className="adm-person-card__avatar" style={{ background: p.color }}>
+                    {p.photo ? <img src={p.photo} alt="" /> : <span>{p.name[0]}</span>}
+                  </div>
+                  <div className="adm-person-card__info">
+                    <div className="adm-person-card__name">{p.name}</div>
+                    <div className="adm-person-card__role">{p.role_tr}</div>
+                    <span className={`adm-badge adm-badge--${p.type === 'mentor' ? 'mentor' : p.type === 'author' ? 'tag' : p.type === 'project_member' ? 'building' : 'team'}`}>
+                      {PERSON_TYPES[p.type] || p.type}{p.type === 'team' && p.tier ? ` · T${p.tier}` : ''}
+                    </span>
+                    {p.type === 'project_member' && p.projectId && (
+                      <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginTop: 4 }}>
+                        {data.startups.find(s => s.id === p.projectId)?.name || `#${p.projectId}`}
+                      </div>
+                    )}
+                  </div>
+                  <div className="adm-person-card__actions" onClick={e => e.stopPropagation()}>
+                    <button className="adm-icon-btn" onClick={() => setEditing(p)}><AIcon name="edit" size={14} /></button>
+                    {can('people.write') && <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(p)}><AIcon name="trash" size={14} /></button>}
+                  </div>
                 </div>
-                <div className="adm-person-card__info">
-                  <div className="adm-person-card__name">{p.name}</div>
-                  <div className="adm-person-card__role">{p.role_tr}</div>
-                  <span className={`adm-badge adm-badge--${p.type === 'mentor' ? 'mentor' : p.type === 'author' ? 'tag' : p.type === 'project_member' ? 'building' : 'team'}`}>
-                    {PERSON_TYPES[p.type] || p.type}{p.type === 'team' && p.tier ? ` · T${p.tier}` : ''}
-                  </span>
-                  {p.type === 'project_member' && p.projectId && (
-                    <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginTop: 4 }}>
-                      {data.startups.find(s => s.id === p.projectId)?.name || `#${p.projectId}`}
-                    </div>
-                  )}
-                </div>
-                <div className="adm-person-card__actions">
-                  <button className="adm-icon-btn" onClick={() => setEditing(p)}><AIcon name="edit" size={14} /></button>
-                  {can('people.write') && <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(p)}><AIcon name="trash" size={14} /></button>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -184,95 +197,10 @@ function PersonForm({ item, onClose, onSave }) {
   );
 }
 
-// ============================================
-// SPONSORS — logo + açıklama
-// ============================================
-function SponsorsPage() {
-  const { data, addItem, updateItem, deleteItem } = useAdmin();
-  const { can } = usePerms();
-  const [editing, setEditing] = useStateP2(null);
-  const [deleting, setDeleting] = useStateP2(null);
-
-  const handleSave = async (formData) => {
-    if (editing === 'new') await addItem('sponsors', { ...formData, id: nextId(data.sponsors) });
-    else await updateItem('sponsors', editing.id, formData);
-    setEditing(null);
-  };
-
-  return (
-    <div>
-      <PageHead title="Destekçiler" desc={`${data.sponsors.length} destekçi`} actions={
-        <button className="adm-btn adm-btn--primary" onClick={() => setEditing('new')}><AIcon name="plus" size={16} /> Yeni Destekçi</button>
-      } />
-      <div className="adm-card">
-        <div className="adm-card__body">
-          <div className="adm-people-grid">
-            {data.sponsors.map((s, i) => (
-              <div key={i} className="adm-person-card">
-                <div className="adm-sponsor-logo" style={{ background: `color-mix(in srgb, ${s.color} 12%, #f5f5f5)`, color: s.color }}>
-                  {s.logo ? <img src={s.logo} alt="" /> : s.name[0]}
-                </div>
-                <div className="adm-person-card__info">
-                  <div className="adm-person-card__name">{s.name}</div>
-                  {s.desc_tr && <div className="adm-person-card__role" style={{ whiteSpace: 'normal' }}>{s.desc_tr}</div>}
-                </div>
-                <div className="adm-person-card__actions">
-                  <button className="adm-icon-btn" onClick={() => setEditing(s)}><AIcon name="edit" size={14} /></button>
-                  {can('sponsors.write') && <button className="adm-icon-btn adm-icon-btn--danger" onClick={() => setDeleting(s)}><AIcon name="trash" size={14} /></button>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      {!!editing && (
-        <Modal open onClose={() => setEditing(null)} title={editing === 'new' ? 'Yeni Destekçi' : 'Düzenle'}>
-          <SponsorFormInner item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSave={handleSave} />
-        </Modal>
-      )}
-      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={() => { deleteItem('sponsors', deleting.id); setDeleting(null); }}
-        title={`"${deleting?.name}" silinecek`} message="Son Silinenler'den geri getirebilirsin." />
-    </div>
-  );
-}
-
-function SponsorFormInner({ item, onClose, onSave }) {
-  const blank = { name: '', color: '#2563EB', logo: null, desc_tr: '', desc_en: '', url: '' };
-  const [f, setF] = useStateP2(item ? { ...blank, ...item } : blank);
-  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
-  const [saving, setSaving] = useStateP2(false);
-  const [err, setErr] = useStateP2('');
-  const submit = async () => {
-    setErr(''); setSaving(true);
-    try { await onSave(f); }
-    catch (e) { setErr(e?.message || 'Kaydedilemedi — lütfen tekrar dene.'); }
-    finally { setSaving(false); }
-  };
-  return (
-    <form onSubmit={e => { e.preventDefault(); submit(); }} className="adm-form">
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
-        <div>
-          <label className="adm-field__label">Logo</label>
-          <ImageUpload value={f.logo} onChange={v => set('logo', v)} size={84} shape="rounded" format="png" maxDim={400} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <Field label="İsim" required><Input value={f.name} onChange={v => set('name', v)} /></Field>
-          <Field label="Marka Rengi"><Input type="color" value={f.color} onChange={v => set('color', v)} style={{ height: 42, padding: 4 }} /></Field>
-        </div>
-      </div>
-      <Field label="Açıklama (TR)" hint="Destekçi hakkında kısa not"><Textarea value={f.desc_tr} onChange={v => set('desc_tr', v)} /></Field>
-      <Field label="Açıklama (EN)"><Textarea value={f.desc_en} onChange={v => set('desc_en', v)} /></Field>
-      <Field label="Website"><Input value={f.url} onChange={v => set('url', v)} placeholder="https://" /></Field>
-      <div className="adm-form__footer">
-        {err && <span className="adm-form__err">{err}</span>}
-        <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose} disabled={saving}>İptal</button>
-        <button type="submit" className="adm-btn adm-btn--primary" disabled={saving}>
-          <AIcon name="save" size={16} /> {saving ? 'Kaydediliyor…' : 'Kaydet'}
-        </button>
-      </div>
-    </form>
-  );
-}
+// Not: Destekçiler yönetimi (logo + açıklama) artık burada değil —
+// Kurucu Hattı (HR) > Destekçiler sayfasından yapılıyor (bkz.
+// src/hub/pages/sponsors.jsx). Aynı sponsors tablosu, aynı site render'ı
+// (SponsorsMarquee) — sadece yönetim yeri değişti.
 
 // ============================================
 // RECENTLY DELETED — son silinenler
@@ -320,4 +248,4 @@ function TrashPage() {
   );
 }
 
-export { PeoplePage, SponsorsPage, TrashPage, PersonForm, SponsorFormInner, PERSON_TYPES };
+export { PeoplePage, TrashPage, PersonForm, PERSON_TYPES };

@@ -1,8 +1,8 @@
 // admin-pages.jsx — Dashboard, Projects, Posts
-import { useState as useStateP, useEffect as useEffectP, useMemo as useMemoP, useRef as useRefP } from 'react';
+import { useState as useStateP, useMemo as useMemoP, useRef as useRefP } from 'react';
 import { useAdmin, uid, nextId, COLLECTIONS } from './admin-store';
-import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, ImageUpload, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, TagInput, TriToggle, Stepper } from './admin-ui';
-import { ProjectPreview, PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
+import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, PostCoverUpload, SearchBar, PageHead, ConfirmDialog, Stepper } from './admin-ui';
+import { PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
 import { usePerms } from '../lib/use-perms';
 import { people } from '../data';
 
@@ -93,7 +93,7 @@ function DashboardPage() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="adm-list-item__title">{s.name}</div>
-                  <div className="adm-list-item__sub">{s.team} kişi{s.openRoles > 0 ? ` · ${s.openRoles} açık rol` : ''}</div>
+                  <div className="adm-list-item__sub">{s.team} kişi{(s.openRolesLive || []).length > 0 ? ` · ${s.openRolesLive.length} açık rol` : ''}</div>
                 </div>
                 <span className={`adm-badge adm-badge--${s.stage}`}>{(PV_STAGE[s.stage] || {}).label || s.stage}</span>
               </div>
@@ -106,286 +106,108 @@ function DashboardPage() {
 }
 
 // ============================================
-// PROJECTS
+// PROJECTS — site durumu (form YOK, tek-tık aksiyonlar)
 // ============================================
+// İçerik düzenleme (logo/slogan/açıklama/detay/problem/çözüm/etiket/
+// linkler/metrik) artık burada değil — Team Management'taki (/team/)
+// Overview ekranının "Düzenle" butonundan yapılıyor, o modal siteyle
+// ilgili "durum" alanlarına (yayın/öne çıkan/trend/yeni) hiç dokunmuyor.
+// Burası yalnızca o durum alanlarını yönetir — ayrı bir düzenleme ekranı
+// yok, her buton kendi başına anında kaydeder.
+// "Yeni" rozeti: sitede ✨ ile gösterilir, elle işaretlenir/kaldırılır —
+// otomatik süresi yok, kasıtlı (basit tutuldu).
+const BADGE_TOGGLES = [
+  { key: 'featured', icon: '★', label: 'Öne Çıkan', activeBg: '#FFFBEB', activeColor: '#D97706', exclusive: true, hint: 'Hero’da gösterilir · en fazla 1' },
+  { key: 'trending',  icon: '🔥', label: 'Trend',     activeBg: '#FEF2F2', activeColor: '#DC2626' },
+  { key: 'isNew',     icon: '✨', label: 'Yeni',      activeBg: '#EFF6FF', activeColor: '#2563EB', hint: 'Sitede "Yeni" rozeti gösterir' },
+];
+
 function ProjectsPage() {
-  const { data, addItem, updateItem, deleteItem, clearFlagExcept } = useAdmin();
+  const { data, updateItem, clearFlagExcept } = useAdmin();
   const { can } = usePerms();
+  const canWrite = can('projects.write');
   const [search, setSearch] = useStateP('');
-  const [editing, setEditing] = useStateP(null);
-  const [deleting, setDeleting] = useStateP(null);
 
   const filtered = useMemoP(() => {
     if (!search) return data.startups;
     const q = search.toLowerCase();
-    return data.startups.filter(s => s.name.toLowerCase().includes(q) || (s.slug || '').toLowerCase().includes(q));
+    return data.startups.filter((s) => s.name.toLowerCase().includes(q) || (s.slug || '').toLowerCase().includes(q));
   }, [data.startups, search]);
 
-  const columns = [
-    { key: 'name', label: 'Proje', render: (r) => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div className="adm-cell-logo" style={{ background: r.color }}>
-          {r.logo ? <img src={r.logo} alt="" /> : r.name[0]}
-        </div>
-        <div><div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>{r.name}{r.featured && <span className="adm-pill-featured">★ Öne Çıkan</span>}</div><div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{r.tagline_tr}</div></div>
-      </div>
-    )},
-    { key: 'stage', label: 'Aşama', render: (r) => <span className={`adm-badge adm-badge--${r.stage}`}>{(PV_STAGE[r.stage] || {}).label || r.stage}</span> },
-    { key: 'team', label: 'Ekip', style: { width: 70 }, render: (r) => new Set([
-      ...(r.leadId ? [r.leadId] : []),
-      ...(r.memberIds || []),
-      ...data.people.filter(p => p.type === 'project_member' && p.projectId === r.id).map(p => p.id),
-    ]).size },
-    { key: 'openRoles', label: 'Açık Rol', style: { width: 90 }, render: (r) => (r.openRolesList_tr || []).length },
-  ];
-
-  const handleSave = async (formData) => {
-    const id = editing === 'new' ? nextId(data.startups) : editing.id;
-    if (editing === 'new') await addItem('startups', { ...formData, id });
-    else await updateItem('startups', id, formData);
-    if (formData.featured === true) clearFlagExcept('startups', id, 'featured');
-    setEditing(null);
+  const togglePublish = (s) => {
+    if (!canWrite) return;
+    updateItem('startups', s.id, { published: s.published === false });
+  };
+  const toggleBadge = (s, t) => {
+    if (!canWrite) return;
+    const next = !s[t.key];
+    updateItem('startups', s.id, { [t.key]: next });
+    if (t.exclusive && next) clearFlagExcept('startups', s.id, t.key);
   };
 
   return (
     <div>
-      <PageHead title="Projeler" desc={`${data.startups.length} proje`} actions={
-        <button className="adm-btn adm-btn--primary" onClick={() => setEditing('new')}><AIcon name="plus" size={16} /> Yeni Proje</button>
-      } />
+      <PageHead title="Projeler" desc="Site durumunu buradan yönetin — içerik (logo/açıklama/linkler) Team Management'tan düzenlenir" />
       <div className="adm-card">
         <div className="adm-card__header"><SearchBar value={search} onChange={setSearch} placeholder="Proje ara..." /></div>
         <div className="adm-card__body" style={{ padding: 0 }}>
-          <DataTable columns={columns} data={filtered} onEdit={setEditing} onDelete={can('projects.write') ? setDeleting : undefined} />
-        </div>
-      </div>
-      {!!editing && <ProjectForm item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSave={handleSave} people={data.people} />}
-      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={() => { deleteItem('startups', deleting.id); setDeleting(null); }}
-        title={`"${deleting?.name}" silinecek`} message="Son Silinenler'den geri getirebilirsin." />
-    </div>
-  );
-}
-
-function ProjectForm({ item, onClose, onSave, people }) {
-  const { updateItem: updatePersonLink } = useAdmin();
-  const blank = { name: '', slug: '', color: '#2563EB', stage: 'idea', logo: null, tagline_tr: '', tagline_en: '', desc_tr: '', desc_en: '', about_tr: '', about_en: '', problem_tr: '', problem_en: '', solution_tr: '', solution_en: '', tags: [], team: 1, openRoles: 0, website: '', demo: '', github: '', openRolesList_tr: [], openRolesList_en: [], featured: null, trending: null, isNew: null, leadId: '', memberIds: [], mentorId: '', metrics: [] };
-  const [f, setF] = useStateP(item ? { ...blank, ...item } : blank);
-  const [preview, setPreview] = useStateP(false);
-  const [err, setErr] = useStateP('');
-  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
-  const setMetric = (i, key, v) => setF(prev => {
-    const metrics = [...(prev.metrics || [])];
-    metrics[i] = { ...metrics[i], [key]: v };
-    return { ...prev, metrics };
-  });
-  const addMetric = () => setF(prev => ({ ...prev, metrics: [...(prev.metrics || []), { label_tr: '', label_en: '', value: '' }] }));
-  const removeMetric = (i) => setF(prev => ({ ...prev, metrics: (prev.metrics || []).filter((_, idx) => idx !== i) }));
-
-  const stageOpts = Object.entries(PV_STAGE).map(([value, v]) => ({ value, label: v.label }));
-  const peopleList = people || [];
-  const mentorList = peopleList.filter(p => p.type === 'mentor');
-  // Panelden "Proje Üyesi" olarak bu projeye bağlanan kişiler (memberIds'e eklenmemiş
-  // olsalar bile) — ekip sayısına dahil edilmeleri için. Yeni (henüz id'si olmayan)
-  // projelerde hiçbir proje üyesi bağlı olamayacağından bu her zaman 0'dır.
-  const projectMembersOfThis = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId === f.id) : [];
-  // Bu projeye eklenebilecek, tur "Proje Uyesi" olan ama henuz bu projeye
-  // bagli olmayan kisiler (baska projeye bagli olabilir ya da bos olabilir).
-  const availableProjectMembers = f.id ? peopleList.filter(p => p.type === 'project_member' && p.projectId !== f.id) : [];
-  // Set kullanmamizin sebebi: lider AYNI ZAMANDA proje uyesi olabilir
-  // (bkz. PersonForm'daki "Bu projenin ekip lideri" checkbox'i). Bu durumda
-  // toplama ayri ayri eklersek ayni kisi iki kez sayilir (4 kisi 6 gorunur).
-  const autoTeamIds = new Set([
-    ...(f.leadId ? [f.leadId] : []),
-    ...(f.memberIds || []),
-    ...projectMembersOfThis.map(p => p.id),
-  ]);
-  const autoTeamCount = autoTeamIds.size;
-  // Ekip Lideri artik yalnizca bu projenin proje uyeleri arasindan secilir.
-  // Mevcut lider proje uyesi degilse (eski memberIds sisteminden geliyorsa)
-  // listeden sessizce dusmesin diye ayri isaretle ekleniyor.
-  const currentLeadPerson = f.leadId ? peopleList.find(p => p.id === f.leadId) : null;
-  const leadIsProjectMember = !!currentLeadPerson && projectMembersOfThis.some(p => p.id === currentLeadPerson.id);
-  const leadOptions = [
-    ...projectMembersOfThis.map(p => ({ value: p.id, label: p.name })),
-    ...(currentLeadPerson && !leadIsProjectMember ? [{ value: currentLeadPerson.id, label: `${currentLeadPerson.name} (eski sistem)` }] : []),
-  ];
-  const [memberBusy, setMemberBusy] = useStateP(null);
-  const linkProjectMember = async (personId) => {
-    const person = peopleList.find(p => p.id === personId);
-    if (!person || !f.id) return;
-    setMemberBusy(personId);
-    try { await updatePersonLink('people', person.id, { ...person, projectId: f.id }); }
-    catch (e) { setErr(e?.message || 'Eklenemedi — lütfen tekrar dene.'); }
-    finally { setMemberBusy(null); }
-  };
-  const unlinkProjectMember = async (person) => {
-    setMemberBusy(person.id);
-    try { await updatePersonLink('people', person.id, { ...person, projectId: null }); }
-    catch (e) { setErr(e?.message || 'Çıkarılamadı — lütfen tekrar dene.'); }
-    finally { setMemberBusy(null); }
-  };
-  // "Açık Rol" sayısı ile "Açık Pozisyonlar" listesi ayrı ayrı elle girilirse
-  // birbirinden kopabiliyordu (site bir tarafta sayıyı, diğer tarafta listeyi
-  // gösteriyor, tutarsızlık "açık pozisyon var" ile "yok" çelişkisi yaratıyordu).
-  // Artık sayı her zaman listeden türetiliyor, elle girilemiyor.
-  const autoOpenRoles = (f.openRolesList_tr || []).length;
-
-  const [saving, setSaving] = useStateP(false);
-
-  const submit = async () => {
-    if (!f.name.trim() || !f.slug.trim()) { setErr('Proje adı ve slug zorunludur — boş proje yayınlanamaz.'); return; }
-    setErr(''); setSaving(true);
-    try { await onSave({ ...f, team: autoTeamCount || f.team, openRoles: autoOpenRoles }); }
-    catch (e) { setErr(e?.message || 'Kaydedilemedi — lütfen tekrar dene.'); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <Modal open onClose={onClose} title={item ? `${item.name} Düzenle` : 'Yeni Proje'} wide
-      headerExtra={<PreviewToggle on={preview} onClick={() => setPreview(p => !p)} />}>
-      {preview ? <ProjectPreview f={f} teamCount={autoTeamCount} /> : (
-      <form onSubmit={e => { e.preventDefault(); submit(); }} className="adm-form">
-        <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', marginBottom: 16 }}>
-          <div>
-            <label className="adm-field__label">Logo</label>
-            <ImageUpload value={f.logo} onChange={v => set('logo', v)} size={84} shape="rounded" format="png" maxDim={400} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div className="adm-form-grid">
-              <Field label="Proje Adı" required><Input value={f.name} onChange={v => set('name', v)} placeholder="FinTrack" /></Field>
-              <Field label="Slug" required><Input value={f.slug} onChange={v => set('slug', v)} placeholder="fintrack" /></Field>
-            </div>
-            <div className="adm-form-grid">
-              <Field label="Marka Rengi"><Input type="color" value={f.color} onChange={v => set('color', v)} style={{ height: 42, padding: 4 }} /></Field>
-              <Field label="Aşama"><Select value={f.stage} onChange={v => set('stage', v)} options={stageOpts} /></Field>
-            </div>
-          </div>
-        </div>
-        <Field label="Etiketler"><TagInput tags={f.tags || []} onChange={v => set('tags', v)} /></Field>
-        <div className="adm-form-grid">
-          <Field label="Slogan (TR)"><Input value={f.tagline_tr} onChange={v => set('tagline_tr', v)} /></Field>
-          <Field label="Slogan (EN)"><Input value={f.tagline_en} onChange={v => set('tagline_en', v)} /></Field>
-        </div>
-        <div className="adm-form-grid">
-          <Field label="Açıklama (TR)"><Textarea value={f.desc_tr} onChange={v => set('desc_tr', v)} /></Field>
-          <Field label="Açıklama (EN)"><Textarea value={f.desc_en} onChange={v => set('desc_en', v)} /></Field>
-        </div>
-        <div className="adm-form-grid">
-          <Field label="Detay (TR)"><Textarea value={f.about_tr} onChange={v => set('about_tr', v)} rows={4} /></Field>
-          <Field label="Detay (EN)"><Textarea value={f.about_en} onChange={v => set('about_en', v)} rows={4} /></Field>
-        </div>
-        <div className="adm-form-grid">
-          <Field label="Problem (TR)"><Textarea value={f.problem_tr} onChange={v => set('problem_tr', v)} /></Field>
-          <Field label="Problem (EN)"><Textarea value={f.problem_en} onChange={v => set('problem_en', v)} /></Field>
-        </div>
-        <div className="adm-form-grid">
-          <Field label="Çözüm (TR)"><Textarea value={f.solution_tr} onChange={v => set('solution_tr', v)} /></Field>
-          <Field label="Çözüm (EN)"><Textarea value={f.solution_en} onChange={v => set('solution_en', v)} /></Field>
-        </div>
-        <div className="adm-form-grid adm-form-grid--2">
-          <Field label="Ekip (otomatik)" hint="Lider + üyeler + bu projeye bağlı proje üyelerinden hesaplanır"><Input type="number" value={autoTeamCount || f.team} disabled /></Field>
-          <Field label="Açık Rol (otomatik)" hint="Aşağıdaki 'Açık Pozisyonlar' listesinden hesaplanır"><Input type="number" value={autoOpenRoles} disabled /></Field>
-        </div>
-
-        {/* Ekip üyeleri editörü */}
-        <div className="adm-team-edit">
-          <div className="adm-field__label" style={{ marginBottom: 10, fontSize: 13 }}>Bu projeyi inşa eden ekip</div>
-          <div className="adm-form-grid">
-            <Field label="Ekip Lideri" hint="Yalnızca bu projenin proje üyeleri arasından seçilir">
-              <Select value={f.leadId} onChange={v => set('leadId', v)} placeholder="Seç..." options={leadOptions} />
-            </Field>
-            <Field label="Mentör"><Select value={f.mentorId} onChange={v => set('mentorId', v)} placeholder="Yok" options={mentorList.map(p => ({ value: p.id, label: p.name }))} /></Field>
-          </div>
-          {!f.id ? (
-            <Field label="Ekip Üyeleri">
-              <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>Önce projeyi kaydet, sonra ekip üyesi ekleyebilirsin.</div>
-            </Field>
-          ) : (
-            <>
-              <Field label="Eklenebilir Proje Üyeleri" hint="Yalnızca türü 'Proje Üyesi' olan kişiler listelenir — bir karta tıklamak onu anında bu projeye ekler">
-                {availableProjectMembers.length === 0 ? (
-                  <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>
-                    {projectMembersOfThis.length === 0
-                      ? 'Eklenebilecek proje üyesi yok — Ekip & Mentörler sayfasından tür "Proje Üyesi" olan bir kişi oluştur.'
-                      : 'Eklenebilecek başka proje üyesi yok.'}
+          {filtered.map((s) => {
+            const isPublished = s.published !== false;
+            return (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: '1px solid var(--adm-border-light)', flexWrap: 'wrap', opacity: isPublished ? 1 : 0.65 }}>
+                <div className="adm-cell-logo" style={{ background: s.color }}>
+                  {s.logo ? <img src={s.logo} alt="" /> : s.name[0]}
+                </div>
+                <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {s.name}
+                    {isPublished && (
+                      <a href={`/#/project/${s.slug}`} target="_blank" rel="noreferrer" title="Sitede gör"
+                        style={{ color: 'var(--adm-text-dim)', display: 'inline-flex' }}>
+                        <AIcon name="externalLink" size={13} />
+                      </a>
+                    )}
                   </div>
-                ) : (
-                  <div className="adm-picker">
-                    {availableProjectMembers.map(p => (
-                      <button type="button" key={p.id} className="adm-picker__chip" onClick={() => linkProjectMember(p.id)} disabled={memberBusy === p.id} style={{ opacity: memberBusy === p.id ? 0.6 : 1 }}>
-                        <span className="adm-picker__av" style={{ background: p.color }}>
-                          {p.photo ? <img src={p.photo} alt="" /> : p.name[0]}
-                        </span>
-                        <span>{p.name}</span>
+                  <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.tagline_tr}</div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {BADGE_TOGGLES.map((t) => {
+                    const on = !!s[t.key];
+                    return (
+                      <button key={t.key} disabled={!canWrite} onClick={() => toggleBadge(s, t)} title={t.hint || t.label}
+                        style={{
+                          width: 32, height: 32, borderRadius: 8, fontSize: 14, cursor: canWrite ? 'pointer' : 'default',
+                          border: `1px solid ${on ? t.activeColor : 'var(--adm-border-light)'}`,
+                          background: on ? t.activeBg : 'transparent', opacity: canWrite ? 1 : 0.6,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                        {t.icon}
                       </button>
-                    ))}
-                  </div>
-                )}
-              </Field>
-              <Field label="Bu Projeye Bağlı Üyeler" hint="Bir karta tıklamak onu anında projeden çıkarır">
-                {projectMembersOfThis.length === 0 ? (
-                  <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Henüz proje üyesi eklenmemiş.</div>
-                ) : (
-                  <div className="adm-picker">
-                    {projectMembersOfThis.map(p => (
-                      <button type="button" key={p.id} className="adm-picker__chip adm-picker__chip--on" onClick={() => unlinkProjectMember(p)} disabled={memberBusy === p.id} style={{ opacity: memberBusy === p.id ? 0.6 : 1 }}>
-                        <span className="adm-picker__av" style={{ background: p.color }}>
-                          {p.photo ? <img src={p.photo} alt="" /> : p.name[0]}
-                        </span>
-                        <span>{p.name}</span>
-                        {f.leadId === p.id && <AIcon name="star" size={11} />}
-                        <AIcon name="check" size={13} />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </Field>
-            </>
+                    );
+                  })}
+                </div>
+
+                <button disabled={!canWrite} onClick={() => togglePublish(s)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: canWrite ? 'pointer' : 'default',
+                    border: `1.5px solid ${isPublished ? '#16A34A' : 'var(--adm-border-light)'}`,
+                    background: isPublished ? '#F0FDF4' : 'var(--adm-bg)', color: isPublished ? '#16A34A' : 'var(--adm-text-dim)',
+                    opacity: canWrite ? 1 : 0.6, minWidth: 108, textAlign: 'center',
+                  }}>
+                  {isPublished ? '🌐 Yayında' : 'Yayına Al'}
+                </button>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--adm-text-dim)' }}>
+              {data.startups.length === 0 ? 'Henüz proje yok — Team Management’tan ("Yeni Ekip Oluştur") eklenir.' : 'Aramayla eşleşen proje yok.'}
+            </div>
           )}
         </div>
-
-        <div className="adm-form-grid adm-form-grid--3">
-          <Field label="Website"><Input value={f.website} onChange={v => set('website', v)} placeholder="https://" /></Field>
-          <Field label="Demo"><Input value={f.demo} onChange={v => set('demo', v)} placeholder="https://" /></Field>
-          <Field label="GitHub"><Input value={f.github} onChange={v => set('github', v)} placeholder="https://" /></Field>
-        </div>
-
-        {/* Metrikler editörü */}
-        <div className="adm-team-edit">
-          <div className="adm-field__label" style={{ marginBottom: 4, fontSize: 13 }}>Proje Metrikleri</div>
-          <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginBottom: 10 }}>Proje detay sayfasındaki "Metrikler" kartında gösterilir (ör. Kullanıcı: 8.4K, Aylık Büyüme: %22).</div>
-          {(f.metrics || []).map((m, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 110px 32px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-              <Input value={m.label_tr || ''} onChange={v => setMetric(i, 'label_tr', v)} placeholder="Etiket (TR) — ör. Kullanıcı" />
-              <Input value={m.label_en || ''} onChange={v => setMetric(i, 'label_en', v)} placeholder="Etiket (EN) — ör. Users" />
-              <Input value={m.value || ''} onChange={v => setMetric(i, 'value', v)} placeholder="Değer — 8.4K" />
-              <button type="button" className="adm-icon-btn adm-icon-btn--danger" onClick={() => removeMetric(i)} title="Sil"><AIcon name="x" size={14} /></button>
-            </div>
-          ))}
-          <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" onClick={addMetric}>
-            <AIcon name="plus" size={14} /> Metrik Ekle
-          </button>
-        </div>
-        <div className="adm-form-grid adm-form-grid--3">
-          <Field label="Öne Çıkan" hint="Hero'da gösterilir · en fazla 1"><TriToggle value={f.featured} onChange={v => set('featured', v)} /></Field>
-          <Field label="Trend"><TriToggle value={f.trending} onChange={v => set('trending', v)} /></Field>
-          <Field label="Yeni"><TriToggle value={f.isNew} onChange={v => set('isNew', v)} /></Field>
-        </div>
-        <Field label="Açık Pozisyonlar (TR)" hint="Virgülle ayır: Flutter Geliştirici, UI/UX Tasarımcı">
-          <Input value={(f.openRolesList_tr || []).join(', ')} onChange={v => set('openRolesList_tr', v.split(',').map(s => s.trim()).filter(Boolean))} />
-        </Field>
-        <Field label="Açık Pozisyonlar (EN)">
-          <Input value={(f.openRolesList_en || []).join(', ')} onChange={v => set('openRolesList_en', v.split(',').map(s => s.trim()).filter(Boolean))} />
-        </Field>
-        <div className="adm-form__footer">
-          {err && <span className="adm-form__err">{err}</span>}
-          <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose} disabled={saving}>İptal</button>
-          <button type="submit" className="adm-btn adm-btn--primary" disabled={saving}>
-            <AIcon name="save" size={16} /> {saving ? 'Kaydediliyor…' : 'Kaydet'}
-          </button>
-        </div>
-      </form>
-      )}
-    </Modal>
+      </div>
+    </div>
   );
 }
 

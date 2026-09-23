@@ -119,10 +119,10 @@ const translations = {
       title: "Start-Hub'a Katıl",
       desc: 'Topluluğumuza katıl, fikirlerini paylaş, ekip bul ve startup yolculuğuna başla.',
       name: 'Ad Soyad', email: 'E-posta', university: 'Üniversite', department: 'Bölüm',
-      role: 'İlgi Alanı',
+      role: 'Hangi alanda yer almak istersin?',
       roles: { dev: 'Yazılım Geliştirme', design: 'UI/UX Tasarım', marketing: 'Pazarlama & Growth', business: 'İş Geliştirme', content: 'İçerik & Yazı', other: 'Diğer' },
       intent: 'Ne için katılmak istiyorsun?',
-      intents: { hub: 'Bir bölümde görev almak', project: 'Bir projenin ekibine katılmak', both: 'İkisi de', mentor: 'Mentör Olmak İstiyorum', sponsor: 'Destekçi / Sponsor Olmak İstiyorum' },
+      intents: { hub: 'Bir bölümde görev almak', project: 'Devam eden bir projeye üye olarak katılmak', founder_lead: 'Fikir aşamasındaki bir projenin liderliğine/ortaklığına talip olmak', idea_application: 'Yeni bir fikrim var, toplulukla geliştirmek istiyorum', mentor: 'Mentör Olmak İstiyorum', sponsor: 'Destekçi / Sponsor Olmak İstiyorum' },
       bio: 'Kısa Bio', bioPlaceholder: 'Kendini kısaca tanıt, ilgi alanların ve deneyimlerin...',
       linkedin: 'LinkedIn Profili', portfolio: 'Portfolyo / GitHub',
       skills: 'Yetenekler', skillsPlaceholder: 'React, Flutter, Figma, Growth Hacking...',
@@ -131,6 +131,19 @@ const translations = {
       mentorNotePlaceholder: 'Deneyimlerinizi, uzmanlık alanlarınızı ve katkı sağlamak istediğiniz konuları kısaca açıklayın... (max 300 karakter)',
       submit: 'Başvuruyu Gönder',
       successTitle: 'Başvurun Alındı!', successDesc: 'En kısa sürede seninle iletişime geçeceğiz.',
+      // v3.1 — proje/pozisyon seçici (option 3), liderlik (4) ve yeni fikir (5)
+      projectPick: 'Hangi projeye katılmak istiyorsun?', projectPickPlaceholder: '— proje seç —',
+      rolePick: 'Hangi pozisyon?', rolePickAny: 'Henüz belirli bir pozisyon seçmiyorum',
+      noOpenRoles: 'Şu an açık pozisyon yok — ilgi alanına göre havuza eklenecek.',
+      ideaProjectPick: 'Hangi fikre/projeye liderlik etmek istersin?',
+      ideaProjectNone: 'Listede yok / henüz bir fikrim var',
+      founderPitch: 'Hangi konuya ilgin var, neden sen?',
+      founderPitchPlaceholder: 'İlgilendiğin alanı ve neden sen olman gerektiğini anlat...',
+      founderExperience: 'Deneyim / Motivasyon',
+      pitchLabel: 'Fikrini 2-3 cümlede anlat', pitchPlaceholder: 'Fikrin ne, kime ne katıyor...',
+      problemLabel: 'Hangi problemi çözüyor?', problemPlaceholder: 'Bu fikir hangi ihtiyacı/sorunu çözüyor?',
+      progressLabel: 'Şu ana kadar ne yaptın? (varsa)', progressPlaceholder: 'Prototip, araştırma, ilk kullanıcılar...',
+      founderNote: 'Bu bir liderlik/ortaklık başvurusudur — kuruculardan biri seninle doğrudan görüşecek.',
     },
     journey: {
       title: 'Nasıl Çalışır?', desc: 'Bir topluluktan başlayıp girişimler üreten bir venture builder’a uzanan yolculuğumuz.',
@@ -243,10 +256,10 @@ const translations = {
       label: 'Apply', title: 'Join Start-Hub',
       desc: 'Join our community, share your ideas, find a team, and start your startup journey.',
       name: 'Full Name', email: 'Email', university: 'University', department: 'Department',
-      role: 'Interest Area',
+      role: 'Which area would you like to work in?',
       roles: { dev: 'Software Development', design: 'UI/UX Design', marketing: 'Marketing & Growth', business: 'Business Development', content: 'Content & Writing', other: 'Other' },
       intent: 'Why do you want to join?',
-      intents: { hub: 'Take a role in a department', project: 'Join a project team', both: 'Both', mentor: 'I want to become a Mentor', sponsor: 'I want to become a Supporter / Sponsor' },
+      intents: { hub: 'Take a role in a department', project: 'Join an ongoing project as a member', founder_lead: 'Lead / co-found an idea-stage project', idea_application: "I have a new idea, I'd like to build it with the community", mentor: 'I want to become a Mentor', sponsor: 'I want to become a Supporter / Sponsor' },
       bio: 'Short Bio', bioPlaceholder: 'Tell us about yourself, your interests and experience...',
       linkedin: 'LinkedIn Profile', portfolio: 'Portfolio / GitHub',
       skills: 'Skills', skillsPlaceholder: 'React, Flutter, Figma, Growth Hacking...',
@@ -254,6 +267,18 @@ const translations = {
       mentorNote: 'How do you want to contribute?',
       mentorNotePlaceholder: 'Briefly describe your experience, expertise and what you\'d like to contribute... (max 300 chars)',
       submit: 'Submit Application',
+      projectPick: 'Which project do you want to join?', projectPickPlaceholder: '— select a project —',
+      rolePick: 'Which position?', rolePickAny: "I'm not picking a specific position yet",
+      noOpenRoles: 'No open positions right now — you\'ll be added to the pool based on your interest area.',
+      ideaProjectPick: 'Which idea/project do you want to lead?',
+      ideaProjectNone: "Not listed / I don't have a project yet",
+      founderPitch: 'What are you interested in, and why you?',
+      founderPitchPlaceholder: 'Describe the area you\'re interested in and why you should lead it...',
+      founderExperience: 'Experience / Motivation',
+      pitchLabel: 'Describe your idea in 2-3 sentences', pitchPlaceholder: 'What is the idea, who does it help...',
+      problemLabel: 'What problem does it solve?', problemPlaceholder: 'What need or problem does this idea address?',
+      progressLabel: 'What have you done so far? (if any)', progressPlaceholder: 'Prototype, research, first users...',
+      founderNote: 'This is a leadership/co-founder application — one of our founders will reach out to you directly.',
       successTitle: 'Application Received!', successDesc: "We'll get back to you shortly.",
     },
     journey: {
@@ -565,6 +590,7 @@ function mapStartup(row) {
     slug:             row.slug               || '',
     name:             row.name               || '',
     color:            row.color              || '#2563EB',
+    logo:             row.logo               || null,
     stage:            row.stage              || 'idea',
     tagline_tr:       row.tagline_tr         || '',
     tagline_en:       row.tagline_en         || '',
@@ -593,6 +619,20 @@ function mapStartup(row) {
     trending:         row.trending           || false,
     featured:         row.featured           || false,
     isNew:            row.is_new             || false,
+  };
+}
+
+// Kurucu Hattı'nın public_open_roles view'ından (0021 migration) gelir —
+// startups.open_roles_list_tr/en artık kullanılmıyor, tek kaynak Hub.
+function mapOpenRole(row) {
+  return {
+    id:         row.id,
+    startupId:  row.startup_id,
+    title:      row.title   || '',
+    roleType:   row.role_type || '',
+    profile:    row.profile || '',
+    skills:     row.skills  || [],
+    track:      row.track   || 'member',
   };
 }
 
@@ -637,7 +677,12 @@ const ContentContext = createContext({
 
 function ContentProvider({ children }) {
   const [contentLoading, setContentLoading] = useState(true);
-  const [content, setContent] = useState({ people, startups, sponsors, events });
+  // İlk state modül-seviyesi ÖRNEK/demo verilerle (FinTrack/EcoRoute/StudyMate
+  // vb.) tohumlanıyordu — Supabase'ten gerçek veri gelene kadarki kısa anda
+  // sitede alakasız içerik görünüyordu (2026-09-16 canlı raporu). Boş dizilerle
+  // başlayıp `contentLoading` true olduğu sürece tüketen bileşenler zaten boş
+  // listeyi doğal şekilde (hiç kart göstermeyerek) ele alıyor.
+  const [content, setContent] = useState({ people: [], startups: [], sponsors: [], events: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -648,19 +693,28 @@ function ContentProvider({ children }) {
           { data: sRows,  error: e2 },
           { data: spRows, error: e3 },
           { data: eRows,  error: e4 },
+          { data: orRows, error: e5 },
         ] = await Promise.all([
           supabase.from('people').select('*').order('sort_order'),
-          supabase.from('startups').select('*').order('id'),
+          supabase.from('startups').select('*').eq('published', true).order('id'),
           supabase.from('sponsors').select('*').order('sort_order'),
           supabase.from('events').select('*').order('date'),
+          supabase.from('public_open_roles').select('*').order('created_at'),
         ]);
         if (e1 || e2 || e3 || e4) throw (e1 || e2 || e3 || e4);
-        if (cancelled) return;
+        // Açık pozisyonlar (Kurucu Hattı) opsiyonel — view henüz yayında
+        // değilse veya erişilemezse sessizce boş liste kullan, sitenin
+        // geri kalanını engellemez.
+        if (e5) console.error('[Content] public_open_roles:', e5.message);
 
         const mp  = (pRows  || []).map(mapPerson);
-        const ms  = (sRows  || []).map(mapStartup);
         const msp = (spRows || []).map(mapSponsor);
         const me  = (eRows  || []).map(mapEvent);
+        const openRolesByStartup = {};
+        (orRows || []).map(mapOpenRole).forEach((r) => {
+          (openRolesByStartup[r.startupId] = openRolesByStartup[r.startupId] || []).push(r);
+        });
+        const ms = (sRows || []).map(mapStartup).map((s) => ({ ...s, openRolesLive: openRolesByStartup[s.id] || [] }));
 
         // Modül dizilerini yerinde güncelle (teamMembers/mentors türetmesi için)
         people.length   = 0; mp.forEach(x  => people.push(x));
@@ -795,7 +849,7 @@ const resolveStat = (key) => {
   if (s.mode === 'auto') {
     if (key === 'projects')  return startups.length;
     if (key === 'posts')     return postsCache.length;
-    if (key === 'openRoles') return startups.reduce((a, b) => a + (b.openRoles || 0), 0);
+    if (key === 'openRoles') return startups.reduce((a, b) => a + (b.openRolesLive || []).length, 0);
     if (key === 'sponsors')  return sponsors.length;
     if (key === 'members')   return people.length;
   }
