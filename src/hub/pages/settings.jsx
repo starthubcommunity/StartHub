@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import HubSheetSettings from './hub-sheet';
+import JoinFormFields from './join-form-fields';
 import {
   HUB_ROLES, HUB_ROLE_LABEL, RUBRIC_AXES, THRESHOLD, STALE, GATE,
 } from '../hub-constants';
@@ -93,6 +94,9 @@ export default function SettingsPage() {
 
       {/* ── Hub başvuru tablosu (Google Sheets) ── */}
       <HubSheetSettings />
+
+      {/* ── Katılım formu metinleri (ilgi alanı seçenekleri + temel etiketler) ── */}
+      <JoinFormFields />
 
       {/* ── Üyeler ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

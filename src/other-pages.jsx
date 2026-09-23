@@ -208,7 +208,10 @@ function CardFx({ type }) {
   );
 }
 
-// Startup (LAB) tarafındaki ilgi alanları — HR'da Adaylar sayfasında kutucuk olur (INTEREST_AREAS ile aynı anahtarlar).
+// Startup (LAB) tarafındaki ilgi alanları — HR'da Adaylar sayfasında kutucuk olur (INTEREST_AREAS ile aynı
+// anahtarlar). HR › Ayarlar › "Katılım Formu Metinleri" (hub/pages/join-form-fields.jsx) bu anahtarların
+// (ve varsayılan TR metinlerinin) bir kopyasını tutar — HR paketi site sayfası kodunu içine çekmesin diye
+// cross-import edilmiyor; anahtarlar değişirse iki yerde de güncellenir.
 const JOIN_INTERESTS = [
   { key: 'frontend',  tr: 'Frontend',            en: 'Frontend' },
   { key: 'backend',   tr: 'Backend',             en: 'Backend' },
@@ -610,6 +613,7 @@ function JoinPage({ navigate, projectId }) {
   }, []);
   const fs = (key, fallback) => (formSettings && formSettings[key]) || fallback;
   const fl = (key, fallback) => (formSettings?.field_labels && formSettings.field_labels[key]) || fallback;
+  const fi = (key, fallback) => (formSettings?.interest_labels && formSettings.interest_labels[key]) || fallback;
 
   const project = projectId ? startups.find(s => s.id === projectId || s.slug === projectId) : null;
   const savedRole = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('sh_join_role') : null;
@@ -1226,7 +1230,7 @@ function JoinPage({ navigate, projectId }) {
                         : <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> ({lang === 'tr' ? 'opsiyonel' : 'optional'})</span>}</label>
                       <select className={`form-input form-select${invalidFields.has('interest') ? ' form-input--invalid' : ''}`} value={communityForm.interest} onChange={e => handleC('interest', e.target.value)}>
                         <option value="">—</option>
-                        {JOIN_INTERESTS.map(o => <option key={o.key} value={o.key}>{lang === 'tr' ? o.tr : o.en}</option>)}
+                        {JOIN_INTERESTS.map(o => <option key={o.key} value={o.key}>{lang === 'tr' ? fi(o.key, o.tr) : o.en}</option>)}
                       </select>
                     </div>
                   )}

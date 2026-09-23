@@ -207,6 +207,18 @@ AB/Balkan ülkeleri eklendi (Hırvatistan +385 dahil, ~15 ülke) ve "Diğer ülk
 işareti eklendi (`.jphone__plus`, önceden yalnızca placeholder'da görünüyordu, kayboluyor gibi duruyordu).
 CDP ile hem tek seferde yapıştırma hem tuş-tuş yazma senaryosu doğrulandı.
 
+**Katılım Formu Metinleri — artık HR'dan da düzenlenebilir (2026-09-23, 0044):** `join_form_settings`'e
+`interest_labels` jsonb kolonu eklendi (nullable — boş anahtar sabit TR karşılığına düşer, hiçbir zaman boş
+görünmez). HR › Ayarlar'da yeni "Katılım Formu Metinleri" kartı (`hub/pages/join-form-fields.jsx`): ilgi alanı
+seçeneklerinin (Frontend/Backend/…) TR metinleri + İlgi alanı sorusu (`field_labels.c_role`) + Ad Soyad/
+E-posta/Üniversite/Bölüm etiketleri (`field_labels.c_name/c_email/c_university/c_department`). Aynı
+`join_form_settings` (id=1) satırını admin panelle PAYLAŞIR — kaydederken `field_labels`/`interest_labels`
+JSON'ları önce TAM okunur, yalnızca bu ekrandaki anahtarlar değiştirilip geri yazılır (admin panelin ayarladığı
+m_*/s_*/kart başlıkları gibi diğer anahtarlara dokunulmaz). `other-pages.jsx`'teki `JOIN_INTERESTS` (public
+form) BİLEREK cross-import edilmedi — HR paketine site sayfası kodu (layout/blog) sızmasın diye
+`join-form-fields.jsx` kendi küçük kopyasını tutuyor (anahtarlar birebir aynı olmalı). Canlı DB'de geçici bir
+override yazılıp Katıl sayfasında göründüğü doğrulandı, sonra `null`'a geri alındı.
+
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
