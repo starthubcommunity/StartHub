@@ -245,6 +245,17 @@ bulamadım" şikâyetinin kaynağı — UI hatası değil, izin modeliydi). Rol�
 olduğu için Claude Code'un otomatik izin sınıflandırıcısı önce engelledi; kullanıcıya `AskUserQuestion` ile
 açıkça soruldu, onay alındıktan sonra uygulandı.
 
+**Proje sahibi artık HR'a girmiyor (2026-09-23, karar değişikliği):** `project_owner` rolü ve
+`decide` izni eskiden beri DB'de vardı (0009_permissions.sql, §12.7 — yalnızca kendi projesine
+sunulmuş adayı görüp karar verebiliyordu). Kullanıcı bu yönü değiştirdi: proje sahipleri HR
+paneline hiç girmeyecek, sunulan aday/teklif kararı ileride kendi (ayrı) ekip yönetim sistemlerine
+taşınacak — o entegrasyon henüz yapılmadı, sonraya bırakıldı. Şimdilik yapılan: `hub-app.jsx`'teki
+giriş kapısı `role==='project_owner'` ise `ProjectOwnerRedirectPage` gösteriyor (panele hiç
+girilmiyor); Ayarlar'daki üye ekleme formunda rol artık seçilemiyor (`HUB_ROLES_ASSIGNABLE`,
+hub-constants.js). DB'deki `permission_presets`/`hub_members.role='project_owner'` satırları ve
+candidate.jsx/roles.jsx'teki eski `role==='project_owner'` dallanmaları BİLİNÇLİ OLARAK silinmedi
+— proje kuralı gereği (kolon/DB satırı silinmez, yalnızca UI'dan gizlenir) dead-ama-zararsız duruyor.
+
 **2026-09-23 — repoda ikinci bir katkıcı (Kadir) var, doğrudan GitHub'a push yapabiliyor.** Kendi ayrı
 `hub-v3` dalındaki paralel HR çalışmasını "Merge origin/main (arkadaşımın HR rework'ü) into hub-v3" commit'iyle
 (`f7d0fe9`) doğrudan `main`'e merge etti — oturum dışından, kullanıcının bundan haberi yoktu. Doğrulandı: bu
