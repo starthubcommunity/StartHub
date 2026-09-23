@@ -356,7 +356,9 @@ const COUNTRY_PHONE_LEN = {
   '974': 8, '973': 8, '968': 8, '967': 9, '20': 10, '218': 9, '249': 9, '212': 9, '213': 9,
   '216': 8, '252': 8, '234': 10, '254': 9, '27': 9, '93': 9, '92': 10, '91': 10, '880': 10,
   '86': 11, '976': 8, '82': 10, '81': 10, '84': 9, '62': 11, '60': 9, '63': 10, '380': 9,
-  '375': 9, '355': 9, '387': 8, '389': 8, '383': 8, '381': 9, '30': 10, '359': 9, '40': 9,
+  '375': 9, '355': 9, '387': 8, '389': 8, '383': 8, '381': 9, '382': 8, '385': 9, '386': 8,
+  '421': 9, '373': 8, '370': 8, '371': 8, '372': 8, '353': 9, '352': 9, '357': 8, '356': 8,
+  '354': 7, '30': 10, '359': 9, '40': 9,
   '48': 9, '49': 11, '33': 9, '44': 10, '39': 10, '34': 9, '351': 9, '31': 9, '32': 9,
   '46': 9, '47': 8, '45': 8, '358': 9, '41': 9, '43': 11, '36': 9, '420': 9, '1': 10,
   '55': 11, '52': 10,
@@ -439,6 +441,19 @@ const COUNTRY_CODES = [
   { code: '389', tr: 'Kuzey Makedonya', en: 'North Macedonia' },
   { code: '383', tr: 'Kosova', en: 'Kosovo' },
   { code: '381', tr: 'Sırbistan', en: 'Serbia' },
+  { code: '382', tr: 'Karadağ', en: 'Montenegro' },
+  { code: '385', tr: 'Hırvatistan', en: 'Croatia' },
+  { code: '386', tr: 'Slovenya', en: 'Slovenia' },
+  { code: '421', tr: 'Slovakya', en: 'Slovakia' },
+  { code: '373', tr: 'Moldova', en: 'Moldova' },
+  { code: '370', tr: 'Litvanya', en: 'Lithuania' },
+  { code: '371', tr: 'Letonya', en: 'Latvia' },
+  { code: '372', tr: 'Estonya', en: 'Estonia' },
+  { code: '353', tr: 'İrlanda', en: 'Ireland' },
+  { code: '352', tr: 'Lüksemburg', en: 'Luxembourg' },
+  { code: '357', tr: 'Kıbrıs (Rum)', en: 'Cyprus' },
+  { code: '356', tr: 'Malta', en: 'Malta' },
+  { code: '354', tr: 'İzlanda', en: 'Iceland' },
   { code: '30', tr: 'Yunanistan', en: 'Greece' },
   { code: '359', tr: 'Bulgaristan', en: 'Bulgaria' },
   { code: '40', tr: 'Romanya', en: 'Romania' },
@@ -464,6 +479,25 @@ const COUNTRY_CODES = [
   { code: '52', tr: 'Meksika', en: 'Mexico' },
 ];
 
+// Kullanıcı numarayı ülke koduyla birlikte yazarsa/yapıştırırsa ("+385 91 234 5678"
+// gibi — yurt dışından başvuranların doğal alışkanlığı), bunu farketmeden yerel
+// numara alanına yazarsa numara, o an seçili ülkenin (genelde varsayılan +90,
+// 10 hane) sınırına göre KESİLİYORDU (son haneler kayboluyordu) ve ülke kodu hiç
+// değişmiyordu. Bu fonksiyon "+" veya "00" ile başlayan girdilerdeki bilinen kodu
+// ayırıp seçiciyi otomatik günceller. En uzun eşleşen kod önce denenir (örn. "994"
+// Azerbaycan, "90" Türkiye ile karışmasın).
+const KNOWN_CC_SORTED = [...new Set(COUNTRY_CODES.map((c) => c.code))].sort((a, b) => b.length - a.length);
+const splitIntlPrefix = (raw) => {
+  const s = String(raw || '').trim();
+  if (!/^(\+|00)/.test(s)) return null;
+  const cleaned = s.replace(/[^\d+]/g, '');   // "+385 (91) 234-5678" → "+385912345678"
+  const m = cleaned.match(/^\+(\d+)/) || cleaned.match(/^00(\d{6,})/);
+  if (!m) return null;
+  const digits = m[1];
+  const cc = KNOWN_CC_SORTED.find((code) => digits.startsWith(code) && digits.length - code.length >= 4);
+  return cc ? { cc, rest: digits.slice(cc.length) } : null;
+};
+
 // Ülke kodu seçilebilir telefon alanı — varsayılan Türkiye, listede yoksa "Diğer
 // ülke…" ile elle kod girilir. Kullanıcı yalnızca yerel numarayı yazar (haneler
 // yazarken gruplanır, örn. "532 123 45 67"), sayfa dili İngilizce'yse ülke isimleri
@@ -474,11 +508,37 @@ function PhoneField({ ccValue, onCcChange, value, onChange, invalid, lang, requi
   const maxLen = phoneMaxFor(known ? ccValue : '');
   const complete = value.length === maxLen;
 
+  // "+385…" TEK TUŞ TUŞ yazılırken (yapıştırma değil): her tuşta alan hemen rakamlara
+  // indirgenip "+" atılırsa, kod hiçbir zaman tam oluşmadan kaybolur (kullanıcı "+3"
+  // yazınca "3" olarak yerel numaraya karışır). Kod netleşene kadar ham metni
+  // (rawIntl) OLDUĞU GİBİ ekranda tutuyoruz; netleşince ccValue/value'ya "sıçrıyor".
+  const [rawIntl, setRawIntl] = useStateOP(null);
+
   const handleCc = (cc) => {
+    setRawIntl(null);
     const nextCc = cc === PHONE_OTHER_CC ? '' : cc;
     onCcChange(nextCc);
     const nextMax = phoneMaxFor(cc === PHONE_OTHER_CC ? '' : nextCc);
     if (value.length > nextMax) onChange(value.slice(0, nextMax));
+  };
+
+  // Yerel numara alanına "+385…" gibi tam uluslararası biçimde yazılır/yapıştırılırsa,
+  // kodu otomatik ayırıp seçiciyi günceller (yanlış ülkenin hane sınırına göre
+  // kesilmesin diye) — bkz. splitIntlPrefix.
+  const handleNumberInput = (raw) => {
+    if (/^(\+|00)/.test(raw.trim())) {
+      const split = splitIntlPrefix(raw);
+      if (split) {
+        setRawIntl(null);
+        onCcChange(split.cc);
+        onChange(phoneLocalDigits(split.rest, phoneMaxFor(split.cc)));
+      } else {
+        setRawIntl(raw);   // kod henüz netleşmedi — yazmaya devam edilsin, alan sıfırlanmasın
+      }
+      return;
+    }
+    setRawIntl(null);
+    onChange(phoneLocalDigits(raw, maxLen));
   };
 
   return (
@@ -495,12 +555,15 @@ function PhoneField({ ccValue, onCcChange, value, onChange, invalid, lang, requi
           <option value={PHONE_OTHER_CC}>{lang === 'tr' ? 'Diğer ülke…' : 'Other country…'}</option>
         </select>
         {!known && (
-          <input className="jphone__cc-custom" placeholder={lang === 'tr' ? '+kod' : '+code'} inputMode="numeric"
-            value={ccValue} onChange={e => onCcChange(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+          <span className="jphone__custom-wrap">
+            <span className="jphone__plus" aria-hidden="true">+</span>
+            <input className="jphone__cc-custom" placeholder={lang === 'tr' ? 'kod' : 'code'} inputMode="numeric"
+              value={ccValue} onChange={e => onCcChange(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+          </span>
         )}
         <input type="tel" name="tel-national" autoComplete="tel-national" inputMode="tel" className="jphone__input"
           placeholder={ccValue === '90' || ccValue === '7' ? '(5xx) xxx xx xx' : '(xxx) xxx xx xx'}
-          value={formatPhoneDisplay(value, ccValue)} onChange={e => onChange(phoneLocalDigits(e.target.value, maxLen))} />
+          value={rawIntl ?? formatPhoneDisplay(value, ccValue)} onChange={e => handleNumberInput(e.target.value)} />
       </div>
       {value && (
         <div style={{ fontSize: 11.5, marginTop: 5, color: complete ? '#16A34A' : 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -689,7 +752,9 @@ function JoinPage({ navigate, projectId }) {
         check(communityForm.pitch.trim(), 'pitch', lang === 'tr' ? 'Fikrin' : 'Your idea');
       }
       if (!project && communityForm.intent === 'hub') check(communityForm.unit, 'unit', lang === 'tr' ? 'Birim' : 'Unit');
-      if (!project && communityForm.intent === 'pool_match') check(communityForm.interest, 'interest', lang === 'tr' ? 'İlgi Alanı' : 'Area of interest');
+      if (!project && ['pool_match', 'project'].includes(communityForm.intent)) {
+        check(communityForm.interest, 'interest', lang === 'tr' ? 'İlgi alanı' : 'Area of interest');
+      }
     }
     if (missing.length) {
       setInvalidFields(new Set(missing.map(([f]) => f)));
@@ -1156,7 +1221,7 @@ function JoinPage({ navigate, projectId }) {
                   )}
                   {(project || ['pool_match', 'project'].includes(communityForm.intent)) && (
                     <div className="form-group">
-                      <label className="form-label">{fl('c_role', t('join.role'))}{!project && communityForm.intent === 'pool_match'
+                      <label className="form-label">{fl('c_role', t('join.role'))}{!project
                         ? <> <span style={{ color: 'var(--red, #DC2626)' }}>*</span></>
                         : <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> ({lang === 'tr' ? 'opsiyonel' : 'optional'})</span>}</label>
                       <select className={`form-input form-select${invalidFields.has('interest') ? ' form-input--invalid' : ''}`} value={communityForm.interest} onChange={e => handleC('interest', e.target.value)}>

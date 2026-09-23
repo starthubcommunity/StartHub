@@ -191,6 +191,22 @@ dönülür. `applyFilters`/`InterestTiles`'ın kendisi DEĞİŞMEDİ, yalnızca 
 
 **Genel Bakış üst özeti (2026-09-23):** yukarıdaki nav notuna bkz. — `OverviewStats` (today.jsx).
 
+**Katıl — LAB ilgi alanı zorunlu oldu (2026-09-23):** `project`/`pool_match` intent'lerinde ilgi alanı artık
+opsiyonel değil (yalnızca proje deep-link'inde — `project` prop varken — opsiyonel kalır), çünkü Adaylar'daki
+ilgi alanı kutucukları/havuz ataması buna dayanıyor. Etiket de soru biçimine çevrildi: `t('join.role')` artık
+"Hangi alanda yer almak istersin?" (`data.jsx`), HUB_UNITS'teki "Hangi birimde yer almak istiyorsun?" ile aynı
+üslup.
+
+**Katıl — telefon: yabancı numara yazarken kod kayboluyordu (2026-09-23, bug fix):** Kullanıcı ülke kodunu
+seçmeden numarayı doğrudan "+385 91 234 5678" gibi TEK TUŞ TUŞ yazınca (yapıştırma değil), her tuşta alan
+rakamlara indirgenip "+" hemen atılıyordu — kod hiç netleşmeden kayboluyor, numara o an seçili ülkenin (varsayılan
+Türkiye, 10 hane) sınırına göre kesiliyordu ("eksik hane" şikâyeti). `PhoneField`'e `rawIntl` yerel state'i
+eklendi: "+"/"00" ile başlayan girdi kod netleşene kadar ham metin olarak ekranda tutulur, netleşince
+`splitIntlPrefix()` ile ccValue/value'ya "sıçrar" (bkz. `other-pages.jsx`). Ayrıca `COUNTRY_CODES`'e eksik
+AB/Balkan ülkeleri eklendi (Hırvatistan +385 dahil, ~15 ülke) ve "Diğer ülke…" özel kod alanına kalıcı "+"
+işareti eklendi (`.jphone__plus`, önceden yalnızca placeholder'da görünüyordu, kayboluyor gibi duruyordu).
+CDP ile hem tek seferde yapıştırma hem tuş-tuş yazma senaryosu doğrulandı.
+
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
