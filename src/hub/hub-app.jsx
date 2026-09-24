@@ -10,7 +10,9 @@ import { HubMemberContext, useHubMember } from './hub-member';
 import { PermsProvider, usePerms } from '../lib/use-perms';
 import PermissionsScreen from '../admin/permissions-screen';
 import { EMPTY_FILTERS } from './components/filter-bar';
+import { STAGE_LABEL } from './hub-constants';
 import TodayPage from './pages/today';
+import CandidatePanel from './pages/candidate';
 import CandidatesListPage from './pages/candidates-list';
 import ArchivePage from './pages/archive';
 import TemplatesPage from './pages/templates';
@@ -335,10 +337,14 @@ function HubApp({ email, onLogout }) {
   // aynısı değil (o iş mantığı today.jsx'te) — basit, gerçek bir yaklaşık:
   // havuzda, sahibim, henüz mesaj atılmamış aday sayısı. Aynı liste zilin
   // açtığı önizlemede de kullanılır (gerçek veri, uydurma yok).
-  const { candidates, currentMember } = useHubStore();
+  const { candidates, currentMember, openRoles, sources } = useHubStore();
   const [searchQ, setSearchQ] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  // Global aday paneli — arama sonuçlarından (hangi sayfada olursan ol)
+  // doğrudan bir adayı açabilmek için, panel artık kabuk (HubApp) seviyesinde.
+  const [globalOpenId, setGlobalOpenId] = useState(null);
   const [page, setPage] = useState(() => {
     const saved = sessionStorage.getItem('sh_hub_page') || 'today';
     // eski ayrı Mentörler/Destekçiler/Fikirler sekmeleri artık tek "applications" ekranı
@@ -369,15 +375,34 @@ function HubApp({ email, onLogout }) {
   const activePage = nav.some((n) => n.id === page) ? page : (nav[0]?.id || 'today');
 
   const pendingCandidates = candidates.filter((c) => c.stage === 'pool' && c.ownerId === currentMember?.id);
-  const runSearch = (e) => {
-    e.preventDefault();
+  const initialsOf = (n) => (n || email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  const goSettings = () => { setPage('settings'); setProfileOpen(false); };
+
+  // 2026-09-25 — canlı arama: yazarken aşağıda anında sonuç (aday/pozisyon/
+  // kaynak) açılır, Enter/büyüteç ise Adaylar'da TÜM sonuçları filtreli açar.
+  const searchQTrim = searchQ.trim().toLowerCase();
+  const searchResults = searchQTrim.length === 0 ? { people: [], roles: [], sources: [] } : {
+    people: candidates.filter((c) => c.stage !== 'archived' && [c.fullName, c.email, c.university, c.github, c.linkedin]
+      .some((v) => (v || '').toLowerCase().includes(searchQTrim))).slice(0, 6),
+    roles: openRoles.filter((r) => (r.title || '').toLowerCase().includes(searchQTrim)).slice(0, 4),
+    sources: sources.filter((s) => (s.name || '').toLowerCase().includes(searchQTrim)).slice(0, 4),
+  };
+  const hasSearchResults = searchResults.people.length + searchResults.roles.length + searchResults.sources.length > 0;
+  const closeSearch = () => setSearchOpen(false);
+  const showAllInCandidates = () => {
     if (!searchQ.trim()) return;
     setFilters({ ...EMPTY_FILTERS, q: searchQ.trim() });
     setPage('candidates');
-    setBellOpen(false); setProfileOpen(false);
+    setSearchOpen(false);
   };
-  const initialsOf = (n) => (n || email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-  const goSettings = () => { setPage('settings'); setProfileOpen(false); };
+  const runSearch = (e) => { e.preventDefault(); showAllInCandidates(); };
+  const openSearchResultCandidate = (id) => { setGlobalOpenId(id); setSearchQ(''); setSearchOpen(false); };
+  const openSearchResultRole = (r) => {
+    setFilters({ ...EMPTY_FILTERS, openRoleId: [r.id] });
+    setPage('candidates');
+    setSearchQ(''); setSearchOpen(false);
+  };
+  const openSearchResultSource = () => { setPage('sources'); setSearchQ(''); setSearchOpen(false); };
 
   // Hook'ların HEPSİNDEN sonra: yükleniyor / erişim yok dalları.
   if (permsLoading) return <HubLoading />;
@@ -430,11 +455,70 @@ function HubApp({ email, onLogout }) {
 
       <div className="hub-main">
         <div className="hub-topbar">
-          <form className="hub-topbar__search" onSubmit={runSearch}>
-            <button type="submit" className="hub-topbar__search-btn" title="Ara"><AIcon name="search" size={15} /></button>
-            <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
-              placeholder="Kişi, pozisyon veya kaynak ara…" />
-          </form>
+          <div style={{ position: 'relative' }}>
+            <form className="hub-topbar__search" onSubmit={runSearch}>
+              <button type="submit" className="hub-topbar__search-btn" title="Ara"><AIcon name="search" size={15} /></button>
+              <input value={searchQ}
+                onChange={(e) => { setSearchQ(e.target.value); setSearchOpen(true); }}
+                onFocus={() => setSearchOpen(true)}
+                placeholder="Kişi, pozisyon veya kaynak ara…" />
+            </form>
+            {searchOpen && searchQTrim.length > 0 && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={closeSearch} />
+                <div className="hub-topbar__pop hub-topbar__pop--search">
+                  {!hasSearchResults ? (
+                    <div className="hub-topbar__pop-empty">"{searchQ.trim()}" için sonuç yok.</div>
+                  ) : (
+                    <>
+                      {searchResults.people.length > 0 && (
+                        <div className="hub-search-group">
+                          <div className="hub-topbar__pop-title">Adaylar</div>
+                          {searchResults.people.map((c) => (
+                            <button key={c.id} type="button" className="hub-topbar__pop-row hub-topbar__pop-row--btn"
+                              onClick={() => openSearchResultCandidate(c.id)}>
+                              <span className="hub-av hub-av--sm">{initialsOf(c.fullName)}</span>
+                              <span className="hub-topbar__pop-row-text">
+                                <span className="hub-topbar__pop-row-name">{c.fullName}</span>
+                                <span className="hub-topbar__pop-row-sub">{STAGE_LABEL[c.stage] || c.stage}</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {searchResults.roles.length > 0 && (
+                        <div className="hub-search-group">
+                          <div className="hub-topbar__pop-title">Açık Pozisyonlar</div>
+                          {searchResults.roles.map((r) => (
+                            <button key={r.id} type="button" className="hub-topbar__pop-row hub-topbar__pop-row--btn"
+                              onClick={() => openSearchResultRole(r)}>
+                              <span className="hub-topbar__pop-row-icon"><AIcon name="rocket" size={14} /></span>
+                              <span className="hub-topbar__pop-row-name">{r.title}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {searchResults.sources.length > 0 && (
+                        <div className="hub-search-group">
+                          <div className="hub-topbar__pop-title">Kaynaklar</div>
+                          {searchResults.sources.map((s) => (
+                            <button key={s.id} type="button" className="hub-topbar__pop-row hub-topbar__pop-row--btn"
+                              onClick={openSearchResultSource}>
+                              <span className="hub-topbar__pop-row-icon"><AIcon name="layers" size={14} /></span>
+                              <span className="hub-topbar__pop-row-name">{s.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <button type="button" className="hub-topbar__pop-all" onClick={showAllInCandidates}>
+                    Adaylar'da tüm sonuçları gör →
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <div className="hub-topbar__spacer" />
 
           <div style={{ position: 'relative' }}>
@@ -509,6 +593,8 @@ function HubApp({ email, onLogout }) {
             : <div className="adm-empty">Bu ekran yok.</div>}
         </div>
       </div>
+
+      {globalOpenId && <CandidatePanel candidateId={globalOpenId} onClose={() => setGlobalOpenId(null)} />}
     </div>
   );
 }

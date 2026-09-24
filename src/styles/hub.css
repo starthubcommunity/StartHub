@@ -664,6 +664,15 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 .hub-topbar__pop-row { display: flex; align-items: center; gap: 9px; padding: 7px 14px; }
 .hub-topbar__pop-row-name { font-size: 12.5px; font-weight: 600; color: #1C1917; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-topbar__pop-all { width: 100%; text-align: left; background: none; border: none; border-top: 1px solid #F0EADE; margin-top: 4px; padding: 10px 14px 4px; font-size: 12px; font-weight: 700; color: #DC2626; cursor: pointer; font-family: var(--font-body); }
+
+/* Canlı arama açılır paneli */
+.hub-topbar__pop--search { left: 0; right: auto; width: 360px; padding: 6px 0; max-height: 70vh; overflow-y: auto; }
+.hub-search-group + .hub-search-group { border-top: 1px solid #F0EADE; margin-top: 4px; padding-top: 2px; }
+.hub-topbar__pop-row--btn { width: 100%; background: none; border: none; cursor: pointer; text-align: left; font-family: var(--font-body); }
+.hub-topbar__pop-row--btn:hover { background: #FBF9F4; }
+.hub-topbar__pop-row-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hub-topbar__pop-row-sub { font-size: 10.5px; color: #A29D94; }
+.hub-topbar__pop-row-icon { width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: #F4EFE5; color: #57534E; }
 .hub-topbar__pop-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border-radius: 8px; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 600; color: #1C1917; font-family: var(--font-body); text-align: left; }
 .hub-topbar__pop-item:hover { background: #FBF9F4; }
 .hub-topbar__pop-item--danger { color: #DC2626; }
