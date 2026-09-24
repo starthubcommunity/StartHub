@@ -361,6 +361,16 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
                 )}
               </select>
             </Field>
+            {/* 0045 — klasör taşıma ("dağıtma"): dosya gezgini modelinde bir aday
+                tek klasörde durur, buradan başka klasöre taşınır ya da kategorisiz bırakılır. */}
+            <Field label="Klasör">
+              <select className="adm-input adm-select" value={c.folderId || ''}
+                onChange={(e) => store.updateCandidate(c.id, { ...c, folderId: e.target.value || null }).catch((err) => flash?.(err.message))}>
+                <option value="">Kategorisiz</option>
+                {[...store.folders].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'))
+                  .map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </Field>
             {isCofounder && (
               <Field label="Hat (geçersiz kıl · kurucu)">
                 <select className="adm-input adm-select" value={c.track || DEFAULT_TRACK}

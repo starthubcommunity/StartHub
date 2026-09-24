@@ -18,7 +18,9 @@ function linkFields(v) {
 // presetRoleId: "+ Bu role aday ekle" (Açık Pozisyonlar) ile açılınca —
 // aday eklenir eklenmez o role bağlanır, track role'den miras alınır
 // (linkCandidateRole zaten bu mirası uyguluyor, tekrar sormuyoruz).
-export default function NewCandidateModal({ onClose, presetRoleId }) {
+// presetFolderId: bir klasörün İÇİNDEYKEN "Aday Ekle" ile açılınca — aday
+// eklenir eklenmez o klasöre düşer (dosya gezgini "buraya ekle" mantığı, 0045).
+export default function NewCandidateModal({ onClose, presetRoleId, presetFolderId }) {
   const store = useHubStore();
   const { members, currentMember } = store;
 
@@ -51,6 +53,7 @@ export default function NewCandidateModal({ onClose, presetRoleId }) {
       whyThisOne: a.whyThisOne.trim(),
       ownerId: a.ownerId || null,
       stage: 'pool',
+      folderId: presetFolderId || null,
     });
     if (presetRoleId && created?.id) await store.linkCandidateRole(created.id, presetRoleId);
   };

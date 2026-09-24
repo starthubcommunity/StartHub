@@ -15,7 +15,9 @@ const KNOWN_LANGS = ['TypeScript', 'JavaScript', 'Python', 'Go', 'Rust', 'Swift'
 // GitHub taraması teknik profillere odaklı — dört ilgili alan önerilir, gerekirse Diğer.
 const GITHUB_INTERESTS = INTEREST_AREAS.filter((a) => ['frontend', 'backend', 'mobile', 'data', 'other'].includes(a.value));
 
-export default function GithubImport({ onClose }) {
+// presetFolderId: bir klasörün İÇİNDEYKEN açılınca — taranan tüm adaylar
+// otomatik o klasöre düşer (0045).
+export default function GithubImport({ onClose, presetFolderId }) {
   const store = useHubStore();
   const { can } = usePerms();
   const { openRoles } = store;
@@ -57,7 +59,7 @@ export default function GithubImport({ onClose }) {
         aiScoreNote: r.prescore?.note,
       }));
       const { created } = await store.importCandidates(
-        { source: 'github', sourceDetail: 'GitHub taraması', roleId: roleId || null, interest },
+        { source: 'github', sourceDetail: 'GitHub taraması', roleId: roleId || null, interest, folderId: presetFolderId || null },
         payload,
       );
       setDone({ created });

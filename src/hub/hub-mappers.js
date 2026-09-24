@@ -62,6 +62,8 @@ export function mapCandidateToDb(c) {
     owner_id:       c.ownerId       ?? null,
     open_role_id:   c.openRoleId    ?? null,
     startup_id:     c.startupId     ?? null,
+    // 0045 — klasörleme (dosya gezgini modeli). Kolon yoksa gönderilmez.
+    folder_id:      orUndef(c.folderId),
     // §12 — hat ve proje sahibi kararı
     track:               c.track             || DEFAULT_TRACK,
     presented_at:        c.presentedAt       ?? null,
@@ -142,6 +144,7 @@ export function mapCandidateFromDb(r) {
     ownerId:       r.owner_id       ?? null,
     openRoleId:    r.open_role_id   ?? null,
     startupId:     r.startup_id     ?? null,
+    folderId:      r.folder_id      ?? null,
     // §12
     track:             r.track               || DEFAULT_TRACK,
     presentedAt:       r.presented_at        ?? null,
@@ -413,6 +416,24 @@ export function mapSourceFromDb(r) {
   };
 }
 
+// ══ hub_folders (0045 — aday klasörleme, dosya gezgini modeli) ══════════
+export function mapFolderToDb(f) {
+  return {
+    name:       f.name || '',
+    slug:       f.slug ?? null,
+    created_by: f.createdBy ?? null,
+  };
+}
+export function mapFolderFromDb(r) {
+  return {
+    id:        r.id,
+    name:      r.name || '',
+    slug:      r.slug ?? null,
+    createdBy: r.created_by ?? null,
+    createdAt: r.created_at ?? null,
+  };
+}
+
 // ══ Tablo kaydı — store bu haritayı kullanır (admin DB_TABLE deseni) ══
 // v2: roleLog / views / batches DÜŞTÜ (tablolar 0010'da drop edildi).
 // interviews / sources tabloları duruyor ama v2 akışında yazılmıyor
@@ -427,4 +448,5 @@ export const HUB_TABLES = {
   gates:      { table: 'hub_gates',           toDb: mapGateToDb,      fromDb: mapGateFromDb      },
   templates:  { table: 'hub_templates',       toDb: mapTemplateToDb,  fromDb: mapTemplateFromDb  },
   sources:    { table: 'hub_source_registry', toDb: mapSourceToDb,    fromDb: mapSourceFromDb    },
+  folders:    { table: 'hub_folders',         toDb: mapFolderToDb,    fromDb: mapFolderFromDb    },
 };

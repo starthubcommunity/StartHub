@@ -16,7 +16,7 @@ import { STAGE_ORDER } from './hub-constants';
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
 // v2: roleLog / views / sources düştü (menüde yok). interviews tek aday için
 // loadHistory() ile; touches/gates Bugün ekranı için; stageLog dönüşüm için.
-const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources'];
+const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources', 'folders'];
 
 const EMPTY = { ...COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {}), hiddenHub: [] };
 
@@ -518,6 +518,7 @@ export function HubStoreProvider({ children }) {
           if (!ex.github && r.github) patch.github = r.github;
           if (!ex.university && r.university) patch.university = r.university;
           if (!ex.interest && (r.interest || batchInfo.interest)) patch.interest = r.interest || batchInfo.interest;
+          if (!ex.folderId && (r.folderId || batchInfo.folderId)) patch.folderId = r.folderId || batchInfo.folderId;
           if (!ex.whyThisOne && r.whyThisOne) patch.whyThisOne = r.whyThisOne;
           if (!ex.sourceDetail && (r.sourceDetail || batchInfo.sourceDetail)) {
             patch.sourceDetail = r.sourceDetail || batchInfo.sourceDetail;
@@ -543,6 +544,7 @@ export function HubStoreProvider({ children }) {
         github: r.github || null,
         university: r.university || null,
         interest: r.interest || batchInfo.interest || null,
+        folderId: r.folderId || batchInfo.folderId || null,
         roleType: r.roleType || batchInfo.roleType || null,
         source: batchInfo.source || 'other',
         sourceDetail: r.sourceDetail || batchInfo.sourceDetail || null,
