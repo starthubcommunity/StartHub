@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { AIcon, PageHead, Modal, Field, Input, ConfirmDialog } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
-import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS, DEFAULT_TRACK, INTEREST_AREAS, INTEREST_LABEL } from '../hub-constants';
+import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS, DEFAULT_TRACK, INTEREST_LABEL } from '../hub-constants';
 import { thresholdMet, rubricComplete, nextAction, gateDueAt } from '../hub-rules';
 import FilterBar, { applyFilters } from '../components/filter-bar';
 import CandidatePanel from './candidate';
@@ -55,39 +55,6 @@ function RowRight({ c, touchesByCand, gatesByCand }) {
   return null;
 }
 
-// İlgi alanına göre kutucuklar (frontend, backend, tasarım …): tıkladıkça o alandaki adaylar listelenir.
-// Yalnızca en az bir adayın ilgi alanı varsa gösterilir; birden fazla kutucuk birlikte seçilebilir.
-function InterestTiles({ candidates, selected, onToggle, onClear }) {
-  const counts = {};
-  candidates.filter((c) => c.stage !== 'archived').forEach((c) => { const k = c.interest || 'none'; counts[k] = (counts[k] || 0) + 1; });
-  const withInterest = Object.keys(counts).some((k) => k !== 'none');
-  if (!withInterest) return null;
-  const order = [...INTEREST_AREAS.map((a) => a.value), 'dev', 'none'];
-  const tiles = order.filter((k) => counts[k] || selected.includes(k)).map((k) => ({
-    key: k,
-    label: k === 'none' ? 'Belirtilmemiş' : INTEREST_LABEL[k],
-    icon: INTEREST_AREAS.find((a) => a.value === k)?.icon || (k === 'dev' ? 'code' : 'users'),
-    n: counts[k] || 0,
-  }));
-  return (
-    <div className="hub-tiles">
-      <div className="hub-tiles__head">
-        <span>İlgi alanına göre</span>
-        {selected.length > 0 && <button type="button" className="hub-tiles__clear" onClick={onClear}>Seçimi temizle</button>}
-      </div>
-      <div className="hub-tiles__grid">
-        {tiles.map((t) => (
-          <button key={t.key} type="button" className={`hub-tile${selected.includes(t.key) ? ' hub-tile--on' : ''}`} onClick={() => onToggle(t.key)}>
-            <span className="hub-tile__icon"><AIcon name={t.icon} size={17} /></span>
-            <span className="hub-tile__n">{t.n}</span>
-            <span className="hub-tile__label">{t.label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── Klasör paneli (dosya gezgini modeli, 2026-09-24) — TEK klasör: bir aday
 // tek klasörde durur. "Tüm Adaylar" (null) ve "Kategorisiz" ('none') sabit
 // satırlar; altında store.folders (kullanıcı klasörleri, ilk 10'u ilgi
@@ -110,7 +77,7 @@ function FolderRail({ folders, candidates, selected, onSelect, onCreate, onDelet
           </button>
         )}
       </div>
-      <button type="button" className={`hub-folder-item ${selected == null ? 'hub-folder-item--on' : ''}`} onClick={() => onSelect(null)}>
+      <button type="button" className={`hub-folder-item ${selected === null ? 'hub-folder-item--on' : ''}`} onClick={() => onSelect(null)}>
         <AIcon name="layers" size={15} />
         <span className="hub-folder-item__name">Tüm Adaylar</span>
         <span className="hub-folder-item__n">{totalCount}</span>
@@ -150,15 +117,16 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const [triageIds, setTriageIds] = useState(null);   // D3
   const [actOn, setActOn] = useState(null);     // satırdan arşivle/sil için aday
   const [toast, setToast] = useState('');
-  // Klasör paneli (dosya gezgini modeli) — null: Tüm Adaylar, 'none': Kategorisiz, uuid: bir klasör.
-  const [selectedFolderId, setSelectedFolderId] = useState(null);
+  // Klasör paneli (dosya gezgini modeli, 2026-09-24) — sayfaya girince hiçbir
+  // klasör seçili DEĞİL (undefined): göz karışıklığı olmasın diye liste kapalı
+  // durur, kullanıcı bir klasöre tıklayınca açılır. "Tüm Adaylar" (null) da
+  // AYNI şekilde bilinçli bir seçimdir — tıklanınca liste açılır, öncekinin
+  // aksine (2026-09-25 düzeltmesi: eskiden "Tüm Adaylar" hem varsayılan hem
+  // "seçili" görünüyordu ama listeyi açmıyordu — kafa karıştırıyordu).
+  const [selectedFolderId, setSelectedFolderId] = useState(undefined);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [deletingFolder, setDeletingFolder] = useState(null);
-  // 2026-09-23 — sayfaya girince önce ilgi alanı kartları görünsün, liste
-  // yalnızca bir kart/arama/filtre seçilince açılsın (göz karışıklığı azalsın).
-  // "Tüm adayları göster" bu varsayılanı aşıp listeyi yine de açar.
-  const [browseAll, setBrowseAll] = useState(false);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
 
   const memberName = (id) => members.find((m) => m.id === id)?.fullName || members.find((m) => m.id === id)?.email || '—';
@@ -195,15 +163,17 @@ export default function CandidatesListPage({ filters, setFilters }) {
     [candidates, filters, ctx]
   );
   // Klasör seçimi mevcut filtrelerin ÜSTÜNE, ayrı bir boyut olarak uygulanır.
+  // undefined = henüz hiçbir klasöre tıklanmadı (liste kapalı) — null = "Tüm
+  // Adaylar" bilinçli seçimi (liste açık, filtresiz).
   const rows = useMemo(() => {
-    if (selectedFolderId == null) return rowsUnfiltered;
+    if (selectedFolderId === undefined || selectedFolderId === null) return rowsUnfiltered;
     if (selectedFolderId === 'none') return rowsUnfiltered.filter((c) => !c.folderId);
     return rowsUnfiltered.filter((c) => c.folderId === selectedFolderId);
   }, [rowsUnfiltered, selectedFolderId]);
 
   const noFilterActive = !filters.chip && !filters.stage.length && !filters.source.length
-    && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim() && selectedFolderId == null;
-  const showList = browseAll || !noFilterActive;
+    && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim() && selectedFolderId === undefined;
+  const showList = !noFilterActive;
 
   // D3 — hızlı eleme: filtre yoksa varsayılan "hiç mesaj atılmamış".
   const startTriage = () => {
@@ -297,21 +267,9 @@ export default function CandidatesListPage({ filters, setFilters }) {
         ) : null
       } />
 
-      <InterestTiles candidates={candidates} selected={filters.interest || []}
-        onToggle={(k) => { const cur = filters.interest || []; setFilters({ ...filters, interest: cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k] }); }}
-        onClear={() => setFilters({ ...filters, interest: [] })} />
-
       {noFilterActive && (
-        <div style={{ margin: '-6px 0 14px' }}>
-          {!browseAll ? (
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setBrowseAll(true)}>
-              Ya da tüm adayları göster ({activeCount})
-            </button>
-          ) : (
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setBrowseAll(false)}>
-              ← Kartlara dön
-            </button>
-          )}
+        <div className="adm-empty" style={{ margin: '4px 0 14px' }}>
+          Soldan bir klasöre tıkla, ya da <button type="button" className="hub-inline-link" onClick={() => setSelectedFolderId(null)}>tüm adayları göster</button>.
         </div>
       )}
 

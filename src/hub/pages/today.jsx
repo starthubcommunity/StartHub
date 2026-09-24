@@ -15,7 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { isStale, thresholdMet, rubricCompleteFor, gateStatus } from '../hub-rules';
-import { STAGE_LABEL, STAGES, INTEREST_LABEL, SOURCE_LABEL, ROLE_TYPE_LABEL } from '../hub-constants';
+import { STAGE_LABEL, STAGES, INTEREST_LABEL, SOURCE_LABEL } from '../hub-constants';
 import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
 import { intervalToDays } from '../hub-metrics';
 import { EMPTY_FILTERS } from '../hub-filter';
@@ -185,18 +185,21 @@ function RecentTable({ candidates, onOpen }) {
   );
 }
 
-// ── Dağılım çubukları (ekip / aşama gibi kategorik dağılımlar için reuse) ──
-function DistributionBars({ items, empty }) {
+// ── Dağılım çubukları (aşama / ekip gibi kategorik dağılımlar için reuse) ──
+function DistributionBars({ items, empty, onSelect }) {
   if (!items.length) return <div className="adm-empty" style={{ padding: '24px 0' }}>{empty}</div>;
+  const Row = onSelect ? 'button' : 'div';
   return (
     <div className="hub-dist-list">
       {items.map((it) => (
-        <div key={it.key} className="hub-dist-row">
+        <Row key={it.key} type={onSelect ? 'button' : undefined}
+          className={`hub-dist-row ${onSelect ? 'hub-dist-row--clickable' : ''}`}
+          onClick={onSelect ? () => onSelect(it.key) : undefined}>
           <span className="hub-dist-row__label">{it.label}</span>
           <div className="hub-bar"><i style={{ width: `${it.pct}%`, background: it.color }} /></div>
           <span className="hub-dist-row__n">{it.value}</span>
           <span className="hub-dist-row__pct">%{it.pct}</span>
-        </div>
+        </Row>
       ))}
     </div>
   );
@@ -215,30 +218,6 @@ function QuickActions({ items }) {
           </span>
           <AIcon name="chevronRight" size={14} style={{ color: 'var(--adm-text-dim)', marginLeft: 'auto', flexShrink: 0 }} />
         </button>
-      ))}
-    </div>
-  );
-}
-
-function PipelineStrip({ candidates, onGoto, setFilters }) {
-  const active = candidates.filter((c) => c.stage !== 'archived');
-  const byStage = Object.fromEntries(STAGES.map((s) => [s.value, active.filter((c) => c.stage === s.value).length]));
-  const goStage = (stageValue) => {
-    if (!onGoto || !setFilters) return;
-    setFilters({ ...EMPTY_FILTERS, stage: stageValue ? [stageValue] : [] });
-    onGoto('candidates');
-  };
-  return (
-    <div className="hub-overview__row hub-pipeline-strip">
-      <OvCard className="hub-ov-card--big" onClick={() => goStage(null)}>
-        <span className="hub-ov-card__n">{active.length}</span>
-        <span className="hub-ov-card__l">Aktif aday (LAB)</span>
-      </OvCard>
-      {STAGES.map((s) => (
-        <OvCard key={s.value} onClick={() => goStage(s.value)}>
-          <span className="hub-ov-card__n">{byStage[s.value] || 0}</span>
-          <span className="hub-ov-card__l">{s.label}</span>
-        </OvCard>
       ))}
     </div>
   );
@@ -490,18 +469,20 @@ export default function TodayPage({ onGoto, setFilters }) {
     return out;
   }, [activeCandidates]);
 
-  // Ekip dağılımı — ekibe alınan (member) adayların rol tipine göre kırılımı.
-  const teamBreakdown = useMemo(() => {
-    const members = candidates.filter((c) => c.stage === 'member');
+  // Aşama dağılımı — aktif adayların pipeline'daki 5 aşamaya göre kırılımı
+  // (eskiden ayrı bir "Pipeline şeridi"nde tekrar ediyordu — KPI kartlarıyla
+  // çakışmasın diye tek yere, buraya toplandı).
+  const stagePalette = { pool: '#A29D94', contact: '#2563EB', interview: '#7C3AED', trial: '#EA580C', member: '#16A34A' };
+  const stageBreakdown = useMemo(() => {
+    const total = activeCandidates.length;
     const counts = {};
-    members.forEach((c) => { const k = c.roleType || 'other'; counts[k] = (counts[k] || 0) + 1; });
-    const palette = { technical: '#2563EB', business: '#EA580C', design: '#7C3AED', operations: '#78716C' };
-    const total = members.length;
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({
-      key: k, label: ROLE_TYPE_LABEL[k] || 'Diğer', value: n,
-      pct: total ? Math.round((100 * n) / total) : 0, color: palette[k] || '#A29D94',
-    }));
-  }, [candidates]);
+    activeCandidates.forEach((c) => { counts[c.stage] = (counts[c.stage] || 0) + 1; });
+    return STAGES.map((s) => ({
+      key: s.value, label: s.label, value: counts[s.value] || 0,
+      pct: total ? Math.round((100 * (counts[s.value] || 0)) / total) : 0, color: stagePalette[s.value],
+    })).filter((s) => s.value > 0);
+  }, [activeCandidates]);
+  const goStage = (stageValue) => { setFilters?.({ ...EMPTY_FILTERS, stage: [stageValue] }); onGoto?.('candidates'); };
 
   const recentCandidates = useMemo(
     () => [...candidates].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 6),
@@ -558,12 +539,11 @@ export default function TodayPage({ onGoto, setFilters }) {
               <RecentTable candidates={recentCandidates} onOpen={setOpenId} />
             </div>
             <div className="hub-card">
-              <div className="hub-card__title">Ekip Dağılımı</div>
-              <DistributionBars items={teamBreakdown} empty="Henüz ekibe alınan aday yok." />
+              <div className="hub-card__title">Aşama Dağılımı</div>
+              <DistributionBars items={stageBreakdown} empty="Henüz aday yok." onSelect={goStage} />
             </div>
           </div>
 
-          <PipelineStrip candidates={candidates} onGoto={onGoto} setFilters={setFilters} />
           <SystemSummary openRoles={openRoles} sources={sources} templates={templates} touches={touches} onGoto={onGoto} can={can} />
           <SecondaryStats candidates={candidates} stats={secondaryStats} onGoto={onGoto} setFilters={setFilters} can={can} />
         </div>
