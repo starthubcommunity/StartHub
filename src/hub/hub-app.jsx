@@ -5,7 +5,7 @@ import React from 'react';
 import { useState, useEffect } from 'react';
 import { supabase, setRememberMe } from '../lib/supabase';
 import { AIcon } from '../admin/admin-ui';
-import { HubStoreProvider } from './hub-store';
+import { HubStoreProvider, useHubStore } from './hub-store';
 import { HubMemberContext, useHubMember } from './hub-member';
 import { PermsProvider, usePerms } from '../lib/use-perms';
 import PermissionsScreen from '../admin/permissions-screen';
@@ -378,6 +378,12 @@ function HubApp({ email, onLogout }) {
   // Rules of Hooks: TÜM hook'lar koşulsuz ve her erken return'den ÖNCE.
   const role = useHubMember();
   const { can, loading: permsLoading } = usePerms();
+  // 2026-09-25 — topbar: arama + bildirim rozeti + profil şeridi (referans
+  // görsel). Rozet Genel Bakış'taki tam "Bugün Yapılacaklar" hesabının aynısı
+  // değil (o iş mantığı today.jsx'te) — basit, gerçek bir yaklaşık: havuzda,
+  // sahibim, henüz mesaj atılmamış aday sayısı.
+  const { candidates, currentMember } = useHubStore();
+  const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(() => {
     const saved = sessionStorage.getItem('sh_hub_page') || 'today';
     // eski ayrı Mentörler/Destekçiler/Fikirler sekmeleri artık tek "applications" ekranı
@@ -406,6 +412,15 @@ function HubApp({ email, onLogout }) {
   const gearNav = GEAR_NAV.filter((n) => !n.perm || can(n.perm));
   const nav = [...mainNav, ...gearNav];
   const activePage = nav.some((n) => n.id === page) ? page : (nav[0]?.id || 'today');
+
+  const pendingCount = candidates.filter((c) => c.stage === 'pool' && c.ownerId === currentMember?.id).length;
+  const runSearch = (e) => {
+    e.preventDefault();
+    if (!searchQ.trim()) return;
+    setFilters({ ...EMPTY_FILTERS, q: searchQ.trim() });
+    setPage('candidates');
+  };
+  const initialsOf = (n) => (n || email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
   // Hook'ların HEPSİNDEN sonra: yükleniyor / erişim yok dalları.
   if (permsLoading) return <HubLoading />;
@@ -458,10 +473,23 @@ function HubApp({ email, onLogout }) {
 
       <div className="hub-main">
         <div className="hub-topbar">
-          <span style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>
-            {ALL_NAV.find((n) => n.id === activePage)?.label}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
+          <form className="hub-topbar__search" onSubmit={runSearch}>
+            <AIcon name="search" size={15} />
+            <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
+              placeholder="Kişi, pozisyon veya kaynak ara…" />
+          </form>
+          <div className="hub-topbar__spacer" />
+          <button type="button" className="hub-topbar__bell" title="Bugün Yapılacaklar" onClick={() => setPage('today')}>
+            <AIcon name="clock" size={17} />
+            {pendingCount > 0 && <span className="hub-topbar__bell-badge">{pendingCount > 9 ? '9+' : pendingCount}</span>}
+          </button>
+          <div className="hub-topbar__profile">
+            <span className="hub-av hub-av--sm">{initialsOf(currentMember?.fullName)}</span>
+            <div className="hub-topbar__profile-text">
+              <span className="hub-topbar__profile-name">{currentMember?.fullName || email}</span>
+              <span className="hub-topbar__profile-role">{role}</span>
+            </div>
+          </div>
         </div>
         <div className="hub-content">
           {activePage === 'today' ? <TodayPage onGoto={setPage} setFilters={setFilters} />

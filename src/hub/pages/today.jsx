@@ -1,19 +1,21 @@
-// today.jsx — Genel Bakış = Dashboard (2026-09-24 CRM-lite sadeleştirme).
-// Önceki sürüm: OverviewStats (2 satır) + 5-7 ayrı iş bloğu + her blokta ayrı bir
-// QueueModal "Başlat" kuyruk-yürüme akışı. Kullanıcı bunu tek bakışta anlaşılır bir
-// dashboard'a indirmek istedi: tek cümlelik özet + TEK birleşik "Bugün Yapılacaklar"
-// listesi (aciliyete göre sıralı, tip etiketiyle "ne" belli) + satıra tıkla → aday
-// paneli (uygulamanın her yerinde zaten aynı desen: Adaylar, Arşiv). QueueModal
-// bilinçli olarak kaldırıldı — iki ayrı etkileşim deseni yerine tek desen kalsın diye.
-// Altta çekilen istatistikler (aşama dağılımı, mentör/destekçi/fikir sayıları, Hub
-// Sheet durumu, ilgi alanı dağılımı) SİLİNMEDİ, yalnızca ikincil/soluk bir şeride indi.
+// today.jsx — Genel Bakış = Dashboard.
+// 2026-09-24: 5-7 ayrı iş bloğu + QueueModal kuyruk-yürüme akışı yerine tek
+// birleşik "Bugün Yapılacaklar" listesi + tıklanabilir özet kartları getirildi.
+// 2026-09-25: kullanıcının paylaştığı bir "HR CRM" referans görseline göre
+// KART/GRAFİK/TABLO diline yeniden döküldü (karşılama başlığı, KPI kartları,
+// çizgi + donut grafik, "Son Başvurular" tablosu, ekip dağılımı, "Öncelikli
+// İşler" + "Hızlı İşlemler" sağ panel). ALTTAKİ VERİ AYNI — hiçbir sayı/saat
+// uydurulmadı: referanstaki "Yaklaşan Görüşmeler" (saatli randevu) için
+// Start-Hub'da veri YOK (takvim sistemi yok, HUB_SPEC §15 bilinçli ret) —
+// onun yerine zaten gerçek veriden kurulu "Bugün Yapılacaklar" listesi aynı
+// panel konumuna, yeni kart görseliyle taşındı.
 import React, { useState, useMemo, useEffect } from 'react';
 import { AIcon } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { isStale, thresholdMet, rubricCompleteFor, gateStatus } from '../hub-rules';
-import { STAGE_LABEL, STAGES, INTEREST_LABEL } from '../hub-constants';
+import { STAGE_LABEL, STAGES, INTEREST_LABEL, SOURCE_LABEL, ROLE_TYPE_LABEL } from '../hub-constants';
 import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
 import { intervalToDays } from '../hub-metrics';
 import { EMPTY_FILTERS } from '../hub-filter';
@@ -26,6 +28,7 @@ const startOfWeek = () => {
   return d;
 };
 const fmt = (v) => (v ? new Date(v).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
+const fmtShort = (v) => (v ? new Date(v).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }) : '—');
 const initials = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 // todos zaten "şimdi bekleyen" işler (gelecekteki bir vade değil) — bu yüzden
 // göreli zaman hep GEÇMİŞE dönük ifade edilir ("3 saat önce"), bir geri sayım değil.
@@ -61,15 +64,158 @@ function useSecondaryStats() {
   return stats;
 }
 
-// ── Üst şerit — aktif aday + aşama dağılımı. "Durum ne" sorusunun tek bakışta yanıtı.
-// 2026-09-24 — kartlar artık tıklanabilir: her biri Adaylar'a, o aşamayla filtrelenmiş
-// olarak götürür (roles.jsx'teki goToRoleCandidates ile aynı desen).
+// Tıklanabilir kart kabuğu — hem KPI/istatistik kartlarında hem "Sistem özeti" /
+// "Diğer göstergeler" şeritlerinde reuse edilir (roles.jsx'teki goToRoleCandidates
+// ile aynı "karta tıkla, ilgili yere git" deseni).
 function OvCard({ onClick, className = '', children }) {
   if (!onClick) return <div className={`hub-ov-card ${className}`}>{children}</div>;
   return (
     <div className={`hub-ov-card hub-ov-card--clickable ${className}`} role="button" tabIndex={0}
       onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       {children}
+    </div>
+  );
+}
+
+// ── KPI kartı (referans görseldeki ikon-rozetli üst şerit) ─────────────────
+function KpiCard({ icon, tone, value, label, onClick }) {
+  const body = (
+    <>
+      <span className={`hub-kpi__icon hub-kpi__icon--${tone}`}><AIcon name={icon} size={19} /></span>
+      <span className="hub-kpi__text">
+        <span className="hub-kpi__value">{value}</span>
+        <span className="hub-kpi__label">{label}</span>
+      </span>
+    </>
+  );
+  if (!onClick) return <div className="hub-kpi">{body}</div>;
+  return (
+    <div className="hub-kpi hub-kpi--clickable" role="button" tabIndex={0} onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
+      {body}
+    </div>
+  );
+}
+
+// ── Çizgi grafik (bağımlılıksız SVG) — son 6 ay: yeni aday vs işe alım ──────
+function LineChart({ months }) {
+  const W = 320, H = 120, PAD = 6, LBL = 16;
+  const maxV = Math.max(1, ...months.map((m) => Math.max(m.applied, m.hired)));
+  const stepX = months.length > 1 ? (W - PAD * 2) / (months.length - 1) : 0;
+  const y = (v) => H - LBL - (v / maxV) * (H - LBL - PAD);
+  const pts = (key) => months.map((m, i) => `${PAD + i * stepX},${y(m[key])}`).join(' ');
+  const areaPts = `${PAD},${y(0)} ${pts('applied')} ${PAD + (months.length - 1) * stepX},${y(0)}`;
+  return (
+    <div>
+      <div className="hub-chart-legend">
+        <span><i style={{ background: '#2563EB' }} /> Yeni aday</span>
+        <span><i style={{ background: '#16A34A' }} /> İşe alım</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="hub-linechart" preserveAspectRatio="none">
+        <polygon points={areaPts} fill="rgba(37,99,235,0.08)" stroke="none" />
+        <polyline points={pts('applied')} fill="none" stroke="#2563EB" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={pts('hired')} fill="none" stroke="#16A34A" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {months.map((m, i) => (
+          <text key={m.key} x={PAD + i * stepX} y={H - 3} fontSize="8.5" fill="#A29D94" textAnchor="middle">{m.label}</text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// ── Donut grafik (bağımlılıksız SVG, stroke-dasharray) — kaynak dağılımı ───
+function DonutChart({ segments }) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const R = 42, CX = 56, CY = 56, STROKE = 15;
+  const circumference = 2 * Math.PI * R;
+  let acc = 0;
+  return (
+    <div className="hub-donut-wrap">
+      <svg viewBox="0 0 112 112" className="hub-donut">
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F4EFE5" strokeWidth={STROKE} />
+        {total > 0 && segments.map((s) => {
+          const dash = (s.value / total) * circumference;
+          const el = (
+            <circle key={s.key} cx={CX} cy={CY} r={R} fill="none" stroke={s.color} strokeWidth={STROKE}
+              strokeDasharray={`${dash} ${circumference - dash}`} strokeDashoffset={-acc}
+              transform={`rotate(-90 ${CX} ${CY})`} />
+          );
+          acc += dash;
+          return el;
+        })}
+        <text x={CX} y={CY - 3} textAnchor="middle" fontSize="17" fontWeight="800" fontFamily="'Space Grotesk', sans-serif" fill="#1C1917">{total}</text>
+        <text x={CX} y={CY + 11} textAnchor="middle" fontSize="8.5" fill="#A29D94">Toplam</text>
+      </svg>
+      <div className="hub-donut-legend">
+        {segments.map((s) => (
+          <div key={s.key} className="hub-donut-legend__row">
+            <span className="hub-donut-legend__dot" style={{ background: s.color }} />
+            <span className="hub-donut-legend__label">{s.label}</span>
+            <span className="hub-donut-legend__pct">{total ? Math.round((100 * s.value) / total) : 0}%</span>
+          </div>
+        ))}
+        {segments.length === 0 && <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Henüz veri yok.</div>}
+      </div>
+    </div>
+  );
+}
+
+// ── Son başvurular (küçük tablo) ────────────────────────────────────────────
+function RecentTable({ candidates, onOpen }) {
+  if (!candidates.length) return <div className="adm-empty" style={{ padding: '24px 0' }}>Henüz aday yok.</div>;
+  return (
+    <div className="adm-table-wrap">
+      <table className="adm-table">
+        <thead><tr><th>Aday</th><th>Aşama</th><th>Tarih</th></tr></thead>
+        <tbody>
+          {candidates.map((c) => (
+            <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => onOpen(c.id)}>
+              <td>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="hub-av hub-av--sm">{initials(c.fullName)}</span>{c.fullName}
+                </div>
+              </td>
+              <td><span className="hub-pill hub-pill--stage">{STAGE_LABEL[c.stage] || c.stage}</span></td>
+              <td style={{ color: 'var(--adm-text-dim)', fontSize: 12.5 }}>{fmtShort(c.createdAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Dağılım çubukları (ekip / aşama gibi kategorik dağılımlar için reuse) ──
+function DistributionBars({ items, empty }) {
+  if (!items.length) return <div className="adm-empty" style={{ padding: '24px 0' }}>{empty}</div>;
+  return (
+    <div className="hub-dist-list">
+      {items.map((it) => (
+        <div key={it.key} className="hub-dist-row">
+          <span className="hub-dist-row__label">{it.label}</span>
+          <div className="hub-bar"><i style={{ width: `${it.pct}%`, background: it.color }} /></div>
+          <span className="hub-dist-row__n">{it.value}</span>
+          <span className="hub-dist-row__pct">%{it.pct}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Hızlı işlemler — 4 gerçek, tek tıkla çalışan kısayol ────────────────────
+function QuickActions({ items }) {
+  return (
+    <div className="hub-quick-actions">
+      {items.map((it) => (
+        <button key={it.key} type="button" className="hub-quick-action" onClick={it.onClick}>
+          <span className={`hub-quick-action__icon hub-quick-action__icon--${it.tone}`}><AIcon name={it.icon} size={17} /></span>
+          <span className="hub-quick-action__text">
+            <span className="hub-quick-action__title">{it.title}</span>
+            <span className="hub-quick-action__sub">{it.sub}</span>
+          </span>
+          <AIcon name="chevronRight" size={14} style={{ color: 'var(--adm-text-dim)', marginLeft: 'auto', flexShrink: 0 }} />
+        </button>
+      ))}
     </div>
   );
 }
@@ -98,10 +244,9 @@ function PipelineStrip({ candidates, onGoto, setFilters }) {
   );
 }
 
-// ── "Sistem özeti" — Açık Pozisyonlar/Kaynaklar/Şablonlar/Cevap oranı şu ana kadar
-// dashboard'da HİÇ görünmüyordu (yalnızca sidebar'ın "Yönetim" alt-grubundan
-// erişilebiliyordu). Hepsi zaten store'un client-side yüklediği openRoles/sources/
-// templates/touches'tan — yeni sorgu yok. Her kart kendi sayfasına götürür.
+// ── "Sistem özeti" — Açık Pozisyonlar/Kaynaklar/Şablonlar/Cevap oranı. Hepsi
+// zaten store'un client-side yüklediği openRoles/sources/templates/touches'tan
+// — yeni sorgu yok. Her kart kendi sayfasına götürür.
 function SystemSummary({ openRoles, sources, templates, touches, onGoto, can }) {
   const rolesSourcing = openRoles.filter((r) => r.status === 'sourcing').length;
   const rolesDraft = openRoles.filter((r) => r.status === 'draft').length;
@@ -155,9 +300,7 @@ function SystemSummary({ openRoles, sources, templates, touches, onGoto, can }) 
 }
 
 // ── Alt, soluk şerit — mentör/destekçi/fikir başvuru sayıları + Hub Sheet durumu +
-// ilgi alanı dağılımı. Günlük iş listesinin önüne geçmesin diye en altta, küçük.
-// 2026-09-24 — bu kartlar da tıklanabilir: başvuru sayıları "Diğer Başvurular"a,
-// ilgi alanları Adaylar'a (o ilgi alanıyla filtrelenmiş), Hub Sheet kartı Ayarlar'a götürür.
+// ilgi alanı dağılımı.
 function SecondaryStats({ candidates, stats, onGoto, setFilters, can }) {
   const active = candidates.filter((c) => c.stage !== 'archived');
   const interestCounts = {};
@@ -201,8 +344,7 @@ function SecondaryStats({ candidates, stats, onGoto, setFilters, can }) {
   );
 }
 
-// ── Tek satırlık "yapılacak iş" — tıklanınca doğrudan aday panelini açar. Uygulamanın
-// her yerindeki (Adaylar, Arşiv) "satıra tıkla, panel açılır" deseniyle aynı.
+// ── Tek satırlık "yapılacak iş" — tıklanınca doğrudan aday panelini açar.
 function TodoRow({ onClick, name, kind, kindTone, meta }) {
   return (
     <button type="button" className="hub-todo-row" onClick={onClick}>
@@ -217,7 +359,7 @@ function TodoRow({ onClick, name, kind, kindTone, meta }) {
 
 export default function TodayPage({ onGoto, setFilters }) {
   const store = useHubStore();
-  const { candidates, touches, gates, openRoles, currentMember, sources, templates } = store;
+  const { candidates, touches, gates, openRoles, currentMember, sources, templates, stageLog } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
   const secondaryStats = useSecondaryStats();
@@ -228,9 +370,6 @@ export default function TodayPage({ onGoto, setFilters }) {
   const toSend = candidates.filter((c) => c.stage === 'pool' && c.ownerId === currentMember?.id);
   const sentThisWeek = touches.filter((t) => t.senderId === currentMember?.id && new Date(t.sentAt) >= startOfWeek()).length;
 
-  // v3.1 (§16) — kurucu hattı (liderlik/ortaklık) başvuruları, normal aday
-  // kararıyla karışmasın diye ayrı bir etiketle işaretlenir. Arşiv/Ekipte hariç
-  // her aşamada görünür (nadir/yüksek-önem, süreç boyunca takip edilir).
   const founderLeads = candidates.filter((c) => c.track === 'founder' && c.stage !== 'archived' && c.stage !== 'member');
 
   const dueFollowUps = touches
@@ -308,53 +447,153 @@ export default function TodayPage({ onGoto, setFilters }) {
       || (a.sortAt && b.sortAt ? new Date(a.sortAt) - new Date(b.sortAt) : 0));
   }, [dueGates, dueFollowUps, decisionReady, founderLeads, toSend, stale, roleReminders]);
 
-  return (
-    <div className="hub-today">
-      <div className="adm-page-head">
-        <div>
-          <h1 className="adm-page-head__title">Genel Bakış</h1>
-          <p className="adm-page-head__desc">Şu an durum ne + bugün bekleyen işler.</p>
-        </div>
-      </div>
+  // ── Referans görsel için yeni türetilmiş veriler — HEPSİ gerçek, uydurma yok ──
+  const activeCandidates = useMemo(() => candidates.filter((c) => c.stage !== 'archived'), [candidates]);
+  const memberCount = useMemo(() => candidates.filter((c) => c.stage === 'member').length, [candidates]);
+  const interviewCount = useMemo(() => candidates.filter((c) => c.stage === 'interview').length, [candidates]);
 
-      <div className="hub-brief">
-        <div className="hub-brief__kick">BUGÜNÜN ÖZETİ</div>
-        <div className="hub-brief__h">
+  // Son 6 ay: "yeni aday" = candidates.createdAt (her adayda kesin var),
+  // "işe alım" = stageLog'daki toStage==='member' geçişleri.
+  const monthlyTrend = useMemo(() => {
+    const base = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+      months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleDateString('tr-TR', { month: 'short' }), applied: 0, hired: 0 });
+    }
+    const idx = Object.fromEntries(months.map((m, i) => [m.key, i]));
+    candidates.forEach((c) => {
+      if (!c.createdAt) return;
+      const d = new Date(c.createdAt);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (key in idx) months[idx[key]].applied += 1;
+    });
+    stageLog.forEach((l) => {
+      if (l.toStage !== 'member' || !l.createdAt) return;
+      const d = new Date(l.createdAt);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (key in idx) months[idx[key]].hired += 1;
+    });
+    return months;
+  }, [candidates, stageLog]);
+
+  // Başvuru kaynakları — en çok 5 kaynak + "Diğer".
+  const sourceBreakdown = useMemo(() => {
+    const counts = {};
+    activeCandidates.forEach((c) => { const k = c.source || 'other'; counts[k] = (counts[k] || 0) + 1; });
+    const palette = ['#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DC2626', '#78716C'];
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const top = entries.slice(0, 5);
+    const rest = entries.slice(5).reduce((s, [, n]) => s + n, 0);
+    const out = top.map(([k, n], i) => ({ key: k, label: SOURCE_LABEL[k] || k, value: n, color: palette[i % palette.length] }));
+    if (rest > 0) out.push({ key: '__rest', label: 'Diğer', value: rest, color: '#D6C9AE' });
+    return out;
+  }, [activeCandidates]);
+
+  // Ekip dağılımı — ekibe alınan (member) adayların rol tipine göre kırılımı.
+  const teamBreakdown = useMemo(() => {
+    const members = candidates.filter((c) => c.stage === 'member');
+    const counts = {};
+    members.forEach((c) => { const k = c.roleType || 'other'; counts[k] = (counts[k] || 0) + 1; });
+    const palette = { technical: '#2563EB', business: '#EA580C', design: '#7C3AED', operations: '#78716C' };
+    const total = members.length;
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({
+      key: k, label: ROLE_TYPE_LABEL[k] || 'Diğer', value: n,
+      pct: total ? Math.round((100 * n) / total) : 0, color: palette[k] || '#A29D94',
+    }));
+  }, [candidates]);
+
+  const recentCandidates = useMemo(
+    () => [...candidates].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 6),
+    [candidates]
+  );
+
+  const quickActions = [
+    { key: 'add', icon: 'plus', tone: 'red', title: 'Aday Ekle', sub: 'Adaylar sayfasında ekle', onClick: () => onGoto?.('candidates') },
+    { key: 'role', icon: 'rocket', tone: 'purple', title: 'Pozisyon Oluştur', sub: 'Açık Pozisyonlar', onClick: () => onGoto?.('roles') },
+    { key: 'apps', icon: 'graduationCap', tone: 'blue', title: 'Diğer Başvurular', sub: 'Mentör · Destekçi · Fikir', onClick: () => onGoto?.('applications') },
+    { key: 'metrics', icon: 'trendingUp', tone: 'green', title: 'Metrikler', sub: 'Performansa bak', onClick: () => onGoto?.('metrics') },
+  ];
+
+  const firstName = (currentMember?.fullName || '').trim().split(/\s+/)[0] || '';
+
+  return (
+    <div className="hub-today hub-today--v2">
+      <div className="hub-dash-head">
+        <h1 className="hub-dash-head__title">{firstName ? `Merhaba ${firstName},` : 'Merhaba,'}</h1>
+        <p className="hub-dash-head__sub">
           {todos.length === 0
             ? 'Bekleyen iş yok — her şey güncel.'
             : <>Bugün <b>{todos.length} iş</b> seni bekliyor{sentThisWeek > 0 ? ` · bu hafta ${sentThisWeek} mesaj gönderildi` : ''}.</>}
-        </div>
-        {/* 2026-09-24 — en acil olan (todos zaten aciliyete göre sıralı, ilk satır)
-            listeyi taramadan önce tek satırda öne çıkar. */}
-        {todos.length > 0 && (
-          <button type="button" className="hub-brief__urgent" onClick={() => setOpenId(todos[0].c.id)}>
-            <span className={`hub-todo-row__kind hub-todo-row__kind--${todos[0].tone}`}>{todos[0].kind}</span>
-            <span className="hub-brief__urgent-name">{todos[0].c.fullName}</span>
-            {todos[0].sortAt && <span className="hub-brief__urgent-meta">{relTime(todos[0].sortAt)}</span>}
-            <AIcon name="chevronRight" size={14} style={{ color: 'var(--adm-text-dim)', flexShrink: 0 }} />
-          </button>
-        )}
+        </p>
       </div>
 
-      {todos.length === 0 ? (
-        <div className="adm-empty">
-          Bekleyen iş yok.
-          <button className="adm-btn adm-btn--primary adm-btn--sm" style={{ marginTop: 10 }} onClick={() => onGoto?.('candidates')}>
-            <AIcon name="layers" size={14} /> Adaylara git
-          </button>
-        </div>
-      ) : (
-        <div className="hub-todo-list">
-          {todos.map((row) => (
-            <TodoRow key={row.id} onClick={() => setOpenId(row.c.id)}
-              name={row.c.fullName} kind={row.kind} kindTone={row.tone} meta={row.meta} />
-          ))}
-        </div>
-      )}
+      <div className="hub-kpi-row">
+        <KpiCard icon="layers" tone="blue" value={activeCandidates.length} label="Aktif Aday"
+          onClick={() => { setFilters?.({ ...EMPTY_FILTERS }); onGoto?.('candidates'); }} />
+        <KpiCard icon="clock" tone="amber" value={todos.length} label="Bugün Yapılacak"
+          onClick={todos.length ? () => setOpenId(todos[0].c.id) : undefined} />
+        <KpiCard icon="users" tone="green" value={memberCount} label="Ekipteki"
+          onClick={() => { setFilters?.({ ...EMPTY_FILTERS, stage: ['member'] }); onGoto?.('candidates'); }} />
+        <KpiCard icon="rocket" tone="purple" value={interviewCount} label="Görüşmede"
+          onClick={() => { setFilters?.({ ...EMPTY_FILTERS, stage: ['interview'] }); onGoto?.('candidates'); }} />
+      </div>
 
-      <PipelineStrip candidates={candidates} onGoto={onGoto} setFilters={setFilters} />
-      <SystemSummary openRoles={openRoles} sources={sources} templates={templates} touches={touches} onGoto={onGoto} can={can} />
-      <SecondaryStats candidates={candidates} stats={secondaryStats} onGoto={onGoto} setFilters={setFilters} can={can} />
+      <div className="hub-dash-grid">
+        <div className="hub-dash-col-main">
+          <div className="hub-chart-row">
+            <div className="hub-card hub-chart-card">
+              <div className="hub-card__title">Başvuru ve İşe Alım Trendleri</div>
+              <LineChart months={monthlyTrend} />
+            </div>
+            <div className="hub-card hub-chart-card hub-chart-card--donut">
+              <div className="hub-card__title">Başvuru Kaynakları</div>
+              <DonutChart segments={sourceBreakdown} />
+            </div>
+          </div>
+
+          <div className="hub-chart-row">
+            <div className="hub-card">
+              <div className="hub-card__title">Son Başvurular</div>
+              <RecentTable candidates={recentCandidates} onOpen={setOpenId} />
+            </div>
+            <div className="hub-card">
+              <div className="hub-card__title">Ekip Dağılımı</div>
+              <DistributionBars items={teamBreakdown} empty="Henüz ekibe alınan aday yok." />
+            </div>
+          </div>
+
+          <PipelineStrip candidates={candidates} onGoto={onGoto} setFilters={setFilters} />
+          <SystemSummary openRoles={openRoles} sources={sources} templates={templates} touches={touches} onGoto={onGoto} can={can} />
+          <SecondaryStats candidates={candidates} stats={secondaryStats} onGoto={onGoto} setFilters={setFilters} can={can} />
+        </div>
+
+        <div className="hub-dash-col-side">
+          <div className="hub-card">
+            <div className="hub-card__title">Öncelikli İşler</div>
+            {todos.length === 0 ? (
+              <div className="adm-empty" style={{ padding: '20px 0' }}>
+                Bekleyen iş yok.
+                <button className="adm-btn adm-btn--primary adm-btn--sm" style={{ marginTop: 10 }} onClick={() => onGoto?.('candidates')}>
+                  <AIcon name="layers" size={14} /> Adaylara git
+                </button>
+              </div>
+            ) : (
+              <div className="hub-todo-list hub-todo-list--panel">
+                {todos.slice(0, 6).map((row) => (
+                  <TodoRow key={row.id} onClick={() => setOpenId(row.c.id)}
+                    name={row.c.fullName} kind={row.kind} kindTone={row.tone}
+                    meta={row.sortAt ? relTime(row.sortAt) : row.meta} />
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="hub-card">
+            <div className="hub-card__title">Hızlı İşlemler</div>
+            <QuickActions items={quickActions} />
+          </div>
+        </div>
+      </div>
 
       {openId && <CandidatePanel candidateId={openId} onClose={() => setOpenId(null)} />}
     </div>

@@ -619,3 +619,95 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 .hub-tile--on { border-color: #DC2626; background: #FEF2F2; box-shadow: 0 0 0 1.5px #DC2626; }
 .hub-tile--on .hub-tile__icon { background: #DC2626; color: #fff; }
 .hub-tile--on .hub-tile__n, .hub-tile--on .hub-tile__label { color: #DC2626; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Dashboard v2 (2026-09-25) — kullanıcının paylaştığı referans görsele göre.
+   Marka kırmızısı + Space Grotesk/DM Sans sabit, geri kalan serbest.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Topbar: arama + bildirim + profil ── */
+.hub-topbar__search { display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #E7E0D2; background: #FBF9F4; width: 320px; color: #A29D94; }
+.hub-topbar__search:focus-within { border-color: #DC2626; background: #fff; }
+.hub-topbar__search input { border: none; background: none; outline: none; font-size: 13px; font-family: var(--font-body); color: #1C1917; flex: 1; }
+.hub-topbar__search input::placeholder { color: #A29D94; }
+.hub-topbar__spacer { flex: 1; }
+.hub-topbar__bell { position: relative; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; color: #57534E; margin-right: 6px; }
+.hub-topbar__bell:hover { background: #F4EFE5; }
+.hub-topbar__bell-badge { position: absolute; top: 2px; right: 2px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: #DC2626; color: #fff; font-size: 9.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; }
+.hub-topbar__profile { display: flex; align-items: center; gap: 9px; }
+.hub-topbar__profile-text { display: flex; flex-direction: column; line-height: 1.25; }
+.hub-topbar__profile-name { font-size: 12.5px; font-weight: 700; color: #1C1917; }
+.hub-topbar__profile-role { font-size: 11px; color: #A29D94; text-transform: capitalize; }
+@media (max-width: 900px) { .hub-topbar__search { width: 200px; } .hub-topbar__profile-text { display: none; } }
+
+/* ── Karşılama başlığı ── */
+.hub-dash-head { margin-bottom: 18px; }
+.hub-dash-head__title { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: #1C1917; margin: 0; }
+.hub-dash-head__sub { font-size: 13.5px; color: #78716C; margin: 5px 0 0; }
+.hub-dash-head__sub b { color: #1C1917; }
+
+/* ── KPI şeridi ── */
+.hub-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.hub-kpi { display: flex; align-items: center; gap: 13px; background: #fff; border: 1px solid #E7E0D2; border-radius: 16px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); }
+.hub-kpi--clickable { cursor: pointer; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.hub-kpi--clickable:hover { border-color: #DC2626; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(220,38,38,0.1); }
+.hub-kpi__icon { width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.hub-kpi__icon--blue   { background: #EFF6FF; color: #2563EB; }
+.hub-kpi__icon--amber  { background: #FFFBEB; color: #D97706; }
+.hub-kpi__icon--green  { background: #F0FDF4; color: #16A34A; }
+.hub-kpi__icon--purple { background: #F5F3FF; color: #7C3AED; }
+.hub-kpi__icon--red    { background: #FEF2F2; color: #DC2626; }
+.hub-kpi__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hub-kpi__value { font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 800; font-size: 24px; line-height: 1; color: #1C1917; letter-spacing: -0.02em; }
+.hub-kpi__label { font-size: 12px; font-weight: 600; color: #A29D94; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Ana ızgara: sol geniş sütun + sağ panel ── */
+.hub-dash-grid { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+.hub-dash-col-main { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.hub-dash-col-side { min-width: 0; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+@media (max-width: 1100px) { .hub-dash-grid { grid-template-columns: 1fr; } .hub-dash-col-side { position: static; } }
+
+.hub-chart-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+@media (max-width: 720px) { .hub-chart-row { grid-template-columns: 1fr; } }
+
+.hub-card { background: #fff; border: 1px solid #E7E0D2; border-radius: 16px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); }
+.hub-card__title { font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 700; font-size: 14px; color: #1C1917; margin-bottom: 14px; }
+
+/* ── Çizgi grafik ── */
+.hub-chart-legend { display: flex; gap: 16px; margin-bottom: 8px; }
+.hub-chart-legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: #78716C; }
+.hub-chart-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.hub-linechart { width: 100%; height: auto; display: block; }
+
+/* ── Donut grafik ── */
+.hub-donut-wrap { display: flex; align-items: center; gap: 18px; }
+.hub-donut { width: 112px; height: 112px; flex-shrink: 0; }
+.hub-donut-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+.hub-donut-legend__row { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.hub-donut-legend__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.hub-donut-legend__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #57534E; font-weight: 600; }
+.hub-donut-legend__pct { font-weight: 800; color: #1C1917; font-family: 'Space Grotesk', system-ui, sans-serif; }
+
+/* ── Dağılım çubukları ── */
+.hub-dist-list { display: flex; flex-direction: column; gap: 12px; }
+.hub-dist-row { display: grid; grid-template-columns: 100px 1fr 24px 36px; align-items: center; gap: 10px; }
+.hub-dist-row__label { font-size: 12.5px; font-weight: 600; color: #57534E; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-dist-row__n { font-size: 12.5px; font-weight: 700; color: #1C1917; text-align: right; }
+.hub-dist-row__pct { font-size: 11px; color: #A29D94; text-align: right; }
+
+/* ── Hızlı işlemler ── */
+.hub-quick-actions { display: flex; flex-direction: column; gap: 8px; }
+.hub-quick-action { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px; border-radius: 12px; background: #FBF9F4; border: 1px solid transparent; cursor: pointer; text-align: left; font-family: var(--font-body); transition: border-color .15s, background .15s; }
+.hub-quick-action:hover { border-color: #E7E0D2; background: #F4EFE5; }
+.hub-quick-action__icon { width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.hub-quick-action__icon--red    { background: #FEF2F2; color: #DC2626; }
+.hub-quick-action__icon--purple { background: #F5F3FF; color: #7C3AED; }
+.hub-quick-action__icon--blue   { background: #EFF6FF; color: #2563EB; }
+.hub-quick-action__icon--green  { background: #F0FDF4; color: #16A34A; }
+.hub-quick-action__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hub-quick-action__title { font-size: 12.5px; font-weight: 700; color: #1C1917; }
+.hub-quick-action__sub { font-size: 11px; color: #A29D94; }
+
+/* Öncelikli İşler paneli — mevcut .hub-todo-list'i kart içinde daha kompakt göster */
+.hub-todo-list--panel { border: none; box-shadow: none; border-radius: 0; margin: -4px -4px 0; }
+.hub-todo-list--panel .hub-todo-row { padding: 10px 4px; }
