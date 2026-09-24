@@ -17,7 +17,9 @@ const SAMPLE = `1. Ada Yılmaz — github.com/adayilmaz — İTÜ Bilgisayar Mü
 2. Mert Kaya - mert@ornek.com - Boğaziçi Üniversitesi
 3. Elif Demir · linkedin.com/in/elifdemir · projesi: elifdemir.dev`;
 
-export default function PasteImport({ onClose }) {
+// presetFolderId: bir klasörün İÇİNDEYKEN "Aday Ekle" ile açılınca — eklenen
+// tüm parti otomatik o klasöre düşer (dosya gezgini "buraya ekle" mantığı, 0045).
+export default function PasteImport({ onClose, presetFolderId }) {
   const store = useHubStore();
   const { can } = usePerms();
   const { openRoles, candidates } = store;
@@ -82,6 +84,7 @@ export default function PasteImport({ onClose }) {
           importBatchLabel: meta.importBatchLabel.trim() || null,
           roleId: meta.roleId || null,
           interest: meta.interest,
+          folderId: presetFolderId || null,
         },
         payload,
       );

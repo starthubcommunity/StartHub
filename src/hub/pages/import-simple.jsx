@@ -81,7 +81,9 @@ function linkFields(v) {
   return { linkedin: s };
 }
 
-export default function ImportSimple({ onClose }) {
+// presetFolderId: bir klasörün İÇİNDEYKEN açılınca — içe aktarılan tüm parti
+// otomatik o klasöre düşer (0045).
+export default function ImportSimple({ onClose, presetFolderId }) {
   const store = useHubStore();
   const { can } = usePerms();
   const [step, setStep] = useState(1);
@@ -160,7 +162,7 @@ export default function ImportSimple({ onClose }) {
         };
       });
       const { created, updated } = await store.importCandidates(
-        { source: meta.source, importBatchLabel: meta.importBatchLabel.trim() || null },
+        { source: meta.source, importBatchLabel: meta.importBatchLabel.trim() || null, folderId: presetFolderId || null },
         rows,
       );
       setDone({ created, updated: updated.length });

@@ -2,7 +2,7 @@
 // Kart satırları (team app dili). Satıra tıklama → aday kartı. archived burada
 // GÖSTERİLMEZ — ayrı Arşiv sayfası (B1). Sağ sütun aşamaya göre değişir (B3).
 import React, { useMemo, useState } from 'react';
-import { AIcon, PageHead } from '../../admin/admin-ui';
+import { AIcon, PageHead, Modal, Field, Input, ConfirmDialog } from '../../admin/admin-ui';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS, DEFAULT_TRACK, INTEREST_AREAS, INTEREST_LABEL } from '../hub-constants';
@@ -88,9 +88,61 @@ function InterestTiles({ candidates, selected, onToggle, onClear }) {
   );
 }
 
+// ── Klasör paneli (dosya gezgini modeli, 2026-09-24) — TEK klasör: bir aday
+// tek klasörde durur. "Tüm Adaylar" (null) ve "Kategorisiz" ('none') sabit
+// satırlar; altında store.folders (kullanıcı klasörleri, ilk 10'u ilgi
+// alanından varsayılan olarak gelir, bkz. 0045 migration). Silme adayları
+// SİLMEZ — DB'de folder_id `on delete set null`, kategorisiz olurlar.
+function FolderRail({ folders, candidates, selected, onSelect, onCreate, onDeleteRequest, canWrite }) {
+  const active = candidates.filter((c) => c.stage !== 'archived');
+  const totalCount = active.length;
+  const noneCount = active.filter((c) => !c.folderId).length;
+  const countFor = (folderId) => active.filter((c) => c.folderId === folderId).length;
+  const sorted = [...folders].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+
+  return (
+    <aside className="hub-folder-rail">
+      <div className="hub-folder-rail__head">
+        <span>Klasörler</span>
+        {canWrite && (
+          <button type="button" className="hub-folder-rail__add" onClick={onCreate} title="Yeni klasör">
+            <AIcon name="plus" size={14} />
+          </button>
+        )}
+      </div>
+      <button type="button" className={`hub-folder-item ${selected == null ? 'hub-folder-item--on' : ''}`} onClick={() => onSelect(null)}>
+        <AIcon name="layers" size={15} />
+        <span className="hub-folder-item__name">Tüm Adaylar</span>
+        <span className="hub-folder-item__n">{totalCount}</span>
+      </button>
+      <button type="button" className={`hub-folder-item ${selected === 'none' ? 'hub-folder-item--on' : ''}`} onClick={() => onSelect('none')}>
+        <AIcon name="folder" size={15} />
+        <span className="hub-folder-item__name">Kategorisiz</span>
+        <span className="hub-folder-item__n">{noneCount}</span>
+      </button>
+      <div className="hub-folder-rail__list">
+        {sorted.map((f) => (
+          <div key={f.id} className={`hub-folder-item hub-folder-item--row ${selected === f.id ? 'hub-folder-item--on' : ''}`}>
+            <button type="button" className="hub-folder-item__main" onClick={() => onSelect(f.id)}>
+              <AIcon name="folder" size={15} />
+              <span className="hub-folder-item__name">{f.name}</span>
+              <span className="hub-folder-item__n">{countFor(f.id)}</span>
+            </button>
+            {canWrite && (
+              <button type="button" className="hub-folder-item__del" title="Klasörü sil" onClick={() => onDeleteRequest(f)}>
+                <AIcon name="trash" size={12} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 export default function CandidatesListPage({ filters, setFilters }) {
   const store = useHubStore();
-  const { candidates, members, openRoles, touches, gates, currentMember, loading } = store;
+  const { candidates, members, openRoles, touches, gates, currentMember, loading, folders } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(null);   // 'one' | 'import' | 'paste' | null
@@ -98,6 +150,11 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const [triageIds, setTriageIds] = useState(null);   // D3
   const [actOn, setActOn] = useState(null);     // satırdan arşivle/sil için aday
   const [toast, setToast] = useState('');
+  // Klasör paneli (dosya gezgini modeli) — null: Tüm Adaylar, 'none': Kategorisiz, uuid: bir klasör.
+  const [selectedFolderId, setSelectedFolderId] = useState(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [deletingFolder, setDeletingFolder] = useState(null);
   // 2026-09-23 — sayfaya girince önce ilgi alanı kartları görünsün, liste
   // yalnızca bir kart/arama/filtre seçilince açılsın (göz karışıklığı azalsın).
   // "Tüm adayları göster" bu varsayılanı aşıp listeyi yine de açar.
@@ -128,7 +185,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
 
   // 2026-09-23 — inbound (formdan gelen) adaylar en üstte + sarı çerçeveyle ayırt
   // edilsin diye önce kaynak (inbound önce), sonra en yeni.
-  const rows = useMemo(
+  const rowsUnfiltered = useMemo(
     () => applyFilters(candidates, filters, ctx).sort((a, b) => {
       const ai = a.source === 'inbound' ? 0 : 1;
       const bi = b.source === 'inbound' ? 0 : 1;
@@ -137,9 +194,15 @@ export default function CandidatesListPage({ filters, setFilters }) {
     }),
     [candidates, filters, ctx]
   );
+  // Klasör seçimi mevcut filtrelerin ÜSTÜNE, ayrı bir boyut olarak uygulanır.
+  const rows = useMemo(() => {
+    if (selectedFolderId == null) return rowsUnfiltered;
+    if (selectedFolderId === 'none') return rowsUnfiltered.filter((c) => !c.folderId);
+    return rowsUnfiltered.filter((c) => c.folderId === selectedFolderId);
+  }, [rowsUnfiltered, selectedFolderId]);
 
   const noFilterActive = !filters.chip && !filters.stage.length && !filters.source.length
-    && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim();
+    && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim() && selectedFolderId == null;
   const showList = browseAll || !noFilterActive;
 
   // D3 — hızlı eleme: filtre yoksa varsayılan "hiç mesaj atılmamış".
@@ -172,8 +235,33 @@ export default function CandidatesListPage({ filters, setFilters }) {
     }
   };
 
+  const createFolder = async () => {
+    if (!newFolderName.trim()) return;
+    try {
+      await store.addItem('folders', { name: newFolderName.trim(), createdBy: currentMember?.id || null });
+      setNewFolderName('');
+      setCreatingFolder(false);
+    } catch (e) { flash('Klasör oluşturulamadı: ' + e.message); }
+  };
+  const deleteFolder = async () => {
+    const f = deletingFolder;
+    setDeletingFolder(null);
+    try {
+      await store.deleteItem('folders', f.id);
+      if (selectedFolderId === f.id) setSelectedFolderId(null);
+      flash(`"${f.name}" silindi — içindeki adaylar kategorisiz oldu.`);
+    } catch (e) { flash('Silinemedi: ' + e.message); }
+  };
+  // Bir klasörün İÇİNDEYKEN "Aday Ekle" ile eklenen aday otomatik o klasöre düşer.
+  const presetFolderId = (selectedFolderId && selectedFolderId !== 'none') ? selectedFolderId : null;
+
   return (
-    <div>
+    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <FolderRail folders={folders} candidates={candidates} selected={selectedFolderId}
+        onSelect={setSelectedFolderId} onCreate={() => setCreatingFolder(true)}
+        onDeleteRequest={setDeletingFolder} canWrite={can('candidates.write')} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
       <PageHead title="Adaylar" desc={`${rows.length} / ${activeCount} aktif aday`} actions={
         can('candidates.write') ? (
           <div style={{ position: 'relative' }}>
@@ -255,6 +343,11 @@ export default function CandidatesListPage({ filters, setFilters }) {
                   <span className="hub-pill hub-pill--stage">{STAGE_LABEL[c.stage] || c.stage}</span>
                   {c.source === 'inbound' && <span className="hub-pill hub-pill--inbound">Site başvurusu</span>}
                   {c.interest && <span className="hub-pill hub-pill--source">{INTEREST_LABEL[c.interest] || c.interest}</span>}
+                  {selectedFolderId == null && c.folderId && (
+                    <span className="hub-pill">
+                      <AIcon name="folder" size={11} /> {folders.find((f) => f.id === c.folderId)?.name || '—'}
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 12, color: '#A29D94', marginTop: 3 }}>
                   {SOURCE_LABEL[c.source] || c.source} · {memberName(c.ownerId)}
@@ -278,16 +371,29 @@ export default function CandidatesListPage({ filters, setFilters }) {
       )}
 
       {openId && <CandidatePanel candidateId={openId} onClose={() => setOpenId(null)} />}
-      {adding === 'one' && <NewCandidateModal onClose={() => setAdding(null)} />}
-      {adding === 'import' && <ImportSimple onClose={() => setAdding(null)} />}
-      {adding === 'paste' && <PasteImport onClose={() => setAdding(null)} />}
-      {adding === 'github' && <GithubImport onClose={() => setAdding(null)} />}
+      {adding === 'one' && <NewCandidateModal presetFolderId={presetFolderId} onClose={() => setAdding(null)} />}
+      {adding === 'import' && <ImportSimple presetFolderId={presetFolderId} onClose={() => setAdding(null)} />}
+      {adding === 'paste' && <PasteImport presetFolderId={presetFolderId} onClose={() => setAdding(null)} />}
+      {adding === 'github' && <GithubImport presetFolderId={presetFolderId} onClose={() => setAdding(null)} />}
       {triageIds && <Triage ids={triageIds} onClose={() => setTriageIds(null)} />}
       {actOn && (
         <HubWizard title={actOn.fullName} submitLabel="Uygula" onCancel={() => setActOn(null)}
           steps={rowActionSteps} onComplete={runRowAction} />
       )}
       {toast && <div className="hub-toast">{toast}</div>}
+      </div>
+
+      <Modal open={creatingFolder} onClose={() => setCreatingFolder(false)} title="Yeni klasör">
+        <Field label="Klasör adı" required hint='Örn. "LLM için adaylar", "Mobil Flutter"'>
+          <Input value={newFolderName} onChange={setNewFolderName} placeholder="Klasör adı" />
+        </Field>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+          <button className="adm-btn adm-btn--ghost" onClick={() => setCreatingFolder(false)}>İptal</button>
+          <button className="adm-btn adm-btn--primary" disabled={!newFolderName.trim()} onClick={createFolder}>Oluştur</button>
+        </div>
+      </Modal>
+      <ConfirmDialog open={!!deletingFolder} onClose={() => setDeletingFolder(null)} onConfirm={deleteFolder}
+        title="Klasörü sil?" message={`"${deletingFolder?.name || ''}" silinecek — içindeki adaylar SİLİNMEZ, kategorisiz olur.`} />
     </div>
   );
 }
