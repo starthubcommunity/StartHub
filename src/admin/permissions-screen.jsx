@@ -5,9 +5,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { AIcon, PageHead, Field, Input } from './admin-ui';
 
+// project_owner artık atanabilir değil (2026-09-23 — proje sahipleri HR'a
+// giremiyor, bkz. hub-app.jsx ProjectOwnerRedirectPage). Eski satırlarda rol
+// hâlâ 'project_owner' olarak durabilir (silinmedi), bu yüzden seçili üye o
+// rolse <select> onu göstermeye devam eder — yalnızca YENİ atama listeden çıktı.
 const ROLE_OPTS = {
   admin: [{ v: 'admin', l: 'Admin' }, { v: 'editor', l: 'Editor' }],
-  hub: [{ v: 'cofounder', l: 'Kurucu' }, { v: 'recruiter', l: 'İşe alım' }, { v: 'project_owner', l: 'Proje sahibi' }],
+  hub: [{ v: 'cofounder', l: 'Kurucu' }, { v: 'recruiter', l: 'İşe alım' }],
 };
 const fmt = (v) => (v ? new Date(v).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
