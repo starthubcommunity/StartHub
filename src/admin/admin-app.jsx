@@ -145,57 +145,6 @@ function SetNewPasswordPage({ onDone }) {
   );
 }
 
-// ─── HESAP OLUŞTUR ────────────────────────────────────────────────────
-// Kişi yalnızca e-postasını girer. invite-member yetkiyi kontrol eder;
-// yetkiliyse şifre-belirleme maili gider. Ekran her zaman aynı mesajı verir
-// (yetkili/yetkisiz ayırt edilemesin).
-function CreateAccountPage({ onBack, area }) {
-  const [email, setEmail]     = useStateA('');
-  const [loading, setLoading] = useStateA(false);
-  const [sent, setSent]       = useStateA(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try { await supabase.functions.invoke('invite-member', { body: { email: email.trim(), area } }); }
-    catch (_) { /* yanıt her durumda aynı — hatayı da yutuyoruz */ }
-    setLoading(false);
-    setSent(true);
-  };
-
-  if (sent) {
-    return (
-      <AuthShell title="İşlem alındı" desc="">
-        <p style={{ fontSize: 14, color: 'var(--adm-text-dim)', lineHeight: 1.6, marginBottom: 20 }}>
-          Eğer bu e-posta yetkiliyse, şifre belirleme bağlantısı gönderildi. Gelen kutunu kontrol et.
-        </p>
-        <button onClick={onBack} style={{ width: '100%', padding: '11px', borderRadius: 9, border: '1px solid var(--adm-border-light)', background: 'none', color: 'var(--adm-text)', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-          Girişe dön
-        </button>
-      </AuthShell>
-    );
-  }
-
-  return (
-    <AuthShell title="Hesap oluştur" desc="Yetkili e-postanı gir; şifreni sen belirleyeceksin.">
-      <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--adm-text-dim)', display: 'block', marginBottom: 6 }}>E-POSTA</label>
-          <input value={email} onChange={e => setEmail(e.target.value)} type="email" required placeholder="ornek@starthub.com" style={adm_inputStyle} />
-        </div>
-        <button type="submit" disabled={loading}
-          style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
-          {loading ? 'Gönderiliyor…' : 'Bağlantı gönder'}
-        </button>
-        <button type="button" onClick={onBack}
-          style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: 'var(--adm-text-dim)', cursor: 'pointer', textAlign: 'center' }}>
-          ← Girişe dön
-        </button>
-      </form>
-    </AuthShell>
-  );
-}
-
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────
 function LoginPage() {
   const [email, setEmail]       = useStateA('');
@@ -204,7 +153,6 @@ function LoginPage() {
   const [loading, setLoading]   = useStateA(false);
   const [remember, setRemember] = useStateA(true);
   const [forgot, setForgot]     = useStateA(false);
-  const [signup, setSignup]     = useStateA(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -225,7 +173,6 @@ function LoginPage() {
   };
 
   if (forgot) return <ForgotPasswordPage onBack={() => setForgot(false)} />;
-  if (signup) return <CreateAccountPage area="admin" onBack={() => setSignup(false)} />;
 
   return (
     <AuthShell title="Giriş Yap" desc="Yetkili hesabınızla devam edin.">
@@ -254,14 +201,14 @@ function LoginPage() {
           style={{ marginTop: 4, padding: '11px', borderRadius: 9, border: 'none', background: '#DC2626', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, letterSpacing: '-0.01em' }}>
           {loading ? 'Giriş yapılıyor…' : 'Giriş Yap →'}
         </button>
-        <button type="button" onClick={() => setSignup(true)}
-          style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: 'var(--adm-text-dim)', cursor: 'pointer', textAlign: 'center' }}>
-          Hesap oluştur
-        </button>
       </form>
     </AuthShell>
   );
 }
+// "Hesap oluştur" ekranı 2026-09-24'te kaldırıldı — hesaplar yalnızca
+// Yetkiler ekranından ("Üye ekle") açılıyor; girişte kendine hesap
+// oluşturma seçeneği bulunmuyor. "Şifremi unuttum" ilk şifre belirlemeyi
+// de karşılıyor (invite-member zaten recovery/invite'ı sırayla dener).
 
 // ─── LOADING SCREEN ───────────────────────────────────────────────────
 function AuthLoading() {

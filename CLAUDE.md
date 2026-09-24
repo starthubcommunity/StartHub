@@ -309,7 +309,32 @@ iş mantığına dokunulmadı.
 merge'ün son ağacı, o anki origin/main ile BİREBİR AYNI (`git diff` boş) — dosya kaybı/çakışma/üzerine yazma
 yok, yalnızca git geçmişi birleşti. Ama önemli: repoya kullanıcı dışında en az bir kişi daha yazabiliyor —
 gelecekte gerçek çakışmalar veya beklenmedik değişiklikler olabilir, `git log`/`git fetch` ile kontrol etmeden
-"origin/main güncel" varsayılmamalı.
+"origin/main güncel" varsayılmamalı. **2026-09-24 güncellemesi:** Kadir aynı gün içinde iki kez daha doğrudan
+main'e push yaptı — HR paneli CRM-lite sadeleştirmesi + kenar çubuğu daraltma (commit `8798b2a` merge'i) ve
+aday klasörleme sistemi ("dosya gezgini modeli", `0045_hub_folders.sql`, commit `996ff56` merge'i). İkisinde de
+`git diff --stat` ile dokunulan dosyalar önceden incelendi, kendi oturum içi değişikliklerimle (project_owner
+erişim kaldırma, destekçi kartı kaldırma, hesap oluştur ekranının kaldırılması) örtüşen dosyalarda satır bazlı
+çakışma OLMADIĞI doğrulandı (git'in kendisi de conflict marker üretmeden 'ort' stratejisiyle otomatik birleştirdi),
+her merge sonrası build + `hub-rules.test.mjs` (97 senaryo) çalıştırıldı, hepsi geçti. **Ders: main'e her push
+öncesi `git fetch` + `git log HEAD..origin/main` kontrolü artık rutin hâline geldi, tek seferlik bir olay değil
+— Kadir düzenli olarak bu repoya yazıyor.**
+
+**Giriş ekranlarında 'Hesap oluştur' kaldırıldı (2026-09-24):** Kullanıcı bunun neden var olduğunu sorguladı —
+zaten gerçek bir açık kayıt değildi (`invite-member` yetkisiz e-postada sessizce hiçbir şey yapmıyordu, her
+durumda aynı jenerik mesajı dönüyordu) ama ekranda "Hesap oluştur" butonunun durması kafa karıştırıcıydı ("millet
+buradan kendine hesap açabiliyor" izlenimi veriyordu). `hub-app.jsx` ve `admin-app.jsx`'teki `CreateAccountPage`
+bileşeni ve "Hesap oluştur" butonu tamamen silindi (dead-ama-zararsız bırakılmadı — bu saf UI kodu, DB'ye
+dokunmuyordu, o yüzden temiz silindi). Hesap açma artık YALNIZCA "Yetkiler" ekranından ("Üye ekle" + davet) —
+zaten asıl mekanizma buydu. "Şifremi unuttum" işlevsel olarak hiçbir şey kaybetmedi: `invite-member` zaten
+`recovery` başarısız olursa `invite`'a düşen bir sıra deniyor, yani ilk şifre belirleme de aynı ekrandan hâlâ
+çalışıyor.
+
+**Giriş hatası teşhis notu (2026-09-24):** Kullanıcı "Invalid login credentials" hatası bildirdiğinde önce site
+sağlığı (200), canlı bundle hash'i ve Supabase Auth servis sağlığı (`/auth/v1/health`) kontrol edildi — hepsi
+normaldi, yani hata gerçek bir şifre/e-posta uyuşmazlığıydı, bir kod regresyonu değil. Şifre sıfırlama akışı
+zaten güvenli olduğu için kullanıcıya "Şifremi unuttum"u önermek yeterli oldu. **Not:** `hub-move-to-team`
+akışında (bkz. proje sahibi notu) takım liderinin onayı YOK — HR'daki cofounder kararı doğrudan Team App'e
+gerçek üyelik olarak yansıyor, ara bir "teklif bekliyor" adımı henüz yok (ileride Team App'e taşınacak).
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
