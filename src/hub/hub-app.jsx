@@ -464,7 +464,7 @@ function HubApp({ email, onLogout }) {
           <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
         </div>
         <div className="hub-content">
-          {activePage === 'today' ? <TodayPage onGoto={setPage} />
+          {activePage === 'today' ? <TodayPage onGoto={setPage} setFilters={setFilters} />
             : activePage === 'candidates' ? <CandidatesListPage filters={filters} setFilters={setFilters} />
             : activePage === 'archive' ? <ArchivePage />
             : activePage === 'roles' ? <RolesPage onGoto={setPage} setFilters={setFilters} />

@@ -15,6 +15,7 @@ import { usePerms } from '../../lib/use-perms';
 import { isStale, thresholdMet, rubricCompleteFor, gateStatus } from '../hub-rules';
 import { STAGE_LABEL, STAGES, INTEREST_LABEL } from '../hub-constants';
 import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
+import { EMPTY_FILTERS } from '../hub-filter';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -51,20 +52,37 @@ function useSecondaryStats() {
 }
 
 // ── Üst şerit — aktif aday + aşama dağılımı. "Durum ne" sorusunun tek bakışta yanıtı.
-function PipelineStrip({ candidates }) {
+// 2026-09-24 — kartlar artık tıklanabilir: her biri Adaylar'a, o aşamayla filtrelenmiş
+// olarak götürür (roles.jsx'teki goToRoleCandidates ile aynı desen).
+function OvCard({ onClick, className = '', children }) {
+  if (!onClick) return <div className={`hub-ov-card ${className}`}>{children}</div>;
+  return (
+    <div className={`hub-ov-card hub-ov-card--clickable ${className}`} role="button" tabIndex={0}
+      onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
+      {children}
+    </div>
+  );
+}
+
+function PipelineStrip({ candidates, onGoto, setFilters }) {
   const active = candidates.filter((c) => c.stage !== 'archived');
   const byStage = Object.fromEntries(STAGES.map((s) => [s.value, active.filter((c) => c.stage === s.value).length]));
+  const goStage = (stageValue) => {
+    if (!onGoto || !setFilters) return;
+    setFilters({ ...EMPTY_FILTERS, stage: stageValue ? [stageValue] : [] });
+    onGoto('candidates');
+  };
   return (
     <div className="hub-overview__row hub-pipeline-strip">
-      <div className="hub-ov-card hub-ov-card--big">
+      <OvCard className="hub-ov-card--big" onClick={() => goStage(null)}>
         <span className="hub-ov-card__n">{active.length}</span>
         <span className="hub-ov-card__l">Aktif aday (LAB)</span>
-      </div>
+      </OvCard>
       {STAGES.map((s) => (
-        <div key={s.value} className="hub-ov-card">
+        <OvCard key={s.value} onClick={() => goStage(s.value)}>
           <span className="hub-ov-card__n">{byStage[s.value] || 0}</span>
           <span className="hub-ov-card__l">{s.label}</span>
-        </div>
+        </OvCard>
       ))}
     </div>
   );
@@ -72,37 +90,45 @@ function PipelineStrip({ candidates }) {
 
 // ── Alt, soluk şerit — mentör/destekçi/fikir başvuru sayıları + Hub Sheet durumu +
 // ilgi alanı dağılımı. Günlük iş listesinin önüne geçmesin diye en altta, küçük.
-function SecondaryStats({ candidates, stats }) {
+// 2026-09-24 — bu kartlar da tıklanabilir: başvuru sayıları "Diğer Başvurular"a,
+// ilgi alanları Adaylar'a (o ilgi alanıyla filtrelenmiş), Hub Sheet kartı Ayarlar'a götürür.
+function SecondaryStats({ candidates, stats, onGoto, setFilters, can }) {
   const active = candidates.filter((c) => c.stage !== 'archived');
   const interestCounts = {};
   active.forEach((c) => { const k = c.interest; if (k) interestCounts[k] = (interestCounts[k] || 0) + 1; });
   const topInterests = Object.entries(interestCounts).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const goInterest = (key) => {
+    if (!onGoto || !setFilters) return;
+    setFilters({ ...EMPTY_FILTERS, interest: [key] });
+    onGoto('candidates');
+  };
 
   return (
     <div className="hub-secondary">
       <div className="hub-secondary__label">Diğer göstergeler</div>
       <div className="hub-overview__row hub-overview__row--muted">
-        <div className="hub-ov-card hub-ov-card--muted">
+        <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('applications') : undefined}>
           <span className="hub-ov-card__n">{stats?.mentors ?? '—'}</span>
           <span className="hub-ov-card__l">Mentör başvurusu</span>
-        </div>
-        <div className="hub-ov-card hub-ov-card--muted">
+        </OvCard>
+        <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('applications') : undefined}>
           <span className="hub-ov-card__n">{stats?.sponsors ?? '—'}</span>
           <span className="hub-ov-card__l">Destekçi başvurusu</span>
-        </div>
-        <div className="hub-ov-card hub-ov-card--muted">
+        </OvCard>
+        <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('applications') : undefined}>
           <span className="hub-ov-card__n">{stats?.ideas ?? '—'}</span>
           <span className="hub-ov-card__l">Fikir başvurusu</span>
-        </div>
-        <div className={`hub-ov-card hub-ov-card--pill ${stats?.sheetOk ? 'hub-ov-card--ok' : 'hub-ov-card--warn'}`}>
+        </OvCard>
+        <OvCard className={`hub-ov-card--pill ${stats?.sheetOk ? 'hub-ov-card--ok' : 'hub-ov-card--warn'}`}
+          onClick={(onGoto && can?.('settings.write')) ? () => onGoto('settings') : undefined}>
           <span className="hub-ov-card__n" style={{ fontSize: 15 }}>{stats == null ? '—' : stats.sheetOk ? '✓ Bağlı' : 'Kurulmadı'}</span>
           <span className="hub-ov-card__l">Hub Başvuru Tablosu</span>
-        </div>
+        </OvCard>
         {topInterests.map(([k, n]) => (
-          <div key={k} className="hub-ov-card hub-ov-card--muted">
+          <OvCard key={k} className="hub-ov-card--muted" onClick={() => goInterest(k)}>
             <span className="hub-ov-card__n">{n}</span>
             <span className="hub-ov-card__l">{INTEREST_LABEL[k] || k}</span>
-          </div>
+          </OvCard>
         ))}
       </div>
     </div>
@@ -123,7 +149,7 @@ function TodoRow({ onClick, name, kind, kindTone, meta }) {
   );
 }
 
-export default function TodayPage({ onGoto }) {
+export default function TodayPage({ onGoto, setFilters }) {
   const store = useHubStore();
   const { candidates, touches, gates, openRoles, currentMember } = store;
   const { can } = usePerms();
@@ -250,8 +276,8 @@ export default function TodayPage({ onGoto }) {
         </div>
       )}
 
-      <PipelineStrip candidates={candidates} />
-      <SecondaryStats candidates={candidates} stats={secondaryStats} />
+      <PipelineStrip candidates={candidates} onGoto={onGoto} setFilters={setFilters} />
+      <SecondaryStats candidates={candidates} stats={secondaryStats} onGoto={onGoto} setFilters={setFilters} can={can} />
 
       {openId && <CandidatePanel candidateId={openId} onClose={() => setOpenId(null)} />}
     </div>
