@@ -330,12 +330,15 @@ function HubApp({ email, onLogout }) {
   // Rules of Hooks: TÜM hook'lar koşulsuz ve her erken return'den ÖNCE.
   const role = useHubMember();
   const { can, loading: permsLoading } = usePerms();
-  // 2026-09-25 — topbar: arama + bildirim rozeti + profil şeridi (referans
-  // görsel). Rozet Genel Bakış'taki tam "Bugün Yapılacaklar" hesabının aynısı
-  // değil (o iş mantığı today.jsx'te) — basit, gerçek bir yaklaşık: havuzda,
-  // sahibim, henüz mesaj atılmamış aday sayısı.
+  // 2026-09-25 — topbar: arama + bildirim zili + profil şeridi (referans
+  // görsel). Zil rozeti Genel Bakış'taki tam "Bugün Yapılacaklar" hesabının
+  // aynısı değil (o iş mantığı today.jsx'te) — basit, gerçek bir yaklaşık:
+  // havuzda, sahibim, henüz mesaj atılmamış aday sayısı. Aynı liste zilin
+  // açtığı önizlemede de kullanılır (gerçek veri, uydurma yok).
   const { candidates, currentMember } = useHubStore();
   const [searchQ, setSearchQ] = useState('');
+  const [bellOpen, setBellOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [page, setPage] = useState(() => {
     const saved = sessionStorage.getItem('sh_hub_page') || 'today';
     // eski ayrı Mentörler/Destekçiler/Fikirler sekmeleri artık tek "applications" ekranı
@@ -365,14 +368,16 @@ function HubApp({ email, onLogout }) {
   const nav = [...mainNav, ...gearNav];
   const activePage = nav.some((n) => n.id === page) ? page : (nav[0]?.id || 'today');
 
-  const pendingCount = candidates.filter((c) => c.stage === 'pool' && c.ownerId === currentMember?.id).length;
+  const pendingCandidates = candidates.filter((c) => c.stage === 'pool' && c.ownerId === currentMember?.id);
   const runSearch = (e) => {
     e.preventDefault();
     if (!searchQ.trim()) return;
     setFilters({ ...EMPTY_FILTERS, q: searchQ.trim() });
     setPage('candidates');
+    setBellOpen(false); setProfileOpen(false);
   };
   const initialsOf = (n) => (n || email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  const goSettings = () => { setPage('settings'); setProfileOpen(false); };
 
   // Hook'ların HEPSİNDEN sonra: yükleniyor / erişim yok dalları.
   if (permsLoading) return <HubLoading />;
@@ -426,21 +431,67 @@ function HubApp({ email, onLogout }) {
       <div className="hub-main">
         <div className="hub-topbar">
           <form className="hub-topbar__search" onSubmit={runSearch}>
-            <AIcon name="search" size={15} />
+            <button type="submit" className="hub-topbar__search-btn" title="Ara"><AIcon name="search" size={15} /></button>
             <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
               placeholder="Kişi, pozisyon veya kaynak ara…" />
           </form>
           <div className="hub-topbar__spacer" />
-          <button type="button" className="hub-topbar__bell" title="Bugün Yapılacaklar" onClick={() => setPage('today')}>
-            <AIcon name="clock" size={17} />
-            {pendingCount > 0 && <span className="hub-topbar__bell-badge">{pendingCount > 9 ? '9+' : pendingCount}</span>}
-          </button>
-          <div className="hub-topbar__profile">
-            <span className="hub-av hub-av--sm">{initialsOf(currentMember?.fullName)}</span>
-            <div className="hub-topbar__profile-text">
-              <span className="hub-topbar__profile-name">{currentMember?.fullName || email}</span>
-              <span className="hub-topbar__profile-role">{role}</span>
-            </div>
+
+          <div style={{ position: 'relative' }}>
+            <button type="button" className="hub-topbar__bell" title="Bekleyen işler"
+              onClick={() => { setBellOpen((v) => !v); setProfileOpen(false); }}>
+              <AIcon name="bell" size={17} />
+              {pendingCandidates.length > 0 && (
+                <span className="hub-topbar__bell-badge">{pendingCandidates.length > 9 ? '9+' : pendingCandidates.length}</span>
+              )}
+            </button>
+            {bellOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setBellOpen(false)} />
+                <div className="hub-topbar__pop hub-topbar__pop--bell">
+                  <div className="hub-topbar__pop-title">Mesaj yazman gerekenler</div>
+                  {pendingCandidates.length === 0 ? (
+                    <div className="hub-topbar__pop-empty">Bekleyen iş yok.</div>
+                  ) : pendingCandidates.slice(0, 5).map((c) => (
+                    <div key={c.id} className="hub-topbar__pop-row">
+                      <span className="hub-av hub-av--sm">{initialsOf(c.fullName)}</span>
+                      <span className="hub-topbar__pop-row-name">{c.fullName}</span>
+                    </div>
+                  ))}
+                  <button type="button" className="hub-topbar__pop-all"
+                    onClick={() => { setPage('today'); setBellOpen(false); }}>
+                    Genel Bakış'ta gör →
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <button type="button" className="hub-topbar__profile"
+              onClick={() => { setProfileOpen((v) => !v); setBellOpen(false); }}>
+              <span className="hub-av hub-av--sm">{initialsOf(currentMember?.fullName)}</span>
+              <div className="hub-topbar__profile-text">
+                <span className="hub-topbar__profile-name">{currentMember?.fullName || email}</span>
+                <span className="hub-topbar__profile-role">{role}</span>
+              </div>
+              <AIcon name="chevronDown" size={13} style={{ color: 'var(--adm-text-dim)', flexShrink: 0 }} />
+            </button>
+            {profileOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setProfileOpen(false)} />
+                <div className="hub-topbar__pop hub-topbar__pop--profile">
+                  {can('settings.write') && (
+                    <button type="button" className="hub-topbar__pop-item" onClick={goSettings}>
+                      <AIcon name="settings" size={15} /> Ayarlar
+                    </button>
+                  )}
+                  <button type="button" className="hub-topbar__pop-item hub-topbar__pop-item--danger" onClick={onLogout}>
+                    <AIcon name="logout" size={15} /> Çıkış
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div className="hub-content">

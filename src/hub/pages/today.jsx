@@ -124,7 +124,7 @@ function LineChart({ months }) {
 }
 
 // ── Donut grafik (bağımlılıksız SVG, stroke-dasharray) — kaynak dağılımı ───
-function DonutChart({ segments }) {
+function DonutChart({ segments, onSelect }) {
   const total = segments.reduce((s, x) => s + x.value, 0);
   const R = 42, CX = 56, CY = 56, STROKE = 15;
   const circumference = 2 * Math.PI * R;
@@ -147,13 +147,18 @@ function DonutChart({ segments }) {
         <text x={CX} y={CY + 11} textAnchor="middle" fontSize="8.5" fill="#A29D94">Toplam</text>
       </svg>
       <div className="hub-donut-legend">
-        {segments.map((s) => (
-          <div key={s.key} className="hub-donut-legend__row">
-            <span className="hub-donut-legend__dot" style={{ background: s.color }} />
-            <span className="hub-donut-legend__label">{s.label}</span>
-            <span className="hub-donut-legend__pct">{total ? Math.round((100 * s.value) / total) : 0}%</span>
-          </div>
-        ))}
+        {segments.map((s) => {
+          const Row = onSelect && s.key !== '__rest' ? 'button' : 'div';
+          return (
+            <Row key={s.key} type={onSelect && s.key !== '__rest' ? 'button' : undefined}
+              className={`hub-donut-legend__row ${onSelect && s.key !== '__rest' ? 'hub-donut-legend__row--clickable' : ''}`}
+              onClick={onSelect && s.key !== '__rest' ? () => onSelect(s.key) : undefined}>
+              <span className="hub-donut-legend__dot" style={{ background: s.color }} />
+              <span className="hub-donut-legend__label">{s.label}</span>
+              <span className="hub-donut-legend__pct">{total ? Math.round((100 * s.value) / total) : 0}%</span>
+            </Row>
+          );
+        })}
         {segments.length === 0 && <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Henüz veri yok.</div>}
       </div>
     </div>
@@ -483,6 +488,7 @@ export default function TodayPage({ onGoto, setFilters }) {
     })).filter((s) => s.value > 0);
   }, [activeCandidates]);
   const goStage = (stageValue) => { setFilters?.({ ...EMPTY_FILTERS, stage: [stageValue] }); onGoto?.('candidates'); };
+  const goSource = (sourceValue) => { setFilters?.({ ...EMPTY_FILTERS, source: [sourceValue] }); onGoto?.('candidates'); };
 
   const recentCandidates = useMemo(
     () => [...candidates].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 6),
@@ -529,7 +535,7 @@ export default function TodayPage({ onGoto, setFilters }) {
             </div>
             <div className="hub-card hub-chart-card hub-chart-card--donut">
               <div className="hub-card__title">Başvuru Kaynakları</div>
-              <DonutChart segments={sourceBreakdown} />
+              <DonutChart segments={sourceBreakdown} onSelect={goSource} />
             </div>
           </div>
 
