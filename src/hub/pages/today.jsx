@@ -15,6 +15,7 @@ import { usePerms } from '../../lib/use-perms';
 import { isStale, thresholdMet, rubricCompleteFor, gateStatus } from '../hub-rules';
 import { STAGE_LABEL, STAGES, INTEREST_LABEL } from '../hub-constants';
 import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
+import { intervalToDays } from '../hub-metrics';
 import { EMPTY_FILTERS } from '../hub-filter';
 import CandidatePanel from './candidate';
 
@@ -26,6 +27,15 @@ const startOfWeek = () => {
 };
 const fmt = (v) => (v ? new Date(v).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
 const initials = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+// todos zaten "şimdi bekleyen" işler (gelecekteki bir vade değil) — bu yüzden
+// göreli zaman hep GEÇMİŞE dönük ifade edilir ("3 saat önce"), bir geri sayım değil.
+const relTime = (v) => {
+  if (!v) return '';
+  const ms = Date.now() - new Date(v).getTime();
+  if (ms < 60000) return 'az önce';
+  const h = Math.round(ms / 3600000);
+  return h < 1 ? `${Math.round(ms / 60000)} dk önce` : h < 48 ? `${h} saat önce` : `${Math.round(h / 24)} gün önce`;
+};
 
 // ── Mentör/Destekçi/Fikir sayıları + Hub Sheet bağlantı durumu — tek seferlik,
 // hafif bir sorgu (uygulama/hub_sheet_config). Hem üst şerit hem de alttaki ikincil
@@ -84,6 +94,62 @@ function PipelineStrip({ candidates, onGoto, setFilters }) {
           <span className="hub-ov-card__l">{s.label}</span>
         </OvCard>
       ))}
+    </div>
+  );
+}
+
+// ── "Sistem özeti" — Açık Pozisyonlar/Kaynaklar/Şablonlar/Cevap oranı şu ana kadar
+// dashboard'da HİÇ görünmüyordu (yalnızca sidebar'ın "Yönetim" alt-grubundan
+// erişilebiliyordu). Hepsi zaten store'un client-side yüklediği openRoles/sources/
+// templates/touches'tan — yeni sorgu yok. Her kart kendi sayfasına götürür.
+function SystemSummary({ openRoles, sources, templates, touches, onGoto, can }) {
+  const rolesSourcing = openRoles.filter((r) => r.status === 'sourcing').length;
+  const rolesDraft = openRoles.filter((r) => r.status === 'draft').length;
+
+  const sourcesActive = sources.filter((s) => s.status === 'active').length;
+  const sourcesDue = sources.filter((s) => s.status === 'active'
+    && (!s.lastChecked || Date.now() - Date.parse(s.lastChecked) >= intervalToDays(s.checkEvery) * 86400000)).length;
+
+  const templatesActive = templates.filter((t) => t.active).length;
+  const withSends = templates.filter((t) => t.sentCount > 0);
+  const avgReplyRate = withSends.length
+    ? Math.round(withSends.reduce((sum, t) => sum + (100 * (t.replyCount || 0)) / t.sentCount, 0) / withSends.length)
+    : null;
+
+  const sent = touches.length;
+  const replied = touches.filter((t) => t.outcome === 'replied').length;
+  const replyRate = sent > 0 ? Math.round((100 * replied) / sent) : null;
+
+  return (
+    <div className="hub-secondary">
+      <div className="hub-secondary__label">Sistem özeti</div>
+      <div className="hub-overview__row hub-overview__row--muted">
+        {can?.('roles.read') && (
+          <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('roles') : undefined}>
+            <span className="hub-ov-card__n">{rolesSourcing}</span>
+            <span className="hub-ov-card__l">Açık pozisyon (yayında){rolesDraft > 0 ? ` · +${rolesDraft} taslak` : ''}</span>
+          </OvCard>
+        )}
+        {can?.('sources.read') && (
+          <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('sources') : undefined}>
+            <span className="hub-ov-card__n">{sourcesActive}</span>
+            <span className="hub-ov-card__l">Aktif kaynak{sourcesDue > 0 ? ` · ${sourcesDue} kontrolü gecikmiş` : ''}</span>
+          </OvCard>
+        )}
+        {can?.('templates.read') && (
+          <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('templates') : undefined}>
+            <span className="hub-ov-card__n">{templatesActive}</span>
+            <span className="hub-ov-card__l">Aktif şablon{avgReplyRate != null ? ` · ort. cevap %${avgReplyRate}` : ''}</span>
+          </OvCard>
+        )}
+        {can?.('metrics.read') && (
+          <OvCard className={`hub-ov-card--pill ${replyRate != null && replyRate >= 20 ? 'hub-ov-card--ok' : ''}`}
+            onClick={onGoto ? () => onGoto('metrics') : undefined}>
+            <span className="hub-ov-card__n">{replyRate == null ? '—' : `%${replyRate}`}</span>
+            <span className="hub-ov-card__l">Cevap oranı (temas → cevap)</span>
+          </OvCard>
+        )}
+      </div>
     </div>
   );
 }
@@ -151,7 +217,7 @@ function TodoRow({ onClick, name, kind, kindTone, meta }) {
 
 export default function TodayPage({ onGoto, setFilters }) {
   const store = useHubStore();
-  const { candidates, touches, gates, openRoles, currentMember } = store;
+  const { candidates, touches, gates, openRoles, currentMember, sources, templates } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
   const secondaryStats = useSecondaryStats();
@@ -258,6 +324,16 @@ export default function TodayPage({ onGoto, setFilters }) {
             ? 'Bekleyen iş yok — her şey güncel.'
             : <>Bugün <b>{todos.length} iş</b> seni bekliyor{sentThisWeek > 0 ? ` · bu hafta ${sentThisWeek} mesaj gönderildi` : ''}.</>}
         </div>
+        {/* 2026-09-24 — en acil olan (todos zaten aciliyete göre sıralı, ilk satır)
+            listeyi taramadan önce tek satırda öne çıkar. */}
+        {todos.length > 0 && (
+          <button type="button" className="hub-brief__urgent" onClick={() => setOpenId(todos[0].c.id)}>
+            <span className={`hub-todo-row__kind hub-todo-row__kind--${todos[0].tone}`}>{todos[0].kind}</span>
+            <span className="hub-brief__urgent-name">{todos[0].c.fullName}</span>
+            {todos[0].sortAt && <span className="hub-brief__urgent-meta">{relTime(todos[0].sortAt)}</span>}
+            <AIcon name="chevronRight" size={14} style={{ color: 'var(--adm-text-dim)', flexShrink: 0 }} />
+          </button>
+        )}
       </div>
 
       {todos.length === 0 ? (
@@ -277,6 +353,7 @@ export default function TodayPage({ onGoto, setFilters }) {
       )}
 
       <PipelineStrip candidates={candidates} onGoto={onGoto} setFilters={setFilters} />
+      <SystemSummary openRoles={openRoles} sources={sources} templates={templates} touches={touches} onGoto={onGoto} can={can} />
       <SecondaryStats candidates={candidates} stats={secondaryStats} onGoto={onGoto} setFilters={setFilters} can={can} />
 
       {openId && <CandidatePanel candidateId={openId} onClose={() => setOpenId(null)} />}
