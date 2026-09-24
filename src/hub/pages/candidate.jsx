@@ -946,10 +946,20 @@ function GateCard({ gate, onMark, onExtend }) {
         {gate.extendedDays > 0 ? ` · +${gate.extendedDays} gün uzatıldı` : ''}
       </div>
       {gate.result === 'pending' ? (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="hub-wz__next" style={{ margin: 0, padding: '9px 16px' }} onClick={() => onMark({ delivered: true, result: 'passed' })}>Teslim etti</button>
-          <button className="hub-wz__back" onClick={() => onMark({ delivered: false, result: 'failed' })}>Teslim etmedi</button>
-          <button className="hub-wz__back" onClick={() => onExtend()}>Süre yetmedi mi?</button>
+        // 2026-09-24 CRM-lite Round 2 — eskiden 3 eşit ağırlıklı buton (Teslim
+        // etti / Teslim etmedi / Süre yetmedi mi?) aynı satırda yan yanaydı; HUB_SPEC
+        // §0'ın "ekran başına bir birincil aksiyon" ilkesine göre "Süre yetmedi mi?"
+        // (uzatma) gerçek bir SONUÇ değil, nadir kullanılan bir istisna — küçük bir
+        // metin bağlantısına indirildi, iki gerçek sonuç (teslim etti/etmedi) öne çıktı.
+        <div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="hub-wz__next" style={{ margin: 0, padding: '9px 16px' }} onClick={() => onMark({ delivered: true, result: 'passed' })}>Teslim etti</button>
+            <button className="hub-wz__back" onClick={() => onMark({ delivered: false, result: 'failed' })}>Teslim etmedi</button>
+          </div>
+          <button type="button" onClick={() => onExtend()}
+            style={{ background: 'none', border: 'none', padding: '8px 0 0', cursor: 'pointer', fontSize: 12, color: 'var(--adm-text-dim)', textDecoration: 'underline' }}>
+            Süre yetmedi mi? Uzat →
+          </button>
         </div>
       ) : (
         <div className="hub-pill" style={gate.result === 'passed'

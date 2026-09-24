@@ -50,6 +50,9 @@ export default function TemplatesPage() {
   const [editing, setEditing] = useState(null); // {} (new) | row | null
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState(null);
+  // 2026-09-24 CRM-lite Round 2 — "zincir anahtarı" (takip zinciri/drip-campaign)
+  // genel kullanıcı için jargon; silinmedi, Gelişmiş'e taşındı.
+  const [advanced, setAdvanced] = useState(false);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 3000); };
 
   const groups = useMemo(() => {
@@ -83,13 +86,16 @@ export default function TemplatesPage() {
             {templates.length} metin · gönderimi her zaman insan yapar, sistem yalnızca taslak üretir
           </p>
         </div>
-        {canWrite && (
-          <div className="adm-page-head__actions">
+        <div className="adm-page-head__actions">
+          <button type="button" className={`adm-chip ${advanced ? 'adm-chip--active' : ''}`} onClick={() => setAdvanced((v) => !v)}>
+            <AIcon name="settings" size={13} /> Gelişmiş
+          </button>
+          {canWrite && (
             <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setEditing({ ...BLANK })}>
               <AIcon name="edit" size={14} /> Yeni şablon
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {!canWrite && (
@@ -153,9 +159,11 @@ export default function TemplatesPage() {
             </div>
             <div className="adm-form-grid">
               <Field label="Konu (e-posta için)"><Input value={editing.subject || ''} onChange={(v) => setEditing({ ...editing, subject: v })} /></Field>
-              <Field label="Zincir anahtarı (E2)" hint="Aynı anahtarlı şablonlar takip zinciri olur; sıra ada göre (2. = gün 4, 3. = gün 8).">
-                <Input value={editing.sequenceKey || ''} onChange={(v) => setEditing({ ...editing, sequenceKey: v })} placeholder="ör. outbound" />
-              </Field>
+              {advanced && (
+                <Field label="Zincir anahtarı (E2)" hint="Aynı anahtarlı şablonlar takip zinciri olur; sıra ada göre (2. = gün 4, 3. = gün 8).">
+                  <Input value={editing.sequenceKey || ''} onChange={(v) => setEditing({ ...editing, sequenceKey: v })} placeholder="ör. outbound" />
+                </Field>
+              )}
             </div>
             <Field label="Gövde" required hint="Değişkenler: {{ad}} · {{kanıt}} · {{proje}} · {{kvkk}} (aydınlatma satırı — ilk mesajda bulunmalı, E3).">
               <Textarea value={editing.body} onChange={(v) => setEditing({ ...editing, body: v })} rows={8} />
