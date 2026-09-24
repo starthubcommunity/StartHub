@@ -79,33 +79,42 @@ export default function RolesPage({ onGoto, setFilters }) {
 
   const linkedCands = (roleId) => candidates.filter((c) => c.openRoleId === roleId && c.stage !== 'archived');
 
-  // Rol düzenlerken (mevcut) proje/hat da wizard içinde sorulur — davranış
-  // değişmedi. YENİ rol oluştururken proje/hat artık RoleSetupFlow'da (aşağıda)
-  // wizard'dan ÖNCE çözülüyor — kurucu hattı taslak proje oluşturabilsin diye.
-  const restSteps = useMemo(() => [
-    { key: 'title', type: 'text', q: 'Rol başlığı nedir?', ph: 'ör. Flutter Geliştirici' },
-    { key: 'roleType', type: 'options', q: 'Rol tipi?', options: ROLE_TYPES.map((t) => ({ value: t.value, label: t.label })) },
-    { key: 'assignedTo', type: 'options', q: 'Kim arayacak?', options: [
+  // 2026-09-24 CRM-lite Round 2 — YENİ rol oluşturma eskiden 7 zorunlu/opsiyonel
+  // adımdı (+ proje/hat seçimi için 2-3 adım daha). Artık yalnızca 3 temel soru +
+  // 1 opsiyonel not soruluyor; "iletişim ekseni", "beceriler", "ilk teslimat" gibi
+  // ayrıntılar SİLİNMEDİ — rol oluştuktan sonra "Düzenle"den eklenebiliyor,
+  // varsayılanla (needsCommunication:false, skills:[], firstDeliverable:'')
+  // oluşturuluyor. Düzenleme akışı (editWizSteps) hâlâ tüm alanları soruyor.
+  const titleStep = { key: 'title', type: 'text', q: 'Rol başlığı nedir?', ph: 'ör. Flutter Geliştirici' };
+  const roleTypeStep = { key: 'roleType', type: 'options', q: 'Rol tipi?', options: ROLE_TYPES.map((t) => ({ value: t.value, label: t.label })) };
+  const assignedToStep = useMemo(() => ({
+    key: 'assignedTo', type: 'options', q: 'Kim arayacak?', options: [
       { value: '', label: '— (henüz belli değil)' },
       ...members.map((m) => ({ value: m.id, label: m.fullName || m.email })),
-    ] },
-    { key: 'needsCommunication', type: 'options', q: 'İletişim ekseni zorunlu mu? (üye hattı)', options: [
-      { value: '0', label: 'Hayır' }, { value: '1', label: 'Evet' },
-    ] },
-    { key: 'profile', type: 'textarea', q: 'Aranan profil?', ph: 'Kişiselleştirme bağlamını besler.', optional: true },
-    { key: 'skills', type: 'text', q: 'Beceriler (virgülle)?', ph: 'React, SQL, Go', optional: true },
-    { key: 'firstDeliverable', type: 'text', q: 'İlk teslimat (Kapı A görev metni)?', optional: true },
-  ], [members]);
+    ],
+  }), [members]);
+  const profileStep = {
+    key: 'profile', type: 'textarea', q: 'Eklemek istediğin bir not var mı?',
+    sub: 'Opsiyonel — aranan profil, beceriler gibi ayrıntıları sonra "Düzenle"den ekleyebilirsin.',
+    ph: 'İsteğe bağlı', optional: true,
+  };
+  const needsCommStep = { key: 'needsCommunication', type: 'options', q: 'İletişim ekseni zorunlu mu? (üye hattı)', options: [
+    { value: '0', label: 'Hayır' }, { value: '1', label: 'Evet' },
+  ] };
+  const skillsStep = { key: 'skills', type: 'text', q: 'Beceriler (virgülle)?', ph: 'React, SQL, Go', optional: true };
+  const firstDeliverableStep = { key: 'firstDeliverable', type: 'text', q: 'İlk teslimat (Kapı A görev metni)?', optional: true };
+
+  const restSteps = useMemo(() => [titleStep, roleTypeStep, assignedToStep, profileStep], [assignedToStep]);
 
   const editWizSteps = useMemo(() => [
     { key: 'startupId', type: 'options', q: 'Hangi proje?', options: [
       { value: '', label: 'Proje atanmamış' },
       ...(startups || []).filter((s) => !isOwner || myStartups.includes(s.id)).map((s) => ({ value: String(s.id), label: s.name })),
     ] },
-    ...restSteps.slice(0, 2),
+    titleStep, roleTypeStep,
     { key: 'track', type: 'options', q: 'Hangi hat?', options: TRACKS.map((t) => ({ value: t.value, label: t.label, hint: t.value === 'founder' ? 'ortaklık' : 'projede rol' })) },
-    ...restSteps.slice(2),
-  ], [startups, isOwner, myStartups, restSteps]);
+    assignedToStep, needsCommStep, skillsStep, firstDeliverableStep, profileStep,
+  ], [startups, isOwner, myStartups, assignedToStep]);
 
   const wizSteps = editing?.id ? editWizSteps : restSteps;
 

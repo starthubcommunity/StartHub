@@ -1,17 +1,22 @@
-// today.jsx — Bugün ekranı (v2 §1). Varsayılan açılış. Dört blok:
-//   1) Mesaj atılacaklar (Havuz'da, henüz temas yok)
-//   2) Süresi gelen takipler (Temas'ta, cevap bekleyen)
-//   3) Karar bekleyenler (Görüşme'de eşik/rubrik hazır + sunulmuş bekleyen)
-//   4) Süresi dolan kapılar (Deneme'de)
-// Boş blok gizlenir; hepsi boşsa tek satırlık davet.
+// today.jsx — Genel Bakış = Dashboard (2026-09-24 CRM-lite sadeleştirme).
+// Önceki sürüm: OverviewStats (2 satır) + 5-7 ayrı iş bloğu + her blokta ayrı bir
+// QueueModal "Başlat" kuyruk-yürüme akışı. Kullanıcı bunu tek bakışta anlaşılır bir
+// dashboard'a indirmek istedi: tek cümlelik özet + TEK birleşik "Bugün Yapılacaklar"
+// listesi (aciliyete göre sıralı, tip etiketiyle "ne" belli) + satıra tıkla → aday
+// paneli (uygulamanın her yerinde zaten aynı desen: Adaylar, Arşiv). QueueModal
+// bilinçli olarak kaldırıldı — iki ayrı etkileşim deseni yerine tek desen kalsın diye.
+// Altta çekilen istatistikler (aşama dağılımı, mentör/destekçi/fikir sayıları, Hub
+// Sheet durumu, ilgi alanı dağılımı) SİLİNMEDİ, yalnızca ikincil/soluk bir şeride indi.
 import React, { useState, useMemo, useEffect } from 'react';
 import { AIcon } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { isStale, thresholdMet, rubricCompleteFor, gateStatus } from '../hub-rules';
-import { WEEKLY_TARGET, STAGE_LABEL, STAGES, INTEREST_LABEL } from '../hub-constants';
+import { STAGE_LABEL, STAGES, INTEREST_LABEL } from '../hub-constants';
 import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
+import { intervalToDays } from '../hub-metrics';
+import { EMPTY_FILTERS } from '../hub-filter';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -21,95 +26,22 @@ const startOfWeek = () => {
   return d;
 };
 const fmt = (v) => (v ? new Date(v).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
-
-// ids verilirse (ve boş değilse) blok başlığına bir "Başlat" düğmesi eklenir
-// — tek tek satır tıklamak yerine, bu bloğun tamamını sırayla (tek kart, tek
-// aksiyon, otomatik sıradaki) işlemek için (bkz. QueueModal altta, 2026-09-20
-// sadeleştirmesi). Liste hâlâ altında durur — kim isterse tek tek de seçebilir.
-function Block({ title, extra, ids, onStartQueue, children }) {
-  if (!children || (Array.isArray(children) && children.filter(Boolean).length === 0)) return null;
-  return (
-    <section className="hub-today__block">
-      <div className="hub-today__blockhead">
-        <h3>{title}</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {extra}
-          {ids && ids.length > 0 && (
-            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onStartQueue(ids, title)}>
-              Başlat <AIcon name="arrowRight" size={12} />
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="hub-today__rows">{children}</div>
-    </section>
-  );
-}
-
-// Bir liste bloğunu tek kart / tek aksiyon / otomatik sıradaki akışına
-// çevirir. Aksiyonun kendisini İCAT ETMEZ — her aşamanın zaten kendi doğru
-// tek sorusunu gösteren CandidatePanel'i (aday kartı) olduğu gibi kullanır;
-// bu bileşen yalnızca ince bir ilerleme çubuğu + "Sonraki" ekler.
-function QueueModal({ title, ids, onClose }) {
-  const [queue] = useState(() => (ids || []).slice());
-  const [idx, setIdx] = useState(0);
-  const total = queue.length;
-  const curId = idx < total ? queue[idx] : null;
-
-  if (!curId) {
-    return (
-      <div className="hub-panel-overlay" onClick={onClose}>
-        <div className="hub-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-          <div style={{ textAlign: 'center', padding: 32 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Kuyruk bitti 🎉</div>
-            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={onClose}>Kapat</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <CandidatePanel candidateId={curId} onClose={onClose} />
-      <div style={{
-        position: 'fixed', top: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 1001,
-        display: 'flex', alignItems: 'center', gap: 10, background: 'var(--adm-text)', color: 'var(--adm-bg)',
-        padding: '7px 8px 7px 16px', borderRadius: 999, boxShadow: '0 4px 16px rgba(0,0,0,.22)',
-        fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)',
-      }}>
-        <span>{title} · {idx + 1}/{total}</span>
-        <button onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0}
-          style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: 'inherit', borderRadius: 999, width: 26, height: 26, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.4 : 1, fontSize: 13 }}>←</button>
-        <button onClick={() => setIdx((i) => i + 1)}
-          style={{ background: 'rgba(255,255,255,.22)', border: 'none', color: 'inherit', borderRadius: 999, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Sonraki →</button>
-      </div>
-    </>
-  );
-}
-
 const initials = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+// todos zaten "şimdi bekleyen" işler (gelecekteki bir vade değil) — bu yüzden
+// göreli zaman hep GEÇMİŞE dönük ifade edilir ("3 saat önce"), bir geri sayım değil.
+const relTime = (v) => {
+  if (!v) return '';
+  const ms = Date.now() - new Date(v).getTime();
+  if (ms < 60000) return 'az önce';
+  const h = Math.round(ms / 3600000);
+  return h < 1 ? `${Math.round(ms / 60000)} dk önce` : h < 48 ? `${h} saat önce` : `${Math.round(h / 24)} gün önce`;
+};
 
-function Row({ onClick, main, meta, action, av }) {
-  return (
-    <div className="hub-today__row" role="button" tabIndex={0} onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
-      {av && <span className="hub-av hub-av--sm">{initials(av)}</span>}
-      <span className="hub-today__main">{main}</span>
-      <span className="hub-today__meta">{meta}</span>
-      {action}
-    </div>
-  );
-}
-
-// ── Genel Bakış — üst şerit (2026-09-23) ────────────────────────────
-// "Bugün" tek başına yalnızca bekleyen işleri gösteriyordu; bu, HR ekibinin
-// panele girer girmez "şu an durum ne" sorusuna cevap alabileceği bir özet
-// ekliyor. Aday sayıları store'dan (client-side), Mentör/Destekçi/Fikir ve
-// Hub Sheet bağlantı durumu applications/hub_sheet_config'ten (hafif, tek
-// seferlik sorgu — hub-sheet.jsx'teki desenle aynı).
-function OverviewStats({ candidates }) {
-  const [appStats, setAppStats] = useState(null); // { mentors, sponsors, ideas, sheetOk }
+// ── Mentör/Destekçi/Fikir sayıları + Hub Sheet bağlantı durumu — tek seferlik,
+// hafif bir sorgu (uygulama/hub_sheet_config). Hem üst şerit hem de alttaki ikincil
+// istatistikler bu tek fetch'i paylaşır.
+function useSecondaryStats() {
+  const [stats, setStats] = useState(null);
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -119,69 +51,176 @@ function OverviewStats({ candidates }) {
       supabase.from('hub_sheet_config').select('spreadsheet_id, enabled').eq('id', 1).single(),
     ]).then(([m, s, i, cfg]) => {
       if (!alive) return;
-      setAppStats({
+      setStats({
         mentors: m.count ?? 0, sponsors: s.count ?? 0, ideas: i.count ?? 0,
         sheetOk: !!(cfg.data?.spreadsheet_id && cfg.data?.enabled),
       });
-    }).catch(() => { if (alive) setAppStats({ mentors: 0, sponsors: 0, ideas: 0, sheetOk: false }); });
+    }).catch(() => { if (alive) setStats({ mentors: 0, sponsors: 0, ideas: 0, sheetOk: false }); });
     return () => { alive = false; };
   }, []);
+  return stats;
+}
 
+// ── Üst şerit — aktif aday + aşama dağılımı. "Durum ne" sorusunun tek bakışta yanıtı.
+// 2026-09-24 — kartlar artık tıklanabilir: her biri Adaylar'a, o aşamayla filtrelenmiş
+// olarak götürür (roles.jsx'teki goToRoleCandidates ile aynı desen).
+function OvCard({ onClick, className = '', children }) {
+  if (!onClick) return <div className={`hub-ov-card ${className}`}>{children}</div>;
+  return (
+    <div className={`hub-ov-card hub-ov-card--clickable ${className}`} role="button" tabIndex={0}
+      onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
+      {children}
+    </div>
+  );
+}
+
+function PipelineStrip({ candidates, onGoto, setFilters }) {
   const active = candidates.filter((c) => c.stage !== 'archived');
   const byStage = Object.fromEntries(STAGES.map((s) => [s.value, active.filter((c) => c.stage === s.value).length]));
+  const goStage = (stageValue) => {
+    if (!onGoto || !setFilters) return;
+    setFilters({ ...EMPTY_FILTERS, stage: stageValue ? [stageValue] : [] });
+    onGoto('candidates');
+  };
+  return (
+    <div className="hub-overview__row hub-pipeline-strip">
+      <OvCard className="hub-ov-card--big" onClick={() => goStage(null)}>
+        <span className="hub-ov-card__n">{active.length}</span>
+        <span className="hub-ov-card__l">Aktif aday (LAB)</span>
+      </OvCard>
+      {STAGES.map((s) => (
+        <OvCard key={s.value} onClick={() => goStage(s.value)}>
+          <span className="hub-ov-card__n">{byStage[s.value] || 0}</span>
+          <span className="hub-ov-card__l">{s.label}</span>
+        </OvCard>
+      ))}
+    </div>
+  );
+}
+
+// ── "Sistem özeti" — Açık Pozisyonlar/Kaynaklar/Şablonlar/Cevap oranı şu ana kadar
+// dashboard'da HİÇ görünmüyordu (yalnızca sidebar'ın "Yönetim" alt-grubundan
+// erişilebiliyordu). Hepsi zaten store'un client-side yüklediği openRoles/sources/
+// templates/touches'tan — yeni sorgu yok. Her kart kendi sayfasına götürür.
+function SystemSummary({ openRoles, sources, templates, touches, onGoto, can }) {
+  const rolesSourcing = openRoles.filter((r) => r.status === 'sourcing').length;
+  const rolesDraft = openRoles.filter((r) => r.status === 'draft').length;
+
+  const sourcesActive = sources.filter((s) => s.status === 'active').length;
+  const sourcesDue = sources.filter((s) => s.status === 'active'
+    && (!s.lastChecked || Date.now() - Date.parse(s.lastChecked) >= intervalToDays(s.checkEvery) * 86400000)).length;
+
+  const templatesActive = templates.filter((t) => t.active).length;
+  const withSends = templates.filter((t) => t.sentCount > 0);
+  const avgReplyRate = withSends.length
+    ? Math.round(withSends.reduce((sum, t) => sum + (100 * (t.replyCount || 0)) / t.sentCount, 0) / withSends.length)
+    : null;
+
+  const sent = touches.length;
+  const replied = touches.filter((t) => t.outcome === 'replied').length;
+  const replyRate = sent > 0 ? Math.round((100 * replied) / sent) : null;
+
+  return (
+    <div className="hub-secondary">
+      <div className="hub-secondary__label">Sistem özeti</div>
+      <div className="hub-overview__row hub-overview__row--muted">
+        {can?.('roles.read') && (
+          <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('roles') : undefined}>
+            <span className="hub-ov-card__n">{rolesSourcing}</span>
+            <span className="hub-ov-card__l">Açık pozisyon (yayında){rolesDraft > 0 ? ` · +${rolesDraft} taslak` : ''}</span>
+          </OvCard>
+        )}
+        {can?.('sources.read') && (
+          <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('sources') : undefined}>
+            <span className="hub-ov-card__n">{sourcesActive}</span>
+            <span className="hub-ov-card__l">Aktif kaynak{sourcesDue > 0 ? ` · ${sourcesDue} kontrolü gecikmiş` : ''}</span>
+          </OvCard>
+        )}
+        {can?.('templates.read') && (
+          <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('templates') : undefined}>
+            <span className="hub-ov-card__n">{templatesActive}</span>
+            <span className="hub-ov-card__l">Aktif şablon{avgReplyRate != null ? ` · ort. cevap %${avgReplyRate}` : ''}</span>
+          </OvCard>
+        )}
+        {can?.('metrics.read') && (
+          <OvCard className={`hub-ov-card--pill ${replyRate != null && replyRate >= 20 ? 'hub-ov-card--ok' : ''}`}
+            onClick={onGoto ? () => onGoto('metrics') : undefined}>
+            <span className="hub-ov-card__n">{replyRate == null ? '—' : `%${replyRate}`}</span>
+            <span className="hub-ov-card__l">Cevap oranı (temas → cevap)</span>
+          </OvCard>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Alt, soluk şerit — mentör/destekçi/fikir başvuru sayıları + Hub Sheet durumu +
+// ilgi alanı dağılımı. Günlük iş listesinin önüne geçmesin diye en altta, küçük.
+// 2026-09-24 — bu kartlar da tıklanabilir: başvuru sayıları "Diğer Başvurular"a,
+// ilgi alanları Adaylar'a (o ilgi alanıyla filtrelenmiş), Hub Sheet kartı Ayarlar'a götürür.
+function SecondaryStats({ candidates, stats, onGoto, setFilters, can }) {
+  const active = candidates.filter((c) => c.stage !== 'archived');
   const interestCounts = {};
   active.forEach((c) => { const k = c.interest; if (k) interestCounts[k] = (interestCounts[k] || 0) + 1; });
   const topInterests = Object.entries(interestCounts).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const goInterest = (key) => {
+    if (!onGoto || !setFilters) return;
+    setFilters({ ...EMPTY_FILTERS, interest: [key] });
+    onGoto('candidates');
+  };
 
   return (
-    <div className="hub-overview">
-      <div className="hub-overview__row">
-        <div className="hub-ov-card hub-ov-card--big">
-          <span className="hub-ov-card__n">{active.length}</span>
-          <span className="hub-ov-card__l">Aktif aday (LAB)</span>
-        </div>
-        {STAGES.map((s) => (
-          <div key={s.value} className="hub-ov-card">
-            <span className="hub-ov-card__n">{byStage[s.value] || 0}</span>
-            <span className="hub-ov-card__l">{s.label}</span>
-          </div>
-        ))}
-      </div>
-      <div className="hub-overview__row">
-        <div className="hub-ov-card">
-          <span className="hub-ov-card__n">{appStats?.mentors ?? '—'}</span>
+    <div className="hub-secondary">
+      <div className="hub-secondary__label">Diğer göstergeler</div>
+      <div className="hub-overview__row hub-overview__row--muted">
+        <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('applications') : undefined}>
+          <span className="hub-ov-card__n">{stats?.mentors ?? '—'}</span>
           <span className="hub-ov-card__l">Mentör başvurusu</span>
-        </div>
-        <div className="hub-ov-card">
-          <span className="hub-ov-card__n">{appStats?.sponsors ?? '—'}</span>
+        </OvCard>
+        <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('applications') : undefined}>
+          <span className="hub-ov-card__n">{stats?.sponsors ?? '—'}</span>
           <span className="hub-ov-card__l">Destekçi başvurusu</span>
-        </div>
-        <div className="hub-ov-card">
-          <span className="hub-ov-card__n">{appStats?.ideas ?? '—'}</span>
+        </OvCard>
+        <OvCard className="hub-ov-card--muted" onClick={onGoto ? () => onGoto('applications') : undefined}>
+          <span className="hub-ov-card__n">{stats?.ideas ?? '—'}</span>
           <span className="hub-ov-card__l">Fikir başvurusu</span>
-        </div>
-        <div className={`hub-ov-card hub-ov-card--pill ${appStats?.sheetOk ? 'hub-ov-card--ok' : 'hub-ov-card--warn'}`}>
-          <span className="hub-ov-card__n" style={{ fontSize: 15 }}>{appStats == null ? '—' : appStats.sheetOk ? '✓ Bağlı' : 'Kurulmadı'}</span>
+        </OvCard>
+        <OvCard className={`hub-ov-card--pill ${stats?.sheetOk ? 'hub-ov-card--ok' : 'hub-ov-card--warn'}`}
+          onClick={(onGoto && can?.('settings.write')) ? () => onGoto('settings') : undefined}>
+          <span className="hub-ov-card__n" style={{ fontSize: 15 }}>{stats == null ? '—' : stats.sheetOk ? '✓ Bağlı' : 'Kurulmadı'}</span>
           <span className="hub-ov-card__l">Hub Başvuru Tablosu</span>
-        </div>
-        {topInterests.length > 0 && topInterests.map(([k, n]) => (
-          <div key={k} className="hub-ov-card hub-ov-card--muted">
+        </OvCard>
+        {topInterests.map(([k, n]) => (
+          <OvCard key={k} className="hub-ov-card--muted" onClick={() => goInterest(k)}>
             <span className="hub-ov-card__n">{n}</span>
             <span className="hub-ov-card__l">{INTEREST_LABEL[k] || k}</span>
-          </div>
+          </OvCard>
         ))}
       </div>
     </div>
   );
 }
 
-export default function TodayPage({ onGoto }) {
+// ── Tek satırlık "yapılacak iş" — tıklanınca doğrudan aday panelini açar. Uygulamanın
+// her yerindeki (Adaylar, Arşiv) "satıra tıkla, panel açılır" deseniyle aynı.
+function TodoRow({ onClick, name, kind, kindTone, meta }) {
+  return (
+    <button type="button" className="hub-todo-row" onClick={onClick}>
+      <span className="hub-av hub-av--sm">{initials(name)}</span>
+      <span className="hub-todo-row__name">{name}</span>
+      <span className={`hub-todo-row__kind hub-todo-row__kind--${kindTone}`}>{kind}</span>
+      <span className="hub-todo-row__meta">{meta}</span>
+      <AIcon name="chevronRight" size={15} style={{ color: 'var(--adm-text-dim)', flexShrink: 0 }} />
+    </button>
+  );
+}
+
+export default function TodayPage({ onGoto, setFilters }) {
   const store = useHubStore();
-  const { candidates, touches, gates, openRoles, currentMember } = store;
+  const { candidates, touches, gates, openRoles, currentMember, sources, templates } = store;
   const { can } = usePerms();
   const [openId, setOpenId] = useState(null);
-  const [queue, setQueue] = useState(null);   // { title, ids } | null
-  const startQueue = (ids, title) => setQueue({ ids, title });
+  const secondaryStats = useSecondaryStats();
   const byId = useMemo(() => Object.fromEntries(candidates.map((c) => [c.id, c])), [candidates]);
   const now = Date.now();
   const myStartups = currentMember?.startupIds || [];
@@ -190,15 +229,14 @@ export default function TodayPage({ onGoto }) {
   const sentThisWeek = touches.filter((t) => t.senderId === currentMember?.id && new Date(t.sentAt) >= startOfWeek()).length;
 
   // v3.1 (§16) — kurucu hattı (liderlik/ortaklık) başvuruları, normal aday
-  // kararıyla karışmasın diye ayrı küçük bir blokta. Arşiv/Ekipte hariç
+  // kararıyla karışmasın diye ayrı bir etiketle işaretlenir. Arşiv/Ekipte hariç
   // her aşamada görünür (nadir/yüksek-önem, süreç boyunca takip edilir).
   const founderLeads = candidates.filter((c) => c.track === 'founder' && c.stage !== 'archived' && c.stage !== 'member');
 
   const dueFollowUps = touches
     .filter((t) => t.outcome === 'pending' && t.followUpAt && new Date(t.followUpAt).getTime() <= now)
     .map((t) => ({ t, c: byId[t.candidateId] }))
-    .filter((x) => x.c && x.c.stage === 'contact')
-    .sort((a, b) => new Date(a.t.followUpAt) - new Date(b.t.followUpAt));
+    .filter((x) => x.c && x.c.stage === 'contact');
 
   const openRoleOf = (c) => openRoles.find((r) => r.id === c.openRoleId) || null;
   const decisionReady = candidates.filter((c) => {
@@ -216,8 +254,7 @@ export default function TodayPage({ onGoto }) {
   const stale = candidates
     .filter((c) => c.stage !== 'archived' && c.stage !== 'member')
     .map((c) => ({ c, s: isStale(c, now) }))
-    .filter((x) => x.s.stale)
-    .sort((a, b) => b.s.days - a.s.days);
+    .filter((x) => x.s.stale);
 
   // E4 — havuz 100+ olunca: yeni (sourcing) roller için arşivdeki uygun adaylar.
   const roleReminders = useMemo(() => {
@@ -234,8 +271,42 @@ export default function TodayPage({ onGoto }) {
     return out.sort((a, b) => b.score - a.score).slice(0, 8);
   }, [candidates, openRoles]);
 
-  const allEmpty = !toSend.length && !founderLeads.length && !dueFollowUps.length && !decisionReady.length
-    && !dueGates.length && !stale.length && !roleReminders.length;
+  // Yedi ayrı kaynak, TEK aciliyet-sıralı listeye toplanır. urgency küçük = daha acil.
+  const todos = useMemo(() => {
+    const rows = [];
+    dueGates.forEach(({ g, c }) => rows.push({
+      id: `gate-${g.id}`, c, kind: 'Kapı', tone: 'red',
+      meta: `Kapı ${g.gate} · vade ${fmt(g.dueAt)}`, urgency: 0, sortAt: g.dueAt,
+    }));
+    dueFollowUps.forEach(({ t, c }) => rows.push({
+      id: `fu-${t.id}`, c, kind: 'Takip', tone: 'amber',
+      meta: `${(t.stepNo || 1) > 1 ? `#${t.stepNo} · ` : ''}${fmt(t.followUpAt)}${(t.stepNo || 1) > 1 && c.draftText ? ' · taslak hazır' : ''}`,
+      urgency: 1, sortAt: t.followUpAt,
+    }));
+    decisionReady.forEach((c) => rows.push({
+      id: `dec-${c.id}`, c, kind: 'Karar', tone: 'purple',
+      meta: c.presentedAt ? `sunuldu ${String(c.presentedAt).slice(0, 10)} · karar bekliyor` : 'görüşme eşiği hazır',
+      urgency: 1,
+    }));
+    founderLeads.forEach((c) => rows.push({
+      id: `lead-${c.id}`, c, kind: 'Liderlik', tone: 'purple',
+      meta: `${STAGE_LABEL[c.stage]} · kurucu hattı`, urgency: 2,
+    }));
+    toSend.forEach((c) => rows.push({
+      id: `send-${c.id}`, c, kind: 'Mesaj', tone: 'blue',
+      meta: `${c.university || '—'}${thresholdMet(c) ? ' · eşik ✓' : ''}`, urgency: 2,
+    }));
+    stale.forEach(({ c, s }) => rows.push({
+      id: `stale-${c.id}`, c, kind: 'Bayat', tone: s.level === 'critical' ? 'red' : 'amber',
+      meta: `${STAGE_LABEL[c.stage]} · ${s.days} gün hareketsiz`, urgency: 3,
+    }));
+    roleReminders.forEach(({ c, role, score }) => rows.push({
+      id: `role-${c.id}-${role.id}`, c, kind: 'Rol önerisi', tone: 'gray',
+      meta: `→ ${role.title} · ${score} puan uyum · arşivde`, urgency: 4,
+    }));
+    return rows.sort((a, b) => a.urgency - b.urgency
+      || (a.sortAt && b.sortAt ? new Date(a.sortAt) - new Date(b.sortAt) : 0));
+  }, [dueGates, dueFollowUps, decisionReady, founderLeads, toSend, stale, roleReminders]);
 
   return (
     <div className="hub-today">
@@ -246,9 +317,26 @@ export default function TodayPage({ onGoto }) {
         </div>
       </div>
 
-      <OverviewStats candidates={candidates} />
+      <div className="hub-brief">
+        <div className="hub-brief__kick">BUGÜNÜN ÖZETİ</div>
+        <div className="hub-brief__h">
+          {todos.length === 0
+            ? 'Bekleyen iş yok — her şey güncel.'
+            : <>Bugün <b>{todos.length} iş</b> seni bekliyor{sentThisWeek > 0 ? ` · bu hafta ${sentThisWeek} mesaj gönderildi` : ''}.</>}
+        </div>
+        {/* 2026-09-24 — en acil olan (todos zaten aciliyete göre sıralı, ilk satır)
+            listeyi taramadan önce tek satırda öne çıkar. */}
+        {todos.length > 0 && (
+          <button type="button" className="hub-brief__urgent" onClick={() => setOpenId(todos[0].c.id)}>
+            <span className={`hub-todo-row__kind hub-todo-row__kind--${todos[0].tone}`}>{todos[0].kind}</span>
+            <span className="hub-brief__urgent-name">{todos[0].c.fullName}</span>
+            {todos[0].sortAt && <span className="hub-brief__urgent-meta">{relTime(todos[0].sortAt)}</span>}
+            <AIcon name="chevronRight" size={14} style={{ color: 'var(--adm-text-dim)', flexShrink: 0 }} />
+          </button>
+        )}
+      </div>
 
-      {allEmpty ? (
+      {todos.length === 0 ? (
         <div className="adm-empty">
           Bekleyen iş yok.
           <button className="adm-btn adm-btn--primary adm-btn--sm" style={{ marginTop: 10 }} onClick={() => onGoto?.('candidates')}>
@@ -256,61 +344,19 @@ export default function TodayPage({ onGoto }) {
           </button>
         </div>
       ) : (
-        <>
-          <Block title="Mesaj atılacaklar" ids={toSend.map((c) => c.id)} onStartQueue={startQueue}
-            extra={<span className="hub-today__target">bu hafta {sentThisWeek}/{WEEKLY_TARGET.contacts}</span>}>
-            {toSend.map((c) => (
-              <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
-                meta={`${c.university || '—'}${thresholdMet(c) ? ' · eşik ✓' : ''}`} />
-            ))}
-          </Block>
-
-          <Block title="Liderlik başvuruları" ids={founderLeads.map((c) => c.id)} onStartQueue={startQueue}>
-            {founderLeads.map((c) => (
-              <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
-                meta={`${STAGE_LABEL[c.stage]} · kurucu hattı`} />
-            ))}
-          </Block>
-
-          <Block title="Süresi gelen takipler" ids={dueFollowUps.map(({ c }) => c.id)} onStartQueue={startQueue}>
-            {dueFollowUps.map(({ t, c }) => (
-              <Row key={t.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
-                meta={`takip ${(t.stepNo || 1) > 1 ? `#${t.stepNo} · ` : ''}${fmt(t.followUpAt)}${(t.stepNo || 1) > 1 && c.draftText ? ' · taslak hazır' : ''}`} />
-            ))}
-          </Block>
-
-          <Block title="Karar bekleyenler" ids={decisionReady.map((c) => c.id)} onStartQueue={startQueue}>
-            {decisionReady.map((c) => (
-              <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
-                meta={c.presentedAt ? `sunuldu ${String(c.presentedAt).slice(0, 10)} · karar bekliyor` : 'görüşme eşiği hazır'} />
-            ))}
-          </Block>
-
-          <Block title="Süresi dolan kapılar" ids={dueGates.map(({ c }) => c.id)} onStartQueue={startQueue}>
-            {dueGates.map(({ g, c }) => (
-              <Row key={g.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName} meta={`Kapı ${g.gate} · vade ${fmt(g.dueAt)}`} />
-            ))}
-          </Block>
-
-          <Block title="Bayatlamış kartlar" ids={stale.map(({ c }) => c.id)} onStartQueue={startQueue}>
-            {stale.map(({ c, s }) => (
-              <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
-                meta={`${STAGE_LABEL[c.stage]} · ${s.days} gün`}
-                action={<span className={`hub-card__dot hub-card__dot--${s.level}`} />} />
-            ))}
-          </Block>
-
-          <Block title="Yeni rol için arşivden aday" ids={roleReminders.map(({ c }) => c.id)} onStartQueue={startQueue}>
-            {roleReminders.map(({ c, role, score }) => (
-              <Row key={c.id} onClick={() => setOpenId(c.id)} av={c.fullName} main={c.fullName}
-                meta={`→ ${role.title} · ${score} puan uyum · arşivde (${c.archiveReason === 'no_time' ? 'vakti yoktu' : 'çıtanın altında'})`} />
-            ))}
-          </Block>
-        </>
+        <div className="hub-todo-list">
+          {todos.map((row) => (
+            <TodoRow key={row.id} onClick={() => setOpenId(row.c.id)}
+              name={row.c.fullName} kind={row.kind} kindTone={row.tone} meta={row.meta} />
+          ))}
+        </div>
       )}
 
+      <PipelineStrip candidates={candidates} onGoto={onGoto} setFilters={setFilters} />
+      <SystemSummary openRoles={openRoles} sources={sources} templates={templates} touches={touches} onGoto={onGoto} can={can} />
+      <SecondaryStats candidates={candidates} stats={secondaryStats} onGoto={onGoto} setFilters={setFilters} can={can} />
+
       {openId && <CandidatePanel candidateId={openId} onClose={() => setOpenId(null)} />}
-      {queue && <QueueModal title={queue.title} ids={queue.ids} onClose={() => setQueue(null)} />}
     </div>
   );
 }

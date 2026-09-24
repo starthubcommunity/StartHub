@@ -264,6 +264,45 @@ değeri artık kart seçimine dönüştürülmüyor. Form/validate/submit dallar
 `intent:'sponsor_application'`) ve HR'daki Destekçiler sayfası (`applications.jsx kind='sponsor'`)
 BİLİNÇLİ OLARAK silinmedi — yeni başvuru gelmeyecek ama eski kayıtlar HR'da görülebilsin diye duruyor.
 
+**2026-09-24 — HR "CRM-lite" sadeleştirme, Round 1 (temel):** Kullanıcı HR panelini
+"hiç bilmeyen birinin bile girip anlayabileceği" bir CRM'e dönüştürmek istedi. Bu
+turda yapılan: (1) sol menü 7 → 5 ana maddeye indi — Mentörler/Destekçiler/Fikirler
+tek "Diğer Başvurular" ekranında birleşti (`applications.jsx`, `kind` prop artık
+opsiyonel — verilmezse bileşen kendi tip-seçici çip satırını gösterir); (2) "Bugün"
+(Genel Bakış) gerçek bir dashboard oldu — eski 5-7 ayrı iş bloğu + ayrı `QueueModal`
+"Başlat" kuyruk-yürüme akışı kaldırıldı (`today.jsx`), yerine TEK aciliyet-sıralı
+"Bugün Yapılacaklar" listesi geldi (satıra tıkla → mevcut `CandidatePanel`, ayrı bir
+entegrasyon gerekmedi — zaten yalnızca `candidateId`+`onClose` alıyor); aşama
+dağılımı + mentör/destekçi/fikir sayıları + Hub Sheet durumu SİLİNMEDİ, ikincil/soluk
+bir şeride indi; (3) sidebar artık açılıp kapanabiliyor — ikon şeridi (`hub-app.jsx`
+`collapsed` state, `hub.css` `.hub-layout--collapsed`), `localStorage`
+(`sh_hub_sidebar_collapsed`) ile hatırlanıyor; masaüstünde başka hiçbir yerde
+(admin panel dahil) bu desenin örneği yoktu, sıfırdan kuruldu. **Kullanıcı ayrıca
+HUB_SPEC.md §0'daki "yeni stil icat edilmez" kısıtını bilinçli olarak gevşetti** —
+marka kimliği (kırmızı aksan, Space Grotesk/DM Sans) sabit kalmak kaydıyla yeni
+görsel desen serbest (bkz. HUB_SPEC.md §0). `hub-rules.js`/`hub-constants.js`'teki
+iş mantığına dokunulmadı, `node src/hub/hub-rules.test.mjs` (97 senaryo) ve
+`npx vite build` bu değişikliklerden sonra da temiz geçti. **Round 2 (bilinçli
+olarak bu turun dışında, ayrı onay gerekir):** `roles.jsx`'teki çift sihirbazın
+tekleştirilmesi, `sources.jsx`/`templates.jsx`'teki power-user detaylarının bir
+"Gelişmiş" alt-sekmeye taşınması, `candidate.jsx`'in Deneme (Kapı A/B) aşamasındaki
+çoklu eşzamanlı aksiyon sorununun tek-aksiyon disiplinine getirilmesi.
+
+**2026-09-24 — HR "CRM-lite" sadeleştirme, Round 2:** Round 1'de bilinçli olarak
+ertelenen iç sadeleştirmeler yapıldı (hiçbir veri/alan silinmedi, yalnızca "Gelişmiş"
+bir katmana taşındı): `roles.jsx`'te yeni rol oluşturma 7 adımdan 3 temel soru + 1
+opsiyonel nota indi (`titleStep`/`roleTypeStep`/`assignedToStep`/`profileStep` =
+`restSteps`; `needsCommunication`/`skills`/`firstDeliverable` artık yalnızca
+`editWizSteps`'te, "Düzenle" akışında) — `RoleSetupFlow` (hat/proje seçimi)
+değişmedi. `sources.jsx` ve `templates.jsx`'e bir `advanced` state + "Gelişmiş" çipi
+eklendi (`adm-chip` deseni) — kontrol sıklığı/son kontrol/sorumlu/"pasifleştir öner"
+ve zincir anahtarı (E2 drip-campaign) alanları varsayılan gizli, çipe basınca açılıyor.
+`candidate.jsx`'teki `GateCard`'da (Deneme, Kapı A/B) "Süre yetmedi mi?" artık
+"Teslim etti"/"Teslim etmedi" ile aynı buton sırasında değil — küçük, alt satırda bir
+metin bağlantısı (gerçek iki sonuçla aynı görsel ağırlıkta olmaması için).
+`node src/hub/hub-rules.test.mjs` (97 senaryo) ve `npx vite build` temiz geçti —
+iş mantığına dokunulmadı.
+
 **2026-09-23 — repoda ikinci bir katkıcı (Kadir) var, doğrudan GitHub'a push yapabiliyor.** Kendi ayrı
 `hub-v3` dalındaki paralel HR çalışmasını "Merge origin/main (arkadaşımın HR rework'ü) into hub-v3" commit'iyle
 (`f7d0fe9`) doğrudan `main`'e merge etti — oturum dışından, kullanıcının bundan haberi yoktu. Doğrulandı: bu

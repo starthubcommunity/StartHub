@@ -354,13 +354,14 @@ function HubNoAccess({ email, onLogout }) {
 //  • Mentörler / Destekçiler / Fikirler : LAB tarafı mentör, destekçi ve yeni fikir başvuruları
 //  • HUB (topluluk) başvuruları HR'a düşmez → Google Sheets tablosu (Ayarlar › Hub Başvuru Tablosu)
 // Her öğe bir has_perm anahtarına bağlı; yetkisi olmayan öğe menüde HİÇ görünmez.
+// 2026-09-24 — CRM-lite sadeleştirme: Mentörler/Destekçiler/Fikirler tek "Diğer
+// Başvurular" sekmesinde birleşti (applications.jsx kendi tip-seçicisini gösterir),
+// nav 7 → 5 ana maddeye indi. Eski üç ayrı nav id'si artık kullanılmıyor.
 const MAIN_NAV = [
   { id: 'today',        label: 'Genel Bakış',      icon: 'dashboard',     perm: null },
   { id: 'candidates',   label: 'Adaylar',          icon: 'layers',        perm: 'candidates.read' },
   { id: 'roles',        label: 'Açık Pozisyonlar', icon: 'rocket',        perm: 'roles.read' },
-  { id: 'mentors',      label: 'Mentörler',        icon: 'graduationCap', perm: 'applications.read' },
-  { id: 'sponsor-apps', label: 'Destekçiler',      icon: 'handshake',     perm: 'applications.read' },
-  { id: 'ideas',        label: 'Fikirler',         icon: 'zap',           perm: 'applications.read' },
+  { id: 'applications', label: 'Diğer Başvurular', icon: 'graduationCap', perm: 'applications.read' },
   { id: 'archive',      label: 'Arşiv',            icon: 'trash',         perm: 'candidates.read' },
 ];
 const GEAR_NAV = [
@@ -379,8 +380,17 @@ function HubApp({ email, onLogout }) {
   const { can, loading: permsLoading } = usePerms();
   const [page, setPage] = useState(() => {
     const saved = sessionStorage.getItem('sh_hub_page') || 'today';
-    return saved === 'applications' ? 'mentors' : saved;   // eski "Diğer Başvurular"
+    // eski ayrı Mentörler/Destekçiler/Fikirler sekmeleri artık tek "applications" ekranı
+    return ['mentors', 'sponsor-apps', 'ideas'].includes(saved) ? 'applications' : saved;
   });
+  // 2026-09-24 — sidebar ikon şeridi (collapse). sh_toc_open (detail-pages.jsx)
+  // ile aynı localStorage-persisted boolean deseni.
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('sh_hub_sidebar_collapsed') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('sh_hub_sidebar_collapsed', collapsed ? '1' : '0'); } catch { /* yoksay */ }
+  }, [collapsed]);
   // B2 — çip/filtre seçimi sayfa yenilenince korunur.
   const [filters, setFilters] = useState(() => {
     try { return { ...EMPTY_FILTERS, ...JSON.parse(sessionStorage.getItem('sh_hub_filters') || '{}') }; }
@@ -404,7 +414,7 @@ function HubApp({ email, onLogout }) {
   const NavLink = (n) => (
     <button key={n.id}
       className={`hub-sidebar__link ${activePage === n.id ? 'hub-sidebar__link--active' : ''}`}
-      onClick={() => setPage(n.id)}>
+      onClick={() => setPage(n.id)} title={collapsed ? n.label : undefined}>
       <AIcon name={n.icon} size={17} />
       <span>{n.label}</span>
     </button>
@@ -412,7 +422,7 @@ function HubApp({ email, onLogout }) {
   const gearActive = gearNav.some((n) => n.id === activePage);
 
   return (
-    <div className="hub-layout">
+    <div className={`hub-layout ${collapsed ? 'hub-layout--collapsed' : ''}`}>
       <aside className="hub-sidebar">
         <div className="hub-sidebar__brand">
           <div className="hub-sidebar__logo">SH</div>
@@ -420,12 +430,17 @@ function HubApp({ email, onLogout }) {
             <div className="hub-sidebar__title">Kurucu Hattı</div>
             <div className="hub-sidebar__sub">{role}</div>
           </div>
+          <button className="hub-sidebar__collapse-btn" onClick={() => setCollapsed((v) => !v)}
+            title={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}>
+            <AIcon name="chevronRight" size={14} />
+          </button>
         </div>
         <nav className="hub-sidebar__nav">
           {mainNav.map(NavLink)}
           {gearNav.length > 0 && (
             <>
-              <button className="hub-sidebar__link" onClick={() => setGearOpen((v) => !v)} style={{ marginTop: 8, opacity: 0.85 }}>
+              <button className="hub-sidebar__link" onClick={() => setGearOpen((v) => !v)} style={{ marginTop: 8, opacity: 0.85 }}
+                title={collapsed ? 'Yönetim' : undefined}>
                 <AIcon name="settings" size={17} />
                 <span>Yönetim</span>
                 <AIcon name={(gearOpen || gearActive) ? 'chevronDown' : 'chevronRight'} size={14} style={{ marginLeft: 'auto' }} />
@@ -435,7 +450,7 @@ function HubApp({ email, onLogout }) {
           )}
         </nav>
         <div className="hub-sidebar__foot">
-          <button className="hub-sidebar__link" onClick={onLogout}>
+          <button className="hub-sidebar__link" onClick={onLogout} title={collapsed ? 'Çıkış' : undefined}>
             <AIcon name="logout" size={17} /><span>Çıkış</span>
           </button>
         </div>
@@ -449,13 +464,11 @@ function HubApp({ email, onLogout }) {
           <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{email}</span>
         </div>
         <div className="hub-content">
-          {activePage === 'today' ? <TodayPage onGoto={setPage} />
+          {activePage === 'today' ? <TodayPage onGoto={setPage} setFilters={setFilters} />
             : activePage === 'candidates' ? <CandidatesListPage filters={filters} setFilters={setFilters} />
             : activePage === 'archive' ? <ArchivePage />
             : activePage === 'roles' ? <RolesPage onGoto={setPage} setFilters={setFilters} />
-            : activePage === 'mentors' ? <ApplicationsPage kind="mentor" />
-            : activePage === 'sponsor-apps' ? <ApplicationsPage kind="sponsor" />
-            : activePage === 'ideas' ? <ApplicationsPage kind="idea" />
+            : activePage === 'applications' ? <ApplicationsPage />
             : activePage === 'templates' ? <TemplatesPage />
             : activePage === 'metrics' ? <MetricsPage />
             : activePage === 'sources' ? <SourcesPage />

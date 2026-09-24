@@ -37,9 +37,34 @@
 - AI taslak cümle üretimi kalır, tekli ve toplu. **Otomatik gönderim hiçbir zaman yok.**
 - Sistem tek doğruluk kaynağı; dışa senkron yok. İçe aktarma tek yönlü kapı.
 - Görsel dil: `admin.css`'teki `--adm-*` token'ları ve `.adm-chip` / `.adm-badge` /
-  `.adm-btn` bileşenleri birebir kullanılır. Yeni stil icat edilmez.
+  `.adm-btn` bileşenleri temel alınır, ama **artık birebir sınırlayıcı değil** —
+  2026-09-24 "CRM-lite" redesign'ından itibaren, marka kimliği (kırmızı `#DC2626`
+  aksan, Space Grotesk/DM Sans) korunduğu sürece yeni görsel desen/renk-tonu/kart
+  stili serbest (kullanıcı onayıyla, bu kısıt bilinçli olarak gevşetildi).
   **Ekran başına bir birincil (kırmızı) aksiyon.**
 - Sabit listeler yalnızca `hub-constants.js`'te. Hiçbir bileşen kendi listesini tanımlamaz.
+
+**2026-09-24 — CRM-lite sadeleştirme (Round 1):** Sol menü 7 → 5 ana maddeye indi
+(Mentörler/Destekçiler/Fikirler → tek "Diğer Başvurular", tip filtre çipleriyle,
+`applications.jsx`). "Bugün" ekranı gerçek bir dashboard'a çevrildi: eski 5-7 ayrı
+iş bloğu + ayrı `QueueModal` "Başlat" kuyruk-yürüme akışı kaldırıldı, yerine TEK
+aciliyet-sıralı "Bugün Yapılacaklar" listesi geldi (satıra tıkla → aday paneli —
+Adaylar/Arşiv'le aynı desen). Sidebar artık açılıp kapanabiliyor (ikon şeridi,
+`localStorage` ile hatırlanır). Alttaki iş mantığı (`hub-rules.js`/`hub-metrics.js`)
+DOKUNULMADI — yalnızca navigasyon/sunum katmanı sadeleşti. Roller sihirbazı /
+Kaynaklar / Şablonlar'ın iç sadeleştirmesi bilinçli olarak ayrı bir sonraki tura
+bırakıldı.
+
+**2026-09-24 — CRM-lite sadeleştirme (Round 2):** Round 1'de ertelenen iç
+sadeleştirmeler yapıldı — hiçbir alan/veri silinmedi, yalnızca varsayılan görünümden
+"Gelişmiş" bir katmana taşındı: (1) `roles.jsx` yeni rol oluşturma akışı 7 zorunlu/
+opsiyonel sorudan 3 temel soru + 1 opsiyonel nota indi (iletişim ekseni/beceriler/ilk
+teslimat artık oluşturduktan sonra "Düzenle"den eklenir); (2) `sources.jsx` ve
+`templates.jsx`'e bir "Gelişmiş" çipi eklendi — kontrol sıklığı/zamanlama/"pasifleştir
+öner" ve zincir anahtarı (drip-campaign) alanları varsayılan kapalı; (3) `candidate.jsx`
+Deneme (Kapı A/B) kartında "Süre yetmedi mi?" (uzatma) artık gerçek iki sonuçla
+(Teslim etti/etmedi) aynı ağırlıkta bir buton değil, küçük bir metin bağlantısı —
+§0'daki "ekran başına bir birincil aksiyon" ilkesine daha yakın.
 
 ---
 

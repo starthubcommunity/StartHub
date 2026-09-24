@@ -33,6 +33,11 @@ const STATUS_OPTS = [
 const BLANK_SRC = { name: '', url: '', source: 'hackathon', note: '', checkEvery: '7 days', ownerId: '', status: 'active' };
 const EIGHT_WEEKS = 56 * 86400000;
 
+// 2026-09-24 CRM-lite Round 2 — kontrol sıklığı/zamanlama/"pasifleştir öner"
+// ops-takibi karmaşıklığı SİLİNMEDİ, yalnızca varsayılan görünümden bir
+// "Gelişmiş" çipiyle açılan ikinci bir katmana taşındı. Basit görünümde kaynak
+// eklerken yalnızca Ad/URL/Tip sorulur; sıklık/sorumlu/durum sessiz varsayılanla
+// ('7 days' / oturum sahibi / 'active') kaydedilir, istenirse Gelişmiş'ten değiştirilir.
 function SourceRegistry() {
   const store = useHubStore();
   const { sources, candidates, touches, stageLog, members, currentMember } = store;
@@ -41,6 +46,7 @@ function SourceRegistry() {
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');
+  const [advanced, setAdvanced] = useState(false);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3000); };
 
   // Kaynak TİPİ başına verim (kütük satırları tip düzeyinde).
@@ -93,14 +99,17 @@ function SourceRegistry() {
           <h1 className="adm-page-head__title">Kaynak kütüğü</h1>
           <p className="adm-page-head__desc">Avın nerede yapılacağı birinin aklında değil, burada durur.</p>
         </div>
-        {canWrite && (
-          <div className="adm-page-head__actions">
-            {sources.length === 0 && <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={seed}>Örnek kaynakları ekle</button>}
-            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => setEditing({ ...BLANK_SRC })}>
+        <div className="adm-page-head__actions">
+          <button type="button" className={`adm-chip ${advanced ? 'adm-chip--active' : ''}`} onClick={() => setAdvanced((v) => !v)}>
+            <AIcon name="settings" size={13} /> Gelişmiş
+          </button>
+          {canWrite && sources.length === 0 && <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={seed}>Örnek kaynakları ekle</button>}
+          {canWrite && (
+            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => setEditing({ ...BLANK_SRC, ownerId: currentMember?.id || '' })}>
               <AIcon name="plus" size={14} /> Kaynak ekle
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {sources.length === 0 ? (
@@ -110,7 +119,8 @@ function SourceRegistry() {
           <table className="adm-table" style={{ width: '100%' }}>
             <thead>
               <tr>
-                <th>Ad</th><th>Tip</th><th>Sıklık</th><th>Son kontrol</th><th>Sorumlu</th>
+                <th>Ad</th><th>Tip</th>
+                {advanced && <><th>Sıklık</th><th>Son kontrol</th><th>Sorumlu</th></>}
                 <th style={{ textAlign: 'right' }}>Aday</th>
                 <th style={{ textAlign: 'right' }}>Cevap %</th>
                 <th style={{ textAlign: 'right' }}>İşe alım</th>
@@ -125,15 +135,17 @@ function SourceRegistry() {
                   <tr key={s.id}>
                     <td>{s.url ? <a href={s.url} target="_blank" rel="noreferrer" style={{ color: 'var(--adm-blue)' }}>{s.name}</a> : s.name}</td>
                     <td>{SOURCE_LABEL[s.source] || s.source}</td>
-                    <td>{CHECK_OPTS.find((c) => c.value === s.checkEvery)?.label || s.checkEvery}</td>
-                    <td style={{ color: due ? 'var(--adm-red)' : 'var(--adm-text-dim)' }}>
-                      {s.lastChecked ? String(s.lastChecked).slice(0, 10) : 'hiç'}{due ? ' · zamanı geldi' : ''}
-                    </td>
-                    <td>{memberName(s.ownerId)}</td>
+                    {advanced && (<>
+                      <td>{CHECK_OPTS.find((c) => c.value === s.checkEvery)?.label || s.checkEvery}</td>
+                      <td style={{ color: due ? 'var(--adm-red)' : 'var(--adm-text-dim)' }}>
+                        {s.lastChecked ? String(s.lastChecked).slice(0, 10) : 'hiç'}{due ? ' · zamanı geldi' : ''}
+                      </td>
+                      <td>{memberName(s.ownerId)}</td>
+                    </>)}
                     <td style={{ textAlign: 'right' }}>{r.total}</td>
                     <td style={{ textAlign: 'right' }}>
                       {r.replyRate == null ? '—' : `%${r.replyRate}`}
-                      {stale[s.source] && (
+                      {advanced && stale[s.source] && (
                         <button className="hub-pill hub-pill--flag" style={{ marginLeft: 6, cursor: 'pointer', border: 'none' }}
                           onClick={() => pause(s.source)} title="8 haftadır cevap/işe alım yok — duraklatmayı öner">
                           pasifleştir öner
@@ -145,7 +157,7 @@ function SourceRegistry() {
                     {canWrite && (
                       <td>
                         <div className="adm-table__actions">
-                          <button className="adm-icon-btn" title="Kontrol edildi işaretle" onClick={() => markChecked(s)}><AIcon name="check" size={14} /></button>
+                          {advanced && <button className="adm-icon-btn" title="Kontrol edildi işaretle" onClick={() => markChecked(s)}><AIcon name="check" size={14} /></button>}
                           <button className="adm-icon-btn" title="Düzenle" onClick={() => setEditing(s)}><AIcon name="edit" size={14} /></button>
                           <button className="adm-icon-btn adm-icon-btn--danger" title="Sil" onClick={() => setConfirm(s)}><AIcon name="trash" size={14} /></button>
                         </div>
@@ -164,13 +176,17 @@ function SourceRegistry() {
           <div>
             <Field label="Ad" required hint="Spesifik: “Teknofest 2026 ulaşım kategorisi”"><Input value={editing.name} onChange={(v) => setEditing({ ...editing, name: v })} /></Field>
             <Field label="URL"><Input value={editing.url} onChange={(v) => setEditing({ ...editing, url: v })} placeholder="https://…" /></Field>
-            <div className="adm-form-grid">
+            {advanced ? (<>
+              <div className="adm-form-grid">
+                <Field label="Tip"><Select value={editing.source} onChange={(v) => setEditing({ ...editing, source: v })} options={SOURCES} /></Field>
+                <Field label="Kontrol sıklığı"><Select value={editing.checkEvery} onChange={(v) => setEditing({ ...editing, checkEvery: v })} options={CHECK_OPTS} /></Field>
+                <Field label="Sorumlu"><Select value={editing.ownerId || ''} onChange={(v) => setEditing({ ...editing, ownerId: v })} options={members.map((m) => ({ value: m.id, label: m.fullName || m.email }))} placeholder="—" /></Field>
+                <Field label="Durum"><Select value={editing.status} onChange={(v) => setEditing({ ...editing, status: v })} options={STATUS_OPTS} /></Field>
+              </div>
+              <Field label="Not"><Input value={editing.note} onChange={(v) => setEditing({ ...editing, note: v })} /></Field>
+            </>) : (
               <Field label="Tip"><Select value={editing.source} onChange={(v) => setEditing({ ...editing, source: v })} options={SOURCES} /></Field>
-              <Field label="Kontrol sıklığı"><Select value={editing.checkEvery} onChange={(v) => setEditing({ ...editing, checkEvery: v })} options={CHECK_OPTS} /></Field>
-              <Field label="Sorumlu"><Select value={editing.ownerId || ''} onChange={(v) => setEditing({ ...editing, ownerId: v })} options={members.map((m) => ({ value: m.id, label: m.fullName || m.email }))} placeholder="—" /></Field>
-              <Field label="Durum"><Select value={editing.status} onChange={(v) => setEditing({ ...editing, status: v })} options={STATUS_OPTS} /></Field>
-            </div>
-            <Field label="Not"><Input value={editing.note} onChange={(v) => setEditing({ ...editing, note: v })} /></Field>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
               <button className="adm-btn adm-btn--ghost" onClick={() => setEditing(null)}>İptal</button>
               <button className="adm-btn adm-btn--primary" onClick={save}>Kaydet</button>

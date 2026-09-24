@@ -55,8 +55,12 @@ function StatusBadge({ status }) {
 
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
-export default function ApplicationsPage({ kind = 'mentor' }) {
-  const cfgKind = KINDS[kind] || KINDS.mentor;
+// kind verilirse (eski çağrı biçimi) sabit tek-tip ekran; verilmezse (2026-09-24
+// "Diğer Başvurular" birleştirmesi — nav'da 3 ayrı sekme yerine tek sekme) bileşen
+// kendi tipini yönetir ve üstte bir tip-seçici çip satırı gösterir.
+export default function ApplicationsPage({ kind: fixedKind }) {
+  const [activeKind, setActiveKind] = useStateA(fixedKind || 'mentor');
+  const cfgKind = KINDS[activeKind] || KINDS.mentor;
   const { can } = usePerms();
   const canWrite = can('applications.write');
 
@@ -84,7 +88,7 @@ export default function ApplicationsPage({ kind = 'mentor' }) {
     }
   };
 
-  useEffectA(() => { setSelected(null); setFilter('all'); load(); }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffectA(() => { setSelected(null); setFilter('all'); load(); }, [activeKind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateStatus = async (id, status) => {
     setUpdating(true);
@@ -109,7 +113,19 @@ export default function ApplicationsPage({ kind = 'mentor' }) {
 
   return (
     <div>
-      <PageHead title={cfgKind.title} desc={`${items.length} başvuru — ${cfgKind.desc}`} />
+      <PageHead title={fixedKind ? cfgKind.title : 'Diğer Başvurular'} desc={`${items.length} başvuru — ${cfgKind.desc}`} />
+
+      {!fixedKind && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+          {Object.entries(KINDS).map(([k, c]) => (
+            <button key={k} type="button" onClick={() => setActiveKind(k)}
+              className={`adm-chip ${activeKind === k ? 'adm-chip--active' : ''}`}>
+              {c.title}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 0 }}>
         {/* Sol — liste */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
