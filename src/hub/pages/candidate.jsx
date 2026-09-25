@@ -798,9 +798,9 @@ function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
       {sendMail && c.email && (
         <>
           <Field label="Konu"><input className="adm-input" value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
-          <Field label="Mail metni" hint="Boş bırakırsan görev + son teslim tarihinden otomatik oluşturulur.">
-            <textarea className="adm-input adm-textarea" rows={7} value={body}
-              onChange={(e) => setBody(e.target.value)} placeholder={autoBody} />
+          <Field label="Mail metni" hint="Görev + son teslim tarihinden otomatik dolduruldu — üzerinde dilediğin gibi düzenleme yap.">
+            <textarea className="adm-input adm-textarea" rows={7} value={effectiveBody}
+              onChange={(e) => setBody(e.target.value)} />
           </Field>
         </>
       )}
