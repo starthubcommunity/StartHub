@@ -478,11 +478,16 @@ export default function TodayPage({ onGoto, setFilters }) {
   // (eskiden ayrı bir "Pipeline şeridi"nde tekrar ediyordu — KPI kartlarıyla
   // çakışmasın diye tek yere, buraya toplandı).
   const stagePalette = { pool: '#A29D94', contact: '#2563EB', interview: '#7C3AED', trial: '#EA580C', member: '#16A34A' };
+  // 2026-09-25 — "member" (ekibe alınmış) burada gösterilmiyor: hem ayrı bir
+  // "Ekipteki" KPI kartı zaten var, hem de applyFilters artık member'ı Adaylar
+  // listesinde her zaman elediği için tıklanınca hep boş sonuca düşerdi
+  // (bkz. filter-bar.jsx'in aynı sebeple "Ekipte" çipini kaldırması).
   const stageBreakdown = useMemo(() => {
-    const total = activeCandidates.length;
+    const pipelineCandidates = activeCandidates.filter((c) => c.stage !== 'member');
+    const total = pipelineCandidates.length;
     const counts = {};
-    activeCandidates.forEach((c) => { counts[c.stage] = (counts[c.stage] || 0) + 1; });
-    return STAGES.map((s) => ({
+    pipelineCandidates.forEach((c) => { counts[c.stage] = (counts[c.stage] || 0) + 1; });
+    return STAGES.filter((s) => s.value !== 'member').map((s) => ({
       key: s.value, label: s.label, value: counts[s.value] || 0,
       pct: total ? Math.round((100 * (counts[s.value] || 0)) / total) : 0, color: stagePalette[s.value],
     })).filter((s) => s.value > 0);
@@ -520,8 +525,11 @@ export default function TodayPage({ onGoto, setFilters }) {
           onClick={() => { setFilters?.({ ...EMPTY_FILTERS }); onGoto?.('candidates'); }} />
         <KpiCard icon="clock" tone="amber" value={todos.length} label="Bugün Yapılacak"
           onClick={todos.length ? () => setOpenId(todos[0].c.id) : undefined} />
-        <KpiCard icon="users" tone="green" value={memberCount} label="Ekipteki"
-          onClick={() => { setFilters?.({ ...EMPTY_FILTERS, stage: ['member'] }); onGoto?.('candidates'); }} />
+        {/* 2026-09-25 — Ekibe alınan adaylar artık Adaylar listesinde hiç
+            görünmüyor (applyFilters her zaman eliyor, bkz. hub-filter.js),
+            o yüzden bu kart tıklanabilir olamaz — tıklansa hep boş sonuca
+            düşerdi. */}
+        <KpiCard icon="users" tone="green" value={memberCount} label="Ekipteki" />
         <KpiCard icon="rocket" tone="purple" value={interviewCount} label="Görüşmede"
           onClick={() => { setFilters?.({ ...EMPTY_FILTERS, stage: ['interview'] }); onGoto?.('candidates'); }} />
       </div>

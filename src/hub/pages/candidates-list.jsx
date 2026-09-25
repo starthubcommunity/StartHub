@@ -69,7 +69,7 @@ function RowRight({ c, touchesByCand, gatesByCand }) {
 // hedef (dropzone) da oluyor.
 function FolderRail({ folders, candidates, selected, onSelect, onSelectAll, onCreate, onDeleteRequest, onDropCandidate, canWrite }) {
   const [dragOver, setDragOver] = useState(null); // 'none' | folder id | null
-  const active = candidates.filter((c) => c.stage !== 'archived');
+  const active = candidates.filter((c) => c.stage !== 'archived' && c.stage !== 'member');
   const totalCount = active.length;
   const noneCount = active.filter((c) => !c.folderId).length;
   const countFor = (folderId) => active.filter((c) => c.folderId === folderId).length;
@@ -176,7 +176,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
     [currentMember, touchesByCand, openRoles]
   );
 
-  const activeCount = useMemo(() => candidates.filter((c) => c.stage !== 'archived').length, [candidates]);
+  const activeCount = useMemo(() => candidates.filter((c) => c.stage !== 'archived' && c.stage !== 'member').length, [candidates]);
 
   // 2026-09-23 — inbound (formdan gelen) adaylar en üstte + sarı çerçeveyle ayırt
   // edilsin diye önce kaynak (inbound önce), sonra en yeni — bu, HİÇBİR adayın
