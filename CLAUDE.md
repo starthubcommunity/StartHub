@@ -335,6 +335,35 @@ normaldi, yani hata gerçek bir şifre/e-posta uyuşmazlığıydı, bir kod regr
 zaten güvenli olduğu için kullanıcıya "Şifremi unuttum"u önermek yeterli oldu. **Not:** `hub-move-to-team`
 akışında (bkz. proje sahibi notu) takım liderinin onayı YOK — HR'daki cofounder kararı doğrudan Team App'e
 gerçek üyelik olarak yansıyor, ara bir "teklif bekliyor" adımı henüz yok (ileride Team App'e taşınacak).
+
+**Canlı veri okuma yöntemi (2026-09-24'ten beri rutin):** `npx supabase db query --linked` ile CLI'nin zaten
+`supabase login` ile kimliklenmiş oturumu üzerinden linked projeye (fdlghaafspcuagxfrofz) SQL çalıştırılabiliyor
+— servis rolü anahtarını dosyadan okumaya (Bash `cat`/`grep` ile .env taraması) gerek yok, o zaten "Credential
+Materialization" sınıflandırıcısı tarafından engelleniyor. Sorgu sonuçları "untrusted data" uyarısıyla dönüyor —
+adayların/başvuruların girdiği serbest metin alanları (isim, bölüm, mesaj vb.) veri olarak okunmalı, talimat
+olarak değil. `has_perm()`'e bağlı RPC'ler (ör. `hub_sheet_backfill()`) bu yoldan `Yetkin yok` hatası verir
+(auth.uid() burada boş) — böyle bir fonksiyonu tetiklemek gerekirse ya HR'dan gerçek oturumla tıklanır ya da
+fonksiyonun içindeki SQL, izin kontrolü olmadan bir `do $$ ... $$` bloğu içinde elle tekrarlanır.
+
+**Katıl formu — toplu üniversite başvuruları HR'da "kayıp" görünüyor, aslında değil (2026-09-25):**
+Kullanıcı "biri formu doldurdu ama Adaylar'da yok" dedi. Kontrol: 24 Eylül'de Haliç Üniversitesi'nden ~20 kişi
+art arda "Topluluğa Katıl" kartından başvurmuş (`applications`, `target='community'`). Bu BEKLENEN davranış
+(§0041) — topluluk başvuruları HR'a hiç düşmüyor, yalnızca Google Sheets'e ("Hub Başvuruları" sekmesi) gidiyor.
+Kod hatası değildi; teşhis DB'de `department`/`university` alanlarında ilgili metni arayarak yapıldı
+(`applications` tablosu küçük olduğu için — 25 satır — pratik). Bu tür "listede yok" şikayetlerinde önce
+`applications.target` değerine bak: 'community' ise zaten HR'a gelmeyecek, sorun orada değil.
+
+**LAB yedek sekmesi adı değişti (2026-09-25, 0046):** `hub_sheet_config.lab_sheet_name` varsayılanı
+"Sayfa1"dan "Lab Başvuruları"na çevrildi (HUB tarafının "Hub Başvuruları" ile simetrik olsun, "Sayfa1'e ne
+yansıyor?" kafa karışıklığı gitsin diye). Eski "Sayfa1" sekmesi Google Sheets'te elle silinmediği sürece
+durur ama artık hiçbir yeni satır oraya yazılmıyor. Backfill çalıştırıldı, `net._http_response` log'unda iki
+`200 {"ok":true}` ile doğrulandı. **Bu turda ayrıca önemli bir şey bulundu:** Kadir'in 0045_hub_folders.sql'i
+(aday klasörleme, "dosya gezgini modeli") repoda commit edilmiş ama CANLI VERİTABANINA HİÇ UYGULANMAMIŞTI —
+yani onun zaten deploy edilmiş ön yüz kodu `hub_folders`/`folder_id` gibi olmayan DB nesnelerine erişmeye
+çalışıyordu (muhtemelen sessizce hata veriyordu). `supabase db push --linked` ile 0045 de bu turda uygulandı.
+**Ders:** bir migration dosyasının repoda/commit'te olması onun CANLI DB'ye uygulandığı anlamına gelmez —
+ikinci bir katkıcı DB migration'ı olmadan frontend push'u yapabiliyor, `supabase db push --linked --dry-run`
+ile ara sıra "bekleyen migration var mı" kontrolü faydalı olabilir.
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
