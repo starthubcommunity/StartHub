@@ -43,6 +43,10 @@ export default function FilterBar({ filters, onChange, candidates = [], openRole
   const counts = {};
   QUICK_CHIPS.forEach((ch) => { counts[ch.key] = active.filter(chipPredicate(ch.key, ctx)).length; });
   const roleOpts = openRoles.map((r) => ({ value: r.id, label: r.title }));
+  // Ekibe alınanlar (member) Adaylar listesinde hiç görünmüyor (2026-09-25,
+  // applyFilters) — o yüzden "Aşama" filtresinde de seçenek olarak sunulmaz,
+  // aksi halde her zaman 0 sonuç veren kafa karıştırıcı bir çip olurdu.
+  const stageOpts = STAGES.filter((s) => s.value !== 'member');
 
   return (
     <div className="hub-filterbar" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
@@ -57,7 +61,7 @@ export default function FilterBar({ filters, onChange, candidates = [], openRole
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <SearchBar value={f.q} onChange={(v) => set('q', v)} placeholder="Ad, okul, kaynak detayı…" />
-        <Group label="Aşama"  options={STAGES}   selected={f.stage}      onToggle={(v) => toggle('stage', v)} />
+        <Group label="Aşama"  options={stageOpts} selected={f.stage}      onToggle={(v) => toggle('stage', v)} />
         <Group label="Kaynak" options={SOURCES}  selected={f.source}     onToggle={(v) => toggle('source', v)} />
         <Group label="Rol"    options={roleOpts} selected={f.openRoleId} onToggle={(v) => toggle('openRoleId', v)} />
         {countActiveFilters(f) > 0 && (

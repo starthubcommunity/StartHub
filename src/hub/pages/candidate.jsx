@@ -383,37 +383,45 @@ function TrackRoleSection({ c, openRole, role, store, flash }) {
         </details>
       )}
 
-      {decidePending && (
-        <div className="hub-threshold hub-threshold--no" style={{ display: 'block', marginTop: 8 }}>
-          <strong>Sana sunuldu — kabul veya ret ver (gerekçe zorunlu).</strong>
-          <textarea className="adm-input adm-textarea" rows={2} style={{ margin: '6px 0' }} value={note}
-            onChange={(e) => setNote(e.target.value)} placeholder="Kararının gerekçesi…" />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || !note.trim()} onClick={() => decide('accepted')}>Kabul</button>
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy || !note.trim()} onClick={() => decide('rejected')}>Ret</button>
+      {/* 2026-09-25 — bu sunma/karar akışı (görüşme eşiği geçilir geçilmez
+          Deneme'ye "davet" kararı) YALNIZCA kurucu hattında kaldı. Üye
+          hattında ekibe alım kararı artık burada değil, Kapı A'yı geçtikten
+          SONRA TrialSection'daki "Proje sahibine sun" ile Team App'teki
+          gerçek Team Lead'e taşınıyor (bkz. hub-store.presentToOwner) — bu
+          yüzden bu blok her aşamada çıkıp kafa karıştırmıyor artık. */}
+      {(c.track || DEFAULT_TRACK) === 'founder' && (<>
+        {decidePending && (
+          <div className="hub-threshold hub-threshold--no" style={{ display: 'block', marginTop: 8 }}>
+            <strong>Sana sunuldu — kabul veya ret ver (gerekçe zorunlu).</strong>
+            <textarea className="adm-input adm-textarea" rows={2} style={{ margin: '6px 0' }} value={note}
+              onChange={(e) => setNote(e.target.value)} placeholder="Kararının gerekçesi…" />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || !note.trim()} onClick={() => decide('accepted')}>Kabul</button>
+              <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy || !note.trim()} onClick={() => decide('rejected')}>Ret</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {c.presentedAt ? (
-        <div style={{ fontSize: 13, marginTop: 6 }}>
-          <strong>Sunuldu:</strong> {String(c.presentedAt).slice(0, 10)} ·{' '}
-          {c.ownerDecision && c.ownerDecision !== 'pending' ? (
-            <span className="hub-pill" style={c.ownerDecision === 'accepted' ? { background: 'var(--adm-green-light)', color: 'var(--adm-green)' } : { background: 'var(--adm-red-light)', color: 'var(--adm-red)' }}>
-              {OWNER_DECISION_LABEL[c.ownerDecision]}
-            </span>
-          ) : <span className="hub-pill">proje sahibi kararı bekleniyor</span>}
-          {c.ownerDecisionNote && <div style={{ color: 'var(--adm-text-secondary)', marginTop: 2 }}>Gerekçe: {c.ownerDecisionNote}</div>}
-        </div>
-      ) : (
-        <div style={{ marginTop: 6 }}>
-          <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={!canPresentNow || busy} onClick={present}
-            title={canPresentNow ? '' : (chk.reason || 'Sunulamaz')}>
-            Proje sahibine sun
-          </button>
-          {!chk.ok && openRole && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginLeft: 8 }}>{chk.reason}</span>}
-        </div>
-      )}
+        {c.presentedAt ? (
+          <div style={{ fontSize: 13, marginTop: 6 }}>
+            <strong>Sunuldu:</strong> {String(c.presentedAt).slice(0, 10)} ·{' '}
+            {c.ownerDecision && c.ownerDecision !== 'pending' ? (
+              <span className="hub-pill" style={c.ownerDecision === 'accepted' ? { background: 'var(--adm-green-light)', color: 'var(--adm-green)' } : { background: 'var(--adm-red-light)', color: 'var(--adm-red)' }}>
+                {OWNER_DECISION_LABEL[c.ownerDecision]}
+              </span>
+            ) : <span className="hub-pill">proje sahibi kararı bekleniyor</span>}
+            {c.ownerDecisionNote && <div style={{ color: 'var(--adm-text-secondary)', marginTop: 2 }}>Gerekçe: {c.ownerDecisionNote}</div>}
+          </div>
+        ) : (
+          <div style={{ marginTop: 6 }}>
+            <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={!canPresentNow || busy} onClick={present}
+              title={canPresentNow ? '' : (chk.reason || 'Sunulamaz')}>
+              Proje sahibine sun
+            </button>
+            {!chk.ok && openRole && <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginLeft: 8 }}>{chk.reason}</span>}
+          </div>
+        )}
+      </>)}
     </div>
   );
 }
@@ -855,6 +863,45 @@ function TeamMoveConfirm({ c, store, busy, onCancel, onConfirm }) {
   );
 }
 
+// ── Üye hattı: "Ekibe al"ın yerini alan Team Lead onayı (2026-09-25) ──
+function PresentToOwnerConfirm({ c, store, busy, onCancel, onConfirm }) {
+  const linkable = store.openRoles.filter(
+    (r) => ['sourcing', 'shortlist'].includes(r.status) || r.id === c.openRoleId
+  );
+  const [roleId, setRoleId] = useState(c.openRoleId || '');
+  const roleTitle = store.openRoles.find((r) => r.id === roleId)?.title || null;
+
+  return (
+    <div className="hub-ai" style={{ marginTop: 8 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>Proje sahibine sun</div>
+      {!roleId ? (
+        <div className="hub-threshold hub-threshold--no" style={{ display: 'block', marginBottom: 8 }}>
+          <strong>Sunmak için bir açık role bağlı olmalı.</strong> Aşağıdan bir rol seç.
+        </div>
+      ) : (
+        <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginBottom: 8 }}>
+          Aday <b>{roleTitle || '—'}</b> rolü için <b>o projenin Team Lead'ine</b> Team App üzerinden sunulacak —
+          hesap ancak Team Lead kabul edince açılır.
+        </div>
+      )}
+      <Field label="Açık rol">
+        <select className="adm-input adm-select" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+          <option value="">— (seç) —</option>
+          {linkable.map((r) => (
+            <option key={r.id} value={r.id}>{r.title}</option>
+          ))}
+        </select>
+      </Field>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || !roleId} onClick={() => onConfirm(roleId)}>
+          {busy ? '…' : 'Proje sahibine sun'}
+        </button>
+        <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={onCancel}>Vazgeç</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Deneme (Kapı A / B) ───────────────────────────────────────────
 function TrialSection({ c }) {
   const store = useHubStore();
@@ -866,6 +913,7 @@ function TrialSection({ c }) {
   const [msg, setMsg] = useState('');
   const [wiz, setWiz] = useState(null);   // 'startA' | 'startB' | { extend: gateId }
   const [teamConfirm, setTeamConfirm] = useState(false);
+  const [ownerConfirm, setOwnerConfirm] = useState(false);
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
   const toTeam = async (roleId) => {
@@ -882,6 +930,17 @@ function TrialSection({ c }) {
       }
     } catch (e) { flash('Aktarılamadı: ' + e.message); }
     setTeamConfirm(false);
+    setBusy(false);
+  };
+
+  const toOwner = async (roleId) => {
+    setBusy(true);
+    try {
+      if (roleId && roleId !== c.openRoleId) await store.linkCandidateRole(c.id, roleId);
+      const r = await store.presentToOwner(c.id);
+      flash(r.alreadyPending ? 'Zaten sunulmuş — Team Lead kararını bekliyor.' : 'Proje sahibine (Team Lead) sunuldu — Team App üzerinden karar bekleniyor.');
+    } catch (e) { flash('Sunulamadı: ' + e.message); }
+    setOwnerConfirm(false);
     setBusy(false);
   };
 
@@ -911,12 +970,34 @@ function TrialSection({ c }) {
       )}
       {gateB && <GateCard gate={gateB} onMark={(p) => store.markGate(gateB.id, p)} onExtend={() => setWiz({ extend: gateB.id })} />}
 
-      {((founder && gateB?.result === 'passed') || (!founder && gateA?.result === 'passed')) && (
+      {founder && gateB?.result === 'passed' && (
         teamConfirm
           ? <TeamMoveConfirm c={c} store={store} busy={busy} onCancel={() => setTeamConfirm(false)} onConfirm={toTeam} />
           : <button className="hub-wz__next" style={{ margin: '4px 0 0' }} disabled={busy} onClick={() => setTeamConfirm(true)}>
               Ekibe al
             </button>
+      )}
+
+      {/* Üye hattı: Kapı A geçince artık doğrudan "Ekibe al" yok — önce o
+          projenin Team Lead'ine (Team App) sunulur, hesap ancak orada kabul
+          edilince açılır (2026-09-25). */}
+      {!founder && gateA?.result === 'passed' && (
+        c.presentedAt ? (
+          <div style={{ fontSize: 13, marginTop: 8 }}>
+            <strong>Sunuldu:</strong> {String(c.presentedAt).slice(0, 10)} ·{' '}
+            {c.ownerDecision && c.ownerDecision !== 'pending' ? (
+              <span className="hub-pill" style={c.ownerDecision === 'accepted' ? { background: 'var(--adm-green-light)', color: 'var(--adm-green)' } : { background: 'var(--adm-red-light)', color: 'var(--adm-red)' }}>
+                {OWNER_DECISION_LABEL[c.ownerDecision]}
+              </span>
+            ) : <span className="hub-pill">Team Lead kararı bekleniyor</span>}
+          </div>
+        ) : (
+          ownerConfirm
+            ? <PresentToOwnerConfirm c={c} store={store} busy={busy} onCancel={() => setOwnerConfirm(false)} onConfirm={toOwner} />
+            : <button className="hub-wz__next" style={{ margin: '4px 0 0' }} disabled={busy} onClick={() => setOwnerConfirm(true)}>
+                Proje sahibine sun
+              </button>
+        )
       )}
       {msg && <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginTop: 8 }}>{msg}</div>}
 

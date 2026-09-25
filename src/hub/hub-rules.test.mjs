@@ -349,6 +349,11 @@ t('applyFilters: archived HER ZAMAN elenir (B1)', () => {
   assert.equal(applyFilters(fcands, {}, fctx).some((c) => c.id === 'a1'), false);
   assert.equal(applyFilters(fcands, {}, fctx).length, 4);
 });
+t('applyFilters: member (ekibe alınmış) HER ZAMAN elenir (2026-09-25)', () => {
+  const withMember = [...fcands, { id: 'm-done', stage: 'member', ownerId: 'm1' }];
+  assert.equal(applyFilters(withMember, {}, fctx).some((c) => c.id === 'm-done'), false);
+  assert.equal(applyFilters(withMember, { stage: ['member'] }, fctx).length, 0);
+});
 t('çip "mine": ownerId === currentMember', () => {
   const r = applyFilters(fcands, { chip: 'mine' }, fctx).map((c) => c.id);
   assert.deepEqual(r.sort(), ['k1', 'p1']);

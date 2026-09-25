@@ -364,6 +364,105 @@ yani onun zaten deploy edilmiş ön yüz kodu `hub_folders`/`folder_id` gibi olm
 **Ders:** bir migration dosyasının repoda/commit'te olması onun CANLI DB'ye uygulandığı anlamına gelmez —
 ikinci bir katkıcı DB migration'ı olmadan frontend push'u yapabiliyor, `supabase db push --linked --dry-run`
 ile ara sıra "bekleyen migration var mı" kontrolü faydalı olabilir.
+
+**Mentör/Destekçi başvuruları kendi Sheets sekmesinde, HUB+LAB birlikte (2026-09-25, 0047):** Kullanıcı "Sayfa1"i
+tamamen bırakıp yerine iki yeni sekme istedi: "Mentör Başvuruları" ve "Destekçi Başvuruları" — bunlar HEDEFTEN
+(Topluluk/Startup) BAĞIMSIZ, bir mentör/destekçi hangisini seçmiş olursa olsun aynı sekmede birleşiyor. Diğer
+türler (community/hub → Hub Başvuruları; project/pool_match/idea_application → Lab Başvuruları) eskisi gibi
+hedefe göre ayrılmaya devam ediyor. Ortak yardımcı `hub_sheet_target(a, cfg)` fonksiyonu hem trigger'da hem
+`hub_sheet_backfill()`'de kullanılıyor — sekme seçim mantığı TEK yerde. `hub_sheet_config`'e `mentor_sheet_name`/
+`sponsor_sheet_name` eklendi, HR › Ayarlar'da düzenlenebilir. Şu an hiç mentör/destekçi başvurusu olmadığı için
+(0 kayıt) iki sekmeyi elle birer test satırıyla tetikleyip oluşturdum (auto-create doğrulandı, silinebilir test
+satırları).
+
+**Migration numarası çakışması (2026-09-25):** Bu oturumda 0047 numarasını hem ben (Sheets mentör/destekçi
+ayrımı) hem Kadir (`hub_candidates.sort_order` — Adaylar'da sürükle-bırak sıralama) bağımsız olarak kullanmış;
+git merge dosya adları farklı olduğu için sorun çıkarmadı ama Supabase'in migration takip tablosu versiyonu
+SADECE dosya adının baştaki 4 haneli numarasından okuyor (`supabase_migrations.schema_migrations.version`) —
+iki farklı migration aynı versiyonu paylaşamaz. Kadir'inki henüz canlıya hiç uygulanmamıştı (yalnızca repodaydı),
+bu yüzden çakışma olmadan `0048_hub_candidate_sort_order.sql`'e yeniden adlandırıp öyle uyguladım. **Ders:**
+iki kişi aynı anda migration eklerken numara çakışması olağan bir risk — `push` öncesi
+`select version from supabase_migrations.schema_migrations order by version desc limit 5` ile canlıdaki son
+numarayı kontrol etmek, yalnızca repodaki dosyalara bakmaktan daha güvenilir.
+
+**Destekçi kartı geri geldi (2026-09-25):** 2026-09-23'te kullanıcının kendi isteğiyle kaldırılmıştı ("biz
+bunu siteye destekçileri manuel olarak ekleriz daha mantıklı"); iki gün sonra fikrini değiştirip geri istedi.
+Form/validate/submit dalları hiç silinmemişti (yalnızca kart + sessionStorage izni kaldırılmıştı), o yüzden
+geri getirmek yalnızca o iki noktayı eski haline döndürmekle oldu — DB/HR tarafında ekstra bir şey gerekmedi.
+
+**Gerçek olay: RAG (GrantAgent) başvurusu HR'a düşmüyordu (2026-09-25):** Kullanıcı "açık pozisyon formunu
+dolduran biri HR'da gözükmüyor" dedi. Kök neden SİSTEMİK DEĞİLDİ (diğer tüm project/pool_match başvuruları
+sorunsuz düşüyordu, tek tek kontrol edildi) — aynı e-postayla (shiptarea@gmail.com) 15 Eylül'den kalma bariz
+bir TEST kaydı (isim "fere", üniversite "jlkh", pozisyon "gfh") zaten `hub_candidates`'ta vardı, hatta
+yanlışlıkla `people` tablosuna (type='team') kadar ilerletilmişti — yani CANLI /Hakkımızda sayfasının ekip
+bölümünde görünüyor olabilirdi. `applications_to_hub_candidate()`'in `unique_violation` yakalayıcısı aynı
+e-postayla gelen YENİ (gerçek) başvuruyu bu yüzden sessizce atlıyordu. Düzeltme: o test kaydı + people satırı
+silindi (kullanıcı onayıyla), gerçek başvuru elle doğru şekilde `hub_candidates`'a işlendi (RAG açık rolüne
+bağlı, Havuz aşamasında, Backend klasöründe). **Kök neden de ayrıca düzeltildi (0049):** artık aynı e-postayla
+ikinci bir başvuru geldiğinde sessizce kaybolmuyor — mevcut adayın `interview_note`'una zaman damgalı, görünür
+bir "Yeniden başvurdu — Proje: X · Pozisyon: Y" satırı ekleniyor; adayın aşaması/diğer alanları değişmiyor.
+
+**Kurucu ilanında rol başlığı/tipi sorulmuyor (2026-09-25):** `roles.jsx`'te yeni rol oluşturma akışında hat
+"Kurucu" seçilirse `restSteps`'ten `titleStep`/`roleTypeStep` çıkarılıyor — bu bir ortaklık, işlevsel bir rol
+değil. `saveRole()`'da başlık otomatik "Kurucu Ortak", `role_type` `null` yazılıyor (roleType nullable);
+kartta `roleType` boşsa rozet hiç basılmıyor. Yalnızca YENİ rol oluşturma akışını etkiler — "Düzenle"
+(`editWizSteps`) hâlâ tüm alanları soruyor, gerekirse sonradan doldurulabilir.
+
+**Ekibe alınan aday Adaylar listesinden otomatik düşüyor (2026-09-25):** `hub-filter.js`'teki `applyFilters`
+artık `stage==='archived'` gibi `stage==='member'`i de HER ZAMAN eliyor — ekibe alınan kişi artık "aday"
+sayılmıyor, takibi Team Management'a taşınıyor. `filter-bar.jsx`'teki "Aşama" filtresinden "Ekipte" seçeneği
+de kaldırıldı (aksi halde hep 0 sonuç veren kafa karıştırıcı bir çip olurdu). `roles.jsx`'teki rol-başına
+aşama dökümü (funnel) `applyFilters` KULLANMADIĞI için etkilenmedi, orada "Ekipte" sayısı görünmeye devam
+ediyor.
+
+**Üye adaylarını ekibe alma kararı Team Lead'e taşındı (2026-09-25, büyük özellik):** Kullanıcının isteği:
+"kurucu değil ekip üyesini proje sahibine (Team Lead) sunmadan ekibe alımı olmasın." Üye hattındaki bir aday
+Kapı A'yı geçtikten sonra HR'daki `TrialSection`'da "Ekibe al" butonunun yerini **"Proje sahibine sun"** aldı
+— cofounder/recruiter artık tek başına ekibe alamıyor, o projenin Team App'teki gerçek Team Lead'ine (veya
+admin'e) sunuyor; hesap ancak Team App'in Team sayfasındaki yeni **"Bekleyen Adaylar"** panelinden Kabul
+verilince açılıyor + davet maili gidiyor. **Kurucu hattı bu akışa hiç girmiyor** (ayrı bir "proje sahibi" yok,
+cofounder eskisi gibi doğrudan karar verir) — bu yüzden `candidate.jsx`'teki `TrackRoleSection`'ın eski
+erken-sunma/kabul-ret bloğu artık yalnızca `track==='founder'` iken render ediliyor; üye hattında HER
+aşamada çıkıp kafa karıştıran o panel (bir kullanıcı şikâyeti) tamamen kalktı.
+
+Mimari (plan dosyası: oturum içi `EnterPlanMode` ile onaylandı, detaylar orada):
+- **Ana proje**: `hub-present-to-owner` (yeni, HR'dan `hub-store.presentToOwner` ile çağrılır, gerçek kullanıcı
+  JWT'si + `hub_role()` kontrolü — `hub-move-to-team` ile aynı desen) → Team App'e `hub-bridge-present-candidate`
+  ile köprü kurar. `hub-owner-decision` (yeni, `x-hub-bridge-key` ile — **`--no-verify-jwt` ile deploy edildi**,
+  çünkü çağıran gerçek bir Supabase JWT'si taşımıyor, yalnızca paylaşılan sır) Team App'ten gelen kararı
+  `hub_candidates`'a yazar (`accepted` → `_shared/move-to-team-core.ts` — `hub-move-to-team`'in DB-yazan
+  çekirdeği, KOD TEKRARLANMADI, iki fonksiyon da import ediyor; `rejected` → yalnızca `owner_decision` +
+  rol-yeniden-açma, `roleStatusAfterReject` ile aynı mantık SQL'de tekrarlandı çünkü o dosya frontend
+  bundle'ının parçası, edge function'dan import edilemiyor).
+- **Team App projesi** (`umgdtjlgivvymngsnqtv`): `hub-bridge-present-candidate` (yeni, `--no-verify-jwt`,
+  `app_state.data.candidateOffers`'a `status:'pending'` kayıt ekler — HUB_SPEC'teki gibi CAS/repair-write).
+  `hub-team-decide-offer` (yeni, Team App'in KENDİ oturum JWT'siyle — sır GEREKMEZ, sunucu tarafında
+  admin/lead olduğu `effRole` ile tekrar doğrulanır) Kabul'de `hub-bridge-add-member/logic.ts`'teki
+  `computeBridgePatch`'i AYNEN import edip kullanır (kod tekrarlanmadı), sonra ana projeye `hub-owner-decision`
+  ile kararı bildirir.
+- **`public/team/index.html`**: `app_state.data`'ya yeni `candidateOffers` alanı — **hem `_snapshot()`
+  (giden yazma) hem `_applySnapshot()` (gelen okuma) güncellendi**, ikisi de whitelist mantığıyla çalışıyor;
+  yalnızca birini güncellemek bir sonraki ilgisiz kayıtta (tüm `data` kolonu parça parça değil BÜTÜN
+  üzerine yazıldığından) bu alanın sessizce silinmesine yol açardı — bulundu ve düzeltildi. Team sayfasındaki
+  her ekip kartına, `canManageTeam` (admin || o ekibin lead'i) doğruysa "Bekleyen Adaylar" alt-bloğu eklendi.
+  **Kritik bulgu**: dosyanın JSON-string kodlamasında `</script` dizisi özellikle `<\/script` olarak
+  kaçışlanmış (JSON'da geçerli bir kaçış — `\/` → `/`) çünkü içeride gerçek bir `<script type="text/x-dc">`
+  etiketi var; bir gerçek tarayıcının HTML ayrıştırıcısı "JSON string içinde" kavramını bilmez, ham baytlarda
+  `</script` dizisini görünce DIŞ script'i erken kapatır. Düz `JSON.stringify` bunu OTOMATİK yapmaz (`/`
+  kaçışlamaz) — düzeltme scripti bunu elle (`</script` → `<\/script`, case-insensitive) uyguladı, ardından
+  `node:vm` ile İZOLE edilmiş JS bloğu (tüm `src` değil — o HTML+JS karışımı, yalnızca
+  `class Component extends DCLogic {...}` aralığı) sözdizim kontrolünden geçirildi, offset-tabanlı (regex
+  DEĞİL — iç içe script kapanışları regex'i yanıltabilir) round-trip doğrulaması yapıldı, `npm run build`
+  sonrası `dist/team/index.html` `public/`le birebir karşılaştırıldı (`diff` — IDENTICAL).
+- **Gateway JWT ayrımı**: yalnızca paylaşılan sırla (`x-hub-bridge-key`) çağrılan fonksiyonlar
+  (`hub-owner-decision`, `hub-bridge-present-candidate`, mevcut `hub-bridge-add-member`) `--no-verify-jwt`
+  ile deploy edilir — gerçek bir Supabase JWT taşımadıkları için varsayılan gateway kontrolü onları
+  `UNAUTHORIZED_NO_AUTH_HEADER` ile reddederdi. Gerçek kullanıcı oturumuyla çağrılanlar (`hub-present-to-owner`,
+  `hub-team-decide-offer`, `hub-move-to-team`) varsayılan (JWT doğrulamalı) ayarda kalır.
+
+Node testleri: `hub-bridge-present-logic.test.mjs`, `hub-team-decide-logic.test.mjs` (yeni, `hub-bridge-
+logic.test.mjs` ile aynı desen — saf mantık, ağsız). Tüm 5 yeni/değişen edge function `curl` ile canlıda
+smoke-test edildi (beklenen 401/hata gövdeleri doğrulandı, gerçek mutasyon YAPILMADI).
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile

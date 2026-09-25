@@ -49,13 +49,16 @@ export function chipPredicate(key, ctx = {}) {
 }
 
 // Saf: aday listesini filtrelere göre süzer. archived HER ZAMAN elenir
-// (arşiv ayrı sayfa — B1).
+// (arşiv ayrı sayfa — B1). member de HER ZAMAN elenir (2026-09-25) — ekibe
+// alınan kişi artık "aday" değil, yönetimi Team Management'a taşınıyor;
+// Adaylar listesinde kalması karışıklık yaratıyordu. roles.jsx'teki rol
+// başına aşama dökümü (funnel) applyFilters KULLANMIYOR, oradan etkilenmez.
 export function applyFilters(candidates, filters, ctx = {}) {
   const f = { ...EMPTY_FILTERS, ...(filters || {}) };
   const q = f.q.trim().toLowerCase();
   const chipFn = f.chip ? chipPredicate(f.chip, ctx) : null;
   return (candidates || []).filter((c) => {
-    if (c.stage === 'archived') return false;
+    if (c.stage === 'archived' || c.stage === 'member') return false;
     if (q) {
       const hay = [c.fullName, c.university, c.sourceDetail].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
