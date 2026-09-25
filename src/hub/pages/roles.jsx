@@ -104,7 +104,11 @@ export default function RolesPage({ onGoto, setFilters }) {
   const skillsStep = { key: 'skills', type: 'text', q: 'Beceriler (virgülle)?', ph: 'React, SQL, Go', optional: true };
   const firstDeliverableStep = { key: 'firstDeliverable', type: 'text', q: 'İlk teslimat (Kapı A görev metni)?', optional: true };
 
-  const restSteps = useMemo(() => [titleStep, roleTypeStep, assignedToStep, profileStep], [assignedToStep]);
+  // Kurucu hattı için rol başlığı/tipi sorulmaz — bu "rol" aslında proje
+  // sahipliği, teknik/tasarım/operasyon ayrımı anlamsız (2026-09-25 kararı).
+  const restSteps = useMemo(() => (
+    editing?.track === 'founder' ? [assignedToStep, profileStep] : [titleStep, roleTypeStep, assignedToStep, profileStep]
+  ), [assignedToStep, editing?.track]);
 
   const editWizSteps = useMemo(() => [
     { key: 'startupId', type: 'options', q: 'Hangi proje?', options: [
@@ -119,11 +123,12 @@ export default function RolesPage({ onGoto, setFilters }) {
   const wizSteps = editing?.id ? editWizSteps : restSteps;
 
   const saveRole = async (a) => {
-    if (!String(a.title || '').trim()) throw new Error('Başlık zorunlu.');
+    const isNewFounder = !editing?.id && a.track === 'founder';
+    if (!isNewFounder && !String(a.title || '').trim()) throw new Error('Başlık zorunlu.');
     const payload = {
       startupId: a.startupId ? Number(a.startupId) : null,
-      title: a.title.trim(),
-      roleType: a.roleType || 'technical',
+      title: isNewFounder ? 'Kurucu Ortak' : a.title.trim(),
+      roleType: isNewFounder ? null : (a.roleType || 'technical'),
       track: a.track || 'member',
       profile: a.profile || '',
       skills: String(a.skills || '').split(',').map((x) => x.trim()).filter(Boolean),
@@ -194,7 +199,7 @@ export default function RolesPage({ onGoto, setFilters }) {
                   <strong style={{ fontSize: 15, fontFamily: 'var(--font-heading)' }}>{r.title}</strong>
                   <span className={`hub-pill ${STATUS_PILL[r.status] || ''}`}>{ROLE_STATUS_LABEL[r.status]}</span>
                   <span className={`hub-pill hub-pill--track-${r.track === 'founder' ? 'founder' : 'member'}`}>{r.track === 'founder' ? 'Kurucu hattı' : 'Üye hattı'}</span>
-                  <span className="hub-pill">{ROLE_TYPE_LABEL[r.roleType] || r.roleType}</span>
+                  {r.roleType && <span className="hub-pill">{ROLE_TYPE_LABEL[r.roleType] || r.roleType}</span>}
                   <span style={{ fontSize: 12, color: '#A29D94', marginLeft: 'auto' }}>{daysSince(r.createdAt)} gündür açık</span>
                 </div>
                 {r.profile && <div style={{ fontSize: 13, color: 'var(--adm-text-secondary)', margin: '6px 0' }}>{r.profile}</div>}
