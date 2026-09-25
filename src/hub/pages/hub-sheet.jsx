@@ -1,9 +1,10 @@
 // hub-sheet.jsx — HR › Ayarlar › "Başvuru Tablosu (Google Sheets)".
 // HUB (topluluk) tarafı HR'a düşmez, tabloya (varsayılan "Hub Başvuruları" sekmesi)
 // gider. LAB (startup) tarafı HR'a düşmeye devam eder — AMA 0043'ten itibaren aynı
-// tabloda ayrı bir sekmeye (varsayılan "Sayfa1") yedek olarak da yazılır: site/DB'ye
-// erişilemese bile başvurular Sheets'te durur. Servis hesabıyla otomatik çalışır —
-// kullanıcı tarafında Apps Script/kod kurulumu GEREKMEZ.
+// tabloda ayrı bir sekmeye (varsayılan "Lab Başvuruları" — 2026-09-25'te "Sayfa1"
+// adından değiştirildi, o eski sekmeye artık yazılmıyor) yedek olarak da yazılır:
+// site/DB'ye erişilemese bile başvurular Sheets'te durur. Servis hesabıyla otomatik
+// çalışır — kullanıcı tarafında Apps Script/kod kurulumu GEREKMEZ.
 import React, { useState, useEffect } from 'react';
 import { AIcon, Field, Input } from '../../admin/admin-ui';
 import { supabase } from '../../lib/supabase';
@@ -23,7 +24,7 @@ export default function HubSheetSettings() {
   const [cfg, setCfg] = useState(null);
   const [sheetId, setSheetId] = useState('');
   const [sheetName, setSheetName] = useState('Hub Başvuruları');
-  const [labSheetName, setLabSheetName] = useState('Sayfa1');
+  const [labSheetName, setLabSheetName] = useState('Lab Başvuruları');
   const [enabled, setEnabled] = useState(true);
   const [hubCount, setHubCount] = useState(null);
   const [labCount, setLabCount] = useState(null);
@@ -37,7 +38,7 @@ export default function HubSheetSettings() {
     setCfg(data);
     setSheetId(data.spreadsheet_id || '');
     setSheetName(data.sheet_name || 'Hub Başvuruları');
-    setLabSheetName(data.lab_sheet_name || 'Sayfa1');
+    setLabSheetName(data.lab_sheet_name || 'Lab Başvuruları');
     setEnabled(data.spreadsheet_id ? !!data.enabled : true);
   };
   useEffect(() => {
@@ -66,7 +67,7 @@ export default function HubSheetSettings() {
     setBusy('save');
     const { error } = await supabase.from('hub_sheet_config').upsert({
       id: 1, spreadsheet_id: id || null, sheet_name: sheetName.trim() || 'Hub Başvuruları',
-      lab_sheet_name: labSheetName.trim() || 'Sayfa1',
+      lab_sheet_name: labSheetName.trim() || 'Lab Başvuruları',
       enabled: !!id && enabled, updated_at: new Date().toISOString(),
     });
     setBusy('');
@@ -140,12 +141,12 @@ export default function HubSheetSettings() {
                       <Input value={sheetName} onChange={setSheetName} placeholder="Hub Başvuruları" />
                     </Field>
                     <Field label="LAB yedek sekmesi (startup)">
-                      <Input value={labSheetName} onChange={setLabSheetName} placeholder="Sayfa1" />
+                      <Input value={labSheetName} onChange={setLabSheetName} placeholder="Lab Başvuruları" />
                     </Field>
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '-2px 0 10px' }}>
                     LAB sekmesi yalnızca <b>yedek</b> — yönetim yine HR'da (Adaylar / Mentörler / Destekçiler / Fikirler) yapılır.
-                    Genelde Sheets'in kendiliğinden oluşturduğu boş "Sayfa1" sekmesi bunun için kullanılabilir.
+                    Sekme yoksa otomatik oluşturulur, elle bir şey açmana gerek yok.
                   </p>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
                     <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} style={{ accentColor: '#DC2626' }} />

@@ -17,8 +17,9 @@
 // hem "Mevcut başvuruları aktar" için güvenli).
 //
 // 0043: yalnızca HUB değil, LAB başvuruları da (aynı tabloda AYRI bir sekmeye —
-// varsayılan "Sayfa1") yedek olarak gönderiliyor; site/DB'ye erişilemese bile
-// başvurular Sheets'te duruyor. Yönlendirme kararı (hangi sekme) DB tetikleyicisinde.
+// varsayılan "Lab Başvuruları", 0046'dan beri) yedek olarak gönderiliyor; site/DB'ye
+// erişilemese bile başvurular Sheets'te duruyor. Yönlendirme kararı (hangi sekme) DB
+// tetikleyicisinde.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
