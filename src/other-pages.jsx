@@ -626,7 +626,7 @@ function JoinPage({ navigate, projectId }) {
     if (project) return 'community';
     if (typeof sessionStorage !== 'undefined') {
       const s = sessionStorage.getItem('sh_join_type');
-      if (s === 'community' || s === 'mentor') return s;
+      if (s === 'community' || s === 'mentor' || s === 'sponsor') return s;
     }
     return 'community';
   })();
@@ -995,11 +995,12 @@ function JoinPage({ navigate, projectId }) {
     { key: 'mentor', emoji: '🎓',
       title: lang === 'tr' ? fs('mentor_card_title_tr', 'Mentör Ol') : 'Become a Mentor',
       desc:  lang === 'tr' ? fs('mentor_card_desc_tr', 'Deneyimini paylaş, ekiplere ve girişimcilere rehberlik et.') : 'Share your expertise and guide teams and founders.' },
-    // 'sponsor' kartı 2026-09-23'te kaldırıldı — destekçiler artık başvuru almadan
-    // admin panelden elle ekleniyor (Site Destekçileri). Alttaki form/validate/submit
-    // dalları ve HR'daki Destekçiler sayfası BİLİNÇLİ OLARAK silinmedi (dead ama
-    // zararsız, proje kuralı: kaldırma yerine gizleme) — sessionStorage'daki eski
-    // 'sponsor' değeri de initialType'ta artık kabul edilmiyor.
+    // 'sponsor' kartı 2026-09-23'te kaldırılmış, 2026-09-25'te GERİ getirildi
+    // (kullanıcı kararını değiştirdi — form/validate/submit dalları hiç
+    // silinmemişti, yalnızca bu kart ve sessionStorage izni kaldırılmıştı).
+    { key: 'sponsor', emoji: '🤝',
+      title: lang === 'tr' ? fs('sponsor_card_title_tr', 'Destekçi / Sponsor Ol') : 'Become a Supporter',
+      desc:  lang === 'tr' ? fs('sponsor_card_desc_tr', 'Finansal, mentorluk ya da etkinlik desteğiyle katkı sağla.') : 'Support via funding, mentorship, or events.' },
   ];
 
   // Destek türleri seçilen hedefe göre değişir (topluluk: etkinlik/mekân; startup: yatırım/staj).
