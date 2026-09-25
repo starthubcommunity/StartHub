@@ -7,7 +7,7 @@ import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { STAGE_LABEL, SOURCE_LABEL, ARCHIVE_REASONS, DEFAULT_TRACK, INTEREST_LABEL } from '../hub-constants';
 import { thresholdMet, rubricComplete, nextAction, gateDueAt } from '../hub-rules';
-import FilterBar, { applyFilters } from '../components/filter-bar';
+import FilterBar, { applyFilters, EMPTY_FILTERS } from '../components/filter-bar';
 import CandidatePanel from './candidate';
 import ImportSimple from './import-simple';
 import PasteImport from './paste-import';
@@ -60,7 +60,7 @@ function RowRight({ c, touchesByCand, gatesByCand }) {
 // satırlar; altında store.folders (kullanıcı klasörleri, ilk 10'u ilgi
 // alanından varsayılan olarak gelir, bkz. 0045 migration). Silme adayları
 // SİLMEZ — DB'de folder_id `on delete set null`, kategorisiz olurlar.
-function FolderRail({ folders, candidates, selected, onSelect, onCreate, onDeleteRequest, canWrite }) {
+function FolderRail({ folders, candidates, selected, onSelect, onSelectAll, onCreate, onDeleteRequest, canWrite }) {
   const active = candidates.filter((c) => c.stage !== 'archived');
   const totalCount = active.length;
   const noneCount = active.filter((c) => !c.folderId).length;
@@ -77,7 +77,8 @@ function FolderRail({ folders, candidates, selected, onSelect, onCreate, onDelet
           </button>
         )}
       </div>
-      <button type="button" className={`hub-folder-item ${selected === null ? 'hub-folder-item--on' : ''}`} onClick={() => onSelect(null)}>
+      <button type="button" className={`hub-folder-item ${selected === null ? 'hub-folder-item--on' : ''}`} onClick={onSelectAll}
+        title="Klasör dahil TÜM filtreleri temizler">
         <AIcon name="layers" size={15} />
         <span className="hub-folder-item__name">Tüm Adaylar</span>
         <span className="hub-folder-item__n">{totalCount}</span>
@@ -225,10 +226,18 @@ export default function CandidatesListPage({ filters, setFilters }) {
   // Bir klasörün İÇİNDEYKEN "Aday Ekle" ile eklenen aday otomatik o klasöre düşer.
   const presetFolderId = (selectedFolderId && selectedFolderId !== 'none') ? selectedFolderId : null;
 
+  // "Tüm Adaylar" — gerçekten HERKESİ göstersin diye klasörle BİRLİKTE diğer
+  // tüm filtreleri de (aşama/kaynak/arama/ilgi alanı/çip — sessionStorage'da
+  // kalıcı olduğu için sayfalar arası taşınmış olabilirler) temizler. Sadece
+  // bir klasöre/"Kategorisiz"e tıklamak bunu yapmaz — o zaman mevcut
+  // filtrelerin ÜSTÜNE eklenir (ör. "Frontend klasöründeki, Görüşme
+  // aşamasındaki adaylar" gibi bir kombinasyon kasıtlı olabilir).
+  const showAllCandidates = () => { setFilters({ ...EMPTY_FILTERS }); setSelectedFolderId(null); };
+
   return (
     <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
       <FolderRail folders={folders} candidates={candidates} selected={selectedFolderId}
-        onSelect={setSelectedFolderId} onCreate={() => setCreatingFolder(true)}
+        onSelect={setSelectedFolderId} onSelectAll={showAllCandidates} onCreate={() => setCreatingFolder(true)}
         onDeleteRequest={setDeletingFolder} canWrite={can('candidates.write')} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -269,7 +278,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
 
       {noFilterActive && (
         <div className="adm-empty" style={{ margin: '4px 0 14px' }}>
-          Soldan bir klasöre tıkla, ya da <button type="button" className="hub-inline-link" onClick={() => setSelectedFolderId(null)}>tüm adayları göster</button>.
+          Soldan bir klasöre tıkla, ya da <button type="button" className="hub-inline-link" onClick={showAllCandidates}>tüm adayları göster</button>.
         </div>
       )}
 
