@@ -458,6 +458,24 @@ export function HubStoreProvider({ children }) {
     }
   }, [data, patchLocal, updateItem, advanceRole]);
 
+  // ── Üye hattı: Team Lead'e sun (2026-09-25) ───────────────────────
+  // Kapı A'yı geçen üye-hattı adayları artık doğrudan "Ekibe al" ile değil,
+  // burada — o projenin Team App'teki gerçek Team Lead'ine sunularak ekibe
+  // alınıyor. hub-present-to-owner (servis rolü) Team App'e köprü kurup
+  // "bekleyen aday" düşürür; gerçek karar (Kabul/Ret) Team Lead'den
+  // hub-owner-decision ile bu tarafa geri döner (bkz. TrialSection, candidate.jsx).
+  const presentToOwner = useCallback(async (candidateId) => {
+    const { data: res, error } = await supabase.functions.invoke('hub-present-to-owner', {
+      body: { candidateId },
+    });
+    if (error || res?.error) {
+      throw new Error(error?.message || res?.error || 'Sunulamadı.');
+    }
+    const now = new Date().toISOString();
+    patchLocal('candidates', candidateId, { presentedAt: now, ownerDecision: 'pending', ownerDecisionNote: null });
+    return res;
+  }, [patchLocal]);
+
   // Proje sahibi kararı (v2 §10.1). GEREKÇE ZORUNLU.
   // Kabul → aday Deneme'ye (trial) + Kapı A başlar; rol shortlist'te kalır
   //   (aday member olunca filled).
@@ -610,7 +628,7 @@ export function HubStoreProvider({ children }) {
     sendTouch, markReplied, replyAndAdvance, undoLastStage, undoSend, sendCandidateMail,
     startGate, markGate, extendGate, moveToTeam,
     importCandidates, purgeCandidate,
-    advanceRole, presentCandidate, ownerDecide, linkCandidateRole,
+    advanceRole, presentCandidate, ownerDecide, presentToOwner, linkCandidateRole,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).
