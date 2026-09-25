@@ -64,6 +64,8 @@ export function mapCandidateToDb(c) {
     startup_id:     c.startupId     ?? null,
     // 0045 — klasörleme (dosya gezgini modeli). Kolon yoksa gönderilmez.
     folder_id:      orUndef(c.folderId),
+    // 0047 — elle sürükle-bırak sıralama. null = henüz sıralanmadı.
+    sort_order:     orUndef(c.sortOrder),
     // §12 — hat ve proje sahibi kararı
     track:               c.track             || DEFAULT_TRACK,
     presented_at:        c.presentedAt       ?? null,
@@ -145,6 +147,7 @@ export function mapCandidateFromDb(r) {
     openRoleId:    r.open_role_id   ?? null,
     startupId:     r.startup_id     ?? null,
     folderId:      r.folder_id      ?? null,
+    sortOrder:     r.sort_order     ?? null,
     // §12
     track:             r.track               || DEFAULT_TRACK,
     presentedAt:       r.presented_at        ?? null,

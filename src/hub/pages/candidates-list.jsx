@@ -19,6 +19,10 @@ import HubWizard from '../components/wizard';
 const STAGE_COLOR = { pool: '#A29D94', contact: '#2563EB', interview: '#7C3AED', trial: '#EA580C', member: '#16A34A' };
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }) : '—');
+// Sürükle-bırak payload'ı basit bir metin (aday id) — dataTransfer.getData
+// bazı tarayıcılarda dragover sırasında okunamadığı için hem event'ten hem
+// (yedek olarak) React state'inden okunuyor.
+const DRAG_MIME = 'text/x-hub-candidate-id';
 
 // B3 — satırın sağında aşamaya göre TEK anlamlı bilgi.
 function RowRight({ c, touchesByCand, gatesByCand }) {
@@ -60,12 +64,27 @@ function RowRight({ c, touchesByCand, gatesByCand }) {
 // satırlar; altında store.folders (kullanıcı klasörleri, ilk 10'u ilgi
 // alanından varsayılan olarak gelir, bkz. 0045 migration). Silme adayları
 // SİLMEZ — DB'de folder_id `on delete set null`, kategorisiz olurlar.
-function FolderRail({ folders, candidates, selected, onSelect, onSelectAll, onCreate, onDeleteRequest, canWrite }) {
+// 2026-09-25 — "Kategorisiz" ve her klasör artık bir aday satırı sürükleyip
+// bırakınca (dosya gezgini "sürükle bırak" mantığı) o adayı içine alan bir
+// hedef (dropzone) da oluyor.
+function FolderRail({ folders, candidates, selected, onSelect, onSelectAll, onCreate, onDeleteRequest, onDropCandidate, canWrite }) {
+  const [dragOver, setDragOver] = useState(null); // 'none' | folder id | null
   const active = candidates.filter((c) => c.stage !== 'archived');
   const totalCount = active.length;
   const noneCount = active.filter((c) => !c.folderId).length;
   const countFor = (folderId) => active.filter((c) => c.folderId === folderId).length;
   const sorted = [...folders].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+
+  const dropProps = (target) => canWrite ? {
+    onDragOver: (e) => { e.preventDefault(); if (dragOver !== target) setDragOver(target); },
+    onDragLeave: () => setDragOver((v) => (v === target ? null : v)),
+    onDrop: (e) => {
+      e.preventDefault();
+      const id = e.dataTransfer.getData(DRAG_MIME);
+      setDragOver(null);
+      if (id) onDropCandidate(id, target === 'none' ? null : target);
+    },
+  } : {};
 
   return (
     <aside className="hub-folder-rail">
@@ -83,14 +102,16 @@ function FolderRail({ folders, candidates, selected, onSelect, onSelectAll, onCr
         <span className="hub-folder-item__name">Tüm Adaylar</span>
         <span className="hub-folder-item__n">{totalCount}</span>
       </button>
-      <button type="button" className={`hub-folder-item ${selected === 'none' ? 'hub-folder-item--on' : ''}`} onClick={() => onSelect('none')}>
+      <button type="button" className={`hub-folder-item ${selected === 'none' ? 'hub-folder-item--on' : ''} ${dragOver === 'none' ? 'hub-folder-item--dragover' : ''}`}
+        onClick={() => onSelect('none')} {...dropProps('none')}>
         <AIcon name="folder" size={15} />
         <span className="hub-folder-item__name">Kategorisiz</span>
         <span className="hub-folder-item__n">{noneCount}</span>
       </button>
       <div className="hub-folder-rail__list">
         {sorted.map((f) => (
-          <div key={f.id} className={`hub-folder-item hub-folder-item--row ${selected === f.id ? 'hub-folder-item--on' : ''}`}>
+          <div key={f.id} className={`hub-folder-item hub-folder-item--row ${selected === f.id ? 'hub-folder-item--on' : ''} ${dragOver === f.id ? 'hub-folder-item--dragover' : ''}`}
+            {...dropProps(f.id)}>
             <button type="button" className="hub-folder-item__main" onClick={() => onSelect(f.id)}>
               <AIcon name="folder" size={15} />
               <span className="hub-folder-item__name">{f.name}</span>
@@ -104,6 +125,9 @@ function FolderRail({ folders, candidates, selected, onSelect, onSelectAll, onCr
           </div>
         ))}
       </div>
+      {canWrite && folders.length > 0 && (
+        <div className="hub-folder-rail__hint">Bir adayı sürükleyip buraya bırakarak klasörünü değiştirebilirsin.</div>
+      )}
     </aside>
   );
 }
@@ -112,22 +136,24 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const store = useHubStore();
   const { candidates, members, openRoles, touches, gates, currentMember, loading, folders } = store;
   const { can } = usePerms();
+  const canWrite = can('candidates.write');
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(null);   // 'one' | 'import' | 'paste' | null
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [triageIds, setTriageIds] = useState(null);   // D3
   const [actOn, setActOn] = useState(null);     // satırdan arşivle/sil için aday
   const [toast, setToast] = useState('');
-  // Klasör paneli (dosya gezgini modeli, 2026-09-24) — sayfaya girince hiçbir
-  // klasör seçili DEĞİL (undefined): göz karışıklığı olmasın diye liste kapalı
-  // durur, kullanıcı bir klasöre tıklayınca açılır. "Tüm Adaylar" (null) da
-  // AYNI şekilde bilinçli bir seçimdir — tıklanınca liste açılır, öncekinin
-  // aksine (2026-09-25 düzeltmesi: eskiden "Tüm Adaylar" hem varsayılan hem
-  // "seçili" görünüyordu ama listeyi açmıyordu — kafa karıştırıyordu).
-  const [selectedFolderId, setSelectedFolderId] = useState(undefined);
+  // Klasör paneli — varsayılan "Tüm Adaylar" (null): sayfaya girince (F5 dahil)
+  // herkes görünür, istersen soldan bir klasöre daralt (2026-09-25 düzeltmesi
+  // — eskiden hiçbir klasör seçili değilken liste kapalı duruyordu, kafa
+  // karıştırıyordu).
+  const [selectedFolderId, setSelectedFolderId] = useState(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [deletingFolder, setDeletingFolder] = useState(null);
+  // Satır sürükle-bırak (elle sıralama, 0047 migration: hub_candidates.sort_order).
+  const [draggedId, setDraggedId] = useState(null);
+  const [dragOverRowId, setDragOverRowId] = useState(null);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
 
   const memberName = (id) => members.find((m) => m.id === id)?.fullName || members.find((m) => m.id === id)?.email || '—';
@@ -153,7 +179,8 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const activeCount = useMemo(() => candidates.filter((c) => c.stage !== 'archived').length, [candidates]);
 
   // 2026-09-23 — inbound (formdan gelen) adaylar en üstte + sarı çerçeveyle ayırt
-  // edilsin diye önce kaynak (inbound önce), sonra en yeni.
+  // edilsin diye önce kaynak (inbound önce), sonra en yeni — bu, HİÇBİR adayın
+  // elle sort_order'ı yokken geçerli varsayılan sıra.
   const rowsUnfiltered = useMemo(
     () => applyFilters(candidates, filters, ctx).sort((a, b) => {
       const ai = a.source === 'inbound' ? 0 : 1;
@@ -163,18 +190,23 @@ export default function CandidatesListPage({ filters, setFilters }) {
     }),
     [candidates, filters, ctx]
   );
-  // Klasör seçimi mevcut filtrelerin ÜSTÜNE, ayrı bir boyut olarak uygulanır.
-  // undefined = henüz hiçbir klasöre tıklanmadı (liste kapalı) — null = "Tüm
-  // Adaylar" bilinçli seçimi (liste açık, filtresiz).
+  // Klasör seçimi mevcut filtrelerin ÜSTÜNE, ayrı bir boyut olarak uygulanır;
+  // sonra elle sürüklenmiş (sort_order dolu) adaylar öne, aralarında kendi
+  // sırasıyla — geri kalanı yukarıdaki varsayılan sırada (stabil sort).
   const rows = useMemo(() => {
-    if (selectedFolderId === undefined || selectedFolderId === null) return rowsUnfiltered;
-    if (selectedFolderId === 'none') return rowsUnfiltered.filter((c) => !c.folderId);
-    return rowsUnfiltered.filter((c) => c.folderId === selectedFolderId);
+    let base = rowsUnfiltered;
+    if (selectedFolderId === 'none') base = base.filter((c) => !c.folderId);
+    else if (selectedFolderId) base = base.filter((c) => c.folderId === selectedFolderId);
+    return [...base].sort((a, b) => {
+      if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
+      if (a.sortOrder != null) return -1;
+      if (b.sortOrder != null) return 1;
+      return 0;
+    });
   }, [rowsUnfiltered, selectedFolderId]);
 
   const noFilterActive = !filters.chip && !filters.stage.length && !filters.source.length
-    && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim() && selectedFolderId === undefined;
-  const showList = !noFilterActive;
+    && !filters.openRoleId.length && !(filters.interest || []).length && !filters.q.trim() && selectedFolderId === null;
 
   // D3 — hızlı eleme: filtre yoksa varsayılan "hiç mesaj atılmamış".
   const startTriage = () => {
@@ -234,15 +266,40 @@ export default function CandidatesListPage({ filters, setFilters }) {
   // aşamasındaki adaylar" gibi bir kombinasyon kasıtlı olabilir).
   const showAllCandidates = () => { setFilters({ ...EMPTY_FILTERS }); setSelectedFolderId(null); };
 
+  // Sürükle-bırak: satırı bir klasöre bırak → o klasöre taşınır (updateItem
+  // zaten mevcut kaydı `updates` ile birleştirip yazıyor, tüm nesneyi
+  // göndermeye gerek yok — bkz. hub-store.jsx updateItem).
+  const dropOnFolder = async (candidateId, folderId) => {
+    try {
+      await store.updateCandidate(candidateId, { folderId });
+      flash(folderId ? 'Aday klasöre taşındı.' : 'Aday kategorisiz yapıldı.');
+    } catch (e) { flash('Taşınamadı: ' + e.message); }
+  };
+  // Sürükle-bırak: satırı başka bir satırın üstüne bırak → o sırada araya
+  // girer. Yalnızca ŞU AN GÖRÜNEN satırlar 10'ar adım yeniden numaralanır —
+  // liste büyük olmadığından tam yeniden indeksleme basit ve güvenli.
+  const reorderRows = async (fromId, toId) => {
+    if (!fromId || fromId === toId) return;
+    const list = [...rows];
+    const fromIdx = list.findIndex((c) => c.id === fromId);
+    const toIdx = list.findIndex((c) => c.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [moved] = list.splice(fromIdx, 1);
+    list.splice(toIdx, 0, moved);
+    try {
+      await Promise.all(list.map((c, i) => store.updateCandidate(c.id, { sortOrder: (i + 1) * 10 })));
+    } catch (e) { flash('Sıralanamadı: ' + e.message); }
+  };
+
   return (
     <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
       <FolderRail folders={folders} candidates={candidates} selected={selectedFolderId}
         onSelect={setSelectedFolderId} onSelectAll={showAllCandidates} onCreate={() => setCreatingFolder(true)}
-        onDeleteRequest={setDeletingFolder} canWrite={can('candidates.write')} />
+        onDeleteRequest={setDeletingFolder} onDropCandidate={dropOnFolder} canWrite={canWrite} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
       <PageHead title="Adaylar" desc={`${rows.length} / ${activeCount} aktif aday`} actions={
-        can('candidates.write') ? (
+        canWrite ? (
           <div style={{ position: 'relative' }}>
             <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setAddMenuOpen((v) => !v)}>
               <AIcon name="plus" size={14} /> Aday Ekle
@@ -276,15 +333,9 @@ export default function CandidatesListPage({ filters, setFilters }) {
         ) : null
       } />
 
-      {noFilterActive && (
-        <div className="adm-empty" style={{ margin: '4px 0 14px' }}>
-          Soldan bir klasöre tıkla, ya da <button type="button" className="hub-inline-link" onClick={showAllCandidates}>tüm adayları göster</button>.
-        </div>
-      )}
-
       <FilterBar filters={filters} onChange={setFilters} candidates={candidates} openRoles={openRoles} ctx={ctx} />
 
-      {can('candidates.write') && rows.length > 0 && (
+      {canWrite && rows.length > 0 && (
         <div style={{ margin: '2px 0 6px' }}>
           <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={startTriage}>
             <AIcon name="layers" size={13} /> Hızlı eleme{filters.chip || filters.stage.length || filters.q.trim() ? ` (${rows.length})` : ' (hiç mesaj atılmamış)'}
@@ -294,15 +345,31 @@ export default function CandidatesListPage({ filters, setFilters }) {
 
       {loading ? (
         <div className="adm-empty">Yükleniyor…</div>
-      ) : !showList ? null
-      : rows.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div className="adm-empty">{activeCount === 0 ? 'İlk adayını ekle — sağ üstteki “Aday ekle”.' : 'Bu filtreyle eşleşen aktif aday yok.'}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
           {rows.map((c) => (
-            <div key={c.id} className={`hub-c hub-c--tight hub-c--lead${c.source === 'inbound' ? ' hub-c--inbound' : ''}`}
+            <div key={c.id}
+              className={`hub-c hub-c--tight hub-c--lead${c.source === 'inbound' ? ' hub-c--inbound' : ''}${dragOverRowId === c.id ? ' hub-c--dragover' : ''}${draggedId === c.id ? ' hub-c--dragging' : ''}`}
               style={{ '--hub-lead': STAGE_COLOR[c.stage] || '#E7E0D2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
-              onClick={() => setOpenId(c.id)}>
+              onClick={() => setOpenId(c.id)}
+              draggable={canWrite}
+              onDragStart={canWrite ? (e) => { setDraggedId(c.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData(DRAG_MIME, c.id); } : undefined}
+              onDragEnd={canWrite ? () => { setDraggedId(null); setDragOverRowId(null); } : undefined}
+              onDragOver={canWrite ? (e) => { e.preventDefault(); if (dragOverRowId !== c.id) setDragOverRowId(c.id); } : undefined}
+              onDragLeave={canWrite ? () => setDragOverRowId((v) => (v === c.id ? null : v)) : undefined}
+              onDrop={canWrite ? (e) => {
+                e.preventDefault(); e.stopPropagation();
+                const id = e.dataTransfer.getData(DRAG_MIME) || draggedId;
+                setDragOverRowId(null); setDraggedId(null);
+                if (id) reorderRows(id, c.id);
+              } : undefined}>
+              {canWrite && (
+                <span className="hub-c__handle" title="Sürükleyip sıralamayı değiştir">
+                  <AIcon name="gripVertical" size={15} />
+                </span>
+              )}
               <div className="hub-av">{initials(c.fullName)}</div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -322,7 +389,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
                 </div>
               </div>
               <RowRight c={c} touchesByCand={touchesByCand} gatesByCand={gatesByCand} />
-              {can('candidates.write') && (
+              {canWrite && (
                 <button className="adm-icon-btn adm-icon-btn--danger" title="Arşivle / sil"
                   onClick={(e) => {
                     e.stopPropagation();
