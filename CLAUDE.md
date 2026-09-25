@@ -364,6 +364,26 @@ yani onun zaten deploy edilmiş ön yüz kodu `hub_folders`/`folder_id` gibi olm
 **Ders:** bir migration dosyasının repoda/commit'te olması onun CANLI DB'ye uygulandığı anlamına gelmez —
 ikinci bir katkıcı DB migration'ı olmadan frontend push'u yapabiliyor, `supabase db push --linked --dry-run`
 ile ara sıra "bekleyen migration var mı" kontrolü faydalı olabilir.
+
+**Mentör/Destekçi başvuruları kendi Sheets sekmesinde, HUB+LAB birlikte (2026-09-25, 0047):** Kullanıcı "Sayfa1"i
+tamamen bırakıp yerine iki yeni sekme istedi: "Mentör Başvuruları" ve "Destekçi Başvuruları" — bunlar HEDEFTEN
+(Topluluk/Startup) BAĞIMSIZ, bir mentör/destekçi hangisini seçmiş olursa olsun aynı sekmede birleşiyor. Diğer
+türler (community/hub → Hub Başvuruları; project/pool_match/idea_application → Lab Başvuruları) eskisi gibi
+hedefe göre ayrılmaya devam ediyor. Ortak yardımcı `hub_sheet_target(a, cfg)` fonksiyonu hem trigger'da hem
+`hub_sheet_backfill()`'de kullanılıyor — sekme seçim mantığı TEK yerde. `hub_sheet_config`'e `mentor_sheet_name`/
+`sponsor_sheet_name` eklendi, HR › Ayarlar'da düzenlenebilir. Şu an hiç mentör/destekçi başvurusu olmadığı için
+(0 kayıt) iki sekmeyi elle birer test satırıyla tetikleyip oluşturdum (auto-create doğrulandı, silinebilir test
+satırları).
+
+**Migration numarası çakışması (2026-09-25):** Bu oturumda 0047 numarasını hem ben (Sheets mentör/destekçi
+ayrımı) hem Kadir (`hub_candidates.sort_order` — Adaylar'da sürükle-bırak sıralama) bağımsız olarak kullanmış;
+git merge dosya adları farklı olduğu için sorun çıkarmadı ama Supabase'in migration takip tablosu versiyonu
+SADECE dosya adının baştaki 4 haneli numarasından okuyor (`supabase_migrations.schema_migrations.version`) —
+iki farklı migration aynı versiyonu paylaşamaz. Kadir'inki henüz canlıya hiç uygulanmamıştı (yalnızca repodaydı),
+bu yüzden çakışma olmadan `0048_hub_candidate_sort_order.sql`'e yeniden adlandırıp öyle uyguladım. **Ders:**
+iki kişi aynı anda migration eklerken numara çakışması olağan bir risk — `push` öncesi
+`select version from supabase_migrations.schema_migrations order by version desc limit 5` ile canlıdaki son
+numarayı kontrol etmek, yalnızca repodaki dosyalara bakmaktan daha güvenilir.
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
