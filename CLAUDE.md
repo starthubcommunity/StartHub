@@ -384,6 +384,23 @@ bu yüzden çakışma olmadan `0048_hub_candidate_sort_order.sql`'e yeniden adla
 iki kişi aynı anda migration eklerken numara çakışması olağan bir risk — `push` öncesi
 `select version from supabase_migrations.schema_migrations order by version desc limit 5` ile canlıdaki son
 numarayı kontrol etmek, yalnızca repodaki dosyalara bakmaktan daha güvenilir.
+
+**Destekçi kartı geri geldi (2026-09-25):** 2026-09-23'te kullanıcının kendi isteğiyle kaldırılmıştı ("biz
+bunu siteye destekçileri manuel olarak ekleriz daha mantıklı"); iki gün sonra fikrini değiştirip geri istedi.
+Form/validate/submit dalları hiç silinmemişti (yalnızca kart + sessionStorage izni kaldırılmıştı), o yüzden
+geri getirmek yalnızca o iki noktayı eski haline döndürmekle oldu — DB/HR tarafında ekstra bir şey gerekmedi.
+
+**Gerçek olay: RAG (GrantAgent) başvurusu HR'a düşmüyordu (2026-09-25):** Kullanıcı "açık pozisyon formunu
+dolduran biri HR'da gözükmüyor" dedi. Kök neden SİSTEMİK DEĞİLDİ (diğer tüm project/pool_match başvuruları
+sorunsuz düşüyordu, tek tek kontrol edildi) — aynı e-postayla (shiptarea@gmail.com) 15 Eylül'den kalma bariz
+bir TEST kaydı (isim "fere", üniversite "jlkh", pozisyon "gfh") zaten `hub_candidates`'ta vardı, hatta
+yanlışlıkla `people` tablosuna (type='team') kadar ilerletilmişti — yani CANLI /Hakkımızda sayfasının ekip
+bölümünde görünüyor olabilirdi. `applications_to_hub_candidate()`'in `unique_violation` yakalayıcısı aynı
+e-postayla gelen YENİ (gerçek) başvuruyu bu yüzden sessizce atlıyordu. Düzeltme: o test kaydı + people satırı
+silindi (kullanıcı onayıyla), gerçek başvuru elle doğru şekilde `hub_candidates`'a işlendi (RAG açık rolüne
+bağlı, Havuz aşamasında, Backend klasöründe). **Kök neden de ayrıca düzeltildi (0049):** artık aynı e-postayla
+ikinci bir başvuru geldiğinde sessizce kaybolmuyor — mevcut adayın `interview_note`'una zaman damgalı, görünür
+bir "Yeniden başvurdu — Proje: X · Pozisyon: Y" satırı ekleniyor; adayın aşaması/diğer alanları değişmiyor.
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
