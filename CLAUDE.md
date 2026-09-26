@@ -463,6 +463,24 @@ Mimari (plan dosyası: oturum içi `EnterPlanMode` ile onaylandı, detaylar orad
 Node testleri: `hub-bridge-present-logic.test.mjs`, `hub-team-decide-logic.test.mjs` (yeni, `hub-bridge-
 logic.test.mjs` ile aynı desen — saf mantık, ağsız). Tüm 5 yeni/değişen edge function `curl` ile canlıda
 smoke-test edildi (beklenen 401/hata gövdeleri doğrulandı, gerçek mutasyon YAPILMADI).
+
+**Proje taslağı artık Ekip Panelinde de eşzamanlı açılıyor (2026-09-26):** Kurucu hattında "Yeni bir proje
+taslağı oluştur" (roles.jsx → hub-create-draft-project) önceden yalnızca ana projenin `startups` tablosuna
+`team_app_id` boş bir "hayalet" satır düşürüyordu — Team App bundan hiç haberdar olmuyordu, founder Team
+Management'a girince ekibini bulamıyordu. Artık yeni `hub-bridge-create-team` (Team App'in KENDİ projesi
+umgdtjlgivvymngsnqtv'ye deploy edilir, `hub-bridge-add-member` ile AYNI "taze-oku → CAS retry → yaz" deseni)
+önce Ekip Paneli'nin `app_state.data.teams`'ine gerçek bir ekip ekliyor (Team App'in kendi `_nextTeamId`/
+`_monthlySprints` ürettiği şekli birebir taklit eder), dönen teamId ile `startups` satırı `team_app_id` EŞLİ
+oluşturuluyor. Köprü başarısız olursa hiçbir şey oluşturulmuyor (iki taraf tutarsız kalmasın diye). Detaylar
+hâlâ YALNIZCA Team App'in kendi Overview "Düzenle" modalından (team-project-save) ayarlanıyor — DEĞİŞMEDİ,
+team_app_id zaten eşli geldiği için ilk "Düzenle" bir CREATE değil UPDATE olarak işleniyor. **Ters yön**
+(Team App'ten oluşturulan bir ekibin HR'da görünmesi) zaten team-project-save'in aynı team_app_id eşleme
+mantığı + roles.jsx'in filtresiz `startups` sorgusuyla çalışıyordu, değişiklik gerekmedi. Ayrıca aynı turda:
+roles.jsx'teki "Benim projem var" → "Var olan projeye dahil et" (kafa karışıklığı şikayeti) ve `RoleSetupFlow`
+sihirbazının "Geri" düğmesi artık gerçek bir `from` zinciriyle tek adım geri gidiyor (önceden kurucu hattında
+proje-seçim adımından geri tıklayınca "founder-choice" atlanıp doğrudan en başa dönüyordu) + üstte kaçıncı
+adımda olunduğunu gösteren nokta şeridi (mevcut HubWizard'daki `.hub-wz__dot` deseniyle aynı).
+
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
