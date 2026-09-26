@@ -11,6 +11,18 @@
 // helper'ları — id: Date.now() ile admin'in sıralı nextId()'siyle asla
 // çakışmaz).
 //
+// 2026-09-26 — EŞZAMANLI Ekip Paneli oluşturma: önceden bu satır yalnızca
+// ana projenin `startups` tablosuna düşüyordu, team_app_id boş kalıyordu —
+// Team App'in bundan hiç haberi olmuyordu ("hayalet" proje). Artık ÖNCE
+// hub-bridge-create-team (Team App'in KENDİ projesi) ile gerçek bir ekip
+// açılır, dönen teamId ile startups satırı team_app_id EŞLİ oluşturulur.
+// Böylece founder Team App'e girince ekibini zaten orada bulur ve detayları
+// (logo/açıklama/problem/çözüm/…) hâlâ Team App'in kendi Overview "Düzenle"
+// modalından (team-project-save) ayarlar — o akış DEĞİŞMEDİ, team_app_id
+// zaten eşli geldiği için ilk "Düzenle" bir CREATE değil UPDATE olur.
+// Köprü başarısız olursa taslak İKİ TARAFTA TUTARSIZ kalmasın diye hiçbir
+// şey oluşturulmaz — hata kullanıcıya döner.
+//
 // Yetki: çağıranın JWT'si iletilir; hub_role() cofounder|recruiter olmalı
 // (rol oluşturma zaten roller sayfasında bu ikisine açık).
 //
@@ -22,6 +34,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+// Team app'in KENDİ (ayrı) Supabase projesi — main projeyle karıştırılmaz.
+const TEAM_PROJECT_URL = "https://umgdtjlgivvymngsnqtv.supabase.co";
+const HUB_BRIDGE_SECRET = Deno.env.get("HUB_BRIDGE_SECRET");
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -72,18 +87,41 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // ── ÖNCE Ekip Paneli'nde gerçek bir ekip aç (Team App'in KENDİ projesi).
+    // Başarısız olursa startups satırı da açılmaz — iki taraf arasında
+    // eşlenmemiş "hayalet" bir proje kalmasın diye.
+    if (!HUB_BRIDGE_SECRET) {
+      return json({ error: "HUB_BRIDGE_SECRET tanımlı değil — Ekip Paneli köprüsü kullanılamıyor." }, 500);
+    }
+    const color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+    let teamId: string;
+    try {
+      const bRes = await fetch(`${TEAM_PROJECT_URL}/functions/v1/hub-bridge-create-team`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hub-bridge-key": HUB_BRIDGE_SECRET },
+        body: JSON.stringify({ name: String(name).trim(), oneLiner: (oneLiner || "").trim(), color, source: { actorEmail: null } }),
+        signal: AbortSignal.timeout(8000),
+      });
+      const b = await bRes.json();
+      if (!bRes.ok || !b?.ok || !b.teamId) throw new Error(b?.error || `hub-bridge-create-team ${bRes.status}`);
+      teamId = b.teamId;
+    } catch (e) {
+      return json({ error: "Ekip Paneli'nde ekip açılamadı: " + (e as Error).message }, 500);
+    }
+
     const slug = await uniqueSlug(db, slugify(String(name)));
     const row = {
       id: Date.now(),
       name: String(name).trim(),
       slug,
-      color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+      color,
       stage: "idea",
       tagline_tr: (oneLiner || "").trim(),
       tagline_en: "", desc_tr: "", desc_en: "", about_tr: "", about_en: "",
       problem_tr: "", problem_en: "", solution_tr: "", solution_en: "",
       tags: [], team: 0, member_ids: [],
       published: false, featured: false, trending: false, is_new: false,
+      team_app_id: teamId,
     };
     const { data: created, error } = await db.from("startups").insert(row).select("id,name,slug").single();
     if (error) return json({ error: error.message }, 500);

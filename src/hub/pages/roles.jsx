@@ -316,17 +316,31 @@ function RoleSetupFlow({ flow, setFlow, startups, isOwner, myStartups, onResolve
     }
   };
 
-  const back = () => {
-    if (flow.step === 'founder-choice' || flow.step === 'project') setFlow({ step: 'track' });
-    else if (flow.step === 'draft') setFlow({ step: 'founder-choice' });
-  };
+  // 2026-09-26 — her ileri geçişte `from` olarak O ANKİ flow nesnesi
+  // saklanır (bir zincir oluşur); "Geri" o zinciri tek adım geri sarar.
+  // Önceden 'project'/'founder-choice' ikisi de sabit sekilde direkt
+  // 'track'e (en başa) dönüyordu — kurucu hattında "Var olan projeye
+  // dahil et" (eskiden "Benim projem var") adımından geri tıklayınca
+  // 'founder-choice' atlanıp doğrudan başa dönüyordu.
+  const back = () => { if (flow.from) setFlow(flow.from); };
+
+  // Adım göstergesi: derinlik `from` zincirinden sayılır. Toplam adım sayısı
+  // hat seçilene kadar belli değildir (üye: 2, kurucu: 3) — o yüzden 'track'
+  // adımında tek nokta gösterilir.
+  const stepDepth = (f) => { let d = 1, x = f; while (x.from) { d++; x = x.from; } return d; };
+  const stepIdx = stepDepth(flow);
+  const stepTotal = flow.step === 'track' ? 1 : (flow.track === 'member' ? 2 : 3);
 
   return (
     <div className="hub-wz-overlay" onClick={() => setFlow(null)}>
       <div className="hub-wz" onClick={(e) => e.stopPropagation()}>
         <div className="hub-wz__head">
           <div className="hub-wz__headrow">
-            <div className="hub-wz__dots" />
+            <div className="hub-wz__dots">
+              {Array.from({ length: stepTotal }).map((_, x) => (
+                <span key={x} className={`hub-wz__dot ${x === stepIdx - 1 ? 'hub-wz__dot--on' : ''}`} />
+              ))}
+            </div>
             <button className="hub-wz__x" onClick={() => setFlow(null)}>✕</button>
           </div>
         </div>
@@ -336,11 +350,11 @@ function RoleSetupFlow({ flow, setFlow, startups, isOwner, myStartups, onResolve
               <div className="hub-wz__kicker">YENİ ROL</div>
               <div className="hub-wz__q">Hangi hat için rol açıyorsun?</div>
               <div className="hub-wz__opts">
-                <button type="button" className="hub-wz__opt" onClick={() => setFlow({ step: 'founder-choice' })}>
+                <button type="button" className="hub-wz__opt" onClick={() => setFlow({ step: 'founder-choice', from: flow })}>
                   <span className="hub-wz__opt-l">Kurucu hattı</span>
                   <span className="hub-wz__opt-r">ortaklık</span>
                 </button>
-                <button type="button" className="hub-wz__opt" onClick={() => setFlow({ step: 'project', track: 'member' })}>
+                <button type="button" className="hub-wz__opt" onClick={() => setFlow({ step: 'project', track: 'member', from: flow })}>
                   <span className="hub-wz__opt-l">Üye hattı</span>
                   <span className="hub-wz__opt-r">projede rol</span>
                 </button>
@@ -354,11 +368,11 @@ function RoleSetupFlow({ flow, setFlow, startups, isOwner, myStartups, onResolve
               <div className="hub-wz__q">Bu rol hangi proje için?</div>
               <div className="hub-wz__sub">Henüz bir proje yoksa fikir aşamasında bir taslak oluşturabilirsin — sitede yayınlanmaz.</div>
               <div className="hub-wz__opts">
-                <button type="button" className="hub-wz__opt" onClick={() => setFlow({ step: 'draft', track: 'founder' })}>
+                <button type="button" className="hub-wz__opt" onClick={() => setFlow({ step: 'draft', track: 'founder', from: flow })}>
                   <span className="hub-wz__opt-l">Yeni bir proje taslağı oluştur</span>
                 </button>
-                <button type="button" className="hub-wz__opt" onClick={() => setFlow({ step: 'project', track: 'founder' })}>
-                  <span className="hub-wz__opt-l">Benim projem var</span>
+                <button type="button" className="hub-wz__opt" onClick={() => setFlow({ step: 'project', track: 'founder', from: flow })}>
+                  <span className="hub-wz__opt-l">Var olan projeye dahil et</span>
                 </button>
               </div>
             </div>
