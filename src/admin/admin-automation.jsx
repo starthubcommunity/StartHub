@@ -998,7 +998,7 @@ function AutomationPage() {
           <div className="adm-card" style={{ marginBottom: 20 }}>
             <div className="adm-card__header"><h3>Kelime Ekle</h3></div>
             <div className="adm-card__body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, alignItems: 'end' }}>
+              <div className="adm-kwadd-grid" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, alignItems: 'end' }}>
                 <Field label="Anahtar Kelime">
                   <Input value={newKw.keyword} onChange={v => setNewKw(p => ({ ...p, keyword: v }))} placeholder="örn. yapay zeka" onKeyDown={e => e.key === 'Enter' && addKeyword()} />
                 </Field>

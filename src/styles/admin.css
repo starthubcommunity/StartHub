@@ -459,6 +459,13 @@ body {
   .adm-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .adm-topbar { padding: 0 14px; }
   .adm-topbar__right > div:first-child { display: none; } /* isim/rol metni */
+
+  /* 2026-09-26 mobil geçişi — o güne kadar bu sınıfların hiçbiri yoktu,
+     ilgili bileşenler sabit piksel sütunlu grid'lerle dar ekranda
+     sıkışıyordu (bkz. aşağıdaki her sınıfın kullanıldığı dosya). */
+  .hub-perm-grid { grid-template-columns: 1fr !important; }       /* permissions-screen.jsx — admin+hub ORTAK, 300px üye listesi sütunu */
+  .adm-2col-grid, .adm-3col-grid { grid-template-columns: 1fr !important; } /* admin-settings.jsx — Site Ayarları form grid'leri */
+  .adm-kwadd-grid { grid-template-columns: 1fr !important; }      /* admin-automation.jsx — "Kelime Ekle" satırı (input+puan+grup+buton) */
 }
 
 /* ============================================

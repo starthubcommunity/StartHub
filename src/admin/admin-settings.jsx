@@ -164,7 +164,7 @@ function SettingsPage() {
       <div className="adm-card" style={{ marginBottom: 20 }}>
         <div className="adm-card__header"><h3>Site Kimliği</h3></div>
         <div className="adm-card__body">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="adm-2col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Field label="Site Adı">
               <Input value={siteName} onChange={setSiteName} placeholder="Start-Hub" />
             </Field>
@@ -184,7 +184,7 @@ function SettingsPage() {
       <div className="adm-card" style={{ marginBottom: 20 }}>
         <div className="adm-card__header"><h3>Sosyal Medya</h3></div>
         <div className="adm-card__body">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="adm-2col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Field label="Şirket LinkedIn URL">
               <Input value={companyLinkedin} onChange={setCompanyLinkedin} placeholder="https://www.linkedin.com/company/..." />
             </Field>
@@ -261,7 +261,7 @@ function SettingsPage() {
           <div className="adm-card" style={{ marginBottom: 20 }}>
             <div className="adm-card__header"><h3>Sayfa Başlığı</h3></div>
             <div className="adm-card__body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="adm-2col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <Field label="Başlık (TR)"><Input value={heroTitleTr} onChange={setHeroTitleTr} placeholder="Start-Hub'a Katıl" /></Field>
                 <Field label="Başlık (EN)"><Input value={heroTitleEn} onChange={setHeroTitleEn} placeholder="Join Start-Hub" /></Field>
                 <Field label="Açıklama (TR)"><Textarea value={heroDescTr} onChange={setHeroDescTr} rows={2} placeholder="Türkiye girişim ekosistemine katıl." /></Field>
@@ -273,7 +273,7 @@ function SettingsPage() {
           <div className="adm-card" style={{ marginBottom: 20 }}>
             <div className="adm-card__header"><h3>3 Kart Metinleri</h3></div>
             <div className="adm-card__body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+              <div className="adm-3col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
                 <Field label="Topluluk — Başlık"><Input value={communityTitleTr} onChange={setCommunityTitleTr} placeholder="Topluluğa Katıl" /></Field>
                 <Field label="Mentör — Başlık"><Input value={mentorTitleTr} onChange={setMentorTitleTr} placeholder="Mentör Ol" /></Field>
                 <Field label="Destekçi — Başlık"><Input value={sponsorTitleTr} onChange={setSponsorTitleTr} placeholder="Destekçi Ol" /></Field>
@@ -300,7 +300,7 @@ function SettingsPage() {
                   <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: !!(hubInstagram.trim() || instagramUrl.trim()) ? '#F0FDF4' : '#F5F5F4', color: !!(hubInstagram.trim() || instagramUrl.trim()) ? '#16A34A' : '#A29D94' }}>{!!(hubInstagram.trim() || instagramUrl.trim()) ? '✓ ' : '— '}Instagram</span>
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="adm-2col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <Field label="WhatsApp Grup Linki" hint="Boşsa WhatsApp kartı gösterilmez."><Input value={hubWhatsapp} onChange={setHubWhatsapp} placeholder="https://chat.whatsapp.com/..." /></Field>
                 <Field label="Instagram Sayfa Linki" hint="Boşsa Site Ayarları'ndaki Instagram kullanılır."><Input value={hubInstagram} onChange={setHubInstagram} placeholder="https://instagram.com/..." /></Field>
               </div>
@@ -316,7 +316,7 @@ function SettingsPage() {
                   <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: !!(labLinkedin.trim() || companyLinkedin.trim()) ? '#F0FDF4' : '#F5F5F4', color: !!(labLinkedin.trim() || companyLinkedin.trim()) ? '#16A34A' : '#A29D94' }}>{!!(labLinkedin.trim() || companyLinkedin.trim()) ? '✓ ' : '— '}LinkedIn</span>
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="adm-2col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <Field label="WhatsApp Grup Linki" hint="Boşsa WhatsApp kartı gösterilmez."><Input value={labWhatsapp} onChange={setLabWhatsapp} placeholder="https://chat.whatsapp.com/..." /></Field>
                 <Field label="LinkedIn Sayfa Linki" hint="Boşsa Site Ayarları'ndaki şirket LinkedIn'i kullanılır."><Input value={labLinkedin} onChange={setLabLinkedin} placeholder="https://www.linkedin.com/company/..." /></Field>
               </div>
@@ -333,7 +333,7 @@ function SettingsPage() {
               {FIELD_LABEL_GROUPS.map(group => (
                 <div key={group.title} style={{ marginBottom: 18 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--adm-text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>{group.title}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="adm-2col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     {group.fields.map(([key, defaultLabel]) => (
                       <Field key={key} label={defaultLabel}>
                         <Input value={fieldLabels[key] || ''} onChange={v => setFieldLabel(key, v)} placeholder={defaultLabel} />
