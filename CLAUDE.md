@@ -481,6 +481,36 @@ sihirbazının "Geri" düğmesi artık gerçek bir `from` zinciriyle tek adım g
 proje-seçim adımından geri tıklayınca "founder-choice" atlanıp doğrudan en başa dönüyordu) + üstte kaçıncı
 adımda olunduğunu gösteren nokta şeridi (mevcut HubWizard'daki `.hub-wz__dot` deseniyle aynı).
 
+**Mobil uyumluluk geçişi — HR + admin + Team App (2026-09-26/27):** Kullanıcı sırasıyla üç yüzeyi mobil için
+tam uyumlu hale getirmemi istedi, her adımda "hiçbir şey bozulmasın" vurgusuyla. HR (`/HR/`, hub.css): sidebar
+artık ≤900px'te off-canvas çekmece (hamburger + arkaplan, `hub-app.jsx`'teki `mobileNavOpen`), klasör rayı
+dikey yerine yatay kaydırmalı şeride dönüyor, `.adm-table-wrap` (hub.css'te hiç tanımlı değilmiş) eklendi,
+form/yetki grid'leri ≤720px'te tek sütuna iniyor. **Önemli ders:** mobil kuralların bir kısmı ilk denemede
+dosyada çok erken yazıldı ve daha aşağıdaki kayıtsız-şartsız masaüstü tanımları (eşit özgüllük, kaynak sırası
+kazanır) onları sessizce eziyordu — `.hub-today--v2` ile daha önce çözülen AYNI hata sınıfı; tüm mobil kurallar
+dosyanın en sonuna taşınarak düzeltildi. Admin panel (`/admin/`, admin.css) zaten önceki bir oturumdan
+büyük ölçüde mobil uyumluydu (sidebar çekmecesi, tablo sarmalayıcıları) — yalnızca üç kalan sabit-sütunlu grid
+(Yetkiler ekranının `hub-perm-grid`'i, Site Ayarları'nın `adm-2col-grid`/`adm-3col-grid`'i, Otomasyon'un
+`adm-kwadd-grid`'i) `!important` ile ≤900px'te tek sütuna indirildi, inline style'lar (masaüstü görünümü)
+KORUNDU. Gerçek Chrome (headless, CDP) ile doğrulandı — bu makinede Windows ekran ölçeklendirmesi (%133)
+`Emulation.setDeviceMetricsOverride`'ın istenen viewport'u tam vermemesine yol açıyor, ölçümler istenen piksele
+değil GERÇEK `window.innerWidth`'e göre yorumlanmalı; ayrıca `.hub-panel`'in görünürdeki 24px kayması gerçek
+bir hata değil, headless'ın `hubPanelIn` giriş animasyonunu (mevcut, dokunulmayan kod) bitirmeden ölçüm almasıydı.
+
+**Team App (`public/team/index.html`) — kod incelemesiyle zaten sağlam çıktı**, yalnızca 8 form-alanı grid'i
+(görev/ekip modalları, sprint tarih aralığı) `1fr 1fr`/`repeat(3,minmax(0,1fr))` idi ve sınıfsızdı — `shl-2col`/
+`shl-3col` sınıfları eklenip mevcut `@media (max-width: 600px)` bloğuna `!important` kuralla eklendi (masaüstü
+görünüm birebir aynı, yalnızca ≤600px'te tek sütuna iniyor). Bu dosyadaki **Dikkat** bölümündeki prosedür
+BİREBİR izlendi: JSON.parse ile tam çöz → değişiklik → `JSON.stringify` + yalnızca `</script` kaçışı (BLANKET
+`</` DEĞİL — `</head>`/`</body>` gibi diğer kapanışlar orijinalde kaçışlanmamış, ilk denemede bunu atlayıp
+round-trip'i bozdum, düzelttim) → round-trip (decode→encode→decode birebir eşit) İKİ KEZ doğrulandı (değişiklik
+öncesi taban çizgisi + değişiklik sonrası) → `node:vm` ile `class Component extends DCLogic` bloğunun sözdizimi
+doğrulandı (+ negatif kontrol: bozuk kod gerçekten yakalanıyor mu diye test edildi) → karakter-karakter diff ile
+TAM OLARAK 9 değişikliğin (8 class + 1 CSS bloğu) yapıldığı, başka HİÇBİR yerin dokunulmadığı doğrulandı →
+`npm run build` sonrası `dist/team/index.html` `public/`le birebir (`diff` — IDENTICAL) karşılaştırıldı. Hiçbir
+JS mantığına (persist/snapshot, Supabase yazma yolları) dokunulmadı — yalnızca statik HTML şablonundaki
+(`sc-for`/`sc-if`/`{{ }}` DSL kısmı, class Component'in JS gövdesinden AYRI) birkaç `<div>`'e class eklendi.
+
 ## Proje kuralları
 
 - **Router kütüphanesi kullanılmaz.** Sayfa geçişi `useState` + `sessionStorage` ile
