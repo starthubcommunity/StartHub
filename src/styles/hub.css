@@ -188,6 +188,24 @@ body {
 .hub-layout--collapsed .hub-sidebar__link { justify-content: center; padding: 9px; }
 .hub-layout--collapsed .hub-sidebar__nav > div[style*="padding-left"] { padding-left: 0 !important; }
 
+/* Mobil kabuk (sidebar/topbar) için sınıf tanımları + medya kuralları dosya
+   SONUNA taşındı (2026-09-26 düzeltmesi) — bkz. "MOBİL GENEL GEÇİŞLER"
+   bloğu. Sebep: bu dosyada aynı sınıfın ikinci, kayıtsız-şartsız (media
+   query'siz) bir tanımı çok daha AŞAĞIDA (ör. ".hub-topbar__search",
+   ".hub-main") tekrar geliyor — CSS'te eşit özgüllükte kaynak sırası kazanır,
+   erken tanımlanan bir mobil kural daha geç gelen masaüstü kuralı tarafından
+   sessizce geçersiz kılınıyordu (".hub-today--v2" ile daha önce çözülen aynı
+   hata sınıfı — bkz. yukarısı). display:none/flex gibi başlangıç değerleri
+   yine burada kalıyor (JSX bu sınıfları koşulsuz render ediyor).  */
+.hub-sidebar__mobile-close { display: none; }
+.hub-topbar__hamburger {
+  display: none; flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px;
+  align-items: center; justify-content: center; background: none; border: none;
+  cursor: pointer; color: #57534E;
+}
+.hub-topbar__hamburger:hover { background: #F4EFE5; }
+.hub-mobile-backdrop { display: none; }
+
 /* Filtre çubuğu */
 .hub-filterbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
 .hub-filter { position: relative; }
@@ -422,6 +440,11 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 .adm-empty { padding: 40px 24px; color: #A29D94; font-size: 13.5px; text-align: center; }
 
 /* Tablolar */
+/* admin.css'te var (--adm-table-wrap { overflow-x:auto }) ama hub.css onu
+   import etmiyor (HUB_SPEC §4.3) — DataTable (admin-ui.jsx) ve applications.jsx/
+   today.jsx bu sınıfı kullanıyordu ama hub.css'te hiç tanımlı değildi, geniş
+   tablolar mobilde sayfayı yatay taşırıyordu (2026-09-26 mobil geçişi). */
+.adm-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .adm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .adm-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #A29D94; border-bottom: 1px solid #F0EADE; background: #FBF9F4; }
 .adm-table tbody td { padding: 12px 14px; border-bottom: 1px solid #F5F1E8; color: #1C1917; }
@@ -539,8 +562,28 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 /* Sürükle-bırak: aday → klasör (2026-09-25) */
 .hub-folder-item--dragover { background: #FEF2F2; box-shadow: inset 0 0 0 1.5px #DC2626; }
 
+/* Mobil (2026-09-26): dikey sticky rail yerine ÜSTTE yatay kaydırmalı bir
+   şerit — klasör filtreleme özelliği masaüstünde olduğu gibi tamamen
+   çalışır durumda kalır, yalnızca yerleşim değişir. Sürükle-bırak (HTML5 DnD)
+   dokunmatikte zaten çalışmıyor (tarayıcı sınırı) — aday taşıma mobilde aday
+   kartındaki "Klasör" seçiciyle (candidate.jsx) yapılır, bu yüzden ipucu
+   metni ve hover'a bağlı sil düğmesi burada gizlenmez, dokunulabilir hale
+   getirilir (aşağıda).  */
 @media (max-width: 900px) {
-  .hub-folder-rail { display: none; }
+  .hub-candidates-layout { flex-direction: column; gap: 12px; }
+  .hub-folder-rail {
+    width: 100%; position: static; flex-direction: row; align-items: center;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 8px 10px; gap: 6px;
+  }
+  .hub-folder-rail__head { padding: 0; flex-shrink: 0; }
+  .hub-folder-rail__head span:first-child { display: none; }
+  .hub-folder-rail__list { flex-direction: row; margin-top: 0; max-height: none; gap: 6px; }
+  .hub-folder-rail .hub-folder-item,
+  .hub-folder-rail .hub-folder-item--row { flex-shrink: 0; width: auto; }
+  .hub-folder-rail .hub-folder-item__main { padding: 8px 10px; }
+  .hub-folder-rail .hub-folder-item__name { max-width: 120px; }
+  .hub-folder-rail .hub-folder-item__del { opacity: 0.55; }
+  .hub-folder-rail__hint { display: none; }
 }
 
 /* Sürükle-bırak: aday satırı → sıralama (2026-09-25) */
@@ -766,3 +809,97 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 /* Öncelikli İşler paneli — mevcut .hub-todo-list'i kart içinde daha kompakt göster */
 .hub-todo-list--panel { border: none; box-shadow: none; border-radius: 0; margin: -4px -4px 0; }
 .hub-todo-list--panel .hub-todo-row { padding: 10px 4px; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   MOBİL GENEL GEÇİŞLER (2026-09-26) — sayfa geneli, sayfa-özgü olmayan
+   düzeltmeler. Kabuk (sidebar/topbar/folder rail) için yukarıdaki ilgili
+   blok başlıklarına bkz. Hepsi YALNIZCA ≤ breakpoint'te devreye girer,
+   masaüstü (varsayılan, hiçbir media query dışı) davranışı bozulmaz.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Yatay taşmaya karşı son çare — yalnızca mobilde (masaüstü hiç etkilenmesin
+   diye media query İÇİNDE): hiçbir öğe bilerek bundan yararlanmamalı,
+   yalnızca fark edilmemiş bir satırın tüm sayfayı yatay kaydırmasını önler. */
+@media (max-width: 900px) {
+  html, body { overflow-x: hidden; }
+
+  /* Kabuk: sidebar masaüstündeki "daralt/genişlet ikon şeridi"nden AYRI,
+     tamamen off-canvas bir çekmeceye döner (hamburger ile açılır/kapanır,
+     arkaplana tıklayınca ya da bir sayfaya geçince kapanır — bkz. hub-app.jsx
+     mobileNavOpen). Bu kural bloğunun dosyanın EN SONUNDA olması bilinçli:
+     ".hub-sidebar"/".hub-main"/".hub-topbar__search" gibi sınıfların bu
+     dosyada DAHA AŞAĞIDA (masaüstü) kayıtsız-şartsız ikinci bir tanımı yok
+     artık — buradan sonra başka hiçbir kural gelmiyor, dolayısıyla bu blok
+     her zaman kazanır. */
+  .hub-topbar__hamburger { display: flex; }
+  .hub-mobile-backdrop { display: block; position: fixed; inset: 0; background: rgba(28,25,23,0.45); z-index: 99; }
+
+  .hub-sidebar,
+  .hub-layout--collapsed .hub-sidebar {
+    width: min(280px, 82vw);
+    transform: translateX(-100%);
+    box-shadow: 12px 0 32px rgba(0,0,0,0.18);
+    transition: transform 0.2s ease;
+  }
+  .hub-layout--mobile-nav-open .hub-sidebar { transform: translateX(0); }
+  .hub-layout--collapsed .hub-sidebar__brand > div,
+  .hub-layout--collapsed .hub-sidebar__link span { display: revert; }
+  .hub-layout--collapsed .hub-sidebar__brand { padding: 22px 20px 24px; justify-content: flex-start; }
+  .hub-layout--collapsed .hub-sidebar__link { justify-content: flex-start; padding: 9px 12px; }
+  .hub-sidebar__collapse-btn { display: none; }
+  .hub-sidebar__mobile-close {
+    display: flex; margin-left: auto; width: 30px; height: 30px; border-radius: 8px;
+    align-items: center; justify-content: center; background: none; border: none;
+    color: var(--adm-text-sidebar); cursor: pointer; flex-shrink: 0;
+  }
+  .hub-sidebar__mobile-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+  .hub-main, .hub-layout--collapsed .hub-main { margin-left: 0; }
+  .hub-topbar { padding: 10px 14px; gap: 8px; }
+  .hub-content { padding: 14px; }
+
+  /* Arama: hamburger + zil + profil sığsın diye daralır, kutucuk metni de
+     küçük ekranda gizlenir (yalnızca büyüteç ikonuyla açılır — odaklanınca
+     genişler). Açılır sonuç paneli de viewport'u taşmayacak şekilde. */
+  .hub-topbar__search-wrap { flex: 1; min-width: 0; }
+  .hub-topbar__search { width: 100%; }
+  .hub-topbar__pop--search { left: 0; right: 0; width: auto; max-width: calc(100vw - 28px); }
+}
+
+@media (max-width: 480px) {
+  .hub-dash-head__title { font-size: 21px; }
+  .hub-kpi { padding: 13px 14px; }
+  .hub-kpi__value { font-size: 20px; }
+}
+
+@media (max-width: 720px) {
+  /* Sayfa başlığı + aksiyon düğmesi(leri): dar ekranda alt alta düşebilsin. */
+  .adm-page-head { flex-wrap: wrap; margin-bottom: 18px; }
+  .adm-page-head__title { font-size: 20px; }
+
+  /* İki/üç sütunlu form grid'leri (rol/kaynak/şablon/üye düzenleme
+     modalları) tek sütuna iner — 320-375px'te 2-3 sütun alanları
+     kullanılamayacak kadar daraltıyordu. */
+  .adm-form-grid, .adm-form-grid--3 { grid-template-columns: 1fr; }
+
+  /* Yetkiler ekranı (permissions-screen.jsx, admin + hub ORTAK bileşen) —
+     yalnızca burada (hub.css) tanımlı, admin.css'e dokunulmadı, /admin/
+     etkilenmez. Sabit 300px üye listesi sütunu dar ekranda sağdaki yetki
+     matrisini sıkıştırıyordu. */
+  .hub-perm-grid { grid-template-columns: 1fr !important; }
+
+  /* Sağdan açılan aday paneli: başlık/iç boşluklar biraz sıkılaşır. */
+  .hub-panel__head { padding: 14px 16px; }
+  .hub-panel__body { padding: 16px; }
+  .hub-panel__title { font-size: 17px; }
+
+  /* Sihirbaz/modal: kenar boşlukları daralır, soru başlığı küçülür. */
+  .hub-wz-overlay { padding: 10px; }
+  .hub-wz__head { padding: 18px 18px 0; }
+  .hub-wz__body { padding: 6px 18px 20px; }
+  .hub-wz__foot { padding: 14px 18px; }
+  .hub-wz__q { font-size: 18px; }
+  .adm-modal-overlay { padding: 10px; }
+  .adm-modal__header { padding: 16px 18px 12px; }
+  .adm-modal__body { padding: 16px 18px 18px; }
+}

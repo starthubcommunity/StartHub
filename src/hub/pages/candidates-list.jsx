@@ -292,7 +292,7 @@ export default function CandidatesListPage({ filters, setFilters }) {
   };
 
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+    <div className="hub-candidates-layout" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
       <FolderRail folders={folders} candidates={candidates} selected={selectedFolderId}
         onSelect={setSelectedFolderId} onSelectAll={showAllCandidates} onCreate={() => setCreatingFolder(true)}
         onDeleteRequest={setDeletingFolder} onDropCandidate={dropOnFolder} canWrite={canWrite} />

@@ -159,7 +159,7 @@ export default function PermissionsScreen({ area }) {
         desc={`${members.length} üye · ${overriddenCount} kişi özelleştirilmiş yetkiye sahip. Rol bir başlangıç şablonu; kişi bazlı istisna üstüne yazılır.`}
         actions={<button className="adm-btn adm-btn--primary" onClick={() => setAdding({ email: '', full_name: '', role: ROLE_OPTS[area][1].v })}><AIcon name="edit" size={15} /> Üye ekle</button>} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 18, alignItems: 'start' }}>
+      <div className="hub-perm-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 18, alignItems: 'start' }}>
         {/* SOL — üye listesi */}
         <div style={{ border: '1px solid var(--adm-border)', borderRadius: 'var(--adm-r)', overflow: 'hidden', background: 'var(--adm-bg-card)' }}>
           {members.map((m) => {

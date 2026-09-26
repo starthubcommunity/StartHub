@@ -358,6 +358,12 @@ function HubApp({ email, onLogout }) {
   useEffect(() => {
     try { localStorage.setItem('sh_hub_sidebar_collapsed', collapsed ? '1' : '0'); } catch { /* yoksay */ }
   }, [collapsed]);
+  // 2026-09-26 — mobil: sidebar masaüstündeki daralt/genişlet ikon şeridinden
+  // AYRI, tamamen off-canvas bir çekmece olur (hamburger ile açılır, satır
+  // tıklanınca ya da arkaplana tıklanınca kapanır). Yalnızca ≤900px'te CSS
+  // ile devreye girer (hub.css) — masaüstü davranışı hiç etkilenmez.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  useEffect(() => { setMobileNavOpen(false); }, [page]);
   // B2 — çip/filtre seçimi sayfa yenilenince korunur.
   const [filters, setFilters] = useState(() => {
     try { return { ...EMPTY_FILTERS, ...JSON.parse(sessionStorage.getItem('sh_hub_filters') || '{}') }; }
@@ -419,7 +425,8 @@ function HubApp({ email, onLogout }) {
   const gearActive = gearNav.some((n) => n.id === activePage);
 
   return (
-    <div className={`hub-layout ${collapsed ? 'hub-layout--collapsed' : ''}`}>
+    <div className={`hub-layout ${collapsed ? 'hub-layout--collapsed' : ''} ${mobileNavOpen ? 'hub-layout--mobile-nav-open' : ''}`}>
+      {mobileNavOpen && <div className="hub-mobile-backdrop" onClick={() => setMobileNavOpen(false)} />}
       <aside className="hub-sidebar">
         <div className="hub-sidebar__brand">
           <div className="hub-sidebar__logo">SH</div>
@@ -430,6 +437,9 @@ function HubApp({ email, onLogout }) {
           <button className="hub-sidebar__collapse-btn" onClick={() => setCollapsed((v) => !v)}
             title={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}>
             <AIcon name="chevronRight" size={14} />
+          </button>
+          <button className="hub-sidebar__mobile-close" onClick={() => setMobileNavOpen(false)} title="Menüyü kapat">
+            <AIcon name="x" size={16} />
           </button>
         </div>
         <nav className="hub-sidebar__nav">
@@ -455,7 +465,10 @@ function HubApp({ email, onLogout }) {
 
       <div className="hub-main">
         <div className="hub-topbar">
-          <div style={{ position: 'relative' }}>
+          <button type="button" className="hub-topbar__hamburger" title="Menü" onClick={() => setMobileNavOpen((v) => !v)}>
+            <AIcon name="menu" size={19} />
+          </button>
+          <div style={{ position: 'relative' }} className="hub-topbar__search-wrap">
             <form className="hub-topbar__search" onSubmit={runSearch}>
               <button type="submit" className="hub-topbar__search-btn" title="Ara"><AIcon name="search" size={15} /></button>
               <input value={searchQ}

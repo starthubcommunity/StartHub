@@ -250,7 +250,7 @@ export default function ImportSimple({ onClose, presetFolderId }) {
                   {take.filter(Boolean).length} / {body.length} satır alınacak
                   {dups.filter(Boolean).length > 0 ? ` · ${dups.filter(Boolean).length} olası tekrar` : ''}.
                 </div>
-                <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #F0EADE', borderRadius: 10 }}>
+                <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #F0EADE', borderRadius: 10 }}>
                   <table className="adm-table">
                     <thead><tr><th></th><th>Ad</th><th>Link</th><th>Neden bu kişi</th><th>Tekrar</th></tr></thead>
                     <tbody>

@@ -139,7 +139,7 @@ export default function PasteImport({ onClose, presetFolderId }) {
                   {dupCount > 0 ? ` · ${dupCount} olası tekrar` : ''}. Adı çıkarılamayan
                   satırlar varsayılan olarak <b>kapalı</b>.
                 </div>
-                <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #F0EADE', borderRadius: 10 }}>
+                <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid #F0EADE', borderRadius: 10 }}>
                   <table className="adm-table">
                     <thead><tr><th></th><th>Ad</th><th>Link</th><th>Okul</th><th>Bağlantı</th><th>Tekrar</th></tr></thead>
                     <tbody>

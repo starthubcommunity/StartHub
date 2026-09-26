@@ -112,6 +112,7 @@ export default function TemplatesPage() {
             <span style={{ fontWeight: 700, fontFamily: 'var(--font-heading)', fontSize: 14 }}>{name}</span>
             <span className="hub-pill hub-pill--source">{typeLabel(variants[0].sourceType)}</span>
           </div>
+          <div className="adm-table-wrap">
           <table className="adm-table" style={{ width: '100%' }}>
             <thead>
               <tr>
@@ -146,6 +147,7 @@ export default function TemplatesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
 
