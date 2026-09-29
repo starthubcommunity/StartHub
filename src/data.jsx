@@ -520,6 +520,11 @@ const getPost          = (id)   => postsCache.find(p => p.id === id || p.id === 
 const getPostBySlug    = (slug) => postsCache.find(p => p.slug === slug);
 const getPostSlug      = (id)   => postsCache.find(p => p.id === id || p.id === Number(id))?.slug || null;
 
+// Rota (app.jsx) proje linklerini slug ile üretebilsin diye — `startups`
+// modül dizisi ContentProvider tarafından yerinde (length=0 + push) güncellenir,
+// bu yüzden burada referans almak güvenli (posts'taki postsCache deseniyle aynı).
+const getStartupSlug   = (id)   => startups.find(s => s.id === id || s.id === Number(id))?.slug || null;
+
 const PostsContext = createContext({ posts: [], postsLoading: true, postsError: null });
 
 function PostsProvider({ children }) {
@@ -923,7 +928,7 @@ function LangProvider({ children, lang, setLang }) {
 export {
   translations, people, startups, sponsors, events,
   teamMembers, mentors, partners, siteStats, defaultSiteStats, resolveStat, SH_DEFAULTS,
-  getPost, getPostBySlug, getPostSlug, postsForProject,
+  getPost, getPostBySlug, getPostSlug, postsForProject, getStartupSlug,
   mapPerson, mapStartup, mapSponsor, mapEvent,
   LangContext, useLang, LangProvider,
   PostsContext, PostsProvider, usePosts,

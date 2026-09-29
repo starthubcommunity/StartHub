@@ -1,6 +1,6 @@
 // app.jsx — Main App with routing, tweaks, and state management
 import { useState as useStateApp, useEffect as useEffectApp, useCallback as useCallbackApp, useRef as useRefApp } from 'react';
-import { LangProvider, usePosts, getPostBySlug, getPostSlug, getPost, useSiteSettings } from './data';
+import { LangProvider, usePosts, getPostBySlug, getPostSlug, getPost, getStartupSlug, useSiteSettings } from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor } from './tweaks-panel';
 import { Navbar, Footer } from './layout';
 import { HomePage } from './home-page';
@@ -14,41 +14,69 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accentColor": "#DC2626"
 }/*EDITMODE-END*/;
 
-// ─── Hash routing helpers ──────────────────────────────────────────────────
+// ─── History API routing helpers ───────────────────────────────────────────
+// 2026-09-29 (SEO Aşama 1): eskiden window.location.hash (#/post/x) ile
+// çalışıyordu — arama motorları/AI tarayıcılar hash parçasını görmez, tüm
+// sayfalar tek bir URL (/) gibi indekslenirdi. Artık gerçek path'ler:
+// /, /about, /labs, /labs/:slug, /blog, /blog/:slug, /join — History API
+// (pushState/popstate). Eski hash linkleri initFromStorage'daki
+// migrateLegacyHash() ile bir kerelik history.replaceState'e taşınır.
 const SIMPLE_PAGES = ['about', 'labs', 'blog', 'join'];
 
-function parseHash() {
-  const raw = window.location.hash.replace(/^#\/?/, '');
+function parsePath(pathname) {
+  const raw = String(pathname || '/').replace(/^\/|\/$/g, '');
   if (!raw) return { page: 'home', param: null };
   const slash = raw.indexOf('/');
   const seg   = slash === -1 ? raw : raw.slice(0, slash);
   const param = slash === -1 ? null : (raw.slice(slash + 1) || null);
-  if (!seg || seg === 'home')             return { page: 'home',    param: null };
-  if (SIMPLE_PAGES.includes(seg))         return { page: seg,       param: null };
-  if (seg === 'post'    && param)         return { page: 'post',    param };
-  if (seg === 'project' && param)         return { page: 'project', param };
+  if (!seg || seg === 'home')      return { page: 'home', param: null };
+  if (seg === 'blog' && param)     return { page: 'post',    param };
+  if (seg === 'labs' && param)     return { page: 'project', param };
+  if (SIMPLE_PAGES.includes(seg))  return { page: seg, param: null };
   return { page: 'home', param: null };
 }
 
-function hashFor(page, id) {
-  if (!page || page === 'home') return '#/';
+function pathFor(page, id) {
+  if (!page || page === 'home') return '/';
   if (page === 'post' && id != null) {
     const slug = getPostSlug(id);
-    return slug ? `#/post/${slug}` : `#/post/${id}`;
+    return slug ? `/blog/${slug}` : `/blog/${id}`;
   }
-  if (page === 'project' && id != null) return `#/project/${id}`;
-  return `#/${page}`;
+  if (page === 'project' && id != null) {
+    const slug = getStartupSlug(id);
+    return slug ? `/labs/${slug}` : `/labs/${id}`;
+  }
+  return `/${page}`;
 }
 
-// ─── Initial state from sessionStorage → hash fallback ────────────────────
+// Eski hash biçimindeki bir link/yer imiyle gelindiyse (#/post/x, #/about,
+// #/ vb.) adres çubuğunu YENİ path'e taşır (history.replaceState — geri
+// tuşuna yeni bir kayıt eklemez) ve hash'i temizler. Sayfa yenilenmeden
+// gelen doğrudan URL'lerde (arama motoru, paylaşılan link, yer imi) çalışır.
+function migrateLegacyHash() {
+  const hash = window.location.hash;
+  if (!hash || !hash.startsWith('#/')) return;
+  const raw = hash.replace(/^#\/?/, '');
+  const slash = raw.indexOf('/');
+  const seg   = slash === -1 ? raw : raw.slice(0, slash);
+  const param = slash === -1 ? null : (raw.slice(slash + 1) || null);
+  let path = '/';
+  if (seg === 'post' && param)         path = `/blog/${param}`;
+  else if (seg === 'project' && param) path = `/labs/${param}`;
+  else if (SIMPLE_PAGES.includes(seg)) path = `/${seg}`;
+  window.history.replaceState(null, '', path + window.location.search);
+}
+
+// ─── Initial state from sessionStorage → URL fallback ─────────────────────
 function initFromStorage() {
+  migrateLegacyHash();
   const saved = sessionStorage.getItem('sh_page');
   const savedId = sessionStorage.getItem('sh_id');
   if (saved) {
     const id = savedId ? (isNaN(+savedId) ? savedId : +savedId) : null;
     return { page: saved, id, pendingSlug: null };
   }
-  const { page, param } = parseHash();
+  const { page, param } = parsePath(window.location.pathname);
   if (page === 'post') return { page: 'home', id: null, pendingSlug: param };
   if (page === 'project') {
     const id = Number(param) || param;
@@ -67,9 +95,6 @@ function App() {
   const [pendingSlug, setPendingSlug] = useStateApp(() => init().pendingSlug);
   const [lang, setLangState] = useStateApp(tweaks.language || 'tr');
 
-  // Track ONE programmatic hash change so hashchange listener skips it
-  const skipHash = useRefApp(null);
-
   // Resolve pending slug once posts are loaded
   useEffectApp(() => {
     if (!pendingSlug || !posts.length) return;
@@ -81,16 +106,12 @@ function App() {
     }
   }, [posts, pendingSlug]);
 
-  // hashchange → browser back/forward navigation
+  // popstate → yalnızca gerçek geri/ileri tuşu (pushState kendi başına
+  // tetiklemez, bu yüzden navigate()'in kendi yazdığı geçişi es geçme
+  // hilesine — eski skipHash deseni — artık gerek yok).
   useEffectApp(() => {
-    const onHashChange = () => {
-      // If this is a hash we just set programmatically, skip once and clear
-      if (skipHash.current !== null && window.location.hash === skipHash.current) {
-        skipHash.current = null;
-        return;
-      }
-      skipHash.current = null;
-      const { page, param } = parseHash();
+    const onPopState = () => {
+      const { page, param } = parsePath(window.location.pathname);
       if (page === 'post' && param) {
         const post = posts.find(p => p.slug === param);
         if (post) { setCurrentPage('post'); setSelectedId(post.id); }
@@ -103,14 +124,16 @@ function App() {
         setSelectedId(null);
       }
     };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, [posts]);
 
   // Sync language with tweaks
   useEffectApp(() => { setLangState(tweaks.language); }, [tweaks.language]);
 
-  // Save current page + selection to sessionStorage, update hash
+  // Save current page + selection to sessionStorage (URL itself already
+  // reflects the page — bkz. navigate() — bu yalnızca aynı sekme içindeki
+  // hızlı state kurtarma için).
   useEffectApp(() => {
     sessionStorage.setItem('sh_page', currentPage);
     if (selectedId != null) sessionStorage.setItem('sh_id', String(selectedId));
@@ -155,11 +178,11 @@ function App() {
   const navigate = useCallbackApp((page, id = null) => {
     setCurrentPage(page);
     setSelectedId(id);
-    // Update hash (track it so hashchange listener ignores)
-    const newHash = hashFor(page, id);
-    if (window.location.hash !== newHash) {
-      skipHash.current = newHash;
-      window.location.hash = newHash;
+    // pushState hiçbir olay TETİKLEMEZ (yalnızca gerçek geri/ileri popstate
+    // fırlatır) — eski skipHash "kendi yazdığımı yok say" hilesine gerek yok.
+    const newPath = pathFor(page, id);
+    if (window.location.pathname !== newPath) {
+      window.history.pushState(null, '', newPath);
     }
   }, []);
 
