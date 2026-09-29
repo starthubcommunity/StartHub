@@ -1,12 +1,13 @@
 // app.jsx — Main App with routing, tweaks, and state management
 import { useState as useStateApp, useEffect as useEffectApp, useCallback as useCallbackApp, useRef as useRefApp } from 'react';
-import { LangProvider, usePosts, getPostBySlug, getPostSlug, getPost, getStartupSlug, useSiteSettings } from './data';
+import { LangProvider, usePosts, useStartups, getPostBySlug, getPostSlug, getPost, getStartupSlug, useSiteSettings } from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor } from './tweaks-panel';
 import { Navbar, Footer } from './layout';
 import { HomePage } from './home-page';
 import { AboutPage, LabsPage } from './about-labs';
 import { BlogPage, JoinPage } from './other-pages';
 import { ProjectDetailPage, PostDetailPage } from './detail-pages';
+import { setSEO } from './lib/seo';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "direction": "minimal",
@@ -49,6 +50,33 @@ function pathFor(page, id) {
   return `/${page}`;
 }
 
+// ─── Statik sayfa metadata'sı (SEO Aşama 2) ────────────────────────────────
+// Mevcut translations.jsx içeriğinden alındı (about/labs/blog/join hero
+// başlık+açıklaması) — kopya yeni icat edilmedi, zaten sayfada görünen
+// metinlerle aynı, tek satır bile uydurulmadı.
+const STATIC_SEO = {
+  home: {
+    tr: { title: 'Start-Hub — Fikirlerden Girişimlere, Öğrencilerden Kuruculara', desc: "Start-Hub; girişim, teknoloji ve yapay zeka dünyasını Türkçe takip eden, kendi projelerini herkesin gözü önünde inşa eden bir venture builder topluluğudur." },
+    en: { title: 'Start-Hub — From Ideas to Startups, From Students to Founders', desc: "Start-Hub is a venture builder community that follows startups, tech and AI in Turkish — and builds its own projects in public." },
+  },
+  about: {
+    tr: { title: 'Hakkımızda | Start-Hub', desc: "Start-Hub geleneksel bir öğrenci topluluğu değildir. Biz; öğrencilerin fikirlerini projelere, projelerini startup'lara ve startup'larını gerçek şirketlere dönüştürmesine yardımcı olan bir girişimcilik ekosistemiyiz." },
+    en: { title: 'About | Start-Hub', desc: "Start-Hub is not a traditional student club. We are an entrepreneurship ecosystem that helps students turn ideas into projects, projects into startups, and startups into real companies." },
+  },
+  labs: {
+    tr: { title: 'Lab Projeleri | Start-Hub', desc: 'Start-Hub ekosisteminde geliştirilen tüm girişimler. Filtreleyerek keşfet veya ekibe başvur.' },
+    en: { title: 'Lab Projects | Start-Hub', desc: 'All ventures being built in the Start-Hub ecosystem. Filter, explore, or apply to a team.' },
+  },
+  blog: {
+    tr: { title: 'Yazılar | Start-Hub', desc: 'Blog yazıları, gündem haberleri ve etkinlikler — tek akışta.' },
+    en: { title: 'Posts | Start-Hub', desc: 'Blog posts, news and events — one feed.' },
+  },
+  join: {
+    tr: { title: "Start-Hub'a Katıl", desc: 'Topluluğumuza katıl, fikirlerini paylaş, ekip bul ve startup yolculuğuna başla.' },
+    en: { title: 'Join Start-Hub', desc: 'Join our community, share your ideas, find a team, and start your startup journey.' },
+  },
+};
+
 // Eski hash biçimindeki bir link/yer imiyle gelindiyse (#/post/x, #/about,
 // #/ vb.) adres çubuğunu YENİ path'e taşır (history.replaceState — geri
 // tuşuna yeni bir kayıt eklemez) ve hash'i temizler. Sayfa yenilenmeden
@@ -87,6 +115,7 @@ function initFromStorage() {
 
 function App() {
   const { posts } = usePosts();
+  const { startups } = useStartups();
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   const init = initFromStorage;
@@ -140,21 +169,46 @@ function App() {
     else sessionStorage.removeItem('sh_id');
   }, [currentPage, selectedId]);
 
-  // Dynamic document.title
+  // Sayfa bazlı SEO metadata (SEO Aşama 2) — title/description/canonical/
+  // og:*/twitter:* hepsi burada, tek yerden, her sayfa geçişinde (React
+  // navigasyonu dahil — sayfa yenilemeye gerek yok, bkz. src/lib/seo.js).
   useEffectApp(() => {
-    const post = (currentPage === 'post' && selectedId) ? getPost(selectedId) : null;
-    const postTitle = post ? (lang === 'tr' ? post.title_tr : post.title_en) || post.title_tr : null;
-    const titles = {
-      home:    'Start-Hub — Türkiye Girişim Ekosistemi',
-      about:   'Hakkımızda | Start-Hub',
-      labs:    'Start-Hub Labs | Projeler ve Ekipler',
-      blog:    'Yazılar | Start-Hub',
-      join:    'Topluluğa Katıl | Start-Hub',
-      post:    postTitle ? `${postTitle} | Start-Hub` : 'Start-Hub',
-      project: 'Lab | Start-Hub',
-    };
-    document.title = titles[currentPage] || 'Start-Hub';
-  }, [currentPage, selectedId, lang]);
+    const path = pathFor(currentPage, selectedId);
+
+    if (currentPage === 'post' && selectedId) {
+      const post = getPost(selectedId);
+      const postTitle = post ? ((lang === 'tr' ? post.title_tr : post.title_en) || post.title_tr) : null;
+      const postDesc = post ? ((lang === 'tr' ? post.excerpt_tr : post.excerpt_en) || post.excerpt_tr) : null;
+      setSEO({
+        title: postTitle ? `${postTitle} | Start-Hub` : 'Start-Hub',
+        description: postDesc || STATIC_SEO.blog[lang].desc,
+        path,
+        image: post?.cover || null,
+        imageAlt: postTitle || null,
+      });
+      return;
+    }
+
+    if (currentPage === 'project' && selectedId) {
+      const project = startups.find(s => s.id === selectedId || s.slug === selectedId);
+      const projName = project?.name || null;
+      const projDesc = project
+        ? ((lang === 'tr' ? project.desc_tr : project.desc_en) || project.desc_tr
+          || (lang === 'tr' ? project.tagline_tr : project.tagline_en) || project.tagline_tr)
+        : null;
+      setSEO({
+        title: projName ? `${projName} | Start-Hub Lab` : 'Lab | Start-Hub',
+        description: projDesc || STATIC_SEO.labs[lang].desc,
+        path,
+        image: project?.logo || null,
+        imageAlt: projName || null,
+      });
+      return;
+    }
+
+    const s = STATIC_SEO[currentPage] || STATIC_SEO.home;
+    setSEO({ title: s[lang].title, description: s[lang].desc, path });
+  }, [currentPage, selectedId, lang, startups]);
 
   // Set direction data attribute
   useEffectApp(() => {
