@@ -5,6 +5,7 @@ import { Avatar, Icon, Reveal, Button, SectionHeader, StartupCard, PersonCard, P
 import { CTASection, PageHeader } from './layout';
 import { getRoleDescription } from './detail-pages';
 import { JourneySection } from './home-page';
+import { pathFor, guardClick } from './lib/routes';
 
 // ============================================
 // ORG CHART — katmanlı yönetim şeması
@@ -264,8 +265,9 @@ function OpportunitiesTab({ opportunities, navigate }) {
             <div key={g.project.id} className="card" style={{ padding: 0 }}>
               <div className="card__inner" style={{ padding: 0 }}>
                 {/* Proje başlığı */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '20px 24px', borderBottom: '1px solid var(--border-light)', cursor: 'pointer' }}
-                  onClick={() => { navigate('project', g.project.id); window.scrollTo({ top: 0 }); }}>
+                <a href={pathFor('project', g.project.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '20px 24px', borderBottom: '1px solid var(--border-light)' }}
+                  onClick={(e) => guardClick(e, () => { navigate('project', g.project.id); window.scrollTo({ top: 0 }); })}>
                   <div style={{
                     width: 42, height: 42, borderRadius: 'var(--r-md)', flexShrink: 0,
                     background: g.project.color, color: '#fff',
@@ -285,7 +287,7 @@ function OpportunitiesTab({ opportunities, navigate }) {
                   <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap' }}>
                     {(g.project.tags || []).slice(0, 3).map(tag => <span key={tag} className="badge badge--tag">{tag}</span>)}
                   </div>
-                </div>
+                </a>
                 {/* Pozisyon listesi */}
                 <div>
                   {g.roles.map((role, i) => {

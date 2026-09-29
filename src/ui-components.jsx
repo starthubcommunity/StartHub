@@ -1,6 +1,7 @@
 // ui-components.jsx — Icons, Buttons, Badges, Cards, Section Headers
 import { useState as useStateUI, useEffect as useEffectUI, useRef as useRefUI } from 'react';
 import { useLang, usePeople } from './data';
+import { pathFor, guardClick } from './lib/routes';
 
 // Admin panelde "linkedin.com/in/..." gibi protokolsüz girilen linkler,
 // href/window.open'da MUTLAK değil SİTE İÇİ GÖRELİ yol sayılıyordu — tıklayınca
@@ -212,8 +213,10 @@ function StartupCard({ startup, onClick }) {
     ...(startup.memberIds || []),
     ...people.filter(p => p.type === 'project_member' && p.projectId === startup.id).map(p => p.id),
   ]).size || startup.team;
+  // 2026-09-29 (SEO/GEO): gerçek <a href> — bkz. PostCard'daki aynı gerekçe.
   return (
-    <div className="card startup-card" onClick={onClick}>
+    <a className="card startup-card" href={pathFor('project', startup.id)}
+      onClick={(e) => guardClick(e, () => onClick?.())}>
       <div className="card__inner">
         <div className="startup-card__header">
           <div className="startup-card__logo" style={{ background: startup.color, overflow: 'hidden', padding: startup.logo ? 0 : undefined }}>
@@ -245,7 +248,7 @@ function StartupCard({ startup, onClick }) {
           )}
         </div>
       </div>
-    </div>
+    </a>
   );
 }
 
@@ -416,8 +419,12 @@ function PostCard({ post, onClick, feature, pinned }) {
   const { t, lang, localized } = useLang();
   const { people } = usePeople();
   const author = people.find(p => p.id === post.authorId);
+  // 2026-09-29 (SEO/GEO): gerçek <a href> — crawler'lar bu kartları takip
+  // edip /blog/:slug sayfalarını keşfedebilsin diye (önceden div+onClick'ti,
+  // href'i olmayan bir link crawler için hiç yoktu).
   return (
-    <div className={`card post-card ${feature ? 'post-card--feature' : ''}`} onClick={onClick}>
+    <a className={`card post-card ${feature ? 'post-card--feature' : ''}`} href={pathFor('post', post.id)}
+      onClick={(e) => guardClick(e, () => onClick?.())}>
       <div className="post-card__cover" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>
         {post.cover
           ? <img src={post.cover} alt={localized(post, 'title')} loading="lazy"
@@ -451,7 +458,7 @@ function PostCard({ post, onClick, feature, pinned }) {
         <p className="post-card__excerpt">{localized(post, 'excerpt')}</p>
         <AuthorByline author={author} date={post.date} readTime={post.readTime} compact />
       </div>
-    </div>
+    </a>
   );
 }
 

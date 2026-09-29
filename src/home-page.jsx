@@ -3,6 +3,7 @@ import React from 'react';
 import { useLang, resolveStat, siteStats, usePosts, useStartups, useSponsors, usePeople } from './data';
 import { Reveal, AnimatedCounter, Icon, Button, SectionHeader, PostCard, StartupCard, EventCard, StageBadge, stageMap, SponsorsMarquee, TagChip } from './ui-components';
 import { CTASection } from './layout';
+import { pathFor, guardClick } from './lib/routes';
 
 // Kayıtlı startup.team alanı yalnızca proje formundan "Kaydet" yapılınca
 // güncellenir; panelden proje üyesi eklendiğinde/çıkarıldığında bu alan hemen
@@ -140,7 +141,8 @@ function HeroVisual({ lang, navigate }) {
 
           {/* ═══ 1. FEATURED CARD ═══ */}
           {featured ? (
-            <div className="hero__sc hero__sc--feat" onClick={() => { navigate('project', featured.id); window.scrollTo({ top: 0 }); }}>
+            <a className="hero__sc hero__sc--feat" href={pathFor('project', featured.id)}
+              onClick={(e) => guardClick(e, () => { navigate('project', featured.id); window.scrollTo({ top: 0 }); })}>
               <span className="hero__feat-badge">{lang === 'tr' ? 'Öne Çıkan' : 'Featured'}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                 <div className="hero__feat-logo" style={{ background: featured.color }}>
@@ -157,7 +159,7 @@ function HeroVisual({ lang, navigate }) {
                 {(featured.openRolesLive || []).length > 0 && <span><Icon name="briefcase" size={14} /> {featured.openRolesLive.length} {lang === 'tr' ? 'açık görev' : 'open'}</span>}
                 <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
               </div>
-            </div>
+            </a>
           ) : !contentLoading && (
             <div className="hero__sc hero__sc--feat" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
               {lang === 'tr' ? 'Henüz proje yok' : 'No projects yet'}
@@ -166,7 +168,8 @@ function HeroVisual({ lang, navigate }) {
 
           {/* ═══ 3. POST/NEWS CARD ═══ */}
           {latest ? (
-            <div className="hero__sc hero__sc--post" onClick={() => { navigate('post', latest.id); window.scrollTo({ top: 0 }); }}>
+            <a className="hero__sc hero__sc--post" href={pathFor('post', latest.id)}
+              onClick={(e) => guardClick(e, () => { navigate('post', latest.id); window.scrollTo({ top: 0 }); })}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <div className="hero__post-cover" style={{ background: '#DBEAFE' }}>
                   <Icon name="globe" size={18} style={{ color: '#3B82F6' }} />
@@ -177,7 +180,7 @@ function HeroVisual({ lang, navigate }) {
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
                 <span className="hero__sc-arrow"><Icon name="arrowRight" size={12} /></span>
               </div>
-            </div>
+            </a>
           ) : !postsLoading && (
             <div className="hero__sc hero__sc--post" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
               {lang === 'tr' ? 'Henüz yazı yok' : 'No posts yet'}
@@ -211,7 +214,8 @@ function HeroVisual({ lang, navigate }) {
 
           {/* ═══ 4. OPEN POSITION CARD ═══ */}
           {rotating && (
-            <div className="hero__sc hero__sc--open" onClick={() => { sessionStorage.setItem('sh_join_role', rotating.role); navigate('join', rotating.project.id); window.scrollTo({ top: 0 }); }}>
+            <a className="hero__sc hero__sc--open" href={pathFor('join')}
+              onClick={(e) => guardClick(e, () => { sessionStorage.setItem('sh_join_role', rotating.role); navigate('join', rotating.project.id); window.scrollTo({ top: 0 }); })}>
               <div style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(6px)', transition: 'opacity 0.45s ease, transform 0.45s ease' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <span className="hero__open-icon"><Icon name="briefcase" size={16} /></span>
@@ -233,7 +237,7 @@ function HeroVisual({ lang, navigate }) {
                   <span style={{ marginLeft: 'auto' }}><span className="hero__sc-arrow"><Icon name="arrowRight" size={14} /></span></span>
                 </div>
               </div>
-            </div>
+            </a>
           )}
 
           {/* ═══ 5. MOTTO CARD ═══ */}
@@ -322,7 +326,8 @@ function LabProjects({ navigate }) {
         <div className="grid grid-3">
           {shown.map((s, idx) => (
             <Reveal key={s.id} delay={idx * 80}>
-              <div className="card" style={{ overflow: 'hidden', cursor: 'pointer' }} onClick={() => goProject(s.id)}>
+              <a className="card" href={pathFor('project', s.id)} style={{ overflow: 'hidden' }}
+                onClick={(e) => guardClick(e, () => goProject(s.id))}>
                 <div style={{ padding: '28px 24px 24px', background: `linear-gradient(135deg, ${s.color}0F 0%, ${s.color}04 100%)` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                     <div style={{
@@ -347,7 +352,7 @@ function LabProjects({ navigate }) {
                     <Icon name="arrowRight" size={16} style={{ color: 'var(--text-tertiary)' }} />
                   </div>
                 </div>
-              </div>
+              </a>
             </Reveal>
           ))}
         </div>

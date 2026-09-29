@@ -1,6 +1,6 @@
 // app.jsx — Main App with routing, tweaks, and state management
 import { useState as useStateApp, useEffect as useEffectApp, useCallback as useCallbackApp, useRef as useRefApp } from 'react';
-import { LangProvider, usePosts, useStartups, getPostBySlug, getPostSlug, getPost, getStartupSlug, useSiteSettings } from './data';
+import { LangProvider, usePosts, useStartups, getPostBySlug, getPostSlug, getPost, useSiteSettings } from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor } from './tweaks-panel';
 import { Navbar, Footer } from './layout';
 import { HomePage } from './home-page';
@@ -8,6 +8,7 @@ import { AboutPage, LabsPage } from './about-labs';
 import { BlogPage, JoinPage } from './other-pages';
 import { ProjectDetailPage, PostDetailPage } from './detail-pages';
 import { setSEO } from './lib/seo';
+import { pathFor } from './lib/routes';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "direction": "minimal",
@@ -37,18 +38,6 @@ function parsePath(pathname) {
   return { page: 'home', param: null };
 }
 
-function pathFor(page, id) {
-  if (!page || page === 'home') return '/';
-  if (page === 'post' && id != null) {
-    const slug = getPostSlug(id);
-    return slug ? `/blog/${slug}` : `/blog/${id}`;
-  }
-  if (page === 'project' && id != null) {
-    const slug = getStartupSlug(id);
-    return slug ? `/labs/${slug}` : `/labs/${id}`;
-  }
-  return `/${page}`;
-}
 
 // ─── Statik sayfa metadata'sı (SEO Aşama 2) ────────────────────────────────
 // Mevcut translations.jsx içeriğinden alındı (about/labs/blog/join hero
@@ -95,27 +84,41 @@ function migrateLegacyHash() {
   window.history.replaceState(null, '', path + window.location.search);
 }
 
-// ─── Initial state from sessionStorage → URL fallback ─────────────────────
+// ─── Initial state: gerçek URL → yalnızca kökte sessionStorage ────────────
+// 2026-09-29 düzeltmesi (SEO/GEO): eskiden sessionStorage HER ZAMAN URL'den
+// önce kontrol ediliyordu — aynı sekmede önce başka bir sayfa gezilip SONRA
+// adres çubuğuna elle farklı bir path yazılırsa (gerçek tam sayfa
+// navigasyonu), eski önbelleklenmiş sayfa yanlışlıkla geri geliyordu (CDP
+// ile doğrulandı, "Aşama 2" notunda kullanıcıya bildirilmişti). Artık: URL
+// zaten '/' dışında belirli bir sayfaya işaret ediyorsa HER ZAMAN o kullanılır
+// — sessionStorage yalnızca çıplak kök ('/') yüklemesinde "kaldığın yerden
+// devam et" için devrede. Bir crawler/ilk ziyaretçi zaten sessionStorage
+// taşımadığından onlar için davranış hiç değişmedi.
 function initFromStorage() {
   migrateLegacyHash();
+  const { page, param } = parsePath(window.location.pathname);
+
+  if (window.location.pathname !== '/') {
+    if (page === 'post') return { page: 'home', id: null, pendingSlug: param };
+    if (page === 'project') {
+      const id = Number(param) || param;
+      return { page, id, pendingSlug: null };
+    }
+    return { page, id: null, pendingSlug: null };
+  }
+
   const saved = sessionStorage.getItem('sh_page');
   const savedId = sessionStorage.getItem('sh_id');
   if (saved) {
     const id = savedId ? (isNaN(+savedId) ? savedId : +savedId) : null;
     return { page: saved, id, pendingSlug: null };
   }
-  const { page, param } = parsePath(window.location.pathname);
-  if (page === 'post') return { page: 'home', id: null, pendingSlug: param };
-  if (page === 'project') {
-    const id = Number(param) || param;
-    return { page, id, pendingSlug: null };
-  }
-  return { page, id: null, pendingSlug: null };
+  return { page: 'home', id: null, pendingSlug: null };
 }
 
 function App() {
   const { posts } = usePosts();
-  const { startups } = useStartups();
+  const { startups, contentLoading } = useStartups();
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   const init = initFromStorage;
@@ -185,6 +188,9 @@ function App() {
         path,
         image: post?.cover || null,
         imageAlt: postTitle || null,
+        // posts.length > 0 → veri zaten geldi, gerçekten yok demektir
+        // (yalnızca yüklenirken geçici null değil — bkz. yukarıdaki not).
+        noindex: !post && posts.length > 0,
       });
       return;
     }
@@ -202,18 +208,28 @@ function App() {
         path,
         image: project?.logo || null,
         imageAlt: projName || null,
+        // startups DEMO tohum verisiyle başlar (data.jsx) — length>0 her zaman
+        // gerçek veri geldi demek değil, contentLoading false olmalı.
+        noindex: !project && !contentLoading,
       });
       return;
     }
 
     const s = STATIC_SEO[currentPage] || STATIC_SEO.home;
     setSEO({ title: s[lang].title, description: s[lang].desc, path });
-  }, [currentPage, selectedId, lang, startups]);
+  }, [currentPage, selectedId, lang, startups, contentLoading, posts]);
 
   // Set direction data attribute
   useEffectApp(() => {
     document.body.parentElement.setAttribute('data-direction', tweaks.direction);
   }, [tweaks.direction]);
+
+  // <html lang="tr|en"> — SEO/erişilebilirlik sinyali, gösterilen dille
+  // eşleşsin diye (index.html'de statik "tr" yazıyordu, EN'e geçilince
+  // hiç güncellenmiyordu).
+  useEffectApp(() => {
+    document.documentElement.setAttribute('lang', lang === 'en' ? 'en' : 'tr');
+  }, [lang]);
 
   // Set accent color
   useEffectApp(() => {

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLang, useSiteSettings } from './data';
 import { Icon, Button } from './ui-components';
+import { pathFor } from './lib/routes';
 
 // ============================================
 // NAVBAR
@@ -32,7 +33,18 @@ function Navbar({ currentPage, navigate }) {
     { key: 'about', label: t('nav.about') },
   ];
 
-  const handleNav = (key) => {
+  // 2026-09-29 (SEO/GEO): navigasyon linkleri artık gerçek href taşıyor —
+  // önceden yalnızca onClick'ti, tarayıcı/AI crawler'lar href'i olmayan
+  // <a>'ları link olarak takip edemiyordu. preventDefault ile tam sayfa
+  // yenilemesi engellenip aynı pushState akışı (navigate) korunuyor;
+  // Ctrl/Cmd/orta-tık ile yeni sekmede açma da böylece tarayıcı native
+  // davranışıyla çalışmaya devam ediyor (preventDefault yalnızca düz
+  // sol-tık'ta navigate() çağırıyor, modifier tuşlarında dokunulmuyor).
+  const handleNav = (key, e) => {
+    if (e) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+    }
     navigate(key);
     setMobileOpen(false);
     window.scrollTo({ top: 0 });
@@ -42,7 +54,7 @@ function Navbar({ currentPage, navigate }) {
     <React.Fragment>
       <nav className={`nav ${scrolled ? 'nav--scrolled' : ''}`}>
         <div className="container nav__inner">
-          <a className="nav__logo" onClick={() => handleNav('home')} style={{ cursor: 'pointer' }}>
+          <a className="nav__logo" href={pathFor('home')} onClick={(e) => handleNav('home', e)}>
             <img src="logo-full.png" alt="Start-Hub" className="nav__logo-img" />
           </a>
 
@@ -50,8 +62,8 @@ function Navbar({ currentPage, navigate }) {
             {navItems.map(item => (
               <a key={item.key}
                 className={`nav__link ${currentPage === item.key ? 'nav__link--active' : ''}`}
-                onClick={() => handleNav(item.key)}
-                style={{ cursor: 'pointer' }}>
+                href={pathFor(item.key)}
+                onClick={(e) => handleNav(item.key, e)}>
                 {item.label}
               </a>
             ))}
@@ -78,8 +90,8 @@ function Navbar({ currentPage, navigate }) {
           <Icon name="x" size={28} />
         </button>
         {navItems.map(item => (
-          <a key={item.key} className="mobile-menu__link" onClick={() => handleNav(item.key)}
-            style={{ cursor: 'pointer', color: currentPage === item.key ? 'var(--accent)' : undefined }}>
+          <a key={item.key} className="mobile-menu__link" href={pathFor(item.key)} onClick={(e) => handleNav(item.key, e)}
+            style={{ color: currentPage === item.key ? 'var(--accent)' : undefined }}>
             {item.label}
           </a>
         ))}
@@ -118,7 +130,11 @@ function Footer({ navigate }) {
     }
   };
 
-  const handleNav = (key) => {
+  const handleNav = (key, e) => {
+    if (e) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+    }
     navigate(key);
     window.scrollTo({ top: 0 });
   };
@@ -140,15 +156,15 @@ function Footer({ navigate }) {
 
             <div>
               <h4 className="footer__col-title">{t('footer.platform')}</h4>
-              <a className="footer__link" onClick={() => handleNav('labs')} style={{ cursor: 'pointer' }}>{t('nav.labs')}</a>
-              <a className="footer__link" onClick={() => handleNav('blog')} style={{ cursor: 'pointer' }}>{t('nav.blog')}</a>
-              <a className="footer__link" onClick={() => handleNav('join')} style={{ cursor: 'pointer' }}>{t('nav.join')}</a>
+              <a className="footer__link" href={pathFor('labs')} onClick={(e) => handleNav('labs', e)}>{t('nav.labs')}</a>
+              <a className="footer__link" href={pathFor('blog')} onClick={(e) => handleNav('blog', e)}>{t('nav.blog')}</a>
+              <a className="footer__link" href={pathFor('join')} onClick={(e) => handleNav('join', e)}>{t('nav.join')}</a>
             </div>
 
             <div>
               <h4 className="footer__col-title">{t('footer.company')}</h4>
-              <a className="footer__link" onClick={() => handleNav('about')} style={{ cursor: 'pointer' }}>{t('nav.about')}</a>
-              <a className="footer__link" onClick={() => handleNav('home')} style={{ cursor: 'pointer' }}>{t('nav.home')}</a>
+              <a className="footer__link" href={pathFor('about')} onClick={(e) => handleNav('about', e)}>{t('nav.about')}</a>
+              <a className="footer__link" href={pathFor('home')} onClick={(e) => handleNav('home', e)}>{t('nav.home')}</a>
               <button className="footer__link" onClick={() => setPrivacyOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', textAlign: 'left' }}>
                 {lang === 'tr' ? 'Gizlilik Politikası' : 'Privacy Policy'}
               </button>

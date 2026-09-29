@@ -42,14 +42,17 @@ export function canonicalFor(path) {
   return `${SITE_URL}${p}`;
 }
 
-// { title, description, path, image?, imageAlt? } — image verilmezse
-// DEFAULT_OG_IMAGE kullanılır (yazı/proje kendi görselini vermediğinde).
-export function setSEO({ title, description, path, image, imageAlt }) {
+// { title, description, path, image?, imageAlt?, noindex? } — image
+// verilmezse DEFAULT_OG_IMAGE kullanılır (yazı/proje kendi görselini
+// vermediğinde). noindex: true — "bulunamadı" gibi içeriksiz sayfalarda
+// (silinmiş/yayından kaldırılmış yazı-proje) arama motoruna indeksleme.
+export function setSEO({ title, description, path, image, imageAlt, noindex = false }) {
   const canonical = canonicalFor(path);
   const ogImage = image || DEFAULT_OG_IMAGE;
 
   document.title = title;
   upsertMetaByAttr('name', 'description', description);
+  upsertMetaByAttr('name', 'robots', noindex ? 'noindex, follow' : 'index, follow');
   upsertCanonical(canonical);
 
   upsertMetaByAttr('property', 'og:title', title);

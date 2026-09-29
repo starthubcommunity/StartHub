@@ -205,13 +205,16 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 .badge--dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* --- Cards --- */
-.card { background: var(--card-bg); border: var(--card-border); box-shadow: var(--card-shadow); border-radius: var(--r-xl); transition: transform 0.25s ease, box-shadow 0.25s ease; }
+/* 2026-09-29 (SEO/GEO): kart div'leri gerçek <a href>'e çevrildi (bkz.
+   PostCard/StartupCard, home-page.jsx) — <a> varsayılanı inline olduğundan,
+   önceki <div> görünümünü korumak için display:block açıkça yazılıyor. */
+.card { display: block; background: var(--card-bg); border: var(--card-border); box-shadow: var(--card-shadow); border-radius: var(--r-xl); transition: transform 0.25s ease, box-shadow 0.25s ease; color: inherit; text-decoration: none; }
 .card:hover { transform: translateY(var(--card-hover-y)); box-shadow: var(--card-hover-shadow); }
 .card__inner { padding: 24px; }
 .card--no-hover:hover { transform: none; box-shadow: var(--card-shadow); }
 
 /* --- Startup Card --- */
-.startup-card { cursor: pointer; }
+.startup-card { display: block; cursor: pointer; color: inherit; text-decoration: none; }
 .startup-card__header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px; }
 .startup-card__logo { width: 48px; height: 48px; border-radius: var(--r-lg); display: flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-weight: 700; font-size: 20px; color: white; flex-shrink: 0; }
 .startup-card__info { flex: 1; min-width: 0; }
@@ -318,6 +321,7 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 
 /* ═══ BASE CARD ═══ */
 .hero__sc {
+  display: block; /* 2026-09-29: <div>'den gerçek <a href>'e geçti, bkz. .card notu */
   position: relative; width: 100%;
   background: var(--card-bg);
   border: 1px solid var(--border-light);

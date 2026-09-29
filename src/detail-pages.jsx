@@ -4,6 +4,7 @@ import { useLang, getPost, postsForProject, usePosts, usePeople, useStartups } f
 import { Icon, Button, Reveal, Avatar, PostCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
 import { CTASection } from './layout';
 import { trackPostView } from './lib/post-analytics';
+import { pathFor, guardClick } from './lib/routes';
 
 // Pozisyon bazlı kısa görev tanımları (rol adındaki anahtar kelimeye göre eşleşir)
 const ROLE_DESCRIPTIONS = {
@@ -120,9 +121,9 @@ function ProjectDetailPage({ projectId, navigate }) {
       {/* Hero */}
       <div className="pd-hero">
         <div className="container">
-          <span className="pd-back" onClick={() => { navigate('labs'); window.scrollTo({ top: 0 }); }}>
+          <a className="pd-back" href={pathFor('labs')} onClick={(e) => guardClick(e, () => { navigate('labs'); window.scrollTo({ top: 0 }); })}>
             <Icon name="chevronRight" size={16} style={{ transform: 'rotate(180deg)' }} /> {t('labs.backToLab')}
-          </span>
+          </a>
           <div className="pd-head">
             <div className="pd-logo" style={{ background: p.color, overflow: 'hidden' }}>{p.logo ? <img src={p.logo} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}</div>
             <div className="pd-head__main">
@@ -351,9 +352,9 @@ function PostDetailPage({ postId, navigate }) {
 
       <div className="page-header" style={{ paddingBottom: 0 }}>
         <div className="container">
-          <span className="pd-back" onClick={() => { navigate('blog'); window.scrollTo({ top: 0 }); }}>
+          <a className="pd-back" href={pathFor('blog')} onClick={(e) => guardClick(e, () => { navigate('blog'); window.scrollTo({ top: 0 }); })}>
             <Icon name="chevronRight" size={16} style={{ transform: 'rotate(180deg)' }} /> {t('post.backToList')}
-          </span>
+          </a>
         </div>
       </div>
 
@@ -459,14 +460,15 @@ function PostDetailPage({ postId, navigate }) {
 
             {/* İlgili proje */}
             {project && (
-              <div className="article__projlink" onClick={() => { navigate('project', project.id); window.scrollTo({ top: 0 }); }}>
+              <a className="article__projlink" href={pathFor('project', project.id)}
+                onClick={(e) => guardClick(e, () => { navigate('project', project.id); window.scrollTo({ top: 0 }); })}>
                 <div className="pd-logo" style={{ background: project.color, width: 46, height: 46, fontSize: 21, borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>{project.logo ? <img src={project.logo} alt={project.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : project.name[0]}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)', marginBottom: 2 }}>{t('post.relatedProject')}</div>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16 }}>{project.name}</div>
                 </div>
                 <Icon name="arrowRight" size={20} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
-              </div>
+              </a>
             )}
 
             {/* Footer: paylaş + kaynakça */}
