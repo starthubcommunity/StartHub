@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /HR/
+Disallow: /team/
 
-Sitemap: https://starthub.io/sitemap.xml
+# Yapay zekâ asistanlarının (GEO) tarayıcıları burada BİLEREK engellenmiyor:
+# GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Extended.
+
+Sitemap: https://www.starthub-community.com/sitemap.xml

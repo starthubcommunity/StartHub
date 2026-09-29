@@ -1,0 +1,14 @@
+# Start-Hub
+
+> Start-Hub; girişim, teknoloji ve yapay zekâ dünyasını Türkçe takip eden, kendi
+> projelerini herkesin gözü önünde inşa eden, İstanbul merkezli bir venture
+> builder topluluğudur. Öğrencilerin fikirlerini projelere, projelerini
+> startup'lara ve startup'larını gerçek şirketlere dönüştürmesine yardımcı olur.
+
+## Sayfalar
+
+- [Ana Sayfa](https://www.starthub-community.com/): Topluluk özeti, öne çıkan proje ve yazılar.
+- [Hakkımızda](https://www.starthub-community.com/about): Start-Hub'ın kim olduğu, misyonu, ekibi.
+- [Lab Projeleri](https://www.starthub-community.com/labs): Topluluk bünyesinde geliştirilen startup'lar.
+- [Yazılar](https://www.starthub-community.com/blog): Blog yazıları, gündem haberleri, etkinlik özetleri.
+- [Katıl](https://www.starthub-community.com/join): Topluluğa, bir projeye veya kurucu hattına katılma formu.

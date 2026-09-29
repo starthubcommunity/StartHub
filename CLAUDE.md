@@ -11,6 +11,93 @@ Vite 6 + React 18 + Supabase (auth + Postgres), Vercel'de barındırılıyor.
 | `/team/` | `public/team/index.html` | Kendi kendine yeten tek dosyalık uygulama — bu repoda DOĞRUDAN elle düzenlenir (build artefaktı değil; ayrı Supabase projesi `umgdtjlgivvymngsnqtv`'ye bağlanır). Değişiklik yapmadan önce aşağıdaki **Dikkat** bölümündeki JSON-string kaçışlama uyarısını oku. |
 | `/HR/` | `HR/index.html` | `src/hub/main.jsx` → `src/hub/hub-app.jsx` — eski adı `/hub/`; o yol artık `/HR/`'a 308 ile yönleniyor (`vercel.json`). Kaynak klasör hâlâ `src/hub/`. |
 
+## SEO / GEO (`feat/seo` dalı, 2026-09-29)
+
+Kullanıcının verdiği aşamalı planla (Aşama 1-2 kullanıcı onayıyla, Aşama 3-4
+"bütün önemli update'leri yap" onayıyla) `/`, `/admin`, `/HR`, `/team` DIŞINDAKİ
+genel site kodunda yapıldı — `src/admin`, `src/hub`, `public/team/index.html`'e
+DOKUNULMADI.
+
+- **Aşama 1 — Hash routing → History API:** `src/app.jsx`'teki `#/blog`,
+  `#/post/slug` vb. kaldırıldı; gerçek yollar: `/`, `/about`, `/labs`,
+  `/labs/:slug`, `/blog`, `/blog/:slug`, `/join` (`parsePath`/`pathFor`,
+  `src/lib/routes.js`). `migrateLegacyHash()` eski `#/` linklerini
+  `history.replaceState` ile taşıyor (paylaşılmış linkler bozulmuyor).
+  **Yan düzeltme:** `initFromStorage()` eskiden sessionStorage'ı URL'den ÖNCE
+  kontrol ediyordu — aynı sekmede önce başka sayfa gezilip SONRA adrese elle
+  farklı bir path yazılırsa eski sayfa geri geliyordu (CDP ile bulundu).
+  Artık sessionStorage yalnızca çıplak `/` yüklemesinde devrede.
+- **Aşama 2 — Sayfa bazlı meta:** `src/lib/seo.js` (`setSEO`, kütüphanesiz,
+  `document.head` upsert) — title/description/canonical/og:*/twitter:* her
+  sayfa geçişinde (React navigasyonu dahil) güncelleniyor. Statik sayfa
+  metinleri `src/lib/seo-content.js`'te (`STATIC_SEO`) — translations.jsx'teki
+  mevcut metinlerden alındı, uydurulmadı. `noindex, follow` — silinmiş/
+  yayından kalkmış yazı/proje için (`posts.length>0`/`!contentLoading` ile
+  "hâlâ yükleniyor" durumundan ayrılıyor, yanlış noindex yok).
+- **Gerçek `<a href>`:** Navbar/Footer (`layout.jsx`), `PostCard`/`StartupCard`
+  (`ui-components.jsx` — tek yerden düzeltilince 6+ çağrı yeri otomatik
+  düzeldi), ana sayfa hero kartları, `about-labs.jsx` açık pozisyon proje
+  satırı, `detail-pages.jsx` geri-linkleri + ilgili proje kutusu. Ortak desen:
+  `guardClick(e, fn)` (`src/lib/routes.js`) — sol-tık+modifiersiz'de
+  `preventDefault`+`navigate()`, Ctrl/Cmd/orta-tık tarayıcı native davranışına
+  bırakılıyor. `<a>` içine nested interactive element (`<button>`) KONMADI
+  (geçersiz HTML) — ör. about-labs'te yalnızca proje başlık satırı link oldu,
+  "Başvur" butonu ayrı kaldı. `.card`/`.startup-card`/`.hero__sc`'ye
+  `display:block` eklendi (div→a geçişinde varsayılan display değişti).
+- **`<html lang>`:** gösterilen dile göre dinamik (`tr`/`en`), önceden
+  index.html'de sabit `tr` yazıyordu.
+- **Aşama 3 — Prerender (`scripts/prerender.mjs`):** `npm run build` artık
+  `vite build && node scripts/prerender.mjs`. Build sonrası Supabase'den
+  yayınlanmış yazı+proje çekilip her biri için `dist/blog/<slug>/index.html`,
+  `dist/labs/<slug>/index.html` + statik sayfalar (`dist/about`, `/labs`,
+  `/blog`, `/join`) ve ana sayfa (`dist/index.html`, kendi üzerine yazıyor)
+  üretiliyor — gerçek `<title>`/meta/JSON-LD + yazının/projenin TAM METNİ
+  `#root` içinde düz HTML (React mount olunca normal SPA'ya dönüyor, hydrate
+  değil `createRoot().render()` — bkz. `src/main.jsx`). react-dom/server SSR
+  KULLANILMADI (kapsamlı bir yeniden yapı gerektirirdi, ek kütüphane sorma
+  kuralına takılırdı) — düz metin enjeksiyonu planın "AI tarayıcı JS
+  çalıştırmadan metni okusun" hedefini karşılıyor. **Güvenlik kilidi:**
+  script kendi ürettiği `dist/index.html`'i template kaynağı olarak da
+  okuyor — `vite build` çalışmadan ikinci kez çalıştırılırsa (zaten
+  prerender edilmiş dosyayı temel alıp) çıktıyı bozardı (üst üste binen
+  JSON-LD/robots etiketleri) — script artık `dist/index.html`'de
+  `application/ld+json` görürse hata verip çıkıyor, sessizce bozuk çıktı
+  üretmiyor (elle test ederken bu hatayla karşılaşılıp bulundu).
+  Supabase kimlik bilgisi yoksa (`VITE_SUPABASE_URL`/`_ANON_KEY`) build'i
+  DÜŞÜRMEDEN sessizce atlanıyor (SPA yine de çalışır durumda kalır).
+- **Aşama 4 — robots.txt/sitemap/schema/llms.txt:**
+  `public/robots.txt` yanlış alan adı (`starthub.io`) → doğru
+  (`www.starthub-community.com`) + `/admin/`, `/HR/`, `/team/` Disallow;
+  GPTBot/ClaudeBot/PerplexityBot/Google-Extended vb. BİLEREK engellenmiyor.
+  `public/sitemap.xml` artık yalnızca prerender script'i hiç çalışmazsa diye
+  statik bir geriye-düşüş kopyası (# yok, doğru alan adı) — gerçek, Supabase
+  içerikli sitemap `dist/sitemap.xml`'e prerender script'i tarafından
+  üretiliyor. `public/llms.txt` eklendi (kısa TR özet + sayfa linkleri).
+  JSON-LD: `src/lib/seo.js`'e `setOrganizationSchema`/`setArticleSchema`
+  eklendi (istemci tarafı, React navigasyonunda) + prerender script'i AYNI
+  şemaları statik HTML'e de gömüyor (JS çalıştırmayan tarayıcı için tek
+  kaynak budur). Organization her sayfada (yalnızca ana sayfada değil —
+  GEO'da bir tarayıcı doğrudan bir alt sayfaya gelebilir), Article yalnızca
+  yazı sayfalarında. `sameAs` → `site_settings.company_linkedin` +
+  `instagram_url` (bu ikinci alan `useSiteSettings()`'in select listesine
+  eklendi, önceden çekilmiyordu — admin panelde zaten yazılabiliyordu ama
+  genel siteye hiç okunmuyordu).
+  **Yazılmadı ama ÇALIŞTIRILMADI (kullanıcı onayı bekliyor):**
+  `supabase/migrations/0050_posts_is_indexable.sql` — `posts.is_indexable`
+  (varsayılan `true`) önerisi, `automation/publish.py`'nin otomatik/
+  yorumsuz haberlerini ileride noindex edebilmek için altyapı. Bu migration
+  `supabase db push` ile ÇALIŞTIRILMADAN önce kullanıcıya gösterilmeli; hiçbir
+  runtime kod (app.jsx'in noindex mantığı dahil) şu an bu kolonu OKUMUYOR —
+  yalnızca öneri/altyapı, wiring ayrı bir onay gerektiriyor.
+- **Yapılmadı (kullanıcının kendi planında da "sürekli"/opsiyonel):** og-default.png
+  (1200×630 marka görseli — `seo.js`'te TODO olarak kalıyor, tasarım varlığı
+  yok), RSS/Atom feed, JSON-LD'nin BreadcrumbList/Event genişlemesi,
+  hreflang/`/en/` ayrı adres yapısı, GitHub repoyu private yapma (kullanıcı
+  kararı gerektirir), içerik stratejisi (Aşama 3'ün PDF'teki farklı, editöryal
+  ekseni — kod değil).
+- Tüm bu iş `feat/seo` dalında, `main`'e PUSH EDİLMEDİ — kullanıcı onayı
+  bekliyor (proje kuralı: risky/görünür işlemler önce onay).
+
 ## Kurucu Hattı / İnsan Kaynağı (`/HR/`)
 
 Yapım şartnamesi: **`HUB_SPEC.md`** — artık **v3** (v2'nin canlı kullanımından

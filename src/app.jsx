@@ -1,14 +1,15 @@
 // app.jsx — Main App with routing, tweaks, and state management
 import { useState as useStateApp, useEffect as useEffectApp, useCallback as useCallbackApp, useRef as useRefApp } from 'react';
-import { LangProvider, usePosts, useStartups, getPostBySlug, getPostSlug, getPost, useSiteSettings } from './data';
+import { LangProvider, usePosts, useStartups, getPostBySlug, getPostSlug, getPost, useSiteSettings, people } from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor } from './tweaks-panel';
 import { Navbar, Footer } from './layout';
 import { HomePage } from './home-page';
 import { AboutPage, LabsPage } from './about-labs';
 import { BlogPage, JoinPage } from './other-pages';
 import { ProjectDetailPage, PostDetailPage } from './detail-pages';
-import { setSEO } from './lib/seo';
+import { setSEO, setOrganizationSchema, setArticleSchema, SITE_NAME, SITE_URL } from './lib/seo';
 import { pathFor } from './lib/routes';
+import { STATIC_SEO, SIMPLE_PAGES } from './lib/seo-content';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "direction": "minimal",
@@ -23,8 +24,6 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 // /, /about, /labs, /labs/:slug, /blog, /blog/:slug, /join — History API
 // (pushState/popstate). Eski hash linkleri initFromStorage'daki
 // migrateLegacyHash() ile bir kerelik history.replaceState'e taşınır.
-const SIMPLE_PAGES = ['about', 'labs', 'blog', 'join'];
-
 function parsePath(pathname) {
   const raw = String(pathname || '/').replace(/^\/|\/$/g, '');
   if (!raw) return { page: 'home', param: null };
@@ -38,33 +37,6 @@ function parsePath(pathname) {
   return { page: 'home', param: null };
 }
 
-
-// ─── Statik sayfa metadata'sı (SEO Aşama 2) ────────────────────────────────
-// Mevcut translations.jsx içeriğinden alındı (about/labs/blog/join hero
-// başlık+açıklaması) — kopya yeni icat edilmedi, zaten sayfada görünen
-// metinlerle aynı, tek satır bile uydurulmadı.
-const STATIC_SEO = {
-  home: {
-    tr: { title: 'Start-Hub — Fikirlerden Girişimlere, Öğrencilerden Kuruculara', desc: "Start-Hub; girişim, teknoloji ve yapay zeka dünyasını Türkçe takip eden, kendi projelerini herkesin gözü önünde inşa eden bir venture builder topluluğudur." },
-    en: { title: 'Start-Hub — From Ideas to Startups, From Students to Founders', desc: "Start-Hub is a venture builder community that follows startups, tech and AI in Turkish — and builds its own projects in public." },
-  },
-  about: {
-    tr: { title: 'Hakkımızda | Start-Hub', desc: "Start-Hub geleneksel bir öğrenci topluluğu değildir. Biz; öğrencilerin fikirlerini projelere, projelerini startup'lara ve startup'larını gerçek şirketlere dönüştürmesine yardımcı olan bir girişimcilik ekosistemiyiz." },
-    en: { title: 'About | Start-Hub', desc: "Start-Hub is not a traditional student club. We are an entrepreneurship ecosystem that helps students turn ideas into projects, projects into startups, and startups into real companies." },
-  },
-  labs: {
-    tr: { title: 'Lab Projeleri | Start-Hub', desc: 'Start-Hub ekosisteminde geliştirilen tüm girişimler. Filtreleyerek keşfet veya ekibe başvur.' },
-    en: { title: 'Lab Projects | Start-Hub', desc: 'All ventures being built in the Start-Hub ecosystem. Filter, explore, or apply to a team.' },
-  },
-  blog: {
-    tr: { title: 'Yazılar | Start-Hub', desc: 'Blog yazıları, gündem haberleri ve etkinlikler — tek akışta.' },
-    en: { title: 'Posts | Start-Hub', desc: 'Blog posts, news and events — one feed.' },
-  },
-  join: {
-    tr: { title: "Start-Hub'a Katıl", desc: 'Topluluğumuza katıl, fikirlerini paylaş, ekip bul ve startup yolculuğuna başla.' },
-    en: { title: 'Join Start-Hub', desc: 'Join our community, share your ideas, find a team, and start your startup journey.' },
-  },
-};
 
 // Eski hash biçimindeki bir link/yer imiyle gelindiyse (#/post/x, #/about,
 // #/ vb.) adres çubuğunu YENİ path'e taşır (history.replaceState — geri
@@ -172,6 +144,16 @@ function App() {
     else sessionStorage.removeItem('sh_id');
   }, [currentPage, selectedId]);
 
+  const siteSettingsForSchema = useSiteSettings();
+
+  // Organization JSON-LD — her sayfada sabit kimlik sinyali (yalnızca
+  // ana sayfada değil: GEO'da bir tarayıcı doğrudan bir yazıya/projeye
+  // gelebilir, o sayfada da "bu site Start-Hub'a ait" bilgisi bulunsun).
+  useEffectApp(() => {
+    const sameAs = [siteSettingsForSchema.company_linkedin, siteSettingsForSchema.instagram_url].filter(Boolean);
+    setOrganizationSchema({ description: STATIC_SEO.home[lang].desc, sameAs });
+  }, [lang, siteSettingsForSchema.company_linkedin, siteSettingsForSchema.instagram_url]);
+
   // Sayfa bazlı SEO metadata (SEO Aşama 2) — title/description/canonical/
   // og:*/twitter:* hepsi burada, tek yerden, her sayfa geçişinde (React
   // navigasyonu dahil — sayfa yenilemeye gerek yok, bkz. src/lib/seo.js).
@@ -192,8 +174,26 @@ function App() {
         // (yalnızca yüklenirken geçici null değil — bkz. yukarıdaki not).
         noindex: !post && posts.length > 0,
       });
+      // Article schema yalnızca gerçek bir yazı bulunduğunda; sayfadan
+      // ayrılınca (post null) bir sonraki dal zaten setArticleSchema(null)
+      // çağırıyor (aşağıdaki genel temizleme).
+      if (post) {
+        const author = people.find(p => p.id === post.authorId);
+        const authorName = author?.name || post.guestAuthor?.name || SITE_NAME;
+        setArticleSchema({
+          headline: postTitle,
+          description: postDesc || STATIC_SEO.blog[lang].desc,
+          image: post.cover || undefined,
+          datePublished: post.date || undefined,
+          author: { '@type': 'Person', name: authorName },
+          mainEntityOfPage: `${SITE_URL}${path}`,
+        });
+      } else {
+        setArticleSchema(null);
+      }
       return;
     }
+    setArticleSchema(null);
 
     if (currentPage === 'project' && selectedId) {
       const project = startups.find(s => s.id === selectedId || s.slug === selectedId);

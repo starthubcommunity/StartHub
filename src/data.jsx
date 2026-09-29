@@ -871,6 +871,7 @@ const resolveStat = (key) => {
 // ============================================
 const SETTINGS_DEFAULTS = {
   company_linkedin:    'https://www.linkedin.com/company/111725833/',
+  instagram_url:       '',
   contact_email:       'iletisim@starthub-community.com',
   announcement_active: false,
   announcement_text:   '',
@@ -884,12 +885,13 @@ function useSiteSettings() {
   useEffect(() => {
     if (settingsLoaded) { setSettings({ ...settingsCache }); return; }
     supabase.from('site_settings')
-      .select('company_linkedin, contact_email, announcement_text, announcement_active, maintenance_mode')
+      .select('company_linkedin, instagram_url, contact_email, announcement_text, announcement_active, maintenance_mode')
       .eq('id', 1).single()
       .then(({ data }) => {
         if (data) {
           settingsLoaded = true;
           if (data.company_linkedin)  settingsCache.company_linkedin    = data.company_linkedin;
+          if (data.instagram_url)     settingsCache.instagram_url       = data.instagram_url;
           if (data.contact_email)     settingsCache.contact_email       = data.contact_email;
           settingsCache.announcement_active = data.announcement_active ?? false;
           settingsCache.announcement_text   = data.announcement_text   ?? '';

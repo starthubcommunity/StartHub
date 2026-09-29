@@ -66,3 +66,50 @@ export function setSEO({ title, description, path, image, imageAlt, noindex = fa
   upsertMetaByAttr('name', 'twitter:description', description);
   upsertMetaByAttr('name', 'twitter:image', ogImage);
 }
+
+// ── Schema.org (JSON-LD) — SEO Aşama 4 ─────────────────────────────────────
+// data null → etiketi kaldırır (ör. bir yazı sayfasından ayrılınca Article'ı
+// silmek için). id, sayfa içinde tek bir <script> kalmasını garantiler.
+function upsertJSONLD(id, data) {
+  let el = document.getElementById(id);
+  if (data == null) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('script');
+    el.type = 'application/ld+json';
+    el.id = id;
+    document.head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(data);
+}
+
+// Sitenin her sayfasında sabit kimlik sinyali — GEO'da bir tarayıcı doğrudan
+// bir alt sayfaya (yazı/proje) gelebilir, orada da "bu site Start-Hub'a ait"
+// bilgisi bulunsun diye yalnızca ana sayfaya değil her sayfaya eklenir.
+export function setOrganizationSchema({ description, sameAs = [] } = {}) {
+  upsertJSONLD('ld-organization', {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: SITE_NAME,
+    url: SITE_URL,
+    logo: DEFAULT_OG_IMAGE,
+    description,
+    ...(sameAs.length ? { sameAs } : {}),
+  });
+}
+
+// article: { headline, description, image?, datePublished?, author, mainEntityOfPage }
+// null → sayfadan ayrılınca etiketi kaldırır.
+export function setArticleSchema(article) {
+  if (!article) { upsertJSONLD('ld-article', null); return; }
+  upsertJSONLD('ld-article', {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.headline,
+    description: article.description,
+    image: article.image || DEFAULT_OG_IMAGE,
+    datePublished: article.datePublished,
+    author: article.author,
+    publisher: { '@type': 'Organization', name: SITE_NAME, logo: { '@type': 'ImageObject', url: DEFAULT_OG_IMAGE } },
+    mainEntityOfPage: article.mainEntityOfPage,
+  });
+}
