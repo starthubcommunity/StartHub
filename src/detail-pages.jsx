@@ -54,6 +54,35 @@ function getRoleDescription(roleName, lang) {
 }
 
 
+// startups.about_tr/desc_tr/problem_tr/solution_tr düz TEK SATIR text
+// kolonlar — çok paragraflı/başlıklı bir şema DESTEKLENMİYOR (SEO/GEO
+// feat/seo-projects, madde 4 bulgusu; team/index.html'deki giriş alanı da
+// düz bir metin kutusu). Yine de biri metni birden fazla satıra (\n) yazarsa
+// eskiden hepsi tek bir uzun paragrafa yapışıyordu (CSS'te white-space
+// koruması yoktu) — artık en azından görünür ayrı paragraflara bölünüyor.
+function splitParagraphs(text) {
+  return String(text || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+}
+
+// Soft-404 blok — bilinmeyen/kaldırılmış proje veya yazı slug'ında gösterilir
+// (SEO/GEO feat/seo-projects, madde 2). Gerçek bir HTTP 404 DEĞİL (SPA +
+// Vercel rewrite ile teknik olarak imkansız, her yol 200 döner) ama en azından
+// artık boş bir sayfa yerine gerçek bir mesaj görünüyor; noindex meta zaten
+// app.jsx'teki setSEO çağrısında ayrıca yönetiliyor (bkz. `noindex` parametresi).
+function NotFoundBlock({ lang, titleTr, titleEn, descTr, descEn, backLabel, onBack }) {
+  return (
+    <div className="page-transition" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 32, gap: 16 }}>
+      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 800 }}>
+        {lang === 'tr' ? titleTr : titleEn}
+      </h1>
+      <p style={{ color: 'var(--text-secondary)', maxWidth: 380 }}>
+        {lang === 'tr' ? descTr : descEn}
+      </p>
+      <Button variant="primary" onClick={onBack}>{backLabel}</Button>
+    </div>
+  );
+}
+
 // ============================================
 // PROJECT DETAIL
 // ============================================
@@ -64,17 +93,13 @@ function ProjectDetailPage({ projectId, navigate }) {
   const p = startups.find(s => s.id === projectId || s.slug === projectId);
   if (!p) {
     return (
-      <div className="page-transition" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 32, gap: 16 }}>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 800 }}>
-          {lang === 'tr' ? 'Proje bulunamadı' : 'Project not found'}
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', maxWidth: 380 }}>
-          {lang === 'tr' ? 'Bu proje kaldırılmış veya henüz yayınlanmamış olabilir.' : 'This project may have been removed or is not yet published.'}
-        </p>
-        <Button variant="primary" onClick={() => { navigate('labs'); window.scrollTo({ top: 0 }); }}>
-          {lang === 'tr' ? "Lab'a Dön" : 'Back to Lab'}
-        </Button>
-      </div>
+      <NotFoundBlock
+        lang={lang}
+        titleTr="Proje bulunamadı" titleEn="Project not found"
+        descTr="Bu proje kaldırılmış veya henüz yayınlanmamış olabilir." descEn="This project may have been removed or is not yet published."
+        backLabel={lang === 'tr' ? "Lab'a Dön" : 'Back to Lab'}
+        onBack={() => { navigate('labs'); window.scrollTo({ top: 0 }); }}
+      />
     );
   }
 
@@ -164,7 +189,9 @@ function ProjectDetailPage({ projectId, navigate }) {
           <div className={`pd-overview${p.metrics && p.metrics.length > 0 ? '' : ' pd-overview--full'}`}>
             <Reveal className="pd-overview__main">
               <h3 className="pd-block-label">{t('labs.overview')}</h3>
-              <p className="pd-lead text-pretty">{localized(p, 'about') || localized(p, 'desc')}</p>
+              {splitParagraphs(localized(p, 'about') || localized(p, 'desc')).map((para, i) => (
+                <p className="pd-lead text-pretty" key={i}>{para}</p>
+              ))}
             </Reveal>
             {p.metrics && p.metrics.length > 0 && (
               <Reveal className="pd-stats-card" delay={80}>
@@ -187,11 +214,15 @@ function ProjectDetailPage({ projectId, navigate }) {
           <div className="pd-body">
             <Reveal className="pd-block">
               <h3>{t('labs.problem')}</h3>
-              <p className="text-pretty">{localized(p, 'problem')}</p>
+              {splitParagraphs(localized(p, 'problem')).map((para, i) => (
+                <p className="text-pretty" key={i}>{para}</p>
+              ))}
             </Reveal>
             <Reveal className="pd-block" delay={80}>
               <h3>{t('labs.solution')}</h3>
-              <p className="text-pretty">{localized(p, 'solution')}</p>
+              {splitParagraphs(localized(p, 'solution')).map((para, i) => (
+                <p className="text-pretty" key={i}>{para}</p>
+              ))}
             </Reveal>
           </div>
         </div>
@@ -312,7 +343,17 @@ function PostDetailPage({ postId, navigate }) {
     if (!post) return;
     return trackPostView(post.slug || String(post.id), lang);
   }, [post?.id, lang]);
-  if (!post) return null;
+  if (!post) {
+    return (
+      <NotFoundBlock
+        lang={lang}
+        titleTr="Yazı bulunamadı" titleEn="Post not found"
+        descTr="Bu yazı kaldırılmış veya henüz yayınlanmamış olabilir." descEn="This post may have been removed or is not yet published."
+        backLabel={lang === 'tr' ? "Yazılara Dön" : 'Back to Posts'}
+        onBack={() => { navigate('blog'); window.scrollTo({ top: 0 }); }}
+      />
+    );
+  }
   const author = people.find(pp => pp.id === post.authorId);
   const project = post.projectId ? startups.find(s => s.id === post.projectId || s.slug === post.projectId) : null;
   const body = localized(post, 'body') || [];

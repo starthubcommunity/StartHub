@@ -74,6 +74,12 @@ if (!existsSync(DIST)) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// startups.about_tr/desc_tr/problem_tr/solution_tr düz tek satır text kolonlar
+// (detail-pages.jsx'teki splitParagraphs ile AYNI mantık — bkz. oradaki not).
+function splitParagraphs(text) {
+  return String(text || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+}
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -93,6 +99,28 @@ async function writeRoute(routeDir, html) {
 function jsonLdScript(obj) {
   const json = JSON.stringify(obj).replace(/<\/script/gi, '<\\/script');
   return `<script type="application/ld+json">${json}</script>`;
+}
+
+// Proje sayfası JSON-LD (SEO/GEO — feat/seo-projects, madde 1). "Uygun
+// değilse CreativeWork": github/demo linki olan bir proje somut bir yazılım
+// ürünüdür (SoftwareApplication); ikisi de yoksa (ör. henüz fikir/araştırma
+// aşamasında bir proje) daha genel CreativeWork kullanılır — schema.org'un
+// SoftwareApplication'ı "çalıştırılabilir bir uygulama" varsayımına dayanır.
+// Boş alan (image/applicationCategory) property olarak HİÇ yazılmaz.
+function projectSchema(s, { name, description, canonical, image }) {
+  const isSoftware = Boolean(s.github || s.demo);
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': isSoftware ? 'SoftwareApplication' : 'CreativeWork',
+    name,
+    description,
+    url: canonical,
+  };
+  if (image) schema.image = image;
+  if (isSoftware && Array.isArray(s.tags) && s.tags.length) schema.applicationCategory = s.tags[0];
+  schema.author = { '@type': 'Organization', name: SITE_NAME };
+  schema.publisher = { '@type': 'Organization', name: SITE_NAME, logo: { '@type': 'ImageObject', url: DEFAULT_OG_IMAGE } };
+  return schema;
 }
 
 function organizationSchema(sameAs) {
@@ -274,14 +302,17 @@ async function main() {
         <h1>${esc(name)}</h1>
         ${tagline ? `<p>${esc(tagline)}</p>` : ''}
         <p>${esc(desc)}</p>
-        ${about ? `<h2>Hakkında</h2><p>${esc(about)}</p>` : ''}
-        ${problem ? `<h2>Problem</h2><p>${esc(problem)}</p>` : ''}
-        ${solution ? `<h2>Çözüm</h2><p>${esc(solution)}</p>` : ''}
+        ${about ? `<h2>Hakkında</h2>${splitParagraphs(about).map(para => `<p>${esc(para)}</p>`).join('\n        ')}` : ''}
+        ${problem ? `<h2>Problem</h2>${splitParagraphs(problem).map(para => `<p>${esc(para)}</p>`).join('\n        ')}` : ''}
+        ${solution ? `<h2>Çözüm</h2>${splitParagraphs(solution).map(para => `<p>${esc(para)}</p>`).join('\n        ')}` : ''}
       </article>
     `;
+    const schema = projectSchema(s, {
+      name, description: desc, canonical: canonicalFor(`/labs/${s.slug}`), image: s.logo || undefined,
+    });
     const html = buildHtml({
       title: `${name} | Start-Hub Lab`, description: desc, routePath: `/labs/${s.slug}`,
-      image: s.logo, imageAlt: name, bodyHtml,
+      image: s.logo, imageAlt: name, bodyHtml, extraJsonLd: [schema],
     });
     written.push(await writeRoute(`labs/${s.slug}`, html));
   }
