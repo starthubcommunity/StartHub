@@ -107,17 +107,52 @@ DOKUNULMADI.
   dokunmadan değiştirilemez) — `\n` girilirse artık gerçek ayrı paragraflara
   bölünüyor (`splitParagraphs`, hem canlı sayfada hem prerender çıktısında).
   FAQPage/Hakkımızda schema atlandı — sitede hiç FAQ içeriği yok (kullanıcı
-  onayıyla kapsam dışı). **Kullanıcı onayıyla bilinçli olarak YAPILMADI
-  (2026-09-30):** `sdklljs` çöp test projesinin silinmesi (zaten
-  `published:false`, görünürlüğü etkilemiyor — "satır silinmez" kuralıyla
-  tutarlı, dokunulmadı); soft-404'ün tam kapatılması (JS çalıştırmayan bir
+  onayıyla kapsam dışı). **Soft-404'ün tam kapatılması** (JS çalıştırmayan bir
   crawler geçersiz `/labs/<slug>` adresine giderse hâlâ 200+indexable dönüyor
   — gerçek çözüm yeni bir Vercel Edge Middleware gerektirir, bu projede hiç
   kullanılmayan bir mekanizma; risk düşük çünkü sitemap/site-içi linkler asla
-  geçersiz slug üretmiyor, ayrı bir onay bekliyor). Projelere gerçek
-  demo/GitHub linki eklemek (`SoftwareApplication`'a otomatik yükseltir) bir
-  kod işi değil — `team/index.html`'in Düzenle modalından kullanıcı tarafından
-  yapılması gerekiyor.
+  geçersiz slug üretmiyor) **kullanıcı onayıyla kapsam dışı bırakıldı.**
+  Projelere gerçek demo/GitHub linki eklemek (`SoftwareApplication`'a otomatik
+  yükseltir) bir kod işi değil — `team/index.html`'in Düzenle modalından
+  kullanıcı tarafından yapılması gerekiyor.
+
+**`sdklljs` çöp test projesi silindi (2026-09-30):** Kullanıcı önce "nereden
+geldi" diye sordu — izini sürdüm: `hub-create-draft-project`'in (Kurucu
+Hattı → "Yeni proje taslağı oluştur") 2026-09-26'daki Ekip Paneli köprüleme
+düzeltmesinden ~30 dk ÖNCE oluşturulmuş bir test kaydıydı (`startups.id`
+timestamp'i ile `hub-bridge-create-team`'in deploy zaman damgası
+karşılaştırılarak doğrulandı) — `team_app_id: null`, yani Team App'e hiç
+köprülenmemiş tek "hayalet" proje. **Araştırma sırasında ÖNCE yanlış bir
+sonuca vardım:** Team App'in (`umgdtjlgivvymngsnqtv`) `app_state` tablosunda
+**3 satır var** (`main` = eski demo/tohum verisi, `shl_v4` = ara anlık görüntü,
+`shl_v5` = canlı uygulamanın GERÇEKTEN okuduğu satır, `public/team/index.html`
+içinde `.eq('id','shl_v5')` ile sabit) — ilk sorgum `ORDER BY`/filtre olmadan
+`main`'i çekmiş, "köprü hiç çalışmıyor" gibi yanlış bir izlenim verdi; `shl_v5`
+kontrol edilince HR'daki diğer 5 projenin (GrantAgent/EventHub/TİD Çevirici/
+Hoca Puanla/StartHub Proje Geliştirme) HEPSİNİN doğru köprülendiği görüldü —
+yani köprü mekanizması aslında ÇALIŞIYOR, sdklljs tek seferlik bir tarihsel
+artıktı. **Ders:** Team App projesinde `app_state` tablosunu sorgularken
+HER ZAMAN `id='shl_v5'` filtresi kullanılmalı — filtresiz bir `limit 1`
+yanıltıcı eski satırları döndürebilir. **Ayrı bir gerçek görünürlük inceliği
+de bulundu (düzeltilmedi, yalnızca belgelendi):** Team App'in `scopeTeams()`
+kuralı — yalnızca `admin`/`cto` rolündeki hesaplar TÜM ekipleri görür,
+`member`/`lead` yalnızca KENDİ üyesi olduğu ekibi görür. Yeni açılan bir
+pozisyonun ekibi başta üyesiz/liderliksiz olduğundan (kurucu henüz işe
+alınmadı), `admin` olmayan bir hesapla Team Management'a bakan biri onu
+GÖRMEZ — bu bir hata değil, kasıtlı görünürlük kapsamı, ama kafa karıştırıcı
+olabilir. Team App'in admin hesapları şu an yalnızca `a.talhabaris@gmail.com`
+ve `kadirks2003@gmail.com`; HR'daki cofounder e-postası (`talha@starthub-
+community.com`) Team App'in kendi kullanıcı listesinde HİÇ YOK (iki sistem
+tamamen ayrı auth'a sahip). **Akış netliği (kullanıcıya da açıklandı):**
+proje/ekip, pozisyon AÇILDIĞI anda oluşturuluyor (boş, üyesiz) — kişi
+BULUNDUĞUNDA proje oluşmuyor, yalnızca o zaten var olan boş ekibe ekleniyor;
+`track==='founder'` ise `hub-move-to-team` → `hub-bridge-add-member`'a
+`role:'lead'` geçiyor (bkz. `hub-move-to-team/index.ts:80`), yani kabul edilen
+kurucu otomatik olarak o ekibin Team Lead'i oluyor. **Silme işlemi:**
+`startups` satırı (`id:1790382219845`) + bağlı `people` satırı ("asd", test
+verisi, `type:'project_member'`) `npx supabase db query --linked` ile elle
+silindi (anon key ile DELETE RLS'e takılırdı), ikisi de doğrulandı — hiçbir
+`hub_open_roles`/`posts` kaydı bu projeye referans vermiyordu, temiz silme.
 
 ## Kurucu Hattı / İnsan Kaynağı (`/HR/`)
 
