@@ -95,8 +95,29 @@ DOKUNULMADI.
   hreflang/`/en/` ayrı adres yapısı, GitHub repoyu private yapma (kullanıcı
   kararı gerektirir), içerik stratejisi (Aşama 3'ün PDF'teki farklı, editöryal
   ekseni — kod değil).
-- Tüm bu iş `feat/seo` dalında, `main`'e PUSH EDİLMEDİ — kullanıcı onayı
-  bekliyor (proje kuralı: risky/görünür işlemler önce onay).
+- Tüm bu iş `feat/seo` dalında yapıldı, **2026-09-30'da `main`'e merge edildi
+  ve push edildi** (kullanıcı onayıyla, preview'da doğrulandıktan sonra).
+- **`feat/seo-projects` (2026-09-30, ayrıca `main`'e merge edildi):** proje
+  sayfalarına ikinci JSON-LD (`SoftwareApplication` — `github`/`demo` linki
+  varsa, yoksa `CreativeWork`; boş alan hiç yazılmıyor, `scripts/prerender.mjs`).
+  `PostDetailPage` artık bilinmeyen slug'da `ProjectDetailPage`'in zaten sahip
+  olduğu "bulunamadı" görünümünü gösteriyor (`NotFoundBlock`, `detail-pages.jsx`
+  — paylaşılan bileşen). `about_tr`/`desc_tr`/`problem_tr`/`solution_tr` düz
+  tek satır TEXT kolonlar (gerçek çok-paragraflı şema yok, `team/index.html`'e
+  dokunmadan değiştirilemez) — `\n` girilirse artık gerçek ayrı paragraflara
+  bölünüyor (`splitParagraphs`, hem canlı sayfada hem prerender çıktısında).
+  FAQPage/Hakkımızda schema atlandı — sitede hiç FAQ içeriği yok (kullanıcı
+  onayıyla kapsam dışı). **Kullanıcı onayıyla bilinçli olarak YAPILMADI
+  (2026-09-30):** `sdklljs` çöp test projesinin silinmesi (zaten
+  `published:false`, görünürlüğü etkilemiyor — "satır silinmez" kuralıyla
+  tutarlı, dokunulmadı); soft-404'ün tam kapatılması (JS çalıştırmayan bir
+  crawler geçersiz `/labs/<slug>` adresine giderse hâlâ 200+indexable dönüyor
+  — gerçek çözüm yeni bir Vercel Edge Middleware gerektirir, bu projede hiç
+  kullanılmayan bir mekanizma; risk düşük çünkü sitemap/site-içi linkler asla
+  geçersiz slug üretmiyor, ayrı bir onay bekliyor). Projelere gerçek
+  demo/GitHub linki eklemek (`SoftwareApplication`'a otomatik yükseltir) bir
+  kod işi değil — `team/index.html`'in Düzenle modalından kullanıcı tarafından
+  yapılması gerekiyor.
 
 ## Kurucu Hattı / İnsan Kaynağı (`/HR/`)
 
