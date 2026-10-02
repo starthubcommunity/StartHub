@@ -12,8 +12,11 @@ export const STATIC_SEO = {
     en: { title: 'Start-Hub — From Ideas to Startups, From Students to Founders', desc: "Start-Hub is a venture builder community that follows startups, tech and AI in Turkish — and builds its own projects in public." },
   },
   about: {
-    tr: { title: 'Hakkımızda | Start-Hub', desc: "Start-Hub geleneksel bir öğrenci topluluğu değildir. Biz; öğrencilerin fikirlerini projelere, projelerini startup'lara ve startup'larını gerçek şirketlere dönüştürmesine yardımcı olan bir girişimcilik ekosistemiyiz." },
-    en: { title: 'About | Start-Hub', desc: "Start-Hub is not a traditional student club. We are an entrepreneurship ecosystem that helps students turn ideas into projects, projects into startups, and startups into real companies." },
+    // Meta description 25-160 karakter aralığında olmalı (arama motoru SERP
+    // kısıtı) — önceki metin (215/185 karakter) bu sınırı aşıyordu, aynı
+    // iddialar korunarak kısaltıldı (2026-10-02, SEO audit uyarısı).
+    tr: { title: 'Hakkımızda | Start-Hub', desc: "Start-Hub, öğrencilerin fikirlerini projelere, projelerini startup'lara ve startup'larını gerçek şirketlere dönüştürdüğü bir girişimcilik ekosistemidir." },
+    en: { title: 'About | Start-Hub', desc: "Start-Hub is an entrepreneurship ecosystem helping students turn ideas into projects, projects into startups, and startups into real companies." },
   },
   labs: {
     tr: { title: 'Lab Projeleri | Start-Hub', desc: 'Start-Hub ekosisteminde geliştirilen tüm girişimler. Filtreleyerek keşfet veya ekibe başvur.' },
