@@ -113,3 +113,17 @@ export function setArticleSchema(article) {
     mainEntityOfPage: article.mainEntityOfPage,
   });
 }
+
+// items: [{ question, answer }] — null/boş → sayfadan ayrılınca etiketi kaldırır.
+export function setFAQSchema(items) {
+  if (!items || !items.length) { upsertJSONLD('ld-faq', null); return; }
+  upsertJSONLD('ld-faq', {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map(({ question, answer }) => ({
+      '@type': 'Question',
+      name: question,
+      acceptedAnswer: { '@type': 'Answer', text: answer },
+    })),
+  });
+}

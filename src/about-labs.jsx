@@ -6,6 +6,7 @@ import { CTASection, PageHeader } from './layout';
 import { getRoleDescription } from './detail-pages';
 import { JourneySection } from './home-page';
 import { pathFor, guardClick } from './lib/routes';
+import { FAQ_ITEMS } from './lib/faq-content';
 
 // ============================================
 // ORG CHART — katmanlı yönetim şeması
@@ -184,6 +185,32 @@ function AboutPage({ navigate }) {
       {/* Nasıl Çalışır — aşağıda */}
       <section className="section section--alt" style={{ paddingTop: 8 }}>
         <JourneySection />
+      </section>
+
+      {/* Sık Sorulan Sorular — görünür metin + FAQPage JSON-LD (app.jsx/
+          prerender.mjs) AYNI lib/faq-content.js'ten besleniyor, bkz. orada. */}
+      <section className="section">
+        <div className="container" style={{ maxWidth: 760 }}>
+          <Reveal>
+            <SectionHeader
+              label={lang === 'tr' ? 'SSS' : 'FAQ'}
+              title={lang === 'tr' ? 'Sık Sorulan Sorular' : 'Frequently Asked Questions'}
+              center
+            />
+          </Reveal>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
+            {FAQ_ITEMS.map((item, i) => (
+              <Reveal key={i} delay={i * 50}>
+                <div className="card card--no-hover">
+                  <div className="card__inner" style={{ padding: '22px 28px' }}>
+                    <h3 className="text-h3" style={{ fontSize: 17, marginBottom: 8 }}>{item.q[lang] || item.q.tr}</h3>
+                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: 15.5 }}>{item.a[lang] || item.a.tr}</p>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* İki yollu katılım — kompakt banner */}

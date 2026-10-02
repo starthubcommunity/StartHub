@@ -7,9 +7,10 @@ import { HomePage } from './home-page';
 import { AboutPage, LabsPage } from './about-labs';
 import { BlogPage, JoinPage } from './other-pages';
 import { ProjectDetailPage, PostDetailPage } from './detail-pages';
-import { setSEO, setOrganizationSchema, setArticleSchema, SITE_NAME, SITE_URL } from './lib/seo';
+import { setSEO, setOrganizationSchema, setArticleSchema, setFAQSchema, SITE_NAME, SITE_URL } from './lib/seo';
 import { pathFor } from './lib/routes';
 import { STATIC_SEO, SIMPLE_PAGES } from './lib/seo-content';
+import { FAQ_ITEMS } from './lib/faq-content';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "direction": "minimal",
@@ -194,6 +195,7 @@ function App() {
       return;
     }
     setArticleSchema(null);
+    setFAQSchema(currentPage === 'about' ? FAQ_ITEMS.map(item => ({ question: item.q[lang] || item.q.tr, answer: item.a[lang] || item.a.tr })) : null);
 
     if (currentPage === 'project' && selectedId) {
       const project = startups.find(s => s.id === selectedId || s.slug === selectedId);

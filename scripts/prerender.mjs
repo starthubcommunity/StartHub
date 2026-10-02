@@ -29,6 +29,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE, canonicalFor } from '../src/lib/seo.js';
 import { STATIC_SEO } from '../src/lib/seo-content.js';
+import { FAQ_ITEMS } from '../src/lib/faq-content.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -223,8 +224,18 @@ async function main() {
   // ── Statik sayfalar: /about, /labs, /blog, /join ────────────────────────
   {
     const s = STATIC_SEO.about.tr;
-    const bodyHtml = `<h1>${esc(s.title)}</h1><p>${esc(s.desc)}</p>`;
-    written.push(await writeRoute('about', buildHtml({ title: s.title, description: s.desc, routePath: '/about', bodyHtml })));
+    const bodyHtml = `
+      <h1>${esc(s.title)}</h1>
+      <p>${esc(s.desc)}</p>
+      <h2>Sık Sorulan Sorular</h2>
+      ${FAQ_ITEMS.map(item => `<h3>${esc(item.q.tr)}</h3><p>${esc(item.a.tr)}</p>`).join('\n      ')}
+    `;
+    const faqSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: FAQ_ITEMS.map(item => ({ '@type': 'Question', name: item.q.tr, acceptedAnswer: { '@type': 'Answer', text: item.a.tr } })),
+    };
+    written.push(await writeRoute('about', buildHtml({ title: s.title, description: s.desc, routePath: '/about', bodyHtml, extraJsonLd: [faqSchema] })));
   }
   {
     const s = STATIC_SEO.labs.tr;
