@@ -187,32 +187,6 @@ function AboutPage({ navigate }) {
         <JourneySection />
       </section>
 
-      {/* Sık Sorulan Sorular — görünür metin + FAQPage JSON-LD (app.jsx/
-          prerender.mjs) AYNI lib/faq-content.js'ten besleniyor, bkz. orada. */}
-      <section className="section">
-        <div className="container" style={{ maxWidth: 760 }}>
-          <Reveal>
-            <SectionHeader
-              label={lang === 'tr' ? 'SSS' : 'FAQ'}
-              title={lang === 'tr' ? 'Sık Sorulan Sorular' : 'Frequently Asked Questions'}
-              center
-            />
-          </Reveal>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
-            {FAQ_ITEMS.map((item, i) => (
-              <Reveal key={i} delay={i * 50}>
-                <div className="card card--no-hover">
-                  <div className="card__inner" style={{ padding: '22px 28px' }}>
-                    <h3 className="text-h3" style={{ fontSize: 17, marginBottom: 8 }}>{item.q[lang] || item.q.tr}</h3>
-                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: 15.5 }}>{item.a[lang] || item.a.tr}</p>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* İki yollu katılım — kompakt banner */}
       <section className="section" style={{ paddingTop: 8 }}>
         <div className="container">
@@ -230,6 +204,36 @@ function AboutPage({ navigate }) {
                 {t('about.joinProjectBtn')}
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Sık Sorulan Sorular — Katıl banner'ının hemen altında (kullanıcı
+          isteği). Görünür metin + FAQPage JSON-LD (app.jsx/prerender.mjs)
+          AYNI lib/faq-content.js'ten besleniyor, bkz. orada. Açılır/kapanır
+          kutucuklar — native <details>/<summary>: ek state/JS gerekmeden
+          erişilebilir (klavye/okuyucu desteği hazır) bir akordeon verir. */}
+      <section className="section" style={{ paddingTop: 8 }}>
+        <div className="container" style={{ maxWidth: 760 }}>
+          <Reveal>
+            <SectionHeader
+              label={lang === 'tr' ? 'SSS' : 'FAQ'}
+              title={lang === 'tr' ? 'Sık Sorulan Sorular' : 'Frequently Asked Questions'}
+              center
+            />
+          </Reveal>
+          <div className="faq-list">
+            {FAQ_ITEMS.map((item, i) => (
+              <Reveal key={i} delay={i * 50}>
+                <details className="faq-item">
+                  <summary className="faq-item__q">
+                    <span>{item.q[lang] || item.q.tr}</span>
+                    <Icon name="chevronDown" size={18} className="faq-item__chevron" />
+                  </summary>
+                  <p className="faq-item__a">{item.a[lang] || item.a.tr}</p>
+                </details>
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>

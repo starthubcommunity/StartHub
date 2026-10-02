@@ -1068,6 +1068,17 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .join-banner .btn--dark:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.5); }
 @media (max-width: 680px) { .join-banner { padding: 28px 24px; gap: 20px; } .join-banner__actions { width: 100%; } .join-banner__actions .btn { flex: 1; justify-content: center; } }
 
+/* --- SSS (FAQ) akordeonu — native <details>/<summary>, ek JS/state gerekmez --- */
+.faq-list { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+.faq-item { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
+.faq-item[open] { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); box-shadow: var(--shadow-sm); }
+.faq-item__q { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; font-family: var(--font-heading); font-weight: 600; font-size: 15.5px; color: var(--text-primary); user-select: none; }
+.faq-item__q::-webkit-details-marker { display: none; }
+.faq-item__q:hover { color: var(--accent); }
+.faq-item__chevron { flex-shrink: 0; color: var(--text-tertiary); transition: transform 0.25s ease, color 0.2s; }
+.faq-item[open] .faq-item__chevron { transform: rotate(180deg); color: var(--accent); }
+.faq-item__a { margin: 0; padding: 0 22px 20px; color: var(--text-secondary); font-size: 15px; line-height: 1.7; }
+
 /* Katıl sayfası — rol seçim kartları (inline grid stili !important ile eziliyor) */
 @media (max-width: 640px) {
   .join-type-grid { grid-template-columns: 1fr !important; }
