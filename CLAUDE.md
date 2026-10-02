@@ -116,6 +116,30 @@ DOKUNULMADI.
   yükseltir) bir kod işi değil — `team/index.html`'in Düzenle modalından
   kullanıcı tarafından yapılması gerekiyor.
 
+**`feat/seo-faq` (2026-10-02, `main`'e henüz merge edilmedi — onay bekliyor):**
+Kullanıcı daha önce atlanan FAQPage adımı için gerçek Hakkımızda SSS metni +
+üç proje için zengin açıklama + özel SEO başlıkları verdi.
+- `src/lib/faq-content.js` (yeni) — SSS tek kaynak: `about-labs.jsx`'teki
+  görünür bölüm (mevcut Misyon/Vizyon anlatımının ÜZERİNE yazılmadı, ek bir
+  bölüm olarak JourneySection'dan sonra eklendi), `app.jsx`'in client-side
+  `setFAQSchema`'sı (`seo.js`, yeni) ve `prerender.mjs`'in statik
+  `dist/about/index.html`'e gömdüğü FAQPage şeması AYNI diziden besleniyor.
+  EN çevirisi kullanıcının TR metninin çevirisi, yeni iddia eklenmedi.
+- **`seo_title_tr`/`seo_title_en`** (yeni, opsiyonel, migration `0051` —
+  YAZILDI VE ÇALIŞTIRILDI, `supabase_migrations.schema_migrations`'a da
+  kaydedildi): proje sayfasının `<title>`'ı artık doluysa bu özel başlığı
+  kullanıyor (`app.jsx` + `prerender.mjs`), boşsa eski `"${ad} | Start-Hub
+  Lab"` desenine düşüyor — geriye dönük uyumlu.
+- TİD Çevirici/EventHub/GrantAgent'ın `seo_title_tr`/`desc_tr`/`about_tr`/
+  `problem_tr`/`solution_tr` alanları kullanıcının verdiği gerçek metinle
+  dolduruldu (`npx supabase db query --linked` ile — anon key UPDATE'i
+  RLS'e takılıyordu, `team-project-save`'in yazdığı AYNI kolonlar, UI'dan
+  farklı bir sonuç üretmiyor). Köşeli parantezli bilinmeyenler (platform,
+  etkinlik sayısı, desteklenen programlar) UYDURULMADI, atlandı; "Durum"
+  için gerçek DB verisi kullanıldı (üçü de `stage:"mvp"`).
+- Hem canlı SPA'da hem `dist/labs/<slug>`/`dist/about` prerender çıktısında
+  CDP ile doğrulandı.
+
 **`sdklljs` çöp test projesi silindi (2026-09-30):** Kullanıcı önce "nereden
 geldi" diye sordu — izini sürdüm: `hub-create-draft-project`'in (Kurucu
 Hattı → "Yeni proje taslağı oluştur") 2026-09-26'daki Ekip Paneli köprüleme
