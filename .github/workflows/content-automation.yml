@@ -45,6 +45,7 @@ jobs:
           DAILY_LIMIT:          "2"
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
         run: |
           MODE="${{ github.event.inputs.mode || 'all' }}"
           # Manuel tetiklemede saat kontrolünü atla
