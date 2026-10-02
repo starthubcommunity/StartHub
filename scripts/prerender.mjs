@@ -150,6 +150,21 @@ function breadcrumbHtml(items) {
   return `<nav aria-label="breadcrumb">${parts.join(' › ')}</nav>`;
 }
 
+// ItemList JSON-LD (SEO/GEO Aşama 2) — liste sayfalarının (/labs, /blog)
+// hangi öğeleri enumerate ettiğini Google/AI'ya açıkça bildirir.
+function itemListSchema(items) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      url: item.url,
+    })),
+  };
+}
+
 function organizationSchema(sameAs) {
   return {
     '@context': 'https://schema.org',
@@ -272,7 +287,8 @@ async function main() {
         ${startups.map(x => `<li><a href="/labs/${esc(x.slug)}">${esc(x.name || '')}</a> — ${esc(x.tagline_tr || x.tagline_en || '')}</li>`).join('\n        ')}
       </ul>
     `;
-    written.push(await writeRoute('labs', buildHtml({ title: s.title, description: s.desc, routePath: '/labs', bodyHtml })));
+    const labsItemList = itemListSchema(startups.filter(x => x.slug).map(x => ({ name: x.name || '', url: canonicalFor(`/labs/${x.slug}`) })));
+    written.push(await writeRoute('labs', buildHtml({ title: s.title, description: s.desc, routePath: '/labs', bodyHtml, extraJsonLd: [labsItemList] })));
   }
   {
     const s = STATIC_SEO.blog.tr;
@@ -283,7 +299,8 @@ async function main() {
         ${posts.map(p => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title_tr || p.title_en || '')}</a> — ${esc(p.excerpt_tr || p.excerpt_en || '')}</li>`).join('\n        ')}
       </ul>
     `;
-    written.push(await writeRoute('blog', buildHtml({ title: s.title, description: s.desc, routePath: '/blog', bodyHtml })));
+    const blogItemList = itemListSchema(posts.filter(p => p.slug).map(p => ({ name: p.title_tr || p.title_en || '', url: canonicalFor(`/blog/${p.slug}`) })));
+    written.push(await writeRoute('blog', buildHtml({ title: s.title, description: s.desc, routePath: '/blog', bodyHtml, extraJsonLd: [blogItemList] })));
   }
   {
     const s = STATIC_SEO.join.tr;
