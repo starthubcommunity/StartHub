@@ -204,8 +204,11 @@ function App() {
         ? ((lang === 'tr' ? project.desc_tr : project.desc_en) || project.desc_tr
           || (lang === 'tr' ? project.tagline_tr : project.tagline_en) || project.tagline_tr)
         : null;
+      // Opsiyonel özel <title> (startups.seo_title_tr/en) — doluysa anahtar
+      // kelime zengin özel başlığı kullan, boşsa otomatik desene düş.
+      const projSeoTitle = project ? ((lang === 'tr' ? project.seoTitle_tr : project.seoTitle_en) || project.seoTitle_tr) : null;
       setSEO({
-        title: projName ? `${projName} | Start-Hub Lab` : 'Lab | Start-Hub',
+        title: projSeoTitle || (projName ? `${projName} | Start-Hub Lab` : 'Lab | Start-Hub'),
         description: projDesc || STATIC_SEO.labs[lang].desc,
         path,
         image: project?.logo || null,

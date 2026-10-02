@@ -599,6 +599,8 @@ function mapStartup(row) {
     stage:            row.stage              || 'idea',
     tagline_tr:       row.tagline_tr         || '',
     tagline_en:       row.tagline_en         || '',
+    seoTitle_tr:      row.seo_title_tr       || '',
+    seoTitle_en:      row.seo_title_en       || '',
     desc_tr:          row.desc_tr            || '',
     desc_en:          row.desc_en            || '',
     about_tr:         row.about_tr           || '',

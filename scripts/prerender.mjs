@@ -321,8 +321,11 @@ async function main() {
     const schema = projectSchema(s, {
       name, description: desc, canonical: canonicalFor(`/labs/${s.slug}`), image: s.logo || undefined,
     });
+    // Opsiyonel özel <title> (startups.seo_title_tr) — app.jsx'teki aynı
+    // mantık (bkz. seoTitle_tr), boşsa otomatik desene düşer.
+    const title = s.seo_title_tr || `${name} | Start-Hub Lab`;
     const html = buildHtml({
-      title: `${name} | Start-Hub Lab`, description: desc, routePath: `/labs/${s.slug}`,
+      title, description: desc, routePath: `/labs/${s.slug}`,
       image: s.logo, imageAlt: name, bodyHtml, extraJsonLd: [schema],
     });
     written.push(await writeRoute(`labs/${s.slug}`, html));
