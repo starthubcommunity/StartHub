@@ -850,6 +850,14 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 @keyframes marqueeScroll { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 8px)); } }
 @media (prefers-reduced-motion: reduce) { .marquee__track { animation: none; flex-wrap: wrap; justify-content: center; } }
 
+/* --- Breadcrumb (SEO/GEO Aşama 1) --- */
+.breadcrumb { display: flex; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--text-tertiary); margin-bottom: 12px; }
+.breadcrumb__item { display: inline-flex; align-items: center; gap: 6px; }
+.breadcrumb__item a { color: var(--text-tertiary); text-decoration: none; transition: color 0.2s; }
+.breadcrumb__item a:hover { color: var(--accent); }
+.breadcrumb__item [aria-current="page"] { color: var(--text-secondary); font-weight: 600; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.breadcrumb__sep { margin: 0 6px; opacity: 0.5; }
+
 /* --- Project detail --- */
 .pd-hero { padding: calc(var(--nav-h) + var(--announce-h) + 40px) 0 0; }
 .pd-back { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 28px; cursor: pointer; transition: color 0.2s; }

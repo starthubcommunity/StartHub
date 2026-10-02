@@ -64,6 +64,29 @@ function splitParagraphs(text) {
   return String(text || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
 }
 
+// Görünür breadcrumb (SEO/GEO Aşama 1) — gerçek <a href>'lerle, son öğe
+// (geçerli sayfa) link değil, aria-current="page" ile işaretli. prerender.mjs
+// AYNI sırayla BreadcrumbList JSON-LD + düz metin breadcrumb üretiyor (bkz.
+// breadcrumbHtml/breadcrumbSchema orada) — şema ile görünür menü arasında
+// sürüklenme olmasın diye iki yerde de aynı yapı (Ana Sayfa › ... › geçerli).
+function Breadcrumb({ items }) {
+  return (
+    <nav className="breadcrumb" aria-label="breadcrumb">
+      {items.map((item, i) => {
+        const isLast = i === items.length - 1;
+        return (
+          <span className="breadcrumb__item" key={i}>
+            {isLast
+              ? <span aria-current="page">{item.label}</span>
+              : <a href={item.href} onClick={item.onClick}>{item.label}</a>}
+            {!isLast && <span className="breadcrumb__sep" aria-hidden="true">›</span>}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
 // Soft-404 blok — bilinmeyen/kaldırılmış proje veya yazı slug'ında gösterilir
 // (SEO/GEO feat/seo-projects, madde 2). Gerçek bir HTTP 404 DEĞİL (SPA +
 // Vercel rewrite ile teknik olarak imkansız, her yol 200 döner) ama en azından
@@ -146,6 +169,11 @@ function ProjectDetailPage({ projectId, navigate }) {
       {/* Hero */}
       <div className="pd-hero">
         <div className="container">
+          <Breadcrumb items={[
+            { label: t('nav.home'), href: pathFor('home'), onClick: (e) => guardClick(e, () => { navigate('home'); window.scrollTo({ top: 0 }); }) },
+            { label: t('labs.title'), href: pathFor('labs'), onClick: (e) => guardClick(e, () => { navigate('labs'); window.scrollTo({ top: 0 }); }) },
+            { label: p.name },
+          ]} />
           <a className="pd-back" href={pathFor('labs')} onClick={(e) => guardClick(e, () => { navigate('labs'); window.scrollTo({ top: 0 }); })}>
             <Icon name="chevronRight" size={16} style={{ transform: 'rotate(180deg)' }} /> {t('labs.backToLab')}
           </a>
@@ -393,6 +421,11 @@ function PostDetailPage({ postId, navigate }) {
 
       <div className="page-header" style={{ paddingBottom: 0 }}>
         <div className="container">
+          <Breadcrumb items={[
+            { label: t('nav.home'), href: pathFor('home'), onClick: (e) => guardClick(e, () => { navigate('home'); window.scrollTo({ top: 0 }); }) },
+            { label: t('blog.title'), href: pathFor('blog'), onClick: (e) => guardClick(e, () => { navigate('blog'); window.scrollTo({ top: 0 }); }) },
+            { label: localized(post, 'title') },
+          ]} />
           <a className="pd-back" href={pathFor('blog')} onClick={(e) => guardClick(e, () => { navigate('blog'); window.scrollTo({ top: 0 }); })}>
             <Icon name="chevronRight" size={16} style={{ transform: 'rotate(180deg)' }} /> {t('post.backToList')}
           </a>

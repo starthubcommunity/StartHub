@@ -124,6 +124,32 @@ function projectSchema(s, { name, description, canonical, image }) {
   return schema;
 }
 
+// BreadcrumbList JSON-LD (SEO/GEO Aşama 1) — konum/ad/url üçlüsü, position
+// 1'den başlar. Aynı sırayla görünür <nav aria-label="breadcrumb"> hem canlı
+// SPA'da (detail-pages.jsx) hem burada düz metin olarak bodyHtml'e yazılıyor
+// — şema ile görünür metin arasında sürüklenme olmasın diye.
+function breadcrumbSchema(items) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
+}
+
+function breadcrumbHtml(items) {
+  const parts = items.map((item, i) => (
+    i === items.length - 1
+      ? `<span>${esc(item.name)}</span>`
+      : `<a href="${esc(item.url.replace(SITE_URL, ''))}">${esc(item.name)}</a>`
+  ));
+  return `<nav aria-label="breadcrumb">${parts.join(' › ')}</nav>`;
+}
+
 function organizationSchema(sameAs) {
   return {
     '@context': 'https://schema.org',
@@ -273,7 +299,13 @@ async function main() {
     const author = people.find(pp => pp.id === post.author_id);
     const authorName = author?.name || post.guest_author?.name || SITE_NAME;
     const bodyParas = (post.body_tr && post.body_tr.length ? post.body_tr : post.body_en) || [];
+    const breadcrumbItems = [
+      { name: 'Ana Sayfa', url: `${SITE_URL}/` },
+      { name: 'Yazılar', url: `${SITE_URL}/blog` },
+      { name: title, url: canonicalFor(`/blog/${post.slug}`) },
+    ];
     const bodyHtml = `
+      ${breadcrumbHtml(breadcrumbItems)}
       <article>
         <h1>${esc(title)}</h1>
         <p><em>${esc(authorName)}${post.date ? ` — ${esc(post.date)}` : ''}</em></p>
@@ -294,7 +326,7 @@ async function main() {
     };
     const html = buildHtml({
       title: `${title} | Start-Hub`, description: desc, routePath: `/blog/${post.slug}`,
-      image: post.image_url, imageAlt: title, bodyHtml, extraJsonLd: [articleSchema],
+      image: post.image_url, imageAlt: title, bodyHtml, extraJsonLd: [articleSchema, breadcrumbSchema(breadcrumbItems)],
     });
     written.push(await writeRoute(`blog/${post.slug}`, html));
   }
@@ -308,7 +340,13 @@ async function main() {
     const about = s.about_tr || s.about_en || '';
     const problem = s.problem_tr || '';
     const solution = s.solution_tr || '';
+    const breadcrumbItems = [
+      { name: 'Ana Sayfa', url: `${SITE_URL}/` },
+      { name: 'Lab Projeleri', url: `${SITE_URL}/labs` },
+      { name, url: canonicalFor(`/labs/${s.slug}`) },
+    ];
     const bodyHtml = `
+      ${breadcrumbHtml(breadcrumbItems)}
       <article>
         <h1>${esc(name)}</h1>
         ${tagline ? `<p>${esc(tagline)}</p>` : ''}
@@ -326,7 +364,7 @@ async function main() {
     const title = s.seo_title_tr || `${name} | Start-Hub Lab`;
     const html = buildHtml({
       title, description: desc, routePath: `/labs/${s.slug}`,
-      image: s.logo, imageAlt: name, bodyHtml, extraJsonLd: [schema],
+      image: s.logo, imageAlt: name, bodyHtml, extraJsonLd: [schema, breadcrumbSchema(breadcrumbItems)],
     });
     written.push(await writeRoute(`labs/${s.slug}`, html));
   }
