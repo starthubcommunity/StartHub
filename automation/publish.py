@@ -13,6 +13,8 @@ Supabase şeması (mapPostToDb ile birebir eşleşir, artı status/published_at)
 """
 import datetime
 import math
+import os
+import urllib.request
 from supabase import create_client
 from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 from image_matcher import find_best_image
@@ -28,6 +30,24 @@ CATEGORY_BG = {
     "Blockchain":   "var(--orange-light)",
     "Kripto":       "var(--orange-light)",
 }
+
+def _trigger_deploy_hook() -> None:
+    """Bir yazı status='published' olarak Supabase'e yazıldıktan sonra Vercel'i
+    yeniden build'e tetikler (prerender.mjs'in yeni yazıyı statik HTML'e +
+    sitemap'e işlemesi için gereken son parça). VERCEL_DEPLOY_HOOK_URL ortam
+    değişkeni tanımlı değilse sessizce geçer — secret, koda yazılmaz. Hata
+    olursa yayını ASLA düşürmez, yalnızca loglar (requests yerine stdlib
+    urllib kullanıldı, requirements.txt'ye yeni bağımlılık eklenmedi)."""
+    url = os.environ.get("VERCEL_DEPLOY_HOOK_URL")
+    if not url:
+        return
+    try:
+        req = urllib.request.Request(url, method="POST", data=b"")
+        urllib.request.urlopen(req, timeout=10)
+        print("[deploy-hook] Vercel rebuild tetiklendi.")
+    except Exception as e:
+        print(f"[deploy-hook] Tetikleme başarısız (yayın etkilenmedi): {e}")
+
 
 _supabase_client = None
 
@@ -112,6 +132,8 @@ def publish_article(article: dict, dry_run: bool = False,
         row = result.data[0] if result.data else {}
         print(f"[{'yayın' if auto_publish else 'draft'}] Supabase posts ← {slug} "
               f"(id: {row.get('id')}, status={record['status']})")
+        if record["status"] == "published":
+            _trigger_deploy_hook()
         return row
     except Exception as e:
         print(f"[hata] Supabase INSERT başarısız ({slug}): {e}")

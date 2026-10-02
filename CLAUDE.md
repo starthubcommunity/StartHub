@@ -97,6 +97,18 @@ DOKUNULMADI.
   ekseni — kod değil).
 - Tüm bu iş `feat/seo` dalında yapıldı, **2026-09-30'da `main`'e merge edildi
   ve push edildi** (kullanıcı onayıyla, preview'da doğrulandıktan sonra).
+- **Vercel Deploy Hook (2026-10-02):** `automation/publish.py`'a
+  `_trigger_deploy_hook()` eklendi — bir yazı `status='published'` olarak
+  Supabase'e yazıldıktan SONRA (yalnızca yayınlanan, taslak değil)
+  `VERCEL_DEPLOY_HOOK_URL` ortam değişkenine (tanımlıysa) boş bir POST atıp
+  site rebuild'ini tetikliyor; bu, prerender'ın YENİ yazıları statik
+  HTML'e + sitemap'e işlemesi için eksik olan son parçaydı (önceden yeni
+  bir yazı ancak elle/başka bir deploy'da statikleşiyordu). Yeni bağımlılık
+  eklenmedi — `requests` yerine stdlib `urllib.request` kullanıldı. Env
+  değişkeni tanımlı değilse veya `dry_run`/draft ise sessizce atlanıyor;
+  hata olursa yayın ASLA düşmüyor, yalnızca loglanıyor (ikisi de izole test
+  edildi). `automation/.env.example`'a belgelendi. Secret'ı GitHub
+  Actions/Make.com'a eklemek kullanıcının işi — kod tarafı tamamlandı.
 - **`feat/seo-projects` (2026-09-30, ayrıca `main`'e merge edildi):** proje
   sayfalarına ikinci JSON-LD (`SoftwareApplication` — `github`/`demo` linki
   varsa, yoksa `CreativeWork`; boş alan hiç yazılmıyor, `scripts/prerender.mjs`).
