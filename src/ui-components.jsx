@@ -155,13 +155,26 @@ function Icon({ name, size = 20, className = '', style = {} }) {
 // ============================================
 // BUTTON
 // ============================================
-function Button({ children, variant = 'primary', size = 'md', icon, iconRight, onClick, style, className = '' }) {
+function Button({ children, variant = 'primary', size = 'md', icon, iconRight, onClick, href, style, className = '' }) {
   const sizeClass = size === 'sm' ? 'btn--sm' : size === 'lg' ? 'btn--lg' : '';
-  return (
-    <button className={`btn btn--${variant} ${sizeClass} ${className}`} onClick={onClick} style={style}>
+  const content = (
+    <>
       {icon && <Icon name={icon} size={size === 'sm' ? 16 : 18} />}
       {children}
       {iconRight && <Icon name={iconRight} size={size === 'sm' ? 14 : 16} />}
+    </>
+  );
+  // href verilirse gerçek <a> (SEO/GEO — tıklanabilir div/button değil, bkz. guardClick).
+  if (href) {
+    return (
+      <a className={`btn btn--${variant} ${sizeClass} ${className}`} href={href} onClick={(e) => guardClick(e, () => onClick?.())} style={style}>
+        {content}
+      </a>
+    );
+  }
+  return (
+    <button className={`btn btn--${variant} ${sizeClass} ${className}`} onClick={onClick} style={style}>
+      {content}
     </button>
   );
 }
@@ -220,7 +233,7 @@ function StartupCard({ startup, onClick }) {
       <div className="card__inner">
         <div className="startup-card__header">
           <div className="startup-card__logo" style={{ background: startup.color, overflow: 'hidden', padding: startup.logo ? 0 : undefined }}>
-            {startup.logo ? <img src={startup.logo} alt={startup.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : startup.name[0]}
+            {startup.logo ? <img src={startup.logo} alt={startup.name} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : startup.name[0]}
           </div>
           <div className="startup-card__info">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -298,7 +311,7 @@ function BlogCard({ post, onClick }) {
     <div className="card blog-card" onClick={onClick} style={{ padding: 0 }}>
       <div className="blog-card__image" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>
         {post.cover
-          ? <img src={post.cover} alt={localized(post, 'title')} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          ? <img src={post.cover} alt={localized(post, 'title')} width={1200} height={630} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
           : <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 32, opacity: 0.3 }}>SH</span>}
       </div>
       <div className="blog-card__body">
@@ -351,7 +364,7 @@ function Avatar({ person, size = 40, className = '' }) {
   const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('');
   if (person.photo) {
     return <img className={`avatar ${className}`} src={person.photo} alt={person.name}
-      style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />;
+      width={size} height={size} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />;
   }
   return (
     <div className={`avatar ${className}`} style={{
@@ -427,7 +440,7 @@ function PostCard({ post, onClick, feature, pinned }) {
       onClick={(e) => guardClick(e, () => onClick?.())}>
       <div className="post-card__cover" style={{ background: post.bg, overflow: 'hidden', position: 'relative' }}>
         {post.cover
-          ? <img src={post.cover} alt={localized(post, 'title')} loading="lazy"
+          ? <img src={post.cover} alt={localized(post, 'title')} width={1200} height={630} loading="lazy"
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling?.style.removeProperty('display'); }} />
           : null}

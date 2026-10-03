@@ -181,7 +181,7 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 .nav__mobile-toggle { display: none; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: var(--r-md); }
 
 /* --- Buttons --- */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: var(--r-md); font-size: 15px; font-weight: 600; transition: all 0.2s; white-space: nowrap; cursor: pointer; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: var(--r-md); font-size: 15px; font-weight: 600; transition: all 0.2s; white-space: nowrap; cursor: pointer; text-decoration: none; }
 .btn--primary { background: var(--accent); color: white; }
 .btn--primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn--secondary { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border); }
@@ -849,6 +849,14 @@ textarea.form-input { min-height: 120px; resize: vertical; }
 .marquee__logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
 @keyframes marqueeScroll { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 8px)); } }
 @media (prefers-reduced-motion: reduce) { .marquee__track { animation: none; flex-wrap: wrap; justify-content: center; } }
+
+/* --- Breadcrumb (SEO/GEO Aşama 1) --- */
+.breadcrumb { display: flex; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--text-tertiary); margin-bottom: 12px; }
+.breadcrumb__item { display: inline-flex; align-items: center; gap: 6px; }
+.breadcrumb__item a { color: var(--text-tertiary); text-decoration: none; transition: color 0.2s; }
+.breadcrumb__item a:hover { color: var(--accent); }
+.breadcrumb__item [aria-current="page"] { color: var(--text-secondary); font-weight: 600; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.breadcrumb__sep { margin: 0 6px; opacity: 0.5; }
 
 /* --- Project detail --- */
 .pd-hero { padding: calc(var(--nav-h) + var(--announce-h) + 40px) 0 0; }

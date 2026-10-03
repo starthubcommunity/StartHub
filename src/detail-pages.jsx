@@ -1,7 +1,7 @@
 // detail-pages.jsx — Project detail & Post detail pages
 import React, { useState, useEffect, useRef } from 'react';
 import { useLang, getPost, postsForProject, usePosts, usePeople, useStartups } from './data';
-import { Icon, Button, Reveal, Avatar, PostCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
+import { Icon, Button, Reveal, Avatar, PostCard, StartupCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
 import { CTASection } from './layout';
 import { trackPostView } from './lib/post-analytics';
 import { pathFor, guardClick } from './lib/routes';
@@ -64,6 +64,29 @@ function splitParagraphs(text) {
   return String(text || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
 }
 
+// Görünür breadcrumb (SEO/GEO Aşama 1) — gerçek <a href>'lerle, son öğe
+// (geçerli sayfa) link değil, aria-current="page" ile işaretli. prerender.mjs
+// AYNI sırayla BreadcrumbList JSON-LD + düz metin breadcrumb üretiyor (bkz.
+// breadcrumbHtml/breadcrumbSchema orada) — şema ile görünür menü arasında
+// sürüklenme olmasın diye iki yerde de aynı yapı (Ana Sayfa › ... › geçerli).
+function Breadcrumb({ items }) {
+  return (
+    <nav className="breadcrumb" aria-label="breadcrumb">
+      {items.map((item, i) => {
+        const isLast = i === items.length - 1;
+        return (
+          <span className="breadcrumb__item" key={i}>
+            {isLast
+              ? <span aria-current="page">{item.label}</span>
+              : <a href={item.href} onClick={item.onClick}>{item.label}</a>}
+            {!isLast && <span className="breadcrumb__sep" aria-hidden="true">›</span>}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
 // Soft-404 blok — bilinmeyen/kaldırılmış proje veya yazı slug'ında gösterilir
 // (SEO/GEO feat/seo-projects, madde 2). Gerçek bir HTTP 404 DEĞİL (SPA +
 // Vercel rewrite ile teknik olarak imkansız, her yol 200 döner) ama en azından
@@ -118,6 +141,7 @@ function ProjectDetailPage({ projectId, navigate }) {
   const projectMembers = people.filter(pp => pp.type === 'project_member' && pp.projectId === p.id && !linkedIds.has(pp.id));
   const members = [...explicitMembers, ...projectMembers];
   const related = postsForProject(p.id);
+  const otherProjects = startups.filter(x => x.id !== p.id).slice(0, 3);
   // Kurucu Hattı'ndaki hub_open_roles'tan (public_open_roles view) gelir —
   // tek kaynak Hub, admin panelde elle liste tutulmuyor artık (bkz. 0021).
   const openList = p.openRolesLive || [];
@@ -146,11 +170,16 @@ function ProjectDetailPage({ projectId, navigate }) {
       {/* Hero */}
       <div className="pd-hero">
         <div className="container">
+          <Breadcrumb items={[
+            { label: t('nav.home'), href: pathFor('home'), onClick: (e) => guardClick(e, () => { navigate('home'); window.scrollTo({ top: 0 }); }) },
+            { label: t('labs.title'), href: pathFor('labs'), onClick: (e) => guardClick(e, () => { navigate('labs'); window.scrollTo({ top: 0 }); }) },
+            { label: p.name },
+          ]} />
           <a className="pd-back" href={pathFor('labs')} onClick={(e) => guardClick(e, () => { navigate('labs'); window.scrollTo({ top: 0 }); })}>
             <Icon name="chevronRight" size={16} style={{ transform: 'rotate(180deg)' }} /> {t('labs.backToLab')}
           </a>
           <div className="pd-head">
-            <div className="pd-logo" style={{ background: p.color, overflow: 'hidden' }}>{p.logo ? <img src={p.logo} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}</div>
+            <div className="pd-logo" style={{ background: p.color, overflow: 'hidden' }}>{p.logo ? <img src={p.logo} alt={p.name} width={72} height={72} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}</div>
             <div className="pd-head__main">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
                 <h1 className="pd-title">{p.name}</h1>
@@ -268,6 +297,22 @@ function ProjectDetailPage({ projectId, navigate }) {
           </div>
         </div>
       </section>
+
+      {/* Diğer Lab projeleri — iç bağlantı (SEO/GEO Aşama 3) */}
+      {otherProjects.length > 0 && (
+        <section className="section section--alt">
+          <div className="container">
+            <SectionHeader label={t('labs.label')} title={lang === 'tr' ? 'Diğer Start-Hub Lab projeleri' : 'Other Start-Hub Lab projects'} />
+            <div className="grid grid-3">
+              {otherProjects.map((x, i) => (
+                <Reveal key={x.id} delay={i * 70}>
+                  <StartupCard startup={x} onClick={() => { navigate('project', x.id); window.scrollTo({ top: 0 }); }} />
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Related posts */}
       {related.length > 0 && (
@@ -393,6 +438,11 @@ function PostDetailPage({ postId, navigate }) {
 
       <div className="page-header" style={{ paddingBottom: 0 }}>
         <div className="container">
+          <Breadcrumb items={[
+            { label: t('nav.home'), href: pathFor('home'), onClick: (e) => guardClick(e, () => { navigate('home'); window.scrollTo({ top: 0 }); }) },
+            { label: t('blog.title'), href: pathFor('blog'), onClick: (e) => guardClick(e, () => { navigate('blog'); window.scrollTo({ top: 0 }); }) },
+            { label: localized(post, 'title') },
+          ]} />
           <a className="pd-back" href={pathFor('blog')} onClick={(e) => guardClick(e, () => { navigate('blog'); window.scrollTo({ top: 0 }); })}>
             <Icon name="chevronRight" size={16} style={{ transform: 'rotate(180deg)' }} /> {t('post.backToList')}
           </a>
@@ -503,7 +553,7 @@ function PostDetailPage({ postId, navigate }) {
             {project && (
               <a className="article__projlink" href={pathFor('project', project.id)}
                 onClick={(e) => guardClick(e, () => { navigate('project', project.id); window.scrollTo({ top: 0 }); })}>
-                <div className="pd-logo" style={{ background: project.color, width: 46, height: 46, fontSize: 21, borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>{project.logo ? <img src={project.logo} alt={project.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : project.name[0]}</div>
+                <div className="pd-logo" style={{ background: project.color, width: 46, height: 46, fontSize: 21, borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>{project.logo ? <img src={project.logo} alt={project.name} width={46} height={46} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : project.name[0]}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)', marginBottom: 2 }}>{t('post.relatedProject')}</div>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16 }}>{project.name}</div>
