@@ -10,9 +10,10 @@
 -- Varsayılan true: mevcut tüm yazılar (elle girilmiş, zaten yayında olanlar)
 -- geriye dönük noindex OLMASIN diye. automation/publish.py şu an bu kolonu
 -- HİÇ yazmıyor — istenirse otomatik (source dolu) satırlara false, editör
--- 2-3 cümlelik yorumunu ekleyip onayladıktan sonra true atanabilir. Bu karar
--- ve wiring (app.jsx'in noindex mantığına bu kolonu eklemek) BU migration'ın
--- kapsamında değil — kolon yalnızca öneri/altyapı, kullanıcı onayı bekliyor.
+-- 2-3 cümlelik yorumunu ekleyip onayladıktan sonra true atanabilir. Kod tarafı
+-- (prerender.mjs: noindex + sitemap/RSS dışı bırakma; app.jsx: noindex) kolon
+-- yokken de güvenli çalışır (eksik kolon = indekslenebilir). Migration'ın
+-- kendisi kullanıcı onayı olmadan çalıştırılmaz.
 alter table posts
   add column if not exists is_indexable boolean not null default true;
 

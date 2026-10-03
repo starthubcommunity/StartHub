@@ -49,7 +49,7 @@ function HeroSection({ navigate }) {
                 onClick={() => { navigate('join'); window.scrollTo({ top: 0 }); }}>
                 {t('hero.cta1')}
               </Button>
-              <Button variant="secondary" size="lg" iconRight="arrowUpRight"
+              <Button variant="secondary" size="lg" iconRight="arrowUpRight" href={pathFor('labs')}
                 onClick={() => { navigate('labs'); window.scrollTo({ top: 0 }); }}>
                 {t('hero.cta2')}
               </Button>
@@ -317,7 +317,7 @@ function LabProjects({ navigate }) {
         <Reveal>
           <div className="section-head-row" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32, gap: 24, flexWrap: 'wrap' }}>
             <SectionHeader label={t('sections.labProjects')} title={t('sections.labProjectsDesc')} style={{ marginBottom: 0 }} />
-            <Button variant="ghost" size="sm" iconRight="arrowRight"
+            <Button variant="ghost" size="sm" iconRight="arrowRight" href={pathFor('labs')}
               onClick={() => { navigate('labs'); window.scrollTo({ top: 0 }); }} style={{ flexShrink: 0 }}>
               {t('sections.viewAll')}
             </Button>

@@ -55,7 +55,7 @@ function Navbar({ currentPage, navigate }) {
       <nav className={`nav ${scrolled ? 'nav--scrolled' : ''}`}>
         <div className="container nav__inner">
           <a className="nav__logo" href={pathFor('home')} onClick={(e) => handleNav('home', e)}>
-            <img src="logo-full.png" alt="Start-Hub" className="nav__logo-img" />
+            <img src="logo-full.png" width="562" height="145" alt="Start-Hub" className="nav__logo-img" />
           </a>
 
           <div className="nav__links">
@@ -146,7 +146,7 @@ function Footer({ navigate }) {
           <div className="footer__top">
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <img src="logo-mark.png" alt="Start-Hub" style={{ height: 30 }} />
+                <img src="logo-mark.png" width="113" height="149" alt="Start-Hub" style={{ height: 30 }} />
                 <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 19, color: 'white', letterSpacing: '-0.01em' }}>
                   Start<span style={{ color: 'var(--red)' }}>-Hub</span>
                 </span>

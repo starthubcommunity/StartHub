@@ -1,7 +1,7 @@
 // detail-pages.jsx — Project detail & Post detail pages
 import React, { useState, useEffect, useRef } from 'react';
 import { useLang, getPost, postsForProject, usePosts, usePeople, useStartups } from './data';
-import { Icon, Button, Reveal, Avatar, PostCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
+import { Icon, Button, Reveal, Avatar, PostCard, StartupCard, StageBadge, SectionHeader, TagChip, AuthorByline } from './ui-components';
 import { CTASection } from './layout';
 import { trackPostView } from './lib/post-analytics';
 import { pathFor, guardClick } from './lib/routes';
@@ -141,6 +141,7 @@ function ProjectDetailPage({ projectId, navigate }) {
   const projectMembers = people.filter(pp => pp.type === 'project_member' && pp.projectId === p.id && !linkedIds.has(pp.id));
   const members = [...explicitMembers, ...projectMembers];
   const related = postsForProject(p.id);
+  const otherProjects = startups.filter(x => x.id !== p.id).slice(0, 3);
   // Kurucu Hattı'ndaki hub_open_roles'tan (public_open_roles view) gelir —
   // tek kaynak Hub, admin panelde elle liste tutulmuyor artık (bkz. 0021).
   const openList = p.openRolesLive || [];
@@ -178,7 +179,7 @@ function ProjectDetailPage({ projectId, navigate }) {
             <Icon name="chevronRight" size={16} style={{ transform: 'rotate(180deg)' }} /> {t('labs.backToLab')}
           </a>
           <div className="pd-head">
-            <div className="pd-logo" style={{ background: p.color, overflow: 'hidden' }}>{p.logo ? <img src={p.logo} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}</div>
+            <div className="pd-logo" style={{ background: p.color, overflow: 'hidden' }}>{p.logo ? <img src={p.logo} alt={p.name} width={72} height={72} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.name[0]}</div>
             <div className="pd-head__main">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
                 <h1 className="pd-title">{p.name}</h1>
@@ -296,6 +297,22 @@ function ProjectDetailPage({ projectId, navigate }) {
           </div>
         </div>
       </section>
+
+      {/* Diğer Lab projeleri — iç bağlantı (SEO/GEO Aşama 3) */}
+      {otherProjects.length > 0 && (
+        <section className="section section--alt">
+          <div className="container">
+            <SectionHeader label={t('labs.label')} title={lang === 'tr' ? 'Diğer Start-Hub Lab projeleri' : 'Other Start-Hub Lab projects'} />
+            <div className="grid grid-3">
+              {otherProjects.map((x, i) => (
+                <Reveal key={x.id} delay={i * 70}>
+                  <StartupCard startup={x} onClick={() => { navigate('project', x.id); window.scrollTo({ top: 0 }); }} />
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Related posts */}
       {related.length > 0 && (
@@ -536,7 +553,7 @@ function PostDetailPage({ postId, navigate }) {
             {project && (
               <a className="article__projlink" href={pathFor('project', project.id)}
                 onClick={(e) => guardClick(e, () => { navigate('project', project.id); window.scrollTo({ top: 0 }); })}>
-                <div className="pd-logo" style={{ background: project.color, width: 46, height: 46, fontSize: 21, borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>{project.logo ? <img src={project.logo} alt={project.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : project.name[0]}</div>
+                <div className="pd-logo" style={{ background: project.color, width: 46, height: 46, fontSize: 21, borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>{project.logo ? <img src={project.logo} alt={project.name} width={46} height={46} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : project.name[0]}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)', marginBottom: 2 }}>{t('post.relatedProject')}</div>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16 }}>{project.name}</div>

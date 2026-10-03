@@ -181,7 +181,7 @@ h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); font-weight
 .nav__mobile-toggle { display: none; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: var(--r-md); }
 
 /* --- Buttons --- */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: var(--r-md); font-size: 15px; font-weight: 600; transition: all 0.2s; white-space: nowrap; cursor: pointer; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: var(--r-md); font-size: 15px; font-weight: 600; transition: all 0.2s; white-space: nowrap; cursor: pointer; text-decoration: none; }
 .btn--primary { background: var(--accent); color: white; }
 .btn--primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn--secondary { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border); }

@@ -9,6 +9,7 @@ import { BlogPage, JoinPage } from './other-pages';
 import { ProjectDetailPage, PostDetailPage } from './detail-pages';
 import { setSEO, setOrganizationSchema, setArticleSchema, setFAQSchema, SITE_NAME, SITE_URL } from './lib/seo';
 import { pathFor } from './lib/routes';
+import { initGA, trackPageView } from './lib/analytics';
 import { STATIC_SEO, SIMPLE_PAGES } from './lib/seo-content';
 import { FAQ_ITEMS } from './lib/faq-content';
 
@@ -173,7 +174,8 @@ function App() {
         imageAlt: postTitle || null,
         // posts.length > 0 → veri zaten geldi, gerçekten yok demektir
         // (yalnızca yüklenirken geçici null değil — bkz. yukarıdaki not).
-        noindex: !post && posts.length > 0,
+        // posts.is_indexable=false → arama motorundan gizli (bkz. prerender.mjs).
+        noindex: (!post && posts.length > 0) || post?.isIndexable === false,
       });
       // Article schema yalnızca gerçek bir yazı bulunduğunda; sayfadan
       // ayrılınca (post null) bir sonraki dal zaten setArticleSchema(null)
@@ -223,6 +225,13 @@ function App() {
     const s = STATIC_SEO[currentPage] || STATIC_SEO.home;
     setSEO({ title: s[lang].title, description: s[lang].desc, path });
   }, [currentPage, selectedId, lang, startups, contentLoading, posts]);
+
+  // GA4 — her sayfa geçişinde (ilk yükleme dahil) tek page_view. Ölçüm kimliği
+  // yoksa veya production dışındaysa analytics.js hiçbir şey yapmaz.
+  useEffectApp(() => {
+    initGA();
+    trackPageView(pathFor(currentPage, selectedId));
+  }, [currentPage, selectedId]);
 
   // Set direction data attribute
   useEffectApp(() => {

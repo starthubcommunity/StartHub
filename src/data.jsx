@@ -435,6 +435,7 @@ function mapPost(row) {
     bg:          row.bg          || 'var(--blue-light)',
     cover:       row.image_url   || null,
     imageAlt:    row.image_alt   || null,
+    isIndexable: row.is_indexable !== false,
     source:      row.source ? { name: row.source, url: row.source_url || '#' } : null,
     title_tr:    row.title_tr    || '',
     title_en:    row.title_en    || '',

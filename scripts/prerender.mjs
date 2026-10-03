@@ -209,12 +209,14 @@ async function main() {
     process.exit(0); // build'i düşürme — SPA zaten çalışır durumda kalır
   }
 
+  const indexablePosts = posts.filter(p => p.slug && p.is_indexable !== false);
+
   const sameAs = [
     settingsRow?.company_linkedin || 'https://www.linkedin.com/company/111725833/',
     settingsRow?.instagram_url,
   ].filter(Boolean);
 
-  function buildHtml({ title, description, routePath, image, imageAlt, bodyHtml, extraJsonLd }) {
+  function buildHtml({ title, description, routePath, image, imageAlt, bodyHtml, extraJsonLd, noindex = false }) {
     const canonical = canonicalFor(routePath);
     const ogImage = image || DEFAULT_OG_IMAGE;
     let html = shellHtml;
@@ -232,7 +234,7 @@ async function main() {
     html = html.replace(/<meta name="twitter:image"\s+content="[^"]*"\s*\/?>/, `<meta name="twitter:image" content="${esc(ogImage)}" />`);
 
     const jsonLd = [organizationSchema(sameAs), ...(extraJsonLd || [])];
-    const inject = `  <meta name="robots" content="index, follow" />\n  ${jsonLd.map(jsonLdScript).join('\n  ')}\n</head>`;
+    const inject = `  <meta name="robots" content="${noindex ? 'noindex, follow' : 'index, follow'}" />\n  ${jsonLd.map(jsonLdScript).join('\n  ')}\n</head>`;
     html = html.replace('</head>', inject);
 
     html = html.replace(/<div id="root">\s*<\/div>/, `<div id="root">${bodyHtml}</div>`);
@@ -244,7 +246,7 @@ async function main() {
   // ── Ana sayfa ──────────────────────────────────────────────────────────
   {
     const s = STATIC_SEO.home.tr;
-    const latestPosts = posts.slice(0, 8);
+    const latestPosts = indexablePosts.slice(0, 8);
     const projectsList = startups.slice(0, 12);
     const bodyHtml = `
       <h1>${esc(s.title)}</h1>
@@ -296,10 +298,10 @@ async function main() {
       <h1>${esc(s.title)}</h1>
       <p>${esc(s.desc)}</p>
       <ul>
-        ${posts.map(p => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title_tr || p.title_en || '')}</a> — ${esc(p.excerpt_tr || p.excerpt_en || '')}</li>`).join('\n        ')}
+        ${indexablePosts.map(p => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title_tr || p.title_en || '')}</a> — ${esc(p.excerpt_tr || p.excerpt_en || '')}</li>`).join('\n        ')}
       </ul>
     `;
-    const blogItemList = itemListSchema(posts.filter(p => p.slug).map(p => ({ name: p.title_tr || p.title_en || '', url: canonicalFor(`/blog/${p.slug}`) })));
+    const blogItemList = itemListSchema(indexablePosts.map(p => ({ name: p.title_tr || p.title_en || '', url: canonicalFor(`/blog/${p.slug}`) })));
     written.push(await writeRoute('blog', buildHtml({ title: s.title, description: s.desc, routePath: '/blog', bodyHtml, extraJsonLd: [blogItemList] })));
   }
   {
@@ -329,6 +331,12 @@ async function main() {
         <p>${esc(desc)}</p>
         ${bodyParas.map(para => `<p>${esc(para)}</p>`).join('\n        ')}
       </article>
+      <section>
+        <h2>Diğer yazılar</h2>
+        <ul>
+          ${indexablePosts.filter(x => x.slug !== post.slug).slice(0, 3).map(x => `<li><a href="/blog/${esc(x.slug)}">${esc(x.title_tr || x.title_en || '')}</a></li>`).join('\n          ')}
+        </ul>
+      </section>
     `;
     const articleSchema = {
       '@context': 'https://schema.org',
@@ -344,6 +352,7 @@ async function main() {
     const html = buildHtml({
       title: `${title} | Start-Hub`, description: desc, routePath: `/blog/${post.slug}`,
       image: post.image_url, imageAlt: title, bodyHtml, extraJsonLd: [articleSchema, breadcrumbSchema(breadcrumbItems)],
+      noindex: post.is_indexable === false,
     });
     written.push(await writeRoute(`blog/${post.slug}`, html));
   }
@@ -372,6 +381,12 @@ async function main() {
         ${problem ? `<h2>Problem</h2>${splitParagraphs(problem).map(para => `<p>${esc(para)}</p>`).join('\n        ')}` : ''}
         ${solution ? `<h2>Çözüm</h2>${splitParagraphs(solution).map(para => `<p>${esc(para)}</p>`).join('\n        ')}` : ''}
       </article>
+      <section>
+        <h2>Diğer Start-Hub Lab projeleri</h2>
+        <ul>
+          ${startups.filter(x => x.slug && x.slug !== s.slug).slice(0, 3).map(x => `<li><a href="/labs/${esc(x.slug)}">${esc(x.name || '')}</a></li>`).join('\n          ')}
+        </ul>
+      </section>
     `;
     const schema = projectSchema(s, {
       name, description: desc, canonical: canonicalFor(`/labs/${s.slug}`), image: s.logo || undefined,
@@ -388,19 +403,29 @@ async function main() {
 
   // ── sitemap.xml — public/sitemap.xml'in yerine gerçek Supabase içeriğiyle ─
   const todayIso = new Date().toISOString().slice(0, 10);
-  const sitemapEntry = (loc, { changefreq, priority, lastmod }) =>
-    `  <url>\n    <loc>${esc(loc)}</loc>\n    <lastmod>${lastmod || todayIso}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+  // <image:image> — yalnızca görseli olan girişlerde (Google Image sitemap uzantısı).
+  const sitemapEntry = (loc, { changefreq, priority, lastmod, image, imageTitle }) =>
+    `  <url>\n    <loc>${esc(loc)}</loc>\n    <lastmod>${lastmod || todayIso}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>${image ? `\n    <image:image>\n      <image:loc>${esc(image)}</image:loc>${imageTitle ? `\n      <image:title>${esc(imageTitle)}</image:title>` : ''}\n    </image:image>` : ''}\n  </url>`;
   const urls = [
     sitemapEntry(`${SITE_URL}/`, { changefreq: 'daily', priority: '1.0' }),
     sitemapEntry(`${SITE_URL}/about`, { changefreq: 'monthly', priority: '0.8' }),
     sitemapEntry(`${SITE_URL}/labs`, { changefreq: 'weekly', priority: '0.8' }),
     sitemapEntry(`${SITE_URL}/blog`, { changefreq: 'daily', priority: '0.9' }),
     sitemapEntry(`${SITE_URL}/join`, { changefreq: 'monthly', priority: '0.6' }),
-    ...posts.filter(p => p.slug).map(p => sitemapEntry(`${SITE_URL}/blog/${p.slug}`, { changefreq: 'monthly', priority: '0.7', lastmod: p.date })),
-    ...startups.filter(s => s.slug).map(s => sitemapEntry(`${SITE_URL}/labs/${s.slug}`, { changefreq: 'weekly', priority: '0.7', lastmod: s.updated_at ? String(s.updated_at).slice(0, 10) : undefined })),
+    ...indexablePosts.map(p => sitemapEntry(`${SITE_URL}/blog/${p.slug}`, { changefreq: 'monthly', priority: '0.7', lastmod: p.date, image: p.image_url, imageTitle: p.title_tr || p.title_en })),
+    ...startups.filter(s => s.slug).map(s => sitemapEntry(`${SITE_URL}/labs/${s.slug}`, { changefreq: 'weekly', priority: '0.7', lastmod: s.updated_at ? String(s.updated_at).slice(0, 10) : undefined, image: s.logo, imageTitle: s.name })),
   ];
-  const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+  const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${urls.join('\n')}\n</urlset>\n`;
   await writeFileP(path.join(DIST, 'sitemap.xml'), sitemapXml, 'utf8');
+
+  // ── rss.xml — yalnızca indekslenebilir yayınlanmış yazılar, en yeni önce ──
+  const rssItems = indexablePosts.map(p => {
+    const link = canonicalFor(`/blog/${p.slug}`);
+    const pubDate = p.date ? new Date(`${p.date}T00:00:00Z`).toUTCString() : '';
+    return `    <item>\n      <title>${esc(p.title_tr || p.title_en || '')}</title>\n      <link>${esc(link)}</link>\n      <guid isPermaLink="true">${esc(link)}</guid>${pubDate ? `\n      <pubDate>${pubDate}</pubDate>` : ''}\n      <description>${esc(p.excerpt_tr || p.excerpt_en || '')}</description>\n    </item>`;
+  });
+  const rssXml = `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0">\n  <channel>\n    <title>${esc(SITE_NAME)}</title>\n    <link>${esc(SITE_URL)}</link>\n    <description>${esc(STATIC_SEO.blog.tr.desc)}</description>\n    <language>tr-TR</language>\n    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n${rssItems.join('\n')}\n  </channel>\n</rss>\n`;
+  await writeFileP(path.join(DIST, 'rss.xml'), rssXml, 'utf8');
 
   console.log(`[prerender] ${written.length} sayfa + sitemap.xml (${posts.length} yazı, ${startups.length} proje) üretildi.`);
   written.forEach(w => console.log('  -', w));
