@@ -528,119 +528,41 @@ const getStartupSlug   = (id)   => startups.find(s => s.id === id || s.id === Nu
 
 const PostsContext = createContext({ posts: [], postsLoading: true, postsError: null });
 
-const EMPTY_CONTENT = { people: [], startups: [], sponsors: [], events: [] };
-let initialPublicSnapshot = null;
-let bootPromise = null;
-
-async function fetchPublicContent() {
-  try {
-    const [
-      { data: pRows,  error: e1 },
-      { data: sRows,  error: e2 },
-      { data: spRows, error: e3 },
-      { data: eRows,  error: e4 },
-      { data: orRows, error: e5 },
-    ] = await Promise.all([
-      supabase.from('people').select('*').order('sort_order'),
-      supabase.from('startups').select('*').eq('published', true).order('id'),
-      supabase.from('sponsors').select('*').order('sort_order'),
-      supabase.from('events').select('*').order('date'),
-      supabase.from('public_open_roles').select('*').order('created_at'),
-    ]);
-    if (e1 || e2 || e3 || e4) throw (e1 || e2 || e3 || e4);
-    // Açık pozisyonlar (Kurucu Hattı) opsiyonel — view henüz yayında
-    // değilse veya erişilemezse sessizce boş liste kullan, sitenin
-    // geri kalanını engellemez.
-    if (e5) console.error('[Content] public_open_roles:', e5.message);
-
-    const mp  = (pRows  || []).map(mapPerson);
-    const msp = (spRows || []).map(mapSponsor);
-    const me  = (eRows  || []).map(mapEvent);
-    const openRolesByStartup = {};
-    (orRows || []).map(mapOpenRole).forEach((r) => {
-      (openRolesByStartup[r.startupId] = openRolesByStartup[r.startupId] || []).push(r);
-    });
-    const ms = (sRows || []).map(mapStartup).map((s) => ({ ...s, openRolesLive: openRolesByStartup[s.id] || [] }));
-
-    // Modül dizilerini yerinde güncelle (teamMembers/mentors türetmesi için)
-    people.length   = 0; mp.forEach(x  => people.push(x));
-    startups.length = 0; ms.forEach(x  => startups.push(x));
-    sponsors.length = 0; msp.forEach(x => sponsors.push(x));
-    events.length   = 0; me.forEach(x  => events.push(x));
-    teamMembers.length = 0; people.filter(p => p.type === 'team').forEach(x   => teamMembers.push(x));
-    mentors.length     = 0; people.filter(p => p.type === 'mentor').forEach(x => mentors.push(x));
-
-    return { people: mp, startups: ms, sponsors: msp, events: me };
-  } catch (err) {
-    console.error('[Content] Supabase yükleme hatası:', err.message);
-    return EMPTY_CONTENT;
-  }
-}
-
-async function fetchPublicPosts() {
-  const { data, error } = await supabase
-    .from('posts')
-    .select('*')
-    .eq('status', 'published')
-    .order('date', { ascending: false });
-  if (error) throw error;
-  const mapped = (data || []).map(mapPost);
-  postsCache = mapped;
-  return mapped;
-}
-
-function bootPublicContent() {
-  if (!bootPromise) {
-    bootPromise = Promise.all([
-      fetchPublicContent(),
-      fetchPublicPosts().then(
-        (posts) => ({ posts, postsError: null }),
-        (err) => {
-          console.error('[Posts] Supabase yükleme hatası:', err.message);
-          return { posts: [], postsError: err.message };
-        },
-      ),
-    ]).then(([content, postsRes]) => {
-      initialPublicSnapshot = { content, posts: postsRes.posts, postsError: postsRes.postsError };
-      return initialPublicSnapshot;
-    });
-  }
-  return bootPromise;
-}
-
 function PostsProvider({ children }) {
-  const [posts, setPosts] = useState(initialPublicSnapshot?.posts || []);
-  const [postsLoading, setPostsLoading] = useState(initialPublicSnapshot === null);
-  const [postsError, setPostsError] = useState(initialPublicSnapshot?.postsError || null);
+  const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [postsError, setPostsError] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    bootPublicContent().then((snap) => {
-      if (cancelled) return;
-      setPosts(snap.posts);
-      setPostsError(snap.postsError);
-      setPostsLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  const refresh = useCallback(async () => {
+  const load = useCallback(async (opts = {}) => {
+    const { silent = false } = opts;
+    if (!silent) setPostsLoading(true);
     try {
-      const mapped = await fetchPublicPosts();
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('status', 'published')
+        .order('date', { ascending: false });
+      if (error) throw error;
+      const mapped = (data || []).map(mapPost);
+      postsCache = mapped;
       setPosts(mapped);
       setPostsError(null);
     } catch (err) {
       console.error('[Posts] Supabase yükleme hatası:', err.message);
       setPostsError(err.message);
+    } finally {
+      if (!silent) setPostsLoading(false);
     }
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
   // Kullanıcı başka tab'dan (ör. admin) döndüğünde sessizce yenile
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') load({ silent: true }); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [refresh]);
+  }, [load]);
 
   return React.createElement(PostsContext.Provider, { value: { posts, postsLoading, postsError } }, children);
 }
@@ -761,21 +683,63 @@ const ContentContext = createContext({
   people: [], startups: [], sponsors: [], events: [], contentLoading: true,
 });
 
-// İlk yükleme (içerik + yazılar) React'tan ÖNCE bootPublicContent() ile yapılır
-// (main.jsx bekler) — provider'lar ilk state'i hazır veriden alır, böylece ilk
-// render prerender'lanmış sayfayla aynı gerçek içeriği çizer (boş/"bulunamadı"
-// flaşı olmaz).
 function ContentProvider({ children }) {
-  const [contentLoading, setContentLoading] = useState(initialPublicSnapshot === null);
-  const [content, setContent] = useState(initialPublicSnapshot?.content || EMPTY_CONTENT);
+  const [contentLoading, setContentLoading] = useState(true);
+  // İlk state modül-seviyesi ÖRNEK/demo verilerle (FinTrack/EcoRoute/StudyMate
+  // vb.) tohumlanıyordu — Supabase'ten gerçek veri gelene kadarki kısa anda
+  // sitede alakasız içerik görünüyordu (2026-09-16 canlı raporu). Boş dizilerle
+  // başlayıp `contentLoading` true olduğu sürece tüketen bileşenler zaten boş
+  // listeyi doğal şekilde (hiç kart göstermeyerek) ele alıyor.
+  const [content, setContent] = useState({ people: [], startups: [], sponsors: [], events: [] });
 
   useEffect(() => {
     let cancelled = false;
-    bootPublicContent().then((snap) => {
-      if (cancelled) return;
-      setContent(snap.content);
-      setContentLoading(false);
-    });
+    async function load() {
+      try {
+        const [
+          { data: pRows,  error: e1 },
+          { data: sRows,  error: e2 },
+          { data: spRows, error: e3 },
+          { data: eRows,  error: e4 },
+          { data: orRows, error: e5 },
+        ] = await Promise.all([
+          supabase.from('people').select('*').order('sort_order'),
+          supabase.from('startups').select('*').eq('published', true).order('id'),
+          supabase.from('sponsors').select('*').order('sort_order'),
+          supabase.from('events').select('*').order('date'),
+          supabase.from('public_open_roles').select('*').order('created_at'),
+        ]);
+        if (e1 || e2 || e3 || e4) throw (e1 || e2 || e3 || e4);
+        // Açık pozisyonlar (Kurucu Hattı) opsiyonel — view henüz yayında
+        // değilse veya erişilemezse sessizce boş liste kullan, sitenin
+        // geri kalanını engellemez.
+        if (e5) console.error('[Content] public_open_roles:', e5.message);
+
+        const mp  = (pRows  || []).map(mapPerson);
+        const msp = (spRows || []).map(mapSponsor);
+        const me  = (eRows  || []).map(mapEvent);
+        const openRolesByStartup = {};
+        (orRows || []).map(mapOpenRole).forEach((r) => {
+          (openRolesByStartup[r.startupId] = openRolesByStartup[r.startupId] || []).push(r);
+        });
+        const ms = (sRows || []).map(mapStartup).map((s) => ({ ...s, openRolesLive: openRolesByStartup[s.id] || [] }));
+
+        // Modül dizilerini yerinde güncelle (teamMembers/mentors türetmesi için)
+        people.length   = 0; mp.forEach(x  => people.push(x));
+        startups.length = 0; ms.forEach(x  => startups.push(x));
+        sponsors.length = 0; msp.forEach(x => sponsors.push(x));
+        events.length   = 0; me.forEach(x  => events.push(x));
+        teamMembers.length = 0; people.filter(p => p.type === 'team').forEach(x   => teamMembers.push(x));
+        mentors.length     = 0; people.filter(p => p.type === 'mentor').forEach(x => mentors.push(x));
+
+        setContent({ people: mp, startups: ms, sponsors: msp, events: me });
+      } catch (err) {
+        console.error('[Content] Supabase yükleme hatası:', err.message);
+      } finally {
+        if (!cancelled) setContentLoading(false);
+      }
+    }
+    load();
     return () => { cancelled = true; };
   }, []);
 
@@ -973,6 +937,6 @@ export {
   mapPerson, mapStartup, mapSponsor, mapEvent,
   LangContext, useLang, LangProvider,
   PostsContext, PostsProvider, usePosts,
-  ContentContext, ContentProvider, bootPublicContent, usePeople, useStartups, useSponsors, useEvents,
+  ContentContext, ContentProvider, usePeople, useStartups, useSponsors, useEvents,
   useSiteSettings, settingsCache, SETTINGS_DEFAULTS,
 };
