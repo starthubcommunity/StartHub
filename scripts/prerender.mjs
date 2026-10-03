@@ -124,10 +124,7 @@ function projectSchema(s, { name, description, canonical, image }) {
   return schema;
 }
 
-// BreadcrumbList JSON-LD (SEO/GEO Aşama 1) — konum/ad/url üçlüsü, position
-// 1'den başlar. Aynı sırayla görünür <nav aria-label="breadcrumb"> hem canlı
-// SPA'da (detail-pages.jsx) hem burada düz metin olarak bodyHtml'e yazılıyor
-// — şema ile görünür metin arasında sürüklenme olmasın diye.
+// BreadcrumbList JSON-LD — konum/ad/url üçlüsü, position 1'den başlar.
 function breadcrumbSchema(items) {
   return {
     '@context': 'https://schema.org',
@@ -141,14 +138,6 @@ function breadcrumbSchema(items) {
   };
 }
 
-function breadcrumbHtml(items) {
-  const parts = items.map((item, i) => (
-    i === items.length - 1
-      ? `<span>${esc(item.name)}</span>`
-      : `<a href="${esc(item.url.replace(SITE_URL, ''))}">${esc(item.name)}</a>`
-  ));
-  return `<nav aria-label="breadcrumb">${parts.join(' › ')}</nav>`;
-}
 
 // ItemList JSON-LD (SEO/GEO Aşama 2) — liste sayfalarının (/labs, /blog)
 // hangi öğeleri enumerate ettiğini Google/AI'ya açıkça bildirir.
@@ -209,7 +198,7 @@ async function main() {
 
   const indexablePosts = posts.filter(p => p.slug && p.is_indexable !== false);
 
-  function buildHtml({ title, description, routePath, image, imageAlt, bodyHtml, extraJsonLd, noindex = false }) {
+  function buildHtml({ title, description, routePath, image, imageAlt, extraJsonLd, noindex = false }) {
     const canonical = canonicalFor(routePath);
     const ogImage = image || DEFAULT_OG_IMAGE;
     let html = shellHtml;
@@ -230,7 +219,6 @@ async function main() {
     const inject = `  <meta name="robots" content="${noindex ? 'noindex, follow' : 'index, follow'}" />\n  ${jsonLd.map(jsonLdScript).join('\n  ')}\n</head>`;
     html = html.replace('</head>', inject);
 
-    html = html.replace(/<div id="root">\s*<\/div>/, `<div id="root">${bodyHtml}</div>`);
     return html;
   }
 
@@ -241,66 +229,33 @@ async function main() {
     const s = STATIC_SEO.home.tr;
     const latestPosts = indexablePosts.slice(0, 8);
     const projectsList = startups.slice(0, 12);
-    const bodyHtml = `
-      <h1>${esc(s.title)}</h1>
-      <p>${esc(s.desc)}</p>
-      <h2>Son Yazılar</h2>
-      <ul>
-        ${latestPosts.map(p => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title_tr || p.title_en || '')}</a></li>`).join('\n        ')}
-      </ul>
-      <h2>Projeler</h2>
-      <ul>
-        ${projectsList.map(x => `<li><a href="/labs/${esc(x.slug)}">${esc(x.name || '')}</a></li>`).join('\n        ')}
-      </ul>
-    `;
-    const html = buildHtml({ title: s.title, description: s.desc, routePath: '/', bodyHtml });
+    const html = buildHtml({ title: s.title, description: s.desc, routePath: '/' });
     written.push(await writeRoute('', html));
   }
 
   // ── Statik sayfalar: /about, /labs, /blog, /join ────────────────────────
   {
     const s = STATIC_SEO.about.tr;
-    const bodyHtml = `
-      <h1>${esc(s.title)}</h1>
-      <p>${esc(s.desc)}</p>
-      <h2>Sık Sorulan Sorular</h2>
-      ${FAQ_ITEMS.map(item => `<h3>${esc(item.q.tr)}</h3><p>${esc(item.a.tr)}</p>`).join('\n      ')}
-    `;
     const faqSchema = {
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
       mainEntity: FAQ_ITEMS.map(item => ({ '@type': 'Question', name: item.q.tr, acceptedAnswer: { '@type': 'Answer', text: item.a.tr } })),
     };
-    written.push(await writeRoute('about', buildHtml({ title: s.title, description: s.desc, routePath: '/about', bodyHtml, extraJsonLd: [faqSchema] })));
+    written.push(await writeRoute('about', buildHtml({ title: s.title, description: s.desc, routePath: '/about', extraJsonLd: [faqSchema] })));
   }
   {
     const s = STATIC_SEO.labs.tr;
-    const bodyHtml = `
-      <h1>${esc(s.title)}</h1>
-      <p>${esc(s.desc)}</p>
-      <ul>
-        ${startups.map(x => `<li><a href="/labs/${esc(x.slug)}">${esc(x.name || '')}</a> — ${esc(x.tagline_tr || x.tagline_en || '')}</li>`).join('\n        ')}
-      </ul>
-    `;
     const labsItemList = itemListSchema(startups.filter(x => x.slug).map(x => ({ name: x.name || '', url: canonicalFor(`/labs/${x.slug}`) })));
-    written.push(await writeRoute('labs', buildHtml({ title: s.title, description: s.desc, routePath: '/labs', bodyHtml, extraJsonLd: [labsItemList] })));
+    written.push(await writeRoute('labs', buildHtml({ title: s.title, description: s.desc, routePath: '/labs', extraJsonLd: [labsItemList] })));
   }
   {
     const s = STATIC_SEO.blog.tr;
-    const bodyHtml = `
-      <h1>${esc(s.title)}</h1>
-      <p>${esc(s.desc)}</p>
-      <ul>
-        ${indexablePosts.map(p => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title_tr || p.title_en || '')}</a> — ${esc(p.excerpt_tr || p.excerpt_en || '')}</li>`).join('\n        ')}
-      </ul>
-    `;
     const blogItemList = itemListSchema(indexablePosts.map(p => ({ name: p.title_tr || p.title_en || '', url: canonicalFor(`/blog/${p.slug}`) })));
-    written.push(await writeRoute('blog', buildHtml({ title: s.title, description: s.desc, routePath: '/blog', bodyHtml, extraJsonLd: [blogItemList] })));
+    written.push(await writeRoute('blog', buildHtml({ title: s.title, description: s.desc, routePath: '/blog', extraJsonLd: [blogItemList] })));
   }
   {
     const s = STATIC_SEO.join.tr;
-    const bodyHtml = `<h1>${esc(s.title)}</h1><p>${esc(s.desc)}</p>`;
-    written.push(await writeRoute('join', buildHtml({ title: s.title, description: s.desc, routePath: '/join', bodyHtml })));
+    written.push(await writeRoute('join', buildHtml({ title: s.title, description: s.desc, routePath: '/join' })));
   }
 
   // ── Yazı detay sayfaları: /blog/<slug> ──────────────────────────────────
@@ -316,21 +271,6 @@ async function main() {
       { name: 'Yazılar', url: `${SITE_URL}/blog` },
       { name: title, url: canonicalFor(`/blog/${post.slug}`) },
     ];
-    const bodyHtml = `
-      ${breadcrumbHtml(breadcrumbItems)}
-      <article>
-        <h1>${esc(title)}</h1>
-        <p><em>${esc(authorName)}${post.date ? ` — ${esc(post.date)}` : ''}</em></p>
-        <p>${esc(desc)}</p>
-        ${bodyParas.map(para => `<p>${esc(para)}</p>`).join('\n        ')}
-      </article>
-      <section>
-        <h2>Diğer yazılar</h2>
-        <ul>
-          ${indexablePosts.filter(x => x.slug !== post.slug).slice(0, 3).map(x => `<li><a href="/blog/${esc(x.slug)}">${esc(x.title_tr || x.title_en || '')}</a></li>`).join('\n          ')}
-        </ul>
-      </section>
-    `;
     const articleSchema = {
       '@context': 'https://schema.org',
       '@type': 'Article',
@@ -344,7 +284,7 @@ async function main() {
     };
     const html = buildHtml({
       title: `${title} | Start-Hub`, description: desc, routePath: `/blog/${post.slug}`,
-      image: post.image_url, imageAlt: title, bodyHtml, extraJsonLd: [articleSchema, breadcrumbSchema(breadcrumbItems)],
+      image: post.image_url, imageAlt: title, extraJsonLd: [articleSchema, breadcrumbSchema(breadcrumbItems)],
       noindex: post.is_indexable === false,
     });
     written.push(await writeRoute(`blog/${post.slug}`, html));
@@ -364,23 +304,6 @@ async function main() {
       { name: 'Lab Projeleri', url: `${SITE_URL}/labs` },
       { name, url: canonicalFor(`/labs/${s.slug}`) },
     ];
-    const bodyHtml = `
-      ${breadcrumbHtml(breadcrumbItems)}
-      <article>
-        <h1>${esc(name)}</h1>
-        ${tagline ? `<p>${esc(tagline)}</p>` : ''}
-        <p>${esc(desc)}</p>
-        ${about ? `<h2>Hakkında</h2>${splitParagraphs(about).map(para => `<p>${esc(para)}</p>`).join('\n        ')}` : ''}
-        ${problem ? `<h2>Problem</h2>${splitParagraphs(problem).map(para => `<p>${esc(para)}</p>`).join('\n        ')}` : ''}
-        ${solution ? `<h2>Çözüm</h2>${splitParagraphs(solution).map(para => `<p>${esc(para)}</p>`).join('\n        ')}` : ''}
-      </article>
-      <section>
-        <h2>Diğer Start-Hub Lab projeleri</h2>
-        <ul>
-          ${startups.filter(x => x.slug && x.slug !== s.slug).slice(0, 3).map(x => `<li><a href="/labs/${esc(x.slug)}">${esc(x.name || '')}</a></li>`).join('\n          ')}
-        </ul>
-      </section>
-    `;
     const schema = projectSchema(s, {
       name, description: desc, canonical: canonicalFor(`/labs/${s.slug}`), image: s.logo || undefined,
     });
@@ -389,7 +312,7 @@ async function main() {
     const title = s.seo_title_tr || `${name} | Start-Hub Lab`;
     const html = buildHtml({
       title, description: desc, routePath: `/labs/${s.slug}`,
-      image: s.logo, imageAlt: name, bodyHtml, extraJsonLd: [schema, breadcrumbSchema(breadcrumbItems)],
+      image: s.logo, imageAlt: name, extraJsonLd: [schema, breadcrumbSchema(breadcrumbItems)],
     });
     written.push(await writeRoute(`labs/${s.slug}`, html));
   }
