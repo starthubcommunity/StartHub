@@ -29,7 +29,11 @@
     
 document.addEventListener('DOMContentLoaded', async function() {
   const loading = document.getElementById('__bundler_loading');
+  setTimeout(() => { const h = document.getElementById('__bundler_hide'); if (h) h.remove(); }, 5000);
   function setStatus(msg) { if (loading) loading.textContent = msg; }
+  // Uygulama (React/Babel) çizene kadar şablonun ham HTML'i görünmesin — gövde
+  // gizli başlar, uygulama hazır olunca bu fonksiyon stili kaldırır.
+  function revealPage() { const h = document.getElementById('__bundler_hide'); if (h) h.remove(); }
 
   const FONT_MIME = /^(font[/]|application[/](x-)?font-|application[/]vnd\.ms-fontobject)/i;
   const MIME_TOKEN = /^[\w.+-]+[/][\w.+-]+$/;
@@ -292,6 +296,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // The manifest bytes are ours; SRI protects against CDN compromise, not this.
     template = template.replace(/\s+integrity="[^"]*"/gi, '').replace(/\s+crossorigin="[^"]*"/gi, '');
 
+    const HIDE_STYLE = '<style id="__bundler_hide">body{visibility:hidden}</style>';
     const resourceScript = '<script>window.__resources = ' +
       JSON.stringify(resourceMap).replace(/<\//g, '<\\/') +
       ';</' + 'script>';
@@ -303,7 +308,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const headOpen = template.match(/<head[^>]*>/i);
     if (headOpen) {
       const i = headOpen.index + headOpen[0].length;
-      template = template.slice(0, i) + resourceScript + template.slice(i);
+      template = template.slice(0, i) + resourceScript + HIDE_STYLE + template.slice(i);
     }
 
     // Parse the template and swap the root element. Scripts inserted via
@@ -361,8 +366,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (window.Babel && typeof window.Babel.transformScriptTags === 'function') {
       window.Babel.transformScriptTags();
     }
+    requestAnimationFrame(() => requestAnimationFrame(revealPage));
   } catch (err) {
     setStatus('Error unpacking: ' + err.message);
+    revealPage();
     console.error('Bundle unpack error:', err);
   }
 });
