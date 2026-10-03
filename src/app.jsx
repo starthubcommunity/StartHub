@@ -146,15 +146,12 @@ function App() {
     else sessionStorage.removeItem('sh_id');
   }, [currentPage, selectedId]);
 
-  const siteSettingsForSchema = useSiteSettings();
-
   // Organization JSON-LD — her sayfada sabit kimlik sinyali (yalnızca
   // ana sayfada değil: GEO'da bir tarayıcı doğrudan bir yazıya/projeye
   // gelebilir, o sayfada da "bu site Start-Hub'a ait" bilgisi bulunsun).
   useEffectApp(() => {
-    const sameAs = [siteSettingsForSchema.company_linkedin, siteSettingsForSchema.instagram_url].filter(Boolean);
-    setOrganizationSchema({ description: STATIC_SEO.home[lang].desc, sameAs });
-  }, [lang, siteSettingsForSchema.company_linkedin, siteSettingsForSchema.instagram_url]);
+    setOrganizationSchema({ description: STATIC_SEO.home[lang].desc });
+  }, [lang]);
 
   // Sayfa bazlı SEO metadata (SEO Aşama 2) — title/description/canonical/
   // og:*/twitter:* hepsi burada, tek yerden, her sayfa geçişinde (React
