@@ -85,7 +85,15 @@ function upsertJSONLD(id, data) {
 // Sitenin her sayfasında sabit kimlik sinyali — GEO'da bir tarayıcı doğrudan
 // bir alt sayfaya (yazı/proje) gelebilir, orada da "bu site Start-Hub'a ait"
 // bilgisi bulunsun diye yalnızca ana sayfaya değil her sayfaya eklenir.
-export function setOrganizationSchema({ description, sameAs = [] } = {}) {
+// Marka profilleri (Organization.sameAs) — tek kaynak burası; prerender.mjs de
+// buradan okur.
+export const ORGANIZATION_SAME_AS = [
+  'https://www.instagram.com/starthub.community/',
+  'https://www.linkedin.com/company/starthub-halic/',
+  'https://github.com/starthubcommunity/StartHub',
+];
+
+export function setOrganizationSchema({ description } = {}) {
   upsertJSONLD('ld-organization', {
     '@context': 'https://schema.org',
     '@type': 'Organization',
@@ -93,7 +101,7 @@ export function setOrganizationSchema({ description, sameAs = [] } = {}) {
     url: SITE_URL,
     logo: DEFAULT_OG_IMAGE,
     description,
-    ...(sameAs.length ? { sameAs } : {}),
+    sameAs: ORGANIZATION_SAME_AS,
   });
 }
 

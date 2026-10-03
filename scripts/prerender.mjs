@@ -27,7 +27,7 @@ import { readFile as readFileP, writeFile as writeFileP, mkdir as mkdirP } from 
 import { existsSync, readFileSync as readFileSyncFs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE, canonicalFor } from '../src/lib/seo.js';
+import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE, ORGANIZATION_SAME_AS, canonicalFor } from '../src/lib/seo.js';
 import { STATIC_SEO } from '../src/lib/seo-content.js';
 import { FAQ_ITEMS } from '../src/lib/faq-content.js';
 
@@ -196,12 +196,10 @@ async function main() {
     { data: posts, error: postsErr },
     { data: startups, error: startupsErr },
     { data: people, error: peopleErr },
-    { data: settingsRow },
   ] = await Promise.all([
     supabase.from('posts').select('*').eq('status', 'published').order('date', { ascending: false }),
     supabase.from('startups').select('*').eq('published', true).order('id'),
     supabase.from('people').select('id, name'),
-    supabase.from('site_settings').select('company_linkedin, instagram_url').eq('id', 1).single(),
   ]);
 
   if (postsErr || startupsErr || peopleErr) {
@@ -210,11 +208,6 @@ async function main() {
   }
 
   const indexablePosts = posts.filter(p => p.slug && p.is_indexable !== false);
-
-  const sameAs = [
-    settingsRow?.company_linkedin || 'https://www.linkedin.com/company/111725833/',
-    settingsRow?.instagram_url,
-  ].filter(Boolean);
 
   function buildHtml({ title, description, routePath, image, imageAlt, bodyHtml, extraJsonLd, noindex = false }) {
     const canonical = canonicalFor(routePath);
@@ -233,7 +226,7 @@ async function main() {
     html = html.replace(/<meta name="twitter:description"\s+content="[^"]*"\s*\/?>/, `<meta name="twitter:description" content="${esc(description)}" />`);
     html = html.replace(/<meta name="twitter:image"\s+content="[^"]*"\s*\/?>/, `<meta name="twitter:image" content="${esc(ogImage)}" />`);
 
-    const jsonLd = [organizationSchema(sameAs), ...(extraJsonLd || [])];
+    const jsonLd = [organizationSchema(ORGANIZATION_SAME_AS), ...(extraJsonLd || [])];
     const inject = `  <meta name="robots" content="${noindex ? 'noindex, follow' : 'index, follow'}" />\n  ${jsonLd.map(jsonLdScript).join('\n  ')}\n</head>`;
     html = html.replace('</head>', inject);
 
