@@ -427,6 +427,15 @@ async function main() {
   const rssXml = `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0">\n  <channel>\n    <title>${esc(SITE_NAME)}</title>\n    <link>${esc(SITE_URL)}</link>\n    <description>${esc(STATIC_SEO.blog.tr.desc)}</description>\n    <language>tr-TR</language>\n    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n${rssItems.join('\n')}\n  </channel>\n</rss>\n`;
   await writeFileP(path.join(DIST, 'rss.xml'), rssXml, 'utf8');
 
+  // ── middleware.js için geçerli slug listesi (SEO Aşama 7 — soft-404 → 404) ─
+  // Kök dizindeki valid-slugs.js build sırasında yeniden yazılır; middleware
+  // bunu import eder. Listeler prerender'ın ürettiği rotalarla birebir aynı.
+  const validSlugsSource = `// Build sırasında scripts/prerender.mjs tarafından üretildi — elle düzenlemeyin.\nexport default ${JSON.stringify({
+    labs: startups.filter(s => s.slug).map(s => s.slug),
+    blog: posts.filter(p => p.slug).map(p => p.slug),
+  }, null, 2)};\n`;
+  await writeFileP(path.join(ROOT, 'valid-slugs.js'), validSlugsSource, 'utf8');
+
   console.log(`[prerender] ${written.length} sayfa + sitemap.xml (${posts.length} yazı, ${startups.length} proje) üretildi.`);
   written.forEach(w => console.log('  -', w));
 }
