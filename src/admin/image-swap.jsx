@@ -1,10 +1,11 @@
 // Yazının görselini stoktan değiştirme + seçim özeti + "uygun" onayı.
-// Skorlar image-score.js ile hesaplanır (matcher'ın JS karşılığı, filtresiz).
+// Skorlar ve elenme nedenleri image-score.js ile hesaplanır (matcher'ın JS karşılığı).
+// Değişim atomik: swap_post_image RPC'si (0056) posts + image_usage yazımını tek transaction'da yapar.
 import React, { useEffect, useState } from 'react';
 import { Modal, Field, Select, Input } from './admin-ui';
 import { supabase } from '../lib/supabase';
-import { IMAGE_STOCK_CATEGORIES, VISUAL_TYPES, VISUAL_TYPE_LABEL } from './image-constants';
-import { rankImages } from './image-score';
+import { IMAGE_STOCK_CATEGORIES, VISUAL_TYPES, VISUAL_TYPE_LABEL, SCORE } from './image-constants';
+import { rankImages, imageFlags, usageCounts, FLAG_LABELS } from './image-score';
 
 // posts.bg → makale kategorisi (automation/dry_run_matcher.py ile aynı tahmin; posts'ta kategori kolonu yok).
 const BG_TO_CATEGORY = {
@@ -15,11 +16,18 @@ const BG_TO_CATEGORY = {
 };
 export const articleCategoryOf = (post) => BG_TO_CATEGORY[post.bg] || 'Teknoloji';
 
-const usageSince = () => new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+// Matcher'la aynı geçmiş penceresi: en yeni HISTORY_LIMIT kayıt (yayın tarafı da böyle okur).
+export async function loadUsageHistory() {
+  const { data, error } = await supabase.from('image_usage')
+    .select('image_id, post_id, used_at')
+    .order('used_at', { ascending: false })
+    .limit(SCORE.HISTORY_LIMIT);
+  return { history: data || [], error };
+}
 
 export function ImageSwapModal({ post, flash, onClose, onSaved }) {
   const [images, setImages] = useState([]);
-  const [usage90, setUsage90] = useState({});
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fCat, setFCat] = useState('');
   const [fType, setFType] = useState('');
@@ -29,22 +37,25 @@ export function ImageSwapModal({ post, flash, onClose, onSaved }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [imgRes, useRes] = await Promise.all([
+      const [imgRes, hist] = await Promise.all([
         supabase.from('image_stock').select('*').order('id'),
-        supabase.from('image_usage').select('image_id').gte('used_at', usageSince()),
+        loadUsageHistory(),
       ]);
       if (cancelled) return;
       if (imgRes.error) flash('Görsel stoğu yüklenemedi: ' + imgRes.error.message, 'orange');
-      const counts = {};
-      for (const r of useRes.data || []) counts[r.image_id] = (counts[r.image_id] || 0) + 1;
+      if (hist.error) flash('Kullanım geçmişi yüklenemedi: ' + hist.error.message, 'orange');
       setImages(imgRes.data || []);
-      setUsage90(counts);
+      setHistory(hist.history);
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [flash]);
 
-  const ranked = rankImages(post, images, usage90, articleCategoryOf(post))
+  const nowMs = Date.now();
+  const articleCategory = articleCategoryOf(post);
+  const usage90 = usageCounts(history, nowMs, SCORE.USAGE_WINDOW_DAYS);
+  const flags = imageFlags({ post, articleCategory, images, history, now: nowMs });
+  const ranked = rankImages(post, images, usage90, articleCategory)
     .filter(r => (!fCat || r.image.category === fCat)
       && (!fType || r.image.visual_type === fType)
       && (!q || (r.image.alt_tr || '').toLowerCase().includes(q.toLowerCase())
@@ -53,24 +64,20 @@ export function ImageSwapModal({ post, flash, onClose, onSaved }) {
   const choose = async (r) => {
     if (saving) return;
     setSaving(true);
-    // Kullanım kaydı önce: yazan kayıt başarısızsa yazının görseli değişmez.
-    const { error: useErr } = await supabase.from('image_usage').insert({
-      image_id: r.image.id,
-      post_id: post.id,
-      score: r.score,
-      reason: {
-        manual: true,
-        previous_image_url: post.image_url || null,
+    const { data, error } = await supabase.rpc('swap_post_image', {
+      p_post_id: post.id,
+      p_image_id: r.image.id,
+      p_score: r.score,
+      p_reason: {
         best: { category: r.parts.cat, tags: r.tags, usage_window: r.parts.usage90, usage_bonus: r.parts.usageBonus, score: r.score },
+        eliminated_by: flags[r.image.id] || [],
       },
     });
-    if (useErr) { setSaving(false); flash('Kullanım kaydı yazılamadı: ' + useErr.message, 'orange'); return; }
-    const { error } = await supabase.from('posts')
-      .update({ image_url: r.image.url, image_alt: r.image.alt_tr || null, needs_review: false })
-      .eq('id', post.id);
     setSaving(false);
-    if (error) { flash('Görsel güncellenemedi: ' + error.message, 'orange'); return; }
-    flash('Görsel değiştirildi.');
+    if (error) { flash('Görsel değiştirilemedi: ' + error.message, 'orange'); return; }
+    flash(data?.usage_inserted === false
+      ? 'Görsel değiştirildi. (Bu görsel bu yazıda zaten kayıtlıydı; kayıt tekrarlanmadı.)'
+      : 'Görsel değiştirildi.');
     onSaved();
     onClose();
   };
@@ -89,24 +96,36 @@ export function ImageSwapModal({ post, flash, onClose, onSaved }) {
         <Field label="Ara" hint="Alt metin veya etiket">
           <Input value={q} onChange={setQ} />
         </Field>
+        <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
+          Etiketli adaylar otomatik seçimde elenirdi; yine de seçilebilirler.
+        </div>
         {loading ? (
           <div className="adm-empty"><span className="adm-spinner"></span></div>
         ) : (
           <div style={{ maxHeight: 460, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
-            {ranked.slice(0, 60).map(r => (
-              <div key={r.image.id} className="adm-card" style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <img src={r.image.url} alt={r.image.alt_tr || ''} loading="lazy" width={190} height={106}
-                  style={{ width: '100%', height: 106, objectFit: 'cover', borderRadius: 6 }} />
-                <div style={{ fontSize: 12 }}>
-                  <strong>skor {r.score}</strong> · {r.image.category || '—'} · {VISUAL_TYPE_LABEL[r.image.visual_type] || 'tip yok'}
-                  {r.image.is_generic && <span className="adm-badge adm-badge--tag" style={{ marginLeft: 4 }}>klişe</span>}
+            {ranked.slice(0, 60).map(r => {
+              const f = flags[r.image.id] || [];
+              return (
+                <div key={r.image.id} className="adm-card" style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <img src={r.image.url} alt={r.image.alt_tr || ''} loading="lazy" width={190} height={106}
+                    style={{ width: '100%', height: 106, objectFit: 'cover', borderRadius: 6 }} />
+                  <div style={{ fontSize: 12 }}>
+                    <strong>skor {r.score}</strong> · {r.image.category || '—'} · {VISUAL_TYPE_LABEL[r.image.visual_type] || 'tip yok'}
+                  </div>
+                  {f.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {f.map(name => (
+                        <span key={name} className="adm-badge adm-badge--tag" style={{ fontSize: 11 }}>{FLAG_LABELS[name] || name}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>
+                    {r.tags.length ? `Eşleşen: ${r.tags.map(t => t.tag).join(', ')}` : 'Etiket eşleşmesi yok'}
+                  </div>
+                  <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={saving} onClick={() => choose(r)}>Bu görseli seç</button>
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>
-                  {r.tags.length ? `Eşleşen: ${r.tags.map(t => t.tag).join(', ')}` : 'Etiket eşleşmesi yok'}
-                </div>
-                <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={saving} onClick={() => choose(r)}>Bu görseli seç</button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -134,6 +153,7 @@ export function ImageReasonBox({ post, flash, onChanged }) {
 
   const approve = async () => {
     setSaving(true);
+    // Mevcut posts_update politikası (has_perm('posts.write')) yeterli; ayrı bir RPC gerekmez.
     const { error } = await supabase.from('posts').update({ needs_review: false }).eq('id', post.id);
     setSaving(false);
     if (error) { flash('Onaylanamadı: ' + error.message, 'orange'); return; }
@@ -170,4 +190,3 @@ export function ImageReasonBox({ post, flash, onChanged }) {
     </details>
   );
 }
-

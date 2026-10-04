@@ -1,38 +1,42 @@
-// Görsel stoğu sabitleri — admin paneli (admin-automation.jsx, image-swap.jsx).
-// automation/config.py ile aynı değerleri taşır; birini değiştirirseniz diğerini de güncelleyin.
+// Görsel stoğu sabitleri — admin paneli (admin-automation.jsx, image-swap.jsx, image-score.js).
+// Skor/eşik değerleri automation/matching_config.json'dan gelir (tek kaynak; Python da aynı dosyayı okur).
+// Burada yalnızca arayüz etiketleri ve kategori listesi tutulur.
+import MC from '../../automation/matching_config.json' with { type: 'json' };
 
 export const IMAGE_STOCK_CATEGORIES = ['Fon', 'Yapay Zeka', 'Girişim', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık', 'Teknoloji', 'Ortaklık', 'Genel'];
 
-export const VISUAL_TYPES = [
-  ['el_sikisma', 'El sıkışma'], ['ofis_toplanti', 'Ofis / toplantı'], ['grafik_borsa', 'Grafik / borsa'],
-  ['para_finans', 'Para / finans'], ['robot_ai', 'Robot / yapay zeka'], ['cip_donanim', 'Çip / donanım'],
-  ['kod_ekran', 'Kod / ekran'], ['cihaz_telefon', 'Cihaz / telefon'], ['veri_merkezi', 'Veri merkezi'],
-  ['sehir_bina', 'Şehir / bina'], ['arac_enerji', 'Araç / enerji'], ['insan_portre', 'İnsan / portre'],
-  ['laboratuvar', 'Laboratuvar'], ['soyut_diger', 'Soyut / diğer'],
-];
+const VISUAL_TYPE_LABELS = {
+  el_sikisma: 'El sıkışma', ofis_toplanti: 'Ofis / toplantı', grafik_borsa: 'Grafik / borsa',
+  para_finans: 'Para / finans', robot_ai: 'Robot / yapay zeka', cip_donanim: 'Çip / donanım',
+  kod_ekran: 'Kod / ekran', cihaz_telefon: 'Cihaz / telefon', veri_merkezi: 'Veri merkezi',
+  sehir_bina: 'Şehir / bina', arac_enerji: 'Araç / enerji', insan_portre: 'İnsan / portre',
+  laboratuvar: 'Laboratuvar', soyut_diger: 'Soyut / diğer',
+};
+// Sıra ve anahtarlar JSON'dan; etiketler yalnızca gösterim.
+export const VISUAL_TYPES = MC.VISUAL_TYPES.map(v => [v, VISUAL_TYPE_LABELS[v] || v]);
 export const VISUAL_TYPE_LABEL = Object.fromEntries(VISUAL_TYPES);
 
-// config.py'deki GENERIC_TAGS — yalnızca uyarı için.
-export const GENERIC_TAG_HINTS = ['is', 'yatirim', 'girisim', 'basari', 'buyume', 'anlasma', 'ortaklik', 'teknoloji', 'ekonomi', 'sirket', 'para'];
+export const GENERIC_TAG_HINTS = MC.GENERIC_TAGS;
+export const CATEGORY_ALIAS = MC.CATEGORY_ALIAS;
 
-// config.py'deki CATEGORY_ALIAS.
-export const CATEGORY_ALIAS = {
-  'AI': ['Yapay Zeka'],
-  'Yatırım': ['Fon', 'Fintech'],
-  'Girişim': ['Ortaklık'],
-  'Teknoloji': ['Fintech'],
-};
-
-// config.py skor sabitleri.
+// Python config'in JS karşılığı (isimler image-score.js'te kullanılan biçimde).
 export const SCORE = {
-  CATEGORY_DIRECT: 3,
-  CATEGORY_ALIAS: 2,
-  GENEL_BONUS: 1,
-  GENEL_CATEGORY: 'Genel',
-  IDF_SCALE: 2,
-  GENERIC_TAG_MAX_WEIGHT: 0.5,
-  TAG_SCORE_CAP: 15,
-  USAGE_BONUS_MAX: 2,
-  TEXT_BODY_CHARS: 600,
-  USAGE_WINDOW_DAYS: 90,
+  CATEGORY_DIRECT: MC.CATEGORY_DIRECT_BONUS,
+  CATEGORY_ALIAS: MC.CATEGORY_ALIAS_BONUS,
+  GENEL_BONUS: MC.GENEL_CATEGORY_BONUS,
+  GENEL_CATEGORY: MC.GENEL_CATEGORY,
+  IDF_SCALE: MC.IDF_SCALE,
+  GENERIC_TAG_MAX_WEIGHT: MC.GENERIC_TAG_MAX_WEIGHT,
+  TAG_SCORE_CAP: MC.TAG_SCORE_CAP,
+  USAGE_BONUS_MAX: MC.USAGE_BONUS_MAX,
+  TEXT_BODY_CHARS: MC.TEXT_BODY_CHARS,
+  USAGE_WINDOW_DAYS: MC.USAGE_WINDOW_DAYS,
+  HISTORY_LIMIT: MC.HISTORY_LIMIT,
+  RECENT_POSTS_EXCLUDE: MC.RECENT_POSTS_EXCLUDE,
+  DAILY_WINDOW_DAYS: MC.DAILY_WINDOW_DAYS,
+  MAX_USES_IN_WINDOW: MC.MAX_USES_IN_WINDOW,
+  VISUAL_WINDOW_RULES: MC.VISUAL_WINDOW_RULES,
+  VISUAL_WINDOW_DEFAULT: MC.VISUAL_WINDOW_DEFAULT,
+  MIN_SPECIFIC_SCORE: MC.MIN_SPECIFIC_SCORE,
+  RELAX_REVIEW_THRESHOLD: MC.RELAX_REVIEW_THRESHOLD,
 };

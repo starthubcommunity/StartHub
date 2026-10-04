@@ -141,48 +141,92 @@ def visual_window(n_images: int) -> int:
     return config.VISUAL_WINDOW_DEFAULT
 
 
-def select_image(text: str, article_category: str, images: list[dict], history: list[dict],
-                 now: datetime) -> dict:
-    """Saf seçim fonksiyonu (DB'ye dokunmaz). history: used_at'e göre yeniden eskiye sıralı."""
-    if not images:
-        raise ValueError("boş görsel havuzu")
+# Filtre adları reason.filters_applied / filters_relaxed'da ve admin listesinin etiketlerinde kullanılır.
+FILTER_ORDER = ["category_fit", "recent_posts", "over_used_30d", "recent_visual_type"]
 
-    by_id = {img["id"]: img for img in images}
+
+def _usage_counts(history: list[dict], now: datetime, days: int) -> Counter:
+    since = now - timedelta(days=days)
+    return Counter(h["image_id"] for h in history if h["used_at"] >= since)
+
+
+def score_all(text: str, article_category: str, images: list[dict], history: list[dict],
+              now: datetime) -> dict[int, tuple[float, dict]]:
+    """Tüm stok için skor (filtre uygulanmadan). Admin listesi ve parite testi için."""
     weights = tag_weights(images)
-
-    window_90 = now - timedelta(days=config.USAGE_WINDOW_DAYS)
-    usage_90 = Counter(h["image_id"] for h in history if h["used_at"] >= window_90)
+    usage_90 = _usage_counts(history, now, config.USAGE_WINDOW_DAYS)
     max_usage = max((usage_90.get(i["id"], 0) for i in images), default=0)
+    return {img["id"]: score_image(text, article_category, img, weights, usage_90, max_usage)
+            for img in images}
 
-    window_30 = now - timedelta(days=config.DAILY_WINDOW_DAYS)
-    uses_30 = Counter(h["image_id"] for h in history if h["used_at"] >= window_30)
 
+def image_flags(text: str, article_category: str, images: list[dict], history: list[dict],
+                now: datetime) -> dict[int, list[str]]:
+    """Her görsel için neden elendiğinin listesi (boş = elenmedi).
+
+    Dört filtre havuzdan bağımsız, görsel başına karardır. "generic_excluded" ise
+    TAM stok üzerinden hesaplanır (admin listesi için); select_image klişe kuralını
+    yine havuz üzerinden uygular.
+    """
+    by_id = {img["id"]: img for img in images}
+    uses_30 = _usage_counts(history, now, config.DAILY_WINDOW_DAYS)
     recent_ids = {h["image_id"] for h in history[: config.RECENT_POSTS_EXCLUDE]}
     recent_types = {
         by_id[h["image_id"]].get("visual_type")
         for h in history[: visual_window(len(images))]
         if h["image_id"] in by_id and by_id[h["image_id"]].get("visual_type")
     }
+    flags: dict[int, list[str]] = {img["id"]: [] for img in images}
+    for img in images:
+        f = flags[img["id"]]
+        if not _is_same_category(article_category, img.get("category") or ""):
+            f.append("category_fit")
+        if img["id"] in recent_ids:
+            f.append("recent_posts")
+        if uses_30.get(img["id"], 0) >= config.MAX_USES_IN_WINDOW:
+            f.append("over_used_30d")
+        if img.get("visual_type") and img["visual_type"] in recent_types:
+            f.append("recent_visual_type")
 
-    filters = [
-        # Kategori uyumu (doğrudan veya alias) skordan önce gelir: uyumlu aday varken uyumsuz görsel seçilmez.
-        ("category_fit", lambda img: _is_same_category(article_category, img.get("category") or "")),
-        ("recent_posts", lambda img: img["id"] not in recent_ids),
-        ("over_used_30d", lambda img: uses_30.get(img["id"], 0) < config.MAX_USES_IN_WINDOW),
-        ("recent_visual_type", lambda img: not img.get("visual_type") or img["visual_type"] not in recent_types),
-    ]
+    scored = score_all(text, article_category, images, history, now)
+    spec_best = max(
+        (scored[img["id"]][0] for img in images
+         if not img.get("is_generic") and _is_same_category(article_category, img.get("category") or "")),
+        default=None,
+    )
+    if spec_best is not None and spec_best >= config.MIN_SPECIFIC_SCORE:
+        for img in images:
+            if img.get("is_generic") and _is_same_category(article_category, img.get("category") or ""):
+                flags[img["id"]].append("generic_excluded")
+    return flags
+
+
+def rank_all(text: str, article_category: str, images: list[dict], history: list[dict],
+             now: datetime) -> list[tuple[int, float]]:
+    """Parite testi için: (id, yuvarlanmış skor) listesi; skor desc, id asc."""
+    scored = score_all(text, article_category, images, history, now)
+    rows = [(img_id, round(sc, 2)) for img_id, (sc, _) in scored.items()]
+    return sorted(rows, key=lambda r: (-r[1], r[0]))
+
+
+def select_image(text: str, article_category: str, images: list[dict], history: list[dict],
+                 now: datetime) -> dict:
+    """Saf seçim fonksiyonu (DB'ye dokunmaz). history: used_at'e göre yeniden eskiye sıralı."""
+    if not images:
+        raise ValueError("boş görsel havuzu")
+
+    flags = image_flags(text, article_category, images, history, now)
+    scored = score_all(text, article_category, images, history, now)
 
     pool = list(images)
     applied, relaxed = [], []
-    for name, keep in filters:
-        candidates = [img for img in pool if keep(img)]
+    for name in FILTER_ORDER:
+        candidates = [img for img in pool if name not in flags[img["id"]]]
         if candidates:
             pool = candidates
             applied.append(name)
         else:
             relaxed.append(name)
-
-    scored = {img["id"]: score_image(text, article_category, img, weights, usage_90, max_usage) for img in pool}
 
     # Klişe görsel, yalnızca AYNI kategoride klişe olmayan ve eşik üstü bir aday varsa elenir.
     same_cat_specific_best = max(
