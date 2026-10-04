@@ -74,7 +74,13 @@ def test_recent_post_image_is_excluded_and_relaxes_when_no_alternative():
     assert res2["relaxed_count"] >= 1
 
 
-def test_same_visual_type_not_repeated_across_six_recent_posts():
+def test_visual_window_scales_with_stock_size():
+    assert im.visual_window(47) == 3
+    assert im.visual_window(70) == 4
+    assert im.visual_window(150) == 6
+
+
+def test_same_visual_type_not_repeated_within_window():
     images = [
         img(1, tags=["robot"], visual_type="el_sikisma"),
         img(2, tags=["robot"], visual_type="el_sikisma"),

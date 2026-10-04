@@ -15,7 +15,7 @@ Puanlama (select_image):
 Filtreler (sırayla; aday kalmazsa o filtre gevşer ve reason'a yazılır):
   a. Son RECENT_POSTS_EXCLUDE yazıda kullanılan görseller
   b. Son DAILY_WINDOW_DAYS günde MAX_USES_IN_WINDOW'dan fazla kullanılanlar
-  c. Son VISUAL_TYPE_EXCLUDE_LAST yazının visual_type'ları (null olan muaf)
+  c. Son N yazının visual_type'ları, N = visual_window(stok büyüklüğü) (null olan muaf)
   d. is_generic görseller, en iyi spesifik skor MIN_SPECIFIC_SCORE altındaysa geçer
 """
 import logging
@@ -125,6 +125,14 @@ def _parse_ts(value) -> datetime:
     return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
+def visual_window(n_images: int) -> int:
+    avg = n_images / len(config.VISUAL_TYPES)
+    for threshold, window in config.VISUAL_WINDOW_RULES:
+        if avg < threshold:
+            return window
+    return config.VISUAL_WINDOW_DEFAULT
+
+
 def select_image(text: str, article_category: str, images: list[dict], history: list[dict],
                  now: datetime) -> dict:
     """Saf seçim fonksiyonu (DB'ye dokunmaz). history: used_at'e göre yeniden eskiye sıralı."""
@@ -144,7 +152,7 @@ def select_image(text: str, article_category: str, images: list[dict], history: 
     recent_ids = {h["image_id"] for h in history[: config.RECENT_POSTS_EXCLUDE]}
     recent_types = {
         by_id[h["image_id"]].get("visual_type")
-        for h in history[: config.VISUAL_TYPE_EXCLUDE_LAST]
+        for h in history[: visual_window(len(images))]
         if h["image_id"] in by_id and by_id[h["image_id"]].get("visual_type")
     }
 

@@ -115,7 +115,15 @@ HISTORY_LIMIT = 500
 RECENT_POSTS_EXCLUDE = 10
 DAILY_WINDOW_DAYS = 30
 MAX_USES_IN_WINDOW = 3
-VISUAL_TYPE_EXCLUDE_LAST = 6
+# Görsel tipi penceresi: tip başına ortalama görsel sayısına göre (toplam / tip sayısı).
+# Ortalama < 4 → 3, < 8 → 4, aksi halde 6. Küçük stokta tip tekrarını daha erken engeller.
+VISUAL_TYPES = [
+    "el_sikisma", "ofis_toplanti", "grafik_borsa", "para_finans", "robot_ai", "cip_donanim",
+    "kod_ekran", "cihaz_telefon", "veri_merkezi", "sehir_bina", "arac_enerji", "insan_portre",
+    "laboratuvar", "soyut_diger",
+]
+VISUAL_WINDOW_RULES = [(4.0, 3), (8.0, 4)]
+VISUAL_WINDOW_DEFAULT = 6
 
 # is_generic görseller, en iyi spesifik skor bu değerin altındaysa seçilebilir
 MIN_SPECIFIC_SCORE = 4.0

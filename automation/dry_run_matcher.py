@@ -2,7 +2,7 @@
 dry_run_matcher.py — Son yayınlanan N yazıya ESKİ ve YENİ görsel algoritmasını
 sırayla uygular ve karşılaştırma raporu basar. DB'ye YAZMAZ (salt okuma).
 
-Kullanım:  cd automation && python dry_run_matcher.py [N=50]
+Kullanım:  cd automation && python dry_run_matcher.py [N=50] [sınıflandırma.json]
 
 Not: posts tablosunda kategori kolonu yok; makale kategorisi, kart arka
 plan rengi (bg) üzerinden tahmin edilir (publish.CATEGORY_BG'nin tersi).
@@ -73,7 +73,13 @@ def main():
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 50
     client = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
 
-    images = [draft_classify(i) for i in (client.table("image_stock").select("*").order("id").execute().data or [])]
+    images = client.table("image_stock").select("*").order("id").execute().data or []
+    if len(sys.argv) > 2:
+        import json
+        with open(sys.argv[2], encoding="utf8") as fh:
+            cls = json.load(fh)
+        images = [dict(i, **cls[str(i["id"])]) if str(i["id"]) in cls else i for i in images]
+    images = [draft_classify(i) for i in images]
     posts = (client.table("posts").select("*").eq("status", "published")
              .order("date", desc=True).limit(n).execute().data or [])
     posts.reverse()  # eskiden yeniye simüle et
