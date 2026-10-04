@@ -1,0 +1,101 @@
+"""Görsel eşleştirme testleri — canlı DB gerektirmez, sahte stok ve kullanım geçmişi kullanır."""
+from datetime import datetime, timedelta, timezone
+
+import image_matcher as im
+
+NOW = datetime(2026, 10, 4, 12, 0, tzinfo=timezone.utc)
+
+
+def img(i, category="Teknoloji", tags=(), visual_type=None, is_generic=False, usage_count=0):
+    return {
+        "id": i,
+        "url": f"https://example.test/{i}.webp",
+        "alt_tr": f"görsel {i}",
+        "category": category,
+        "tags": list(tags),
+        "visual_type": visual_type,
+        "is_generic": is_generic,
+        "usage_count": usage_count,
+    }
+
+
+def use(image_id, hours_ago):
+    return {"image_id": image_id, "post_id": None, "used_at": NOW - timedelta(hours=hours_ago)}
+
+
+def text(s):
+    return im.normalize(s)
+
+
+def test_tech_does_not_match_biotech_and_ai_does_not_match_inside_words():
+    images = [img(1, tags=["tech", "ai"])]
+    res = im.select_image(text("Biotech sirketi yeni aile plani acikladi"), "Teknoloji", images, [], NOW)
+    assert res["reason"]["best"]["tags"] == []
+
+
+def test_word_boundary_match_counts():
+    images = [img(1, tags=["robot"]), img(2, tags=["yatirim"])]
+    res = im.select_image(text("Robot sirketi yeni tur acti"), "Teknoloji", images, [], NOW)
+    matched = [t["tag"] for t in res["reason"]["best"]["tags"]]
+    assert matched == ["robot"]
+    assert res["image"]["id"] == 1
+
+
+def test_generic_image_not_picked_when_specific_match_is_strong():
+    images = [
+        img(1, category="Teknoloji", tags=["kripto", "blokzincir"], visual_type="kod_ekran"),
+        img(2, category="Genel", tags=["anlasma", "yatirim"], visual_type="el_sikisma", is_generic=True),
+    ]
+    res = im.select_image(text("Kripto ve blokzincir yatirim anlasmasi"), "Teknoloji", images, [], NOW)
+    assert res["image"]["id"] == 1
+    assert "generic_excluded" in res["reason"]["filters_applied"]
+
+
+def test_generic_image_allowed_when_no_specific_match():
+    images = [
+        img(1, category="Teknoloji", tags=["robot"], visual_type="robot_ai"),
+        img(2, category="Fon", tags=["yatirim"], visual_type="el_sikisma", is_generic=True),
+    ]
+    res = im.select_image(text("Yatirim turu acildi"), "Yatırım", images, [], NOW)
+    assert res["image"]["id"] == 2
+    assert res["reason"]["generic_allowed"] is True
+
+
+def test_recent_post_image_is_excluded_and_relaxes_when_no_alternative():
+    images = [img(1, tags=["robot"]), img(2, tags=["robot"])]
+    res = im.select_image(text("robot haberi"), "Teknoloji", images, [use(1, 1)], NOW)
+    assert res["image"]["id"] == 2
+    assert "recent_posts" in res["reason"]["filters_applied"]
+
+    only = [img(1, tags=["robot"])]
+    res2 = im.select_image(text("robot haberi"), "Teknoloji", only, [use(1, 1)], NOW)
+    assert res2["image"]["id"] == 1
+    assert "recent_posts" in res2["reason"]["filters_relaxed"]
+    assert res2["relaxed_count"] >= 1
+
+
+def test_same_visual_type_not_repeated_across_six_recent_posts():
+    images = [
+        img(1, tags=["robot"], visual_type="el_sikisma"),
+        img(2, tags=["robot"], visual_type="el_sikisma"),
+        img(3, tags=["robot"], visual_type="grafik_borsa"),
+    ]
+    history = [use(1, h) for h in range(1, 7)]
+    res = im.select_image(text("robot haberi"), "Teknoloji", images, history, NOW)
+    assert res["image"]["visual_type"] != "el_sikisma"
+    assert res["image"]["id"] == 3
+
+
+def test_same_input_gives_same_result():
+    images = [img(i, tags=["robot", "yapay zeka"], visual_type="robot_ai", usage_count=i) for i in range(1, 6)]
+    history = [use(2, 5), use(4, 30)]
+    a = im.select_image(text("yapay zeka robot haberi"), "AI", images, history, NOW)
+    b = im.select_image(text("yapay zeka robot haberi"), "AI", images, history, NOW)
+    assert a == b
+
+
+def test_tie_break_prefers_least_recently_used_then_id():
+    images = [img(1, tags=["robot"]), img(2, tags=["robot"])]
+    history = [use(1, 200)]
+    res = im.select_image(text("robot haberi"), "Teknoloji", images, history, NOW)
+    assert res["image"]["id"] == 2

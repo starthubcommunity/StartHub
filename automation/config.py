@@ -83,3 +83,48 @@ GOOGLE_SHEETS_CREDENTIALS = os.environ.get("GOOGLE_SHEETS_CREDENTIALS", "")
 # Sütunlar: id | title | slug | category | planned_date | status | source_url | content_file
 # status değerleri: draft / approved / published
 
+# ---- Görsel eşleştirme (image_matcher.py) — tüm ayarlanabilir değerler burada ----
+# Kategori: makale kategorisi → stoktaki kategoriler (alias eşleşmesi +CATEGORY_ALIAS_BONUS)
+CATEGORY_ALIAS = {
+    "AI":        ["Yapay Zeka"],
+    "Yatırım":   ["Fon", "Fintech"],
+    "Girişim":   ["Ortaklık"],
+    "Teknoloji": ["Fintech"],
+}
+CATEGORY_DIRECT_BONUS = 3.0
+CATEGORY_ALIAS_BONUS = 2.0
+GENEL_CATEGORY = "Genel"
+GENEL_CATEGORY_BONUS = 1.0
+
+# Etiket ağırlığı: w = 1 + ln((N+1)/(df+1)) * IDF_SCALE; GENERIC_TAGS en fazla GENERIC_TAG_MAX_WEIGHT
+IDF_SCALE = 2.0
+GENERIC_TAG_MAX_WEIGHT = 0.5
+TAG_SCORE_CAP = 15.0
+GENERIC_TAGS = [
+    "is", "yatirim", "girisim", "basari", "buyume", "anlasma",
+    "ortaklik", "teknoloji", "ekonomi", "sirket", "para",
+]
+TEXT_BODY_CHARS = 600
+
+# Kullanım bonusu (0..USAGE_BONUS_MAX), son USAGE_WINDOW_DAYS gündeki image_usage sayısına göre
+USAGE_BONUS_MAX = 2.0
+USAGE_WINDOW_DAYS = 90
+HISTORY_LIMIT = 500
+
+# Filtreler
+RECENT_POSTS_EXCLUDE = 10
+DAILY_WINDOW_DAYS = 30
+MAX_USES_IN_WINDOW = 3
+VISUAL_TYPE_EXCLUDE_LAST = 6
+
+# is_generic görseller, en iyi spesifik skor bu değerin altındaysa seçilebilir
+MIN_SPECIFIC_SCORE = 4.0
+
+# Bu kadar filtre gevşerse yazı needs_review olarak işaretlenir
+RELAX_REVIEW_THRESHOLD = 2
+
+# Son çare görselleri (stok okunamazsa / aday çıkmazsa). Kategori bazlı görsel
+# eklendikçe buraya yazılır; şimdilik markalı logo.
+FALLBACK_IMAGES = {
+    "default":   "https://www.starthub-community.com/logo-full.png",
+}

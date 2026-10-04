@@ -78,6 +78,29 @@ def _to_paragraphs(text: str) -> list[str]:
     return paras or [text.strip()]
 
 
+def _record_image_usage(match: dict, post_id) -> None:
+    """Yazı başarıyla eklendikten sonra çağrılır. Hata olursa yalnızca loglanır —
+    kayıt hatası yayını ASLA etkilemez; sayaç da yalnızca başarılı yazıdan sonra artar."""
+    image_id = match.get("id")
+    if not image_id:
+        return
+    try:
+        _client().table("image_usage").insert({
+            "image_id": image_id,
+            "post_id": post_id,
+            "score": match.get("score"),
+            "reason": match.get("reason"),
+        }).execute()
+    except Exception as e:
+        print(f"[uyarı] image_usage kaydı yazılamadı ({image_id}): {e}")
+    try:
+        _client().table("image_stock").update(
+            {"usage_count": (match.get("usage_count") or 0) + 1}
+        ).eq("id", image_id).execute()
+    except Exception as e:
+        print(f"[uyarı] usage_count güncellenemedi ({image_id}): {e}")
+
+
 def publish_article(article: dict, dry_run: bool = False,
                     auto_publish: bool = False) -> dict | None:
     """
@@ -121,6 +144,9 @@ def publish_article(article: dict, dry_run: bool = False,
         "generated_at":  now_iso,
     }
 
+    if match and match.get("needs_review"):
+        record["needs_review"] = True
+
     if dry_run:
         import json
         print(f"[dry-run] Supabase'e yazılacak kayıt ({slug}, status={record['status']}):")
@@ -132,6 +158,8 @@ def publish_article(article: dict, dry_run: bool = False,
         row = result.data[0] if result.data else {}
         print(f"[{'yayın' if auto_publish else 'draft'}] Supabase posts ← {slug} "
               f"(id: {row.get('id')}, status={record['status']})")
+        if match:
+            _record_image_usage(match, row.get("id"))
         if record["status"] == "published":
             _trigger_deploy_hook()
         return row
