@@ -11,7 +11,7 @@ import {
   STAGE_LABEL, SOURCE_LABEL, TOUCH_CHANNELS, TOUCH_CHANNEL_LABEL, TOUCH_OUTCOME_LABEL,
   GATE_RESULT_LABEL, TRACKS, TRACK_LABEL, OWNER_DECISION_LABEL,
   GATE, GATE_EXTENSIONS, KVKK_NOTICE_URL, KVKK_NOTICE_LINE, DEFAULT_TRACK,
-  INTEREST_LABEL, INTEREST_AREAS,
+  INTEREST_LABEL, INTEREST_AREAS, OWNER_STAGE_LABEL, OWNER_ACTIVE_STAGES,
 } from '../hub-constants';
 import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI, nextAction, undoPlan } from '../hub-rules';
 import { fillTemplate } from './templates';
@@ -687,9 +687,26 @@ function DecisionMail({ kind, c, role, openRole, onCancel, onDone, flash }) {
 
 // ── Görüşme (rubrik + serbest not) — v3: kırmızı bayrak YOK ────────
 function InterviewSection({ c, save, role, openRole, flash, onDone }) {
+  const store = useHubStore();
   const track = c.track || DEFAULT_TRACK;
   const trialChk = canAdvance({ ...c, stage: 'interview' }, 'trial', { role, openRole });
-  const [decision, setDecision] = useState(null);   // 'invite' | 'reject' | null
+  const [decision, setDecision] = useState(null);   // 'invite' | 'reject' | 'present' | null
+  const [busy, setBusy] = useState(false);
+  // Adım 4/5 — üye hattında sıra: görüşme → proje sahibine sun → (kurucu) Kapı A.
+  const memberFlow = track === 'member';
+  const ownerLocked = memberFlow && OWNER_ACTIVE_STAGES.includes(c.ownerStage);
+  const showDecision = !c.ownerStage || c.ownerStage === 'withdrawn';
+  const toOwner = async (roleId, templateId) => {
+    setBusy(true);
+    try {
+      if (roleId && roleId !== c.openRoleId) await store.linkCandidateRole(c.id, roleId);
+      await save({ suggestedGateTemplateId: templateId || null });
+      const r = await store.presentToOwner(c.id);
+      flash?.(r.alreadyPending ? 'Zaten sunulmuş — kurucunun kararı bekleniyor.' : 'Proje sahibine (Team Lead) önerildi — mail ve bildirim gitti.');
+      setDecision(null);
+    } catch (e) { flash?.('Sunulamadı: ' + e.message); }
+    setBusy(false);
+  };
 
   // Puanlar KİLİTLENMEZ — aynı butona tekrar basmak sıfırlar, farklıya basmak değiştirir.
   const setScore = (axisKey, n) => { const f = AXIS_FIELD[axisKey]; save({ [f]: c[f] === n ? null : n }); };
@@ -712,7 +729,7 @@ function InterviewSection({ c, save, role, openRole, flash, onDone }) {
             <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginBottom: 6 }}>{ax.hint}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n}
+                <button key={n} disabled={ownerLocked}
                   className={`adm-btn adm-btn--sm ${cur === n ? 'adm-btn--primary' : 'adm-btn--ghost'}`}
                   style={{ justifyContent: 'flex-start', textAlign: 'left' }}
                   onClick={() => setScore(ax.value, n)}>
@@ -740,17 +757,28 @@ function InterviewSection({ c, save, role, openRole, flash, onDone }) {
         hint="Endişeler, izlenimler, açık sorular — serbest metin. İlerlemeyi engellemez." />
 
       {/* C2 — görüşme kararı + hazır mail */}
-      <h4 className="hub-h4" style={{ marginTop: 16 }}>Görüşme kararı</h4>
-      {decision ? (
+      {memberFlow && c.ownerStage && <OwnerProgress c={c} flash={flash} />}
+      {showDecision && <h4 className="hub-h4" style={{ marginTop: 16 }}>Görüşme kararı</h4>}
+      {!showDecision ? null : decision === 'present' ? (
+        <PresentToOwnerConfirm c={c} store={store} busy={busy} onCancel={() => setDecision(null)} onConfirm={toOwner} />
+      ) : decision ? (
         <DecisionMail kind={decision} c={c} role={role} openRole={openRole} flash={flash}
           onDone={onDone} onCancel={() => setDecision(null)} />
       ) : (
         <div className="hub-wz__opts">
+          {memberFlow ? (
+            <button type="button" className="hub-wz__opt" disabled={!trialChk.ok || !c.email}
+              title={!trialChk.ok ? (trialChk.reason || '') : !c.email ? 'Önce adayın e-postasını ekle' : ''} onClick={() => setDecision('present')}>
+              <span className="hub-wz__opt-l">Olumlu — proje sahibine sun</span>
+              <span className="hub-wz__opt-r">{c.email ? 'Kapı A\'yı kurucu atar' : 'e-posta zorunlu'}</span>
+            </button>
+          ) : (
           <button type="button" className="hub-wz__opt" disabled={!trialChk.ok}
             title={trialChk.ok ? '' : (trialChk.reason || '')} onClick={() => setDecision('invite')}>
             <span className="hub-wz__opt-l">Olumlu — denemeye davet</span>
             <span className="hub-wz__opt-r">mail hazır gelir</span>
           </button>
+          )}
           <button type="button" className="hub-wz__opt" onClick={() => setDecision('reject')}>
             <span className="hub-wz__opt-l">Olumsuz — nazik ret</span>
             <span className="hub-wz__opt-r">mail hazır gelir · arşive</span>
@@ -960,6 +988,9 @@ function TeamMoveConfirm({ c, store, busy, onCancel, onConfirm }) {
 
 // ── Üye hattı: "Ekibe al"ın yerini alan Team Lead onayı (2026-09-25) ──
 function PresentToOwnerConfirm({ c, store, busy, onCancel, onConfirm }) {
+  // Bölüm H — recruiter sunarken bir Kapı A şablonu ÖNERİR; kurucu değiştirebilir.
+  const tplOptions = templatesFor(store.gateTemplates, gateCategoryFor(c));
+  const [tplId, setTplId] = useState(c.suggestedGateTemplateId || tplOptions[0]?.id || '');
   const linkable = store.openRoles.filter(
     (r) => ['sourcing', 'shortlist'].includes(r.status) || r.id === c.openRoleId
   );
@@ -975,8 +1006,9 @@ function PresentToOwnerConfirm({ c, store, busy, onCancel, onConfirm }) {
         </div>
       ) : (
         <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginBottom: 8 }}>
-          Aday <b>{roleTitle || '—'}</b> rolü için <b>o projenin Team Lead'ine</b> Team App üzerinden sunulacak —
-          hesap ancak Team Lead kabul edince açılır.
+          Aday <b>{roleTitle || '—'}</b> rolü için <b>o projenin Team Lead'ine</b> Team App üzerinden önerilecek
+          (mail + bildirim). Kabul ederse Kapı A görevini kurucu gönderir, değerlendirir ve ekibe alır —
+          bu adımdan sonra kart burada salt okunur olur.
         </div>
       )}
       <Field label="Açık rol">
@@ -987,8 +1019,14 @@ function PresentToOwnerConfirm({ c, store, busy, onCancel, onConfirm }) {
           ))}
         </select>
       </Field>
+      <Field label="Önerilen Kapı A görevi" hint="Kurucunun ekranında varsayılan olarak seçili gelir; kurucu başka bir şablon seçebilir.">
+        <select className="adm-input adm-select" value={tplId} onChange={(e) => setTplId(e.target.value)}>
+          <option value="">— öneri yok (kurucu seçsin) —</option>
+          {tplOptions.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+        </select>
+      </Field>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || !roleId || !c.email} onClick={() => onConfirm(roleId)}
+        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || !roleId || !c.email} onClick={() => onConfirm(roleId, tplId || null)}
           title={c.email ? '' : 'Önce adayın e-postasını ekle'}>
           {busy ? '…' : 'Proje sahibine sun'}
         </button>
@@ -1011,6 +1049,19 @@ function TrialSection({ c }) {
   const [teamConfirm, setTeamConfirm] = useState(false);
   const [ownerConfirm, setOwnerConfirm] = useState(false);
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
+
+  // Adım 4/5 — üye hattında Kapı A'yı kurucu (Team App) atar/değerlendirir,
+  // ekibe alımı kurucu yapar: HR yalnızca izler. (ownerStage'siz eski
+  // kayıtlar için aşağıdaki eski akış korunur.)
+  if (!founder && c.ownerStage) {
+    return (
+      <div className="hub-gates">
+        <h4 className="hub-h4">Deneme · Kapı A</h4>
+        <OwnerProgress c={c} flash={flash} />
+        {msg && <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginTop: 8 }}>{msg}</div>}
+      </div>
+    );
+  }
 
   const toTeam = async (roleId) => {
     setBusy(true);
@@ -1126,7 +1177,7 @@ function remaining(gate) {
   return h < 48 ? `${h} saat kaldı` : `${Math.round(h / 24)} gün kaldı`;
 }
 
-function GateCard({ gate, onMark, onExtend }) {
+function GateCard({ gate, onMark, onExtend, readOnly = false }) {
   const st = gateStatus(gate);
   return (
     <div className="hub-gate">
@@ -1141,7 +1192,12 @@ function GateCard({ gate, onMark, onExtend }) {
         Başlangıç: {String(gate.startedAt).slice(0, 10)}
         {gate.extendedDays > 0 ? ` · +${gate.extendedDays} gün uzatıldı` : ''}
       </div>
-      {gate.result === 'pending' ? (
+      {gate.evaluation && gate.result !== 'pending' && (
+        <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', margin: '2px 0 6px' }}>Değerlendirme: {gate.evaluation}</div>
+      )}
+      {gate.result === 'pending' && readOnly ? (
+        <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Kurucu değerlendirecek.</div>
+      ) : gate.result === 'pending' ? (
         // 2026-09-24 CRM-lite Round 2 — eskiden 3 eşit ağırlıklı buton (Teslim
         // etti / Teslim etmedi / Süre yetmedi mi?) aynı satırda yan yanaydı; HUB_SPEC
         // §0'ın "ekran başına bir birincil aksiyon" ilkesine göre "Süre yetmedi mi?"
@@ -1163,6 +1219,115 @@ function GateCard({ gate, onMark, onExtend }) {
           : { background: 'var(--adm-red-light)', color: 'var(--adm-red)' }}>
           {gate.result === 'passed' ? 'Geçti' : 'Kaldı'}
         </div>
+      )}
+    </div>
+  );
+}
+
+
+// ── Üye hattı: kurucunun (Team Lead) ilerlemesi — HR'da SALT OKUNUR (Adım 4/5) ──
+// Bölüm G/I: aday kurucuya önerildiği an recruiter'ın aktif aksiyonu biter;
+// recruiter + admin süreci görür ama aksiyon alamaz. Tek istisna: cofounder,
+// kurucu uzun süre cevap vermezse sunumu geri çekebilir ya da "Kapı A sonucu:
+// reddet" diyebilir (gerekçe zorunlu). Ret/geri çekmeden sonra adaya nazik ret
+// maili HR'dan gider (sessiz kaybolma yok).
+function OwnerProgress({ c, flash }) {
+  const store = useHubStore();
+  const { can } = usePerms();
+  const [exOpen, setExOpen] = useState(false);
+  const [exNote, setExNote] = useState('');
+  const [exConfirm, setExConfirm] = useState(null);   // 'withdraw' | 'owner_fail' | null
+  const [busy, setBusy] = useState(false);
+  const [rejectMail, setRejectMail] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  const st = c.ownerStage;
+  const active = OWNER_ACTIVE_STAGES.includes(st);
+  const gateA = store.gates.filter((g) => g.candidateId === c.id && g.gate === 'A')
+    .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
+  const suggested = c.suggestedGateTemplateId ? store.gateTemplates.find((t) => t.id === c.suggestedGateTemplateId) : null;
+  const exAction = st === 'gate' || st === 'gate_passed' ? 'owner_fail' : 'withdraw';
+  const tone = st === 'rejected' ? 'var(--adm-red)' : st === 'joined' || st === 'gate_passed' ? 'var(--adm-green)' : '#B45309';
+
+  const runException = async () => {
+    setBusy(true);
+    try {
+      await store.ownerException(c.id, exConfirm, exNote.trim());
+      flash?.(exConfirm === 'withdraw' ? 'Sunum geri çekildi — Team App\'teki teklif kapandı.' : 'Kapı A sonucu: ret — Team App\'teki teklif kapandı.');
+      setExOpen(false); setExConfirm(null); setExNote('');
+    } catch (e) { flash?.('Yapılamadı: ' + e.message); }
+    setBusy(false);
+  };
+  const reload = async () => { setReloading(true); try { await store.reload?.(); } finally { setReloading(false); } };
+
+  return (
+    <div className="hub-gate" style={{ marginTop: 12 }}>
+      <div className="hub-gate__head">
+        <strong>Kurucu (Team Lead) süreci</strong>
+        <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" onClick={reload} disabled={reloading}>
+          {reloading ? '…' : 'Yenile'}
+        </button>
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: tone, margin: '6px 0' }}>{OWNER_STAGE_LABEL[st] || st}</div>
+      <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', lineHeight: 1.6 }}>
+        {c.presentedAt && <div>Önerildi: {String(c.presentedAt).slice(0, 10)}</div>}
+        {suggested && <div>Recruiter'ın önerdiği Kapı A: <b>{suggested.title}</b> (kurucu değiştirebilir)</div>}
+        {c.ownerDecisionNote && <div>Gerekçe: {c.ownerDecisionNote}</div>}
+      </div>
+      {gateA && <GateCard gate={gateA} readOnly />}
+      {active && (
+        <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginTop: 8 }}>
+          Aksiyon kurucuda — Kapı A'yı kurucu atar ve değerlendirir, ekibe alımı kurucu yapar. Bu kart salt okunur.
+        </div>
+      )}
+
+      {active && can('decide') && (
+        <div style={{ marginTop: 10 }}>
+          {!exOpen ? (
+            <button type="button" onClick={() => setExOpen(true)}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, color: 'var(--adm-text-dim)', textDecoration: 'underline' }}>
+              Kurucu cevap vermiyor mu? İstisnai işlemler →
+            </button>
+          ) : (
+            <div className="hub-ai" style={{ marginTop: 4 }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                {exAction === 'withdraw' ? 'Sunumu geri çek' : 'Kapı A sonucu: reddet'} <span style={{ fontWeight: 400, color: 'var(--adm-text-dim)' }}>(yalnızca cofounder, istisnai)</span>
+              </div>
+              <textarea className="adm-input adm-textarea" rows={2} value={exNote} onChange={(e) => setExNote(e.target.value)}
+                placeholder="Gerekçe (ör. kurucu 10 gündür cevap vermedi)" />
+              {exConfirm ? (
+                <div style={{ marginTop: 8, fontSize: 12.5 }}>
+                  Team App'teki teklif de kapanacak. Emin misin?{' '}
+                  <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={runException}>{busy ? '…' : 'Evet, eminim'}</button>{' '}
+                  <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={() => setExConfirm(null)}>Vazgeç</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={exNote.trim().length < 5} onClick={() => setExConfirm(exAction)}>
+                    {exAction === 'withdraw' ? 'Geri çek' : 'Reddet'}
+                  </button>
+                  <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => { setExOpen(false); setExNote(''); }}>Kapat</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(st === 'rejected' || st === 'withdrawn') && c.stage !== 'archived' && (
+        rejectMail
+          ? <DecisionMail kind="reject" c={c} flash={flash} onDone={() => {}} onCancel={() => setRejectMail(false)} />
+          : (
+            <div style={{ marginTop: 10 }}>
+              <button className="hub-wz__next" style={{ margin: 0 }} onClick={() => setRejectMail(true)}>
+                Adaya nazik ret maili gönder ve arşivle
+              </button>
+              {st === 'withdrawn' && (
+                <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginTop: 6 }}>
+                  Ya da yukarıdaki görüşme kararından adayı yeniden sunabilirsin.
+                </div>
+              )}
+            </div>
+          )
       )}
     </div>
   );

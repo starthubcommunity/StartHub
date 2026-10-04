@@ -18,10 +18,17 @@
 // bildirilir — HR'daki hub_candidates güncellensin diye (stage→member veya
 // owner_decision→rejected). Bu çağrı BAŞARISIZ olsa bile Team App'teki karar
 // GERİ ALINMAZ (warning olarak döner) — Team App'in kendi verisi asıl kaynak.
+//
+// 2026-10-04 (Adım 4/5) — tek "decision" yerine adım adım "action":
+//   templates | interview | start_gate | evaluate | join | reject
+// Durum geçişleri logic.ts'te (computeOfferActionPatch). start_gate'te adaya
+// görev maili ÖNCE gider (kurucunun önizlemede onayladığı metin); mail gitmezse
+// hiçbir şey yazılmaz. join yalnızca Kapı A geçildiyse (gate_passed) mümkün.
+// Eski istemcilerin { decision } çağrısı join/reject'e eşlenir.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { computeDecideOfferPatch } from "./logic.ts";
+import { computeOfferActionPatch, type OfferAction } from "./logic.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -72,20 +79,45 @@ async function sendInviteEmail(email: string, name: string, teamName: string): P
   }
 }
 
-async function notifyMain(hubCandidateId: string, decision: "accepted" | "rejected", note: string | null) {
+async function sendMail(to: string, subject: string, body: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-mail`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}`, apikey: SERVICE_ROLE_KEY },
+      body: JSON.stringify({ to, subject, body }),
+      signal: AbortSignal.timeout(10000),
+    });
+    return res.ok;
+  } catch (_e) {
+    return false;
+  }
+}
+
+// Ana projeye (hub-owner-decision) bridge çağrısı — HR senkronu.
+async function callMain(body: Record<string, unknown>) {
   if (!HUB_BRIDGE_SECRET) return { ok: false, error: "HUB_BRIDGE_SECRET tanımlı değil" };
   try {
     const res = await fetch(`${MAIN_PROJECT_URL}/functions/v1/hub-owner-decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-hub-bridge-key": HUB_BRIDGE_SECRET },
-      body: JSON.stringify({ hubCandidateId, decision, note }),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10000),
     });
     const b = await res.json().catch(() => null);
-    if (!res.ok || !b?.ok) return { ok: false, error: b?.error || `hub-owner-decision ${res.status}` };
-    return { ok: true };
+    if (!res.ok || !b?.ok) return { ok: false, error: b?.error || `hub-owner-decision ${res.status}`, data: b };
+    return { ok: true, data: b };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
+}
+
+function mainPayloadFor(action: OfferAction, offer: any, note: string | null) {
+  const base = { hubCandidateId: offer.hubCandidateId };
+  if (action === "interview") return { ...base, action: "interview" };
+  if (action === "start_gate") return { ...base, action: "gate_started", templateId: offer.gate?.templateId || null, taskText: offer.gate?.taskText, dueAt: offer.gate?.dueAt };
+  if (action === "evaluate") return { ...base, action: "gate_result", result: offer.gate?.result, note };
+  if (action === "join") return { ...base, decision: "accepted", note: null };
+  return { ...base, decision: "rejected", note };
 }
 
 serve(async (req) => {
@@ -94,10 +126,12 @@ serve(async (req) => {
   const authHeader = req.headers.get("Authorization") || "";
   let payload: any;
   try { payload = await req.json(); } catch { return json({ ok: false, error: "geçersiz JSON gövde" }, 400); }
-  const { offerId, decision, note } = payload || {};
-  if (!offerId || (decision !== "accepted" && decision !== "rejected")) {
-    return json({ ok: false, error: "offerId ve decision ('accepted'|'rejected') zorunlu" }, 400);
-  }
+  const { offerId } = payload || {};
+  // Geriye dönük: eski istemci { decision: 'accepted'|'rejected' } gönderir.
+  const action: string = payload?.action
+    || (payload?.decision === "accepted" ? "join" : payload?.decision === "rejected" ? "reject" : "");
+  const note: string | null = (payload?.note || "").trim() || null;
+  if (!offerId || !action) return json({ ok: false, error: "offerId ve action zorunlu" }, 400);
 
   const asUser = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -109,23 +143,55 @@ serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
+  const authorize = (data: any) => {
+    const offer = (data.candidateOffers || []).find((o: any) => o.id === offerId);
+    if (!offer) return { error: json({ ok: false, error: `'${offerId}' adayı bulunamadı` }, 404) };
+    const me = (data.users || []).find((u: any) => (u.email || "").toLowerCase() === myEmail);
+    const ok = !!me && (me.role === "admin" || (teamsOf(me).includes(offer.teamId) && effRole(me, offer.teamId) === "lead"));
+    if (!ok) return { error: json({ ok: false, error: "Bu ekip için karar verme yetkin yok" }, 403) };
+    return { offer, me };
+  };
+
+  // ── Kapı A şablonları (salt okuma, ana projeden) ─────────────────────
+  if (action === "templates") {
+    const { data: cur } = await admin.from("app_state").select("data").eq("id", "shl_v5").maybeSingle();
+    if (!cur?.data) return json({ ok: false, error: "mevcut satır okunamadı" }, 500);
+    const a = authorize(cur.data); if (a.error) return a.error;
+    const r = await callMain({ action: "templates" });
+    if (!r.ok) return json({ ok: false, error: r.error }, 502);
+    return json({ ok: true, templates: r.data.templates || [] });
+  }
+
+  // ── Kapı A: önce doğrula, sonra adaya mail; mail gitmezse HİÇBİR şey yazılmaz.
+  let gateMailSent = false;
+  if (action === "start_gate") {
+    const { data: cur } = await admin.from("app_state").select("data").eq("id", "shl_v5").maybeSingle();
+    if (!cur?.data) return json({ ok: false, error: "mevcut satır okunamadı" }, 500);
+    const a = authorize(cur.data); if (a.error) return a.error;
+    const dry = computeOfferActionPatch(cur.data, { offerId, action: "start_gate", actorId: a.me.id, gate: payload.gate, note });
+    if (!dry.ok) return json(dry, 400);
+    const subject = (payload?.mail?.subject || "").trim();
+    const body = (payload?.mail?.body || "").trim();
+    if (!subject || !body) return json({ ok: false, error: "Görev maili (konu + metin) zorunlu." }, 400);
+    gateMailSent = await sendMail(a.offer.email, subject, body);
+    if (!gateMailSent) return json({ ok: false, error: "Görev maili gönderilemedi — hiçbir şey kaydedilmedi, tekrar dene." }, 502);
+  }
+
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const { data: cur, error: readErr } = await admin.from("app_state").select("data").eq("id", "shl_v5").maybeSingle();
     if (readErr || !cur || !cur.data) return json({ ok: false, error: readErr?.message || "mevcut satır okunamadı" }, 500);
-
-    const offer = (cur.data.candidateOffers || []).find((o: any) => o.id === offerId);
-    if (!offer) return json({ ok: false, error: `'${offerId}' bekleyen adayı bulunamadı` }, 404);
-
-    const me = (cur.data.users || []).find((u: any) => (u.email || "").toLowerCase() === myEmail);
-    const authorized = !!me && (me.role === "admin" || (teamsOf(me).includes(offer.teamId) && effRole(me, offer.teamId) === "lead"));
-    if (!authorized) return json({ ok: false, error: "Bu ekip için karar verme yetkin yok" }, 403);
+    const a = authorize(cur.data); if (a.error) return a.error;
 
     const knownAt = cur.data._at;
-    const result = computeDecideOfferPatch(cur.data, { offerId, decision, decidedBy: me.id });
-    if (!result.ok) return json(result, result.error?.includes("bulunamadı") ? 404 : 400);
+    const result = computeOfferActionPatch(cur.data, {
+      offerId, action: action as OfferAction, actorId: a.me.id, note, gate: payload.gate, result: payload.result,
+    });
+    if (!result.ok) {
+      const msg = gateMailSent ? `${result.error} (Görev maili gitti ama kayıt yazılamadı — sayfayı yenile.)` : result.error;
+      return json({ ok: false, error: msg }, 400);
+    }
 
     const merged = { ...result.snapshot, _by: "hub-team-decide", _at: Date.now() };
-
     const { data: recheck } = await admin.from("app_state").select("data").eq("id", "shl_v5").maybeSingle();
     if (recheck?.data?._at !== knownAt) continue; // aradan biri yazdı — yeniden oku + yeniden hesapla
 
@@ -133,16 +199,16 @@ serve(async (req) => {
     if (writeErr) return json({ ok: false, error: writeErr.message }, 500);
 
     let inviteSent = false;
-    if (result.inviteEligible) {
-      const team = (merged.teams || []).find((t: any) => t.id === offer.teamId);
-      inviteSent = await sendInviteEmail(offer.email, offer.fullName, team?.name || offer.teamId);
+    if (action === "join" && result.inviteEligible) {
+      const team = (merged.teams || []).find((t: any) => t.id === result.offer.teamId);
+      inviteSent = await sendInviteEmail(result.offer.email, result.offer.fullName, team?.name || result.offer.teamId);
     }
 
-    const mainReport = await notifyMain(offer.hubCandidateId, decision, note || null);
-
+    const main = await callMain(mainPayloadFor(action as OfferAction, result.offer, note));
     return json({
-      ok: true, decision, userId: result.userId, created: result.created, inviteSent,
-      hrNotified: mainReport.ok, hrNotifyError: mainReport.ok ? undefined : mainReport.error,
+      ok: true, action, status: result.offer.status, userId: result.userId, created: result.created,
+      inviteSent, gateMailSent,
+      hrNotified: main.ok, hrNotifyError: main.ok ? undefined : main.error,
     });
   }
 

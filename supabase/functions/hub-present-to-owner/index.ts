@@ -12,6 +12,13 @@
 //
 // Yetki: çağıranın JWT'si iletilir; hub_role() cofounder|recruiter olmalı
 // (hub-move-to-team ile AYNI desen).
+//
+// 2026-10-04 (Adım 4/5) — üye hattında sunma artık Kapı A'dan ÖNCE (görüşme
+// sonrası). Teklife adayın ilgi alanı (kurucunun şablon kategorisi) ve
+// recruiter'ın önerdiği şablon da gider; aday owner_stage='presented' olur.
+// İstisnai (yalnızca cofounder, Bölüm I — kurucu uzun süre cevap vermezse):
+//   action 'withdraw'   → sunumu geri çek (Team App teklifi 'withdrawn')
+//   action 'owner_fail' → "Kapı A sonucu: reddet" (teklif 'rejected', HR'da ret)
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -34,7 +41,7 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
-    const { candidateId } = await req.json();
+    const { candidateId, action = "present", note = null } = await req.json();
     if (!candidateId) return json({ error: "candidateId zorunlu" }, 400);
 
     const asUser = createClient(SUPABASE_URL, ANON_KEY, {
@@ -47,6 +54,37 @@ serve(async (req) => {
     }
 
     const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+
+    if (action === "withdraw" || action === "owner_fail") {
+      if (role !== "cofounder") return json({ error: "Bu istisnai işlem yalnızca cofounder'a açık." }, 403);
+      if (!note || String(note).trim().length < 5) return json({ error: "Gerekçe zorunlu." }, 400);
+      if (!HUB_BRIDGE_SECRET) return json({ error: "HUB_BRIDGE_SECRET tanımlı değil." }, 500);
+      const { data: c0 } = await db.from("hub_candidates").select("id, presented_at").eq("id", candidateId).single();
+      if (!c0?.presented_at) return json({ error: "Aday sunulmamış." }, 400);
+      const close = await fetch(`${TEAM_PROJECT_URL}/functions/v1/hub-bridge-present-candidate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hub-bridge-key": HUB_BRIDGE_SECRET },
+        body: JSON.stringify({ action: "close", hubCandidateId: candidateId, status: action === "withdraw" ? "withdrawn" : "rejected", note }),
+        signal: AbortSignal.timeout(8000),
+      });
+      const cb = await close.json().catch(() => null);
+      if (!close.ok || !cb?.ok) return json({ error: cb?.error || `Team App teklifi kapatılamadı (${close.status})` }, 502);
+      if (action === "withdraw") {
+        const { error } = await db.from("hub_candidates")
+          .update({ owner_decision: null, owner_decision_note: String(note).trim(), owner_stage: "withdrawn" }).eq("id", candidateId);
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true, action });
+      }
+      // owner_fail → hub-owner-decision ile AYNI ret yolu (gate kapanır + rol yeniden açılır)
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/hub-owner-decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hub-bridge-key": HUB_BRIDGE_SECRET },
+        body: JSON.stringify({ hubCandidateId: candidateId, decision: "rejected", note: "[HR istisnai ret] " + String(note).trim() }),
+      });
+      const rb = await r.json().catch(() => null);
+      if (!r.ok || !rb?.ok) return json({ error: rb?.error || `hub-owner-decision ${r.status}` }, 502);
+      return json({ ok: true, action, warnings: rb.warnings || [] });
+    }
 
     const { data: cand, error: ce } = await db.from("hub_candidates").select("*").eq("id", candidateId).single();
     if (ce || !cand) return json({ error: "Aday bulunamadı." }, 404);
@@ -74,6 +112,8 @@ serve(async (req) => {
         phone: cand.phone || null,
         roleTitle: roleRow.title || null,
         note: cand.why_this_one || null,
+        category: cand.interest || null,
+        suggestedTemplateId: cand.suggested_gate_template_id || null,
       }),
       signal: AbortSignal.timeout(8000),
     });
@@ -82,7 +122,7 @@ serve(async (req) => {
 
     const now = new Date().toISOString();
     const { error: ue } = await db.from("hub_candidates")
-      .update({ presented_at: now, owner_decision: "pending", owner_decision_note: null })
+      .update({ presented_at: now, owner_decision: "pending", owner_decision_note: null, owner_stage: "presented" })
       .eq("id", candidateId);
     if (ue) return json({ error: ue.message }, 500);
 

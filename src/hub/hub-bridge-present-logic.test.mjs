@@ -92,5 +92,22 @@ import { offerMailRecipients, offerNotifyMail } from "../../supabase/functions/h
   console.log("ok — kurucuya bildirim maili (alıcı + metin)");
 }
 
+// ── Adım 4: kategori/öneri taşınır, aktif teklif tekrar açılmaz, HR kapatması ──
+import { computeOfferClosePatch } from "../../supabase/functions/hub-bridge-present-candidate/logic.ts";
+{
+  const p = { teamId: "A", hubCandidateId: "h9", fullName: "Ece", email: "e@x.com", category: "mobile", suggestedTemplateId: "t1" };
+  const r = computeOfferPresentPatch(baseSnapshot(), p);
+  const o = r.snapshot.candidateOffers[0];
+  check("A1 kategori + önerilen şablon teklife yazıldı", o.category === "mobile" && o.suggestedTemplateId === "t1");
+  const inGate = baseSnapshot({ candidateOffers: [{ ...o, status: "gate" }] });
+  const again = computeOfferPresentPatch(inGate, p);
+  check("A2 Kapı A'daki aday için ikinci sunum yeni kayıt açmaz", again.alreadyPending === true && again.snapshot.candidateOffers.length === 1);
+  const c = computeOfferClosePatch(inGate, { hubCandidateId: "h9", status: "rejected", note: "kurucu 10 gündür cevap vermedi" });
+  check("A3 HR kapatması aktif teklifi kapatır", c.ok && !c.noop && c.snapshot.candidateOffers[0].status === "rejected" && c.snapshot.candidateOffers[0].closedByHr === true);
+  const none = computeOfferClosePatch(baseSnapshot(), { hubCandidateId: "yok", status: "withdrawn" });
+  check("A4 teklif yoksa noop", none.ok && none.noop === true);
+  check("A5 geçersiz status", computeOfferClosePatch(inGate, { hubCandidateId: "h9", status: "x" }).ok === false);
+}
+
 console.log(failures === 0 ? "\nTÜM TESTLER GEÇTİ" : `\n${failures} TEST BAŞARISIZ`);
 process.exit(failures === 0 ? 0 : 1);

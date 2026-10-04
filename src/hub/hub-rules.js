@@ -268,6 +268,13 @@ export function nextAction(candidate, touches = [], gates = []) {
   const c = candidate || {};
   const mine = (arr) => (arr || []).filter((x) => x.candidateId === c.id);
 
+  // 0057 (Adım 4/5) — üye hattında aday kurucuya önerildiyse aksiyon kurucuda;
+  // kurucu reddettiyse / sunum geri çekildiyse HR'ın işi nazik ret maili.
+  if ((c.track || DEFAULT_TRACK) === 'member' && c.ownerStage && c.stage !== 'member' && c.stage !== 'archived') {
+    if (['presented', 'interview', 'gate', 'gate_passed'].includes(c.ownerStage)) return { key: 'owner', label: 'Kurucuda' };
+    if (c.ownerStage === 'rejected') return { key: 'reject_mail', label: 'Ret maili gönder' };
+  }
+
   switch (c.stage) {
     case 'pool':
       return { key: 'message', label: 'Mesaj at' };

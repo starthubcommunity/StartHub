@@ -71,6 +71,9 @@ export function mapCandidateToDb(c) {
     presented_at:        c.presentedAt       ?? null,
     owner_decision:      c.ownerDecision     ?? null,
     owner_decision_note: c.ownerDecisionNote ?? null,
+    // 0057 — owner_stage BİLİNÇLİ OLARAK yazılmaz: yalnızca sunucu (hub-present-to-owner /
+    // hub-owner-decision) yazar; HR'ın eski bir yerel kopyası kurucunun ilerlemesini ezmesin.
+    suggested_gate_template_id: orUndef(c.suggestedGateTemplateId),
     // puanlama (score_total generated — gönderilmez)
     score_finishing:     c.scoreFinishing     ?? null,
     score_communication: c.scoreCommunication ?? null,
@@ -153,6 +156,8 @@ export function mapCandidateFromDb(r) {
     presentedAt:       r.presented_at        ?? null,
     ownerDecision:     r.owner_decision      ?? null,
     ownerDecisionNote: r.owner_decision_note ?? null,
+    ownerStage:        r.owner_stage ?? null,
+    suggestedGateTemplateId: r.suggested_gate_template_id ?? null,
     // puanlama
     scoreFinishing:     r.score_finishing     ?? null,
     scoreCommunication: r.score_communication ?? null,

@@ -15,7 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { isStale, thresholdMet, rubricCompleteFor, gateStatus } from '../hub-rules';
-import { STAGE_LABEL, STAGES, INTEREST_LABEL, SOURCE_LABEL } from '../hub-constants';
+import { STAGE_LABEL, STAGES, INTEREST_LABEL, SOURCE_LABEL, OWNER_ACTIVE_STAGES } from '../hub-constants';
 import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
 import { intervalToDays } from '../hub-metrics';
 import { EMPTY_FILTERS } from '../hub-filter';
@@ -362,7 +362,16 @@ export default function TodayPage({ onGoto, setFilters }) {
     .filter((x) => x.c && x.c.stage === 'contact');
 
   const openRoleOf = (c) => openRoles.find((r) => r.id === c.openRoleId) || null;
+  // 0057 (Adım 4/5) — üye adayı kurucunun (Team App) elindeyse HR'ın işi değil;
+  // yalnızca kurucu uzun süre cevap vermezse "takılı" olarak hatırlatılır.
+  const ownerHeld = (c) => (c.track || 'founder') === 'member' && OWNER_ACTIVE_STAGES.includes(c.ownerStage);
+  const OWNER_NUDGE_DAYS = 3;
+  const ownerStuck = candidates.filter((c) => ownerHeld(c) && (c.ownerStage === 'presented' || c.ownerStage === 'interview')
+    && c.presentedAt && now - new Date(c.presentedAt).getTime() > OWNER_NUDGE_DAYS * 86400000);
+  const ownerRejected = candidates.filter((c) => (c.track || 'founder') === 'member'
+    && (c.ownerStage === 'rejected' || c.ownerStage === 'withdrawn') && c.stage !== 'archived' && c.stage !== 'member');
   const decisionReady = candidates.filter((c) => {
+    if (ownerHeld(c) || c.ownerStage === 'rejected' || c.ownerStage === 'withdrawn') return false;
     if (c.presentedAt && (!c.ownerDecision || c.ownerDecision === 'pending')) {
       return !myStartups.length || (c.startupId != null && myStartups.includes(c.startupId)) || can('present');
     }
@@ -375,7 +384,7 @@ export default function TodayPage({ onGoto, setFilters }) {
     .filter((x) => x.c);
 
   const stale = candidates
-    .filter((c) => c.stage !== 'archived' && c.stage !== 'member')
+    .filter((c) => c.stage !== 'archived' && c.stage !== 'member' && !ownerHeld(c))
     .map((c) => ({ c, s: isStale(c, now) }))
     .filter((x) => x.s.stale);
 
@@ -397,9 +406,20 @@ export default function TodayPage({ onGoto, setFilters }) {
   // Yedi ayrı kaynak, TEK aciliyet-sıralı listeye toplanır. urgency küçük = daha acil.
   const todos = useMemo(() => {
     const rows = [];
-    dueGates.forEach(({ g, c }) => rows.push({
+    dueGates.forEach(({ g, c }) => rows.push(ownerHeld(c) ? {
+      id: `gate-${g.id}`, c, kind: 'Kurucuda', tone: 'amber',
+      meta: `Kapı A vadesi ${fmt(g.dueAt)} doldu · kurucu henüz değerlendirmedi`, urgency: 2, sortAt: g.dueAt,
+    } : {
       id: `gate-${g.id}`, c, kind: 'Kapı', tone: 'red',
       meta: `Kapı ${g.gate} · vade ${fmt(g.dueAt)}`, urgency: 0, sortAt: g.dueAt,
+    }));
+    ownerRejected.forEach((c) => rows.push({
+      id: `orej-${c.id}`, c, kind: 'Ret maili', tone: 'red',
+      meta: c.ownerStage === 'withdrawn' ? 'sunum geri çekildi · adaya bilgi ver' : 'kurucu reddetti · adaya nazik ret maili gönder', urgency: 1,
+    }));
+    ownerStuck.forEach((c) => rows.push({
+      id: `ostuck-${c.id}`, c, kind: 'Kurucuda', tone: 'amber',
+      meta: `${Math.floor((now - new Date(c.presentedAt).getTime()) / 86400000)} gündür kurucunun kararı bekleniyor`, urgency: 2,
     }));
     dueFollowUps.forEach(({ t, c }) => rows.push({
       id: `fu-${t.id}`, c, kind: 'Takip', tone: 'amber',
@@ -429,7 +449,7 @@ export default function TodayPage({ onGoto, setFilters }) {
     }));
     return rows.sort((a, b) => a.urgency - b.urgency
       || (a.sortAt && b.sortAt ? new Date(a.sortAt) - new Date(b.sortAt) : 0));
-  }, [dueGates, dueFollowUps, decisionReady, founderLeads, toSend, stale, roleReminders]);
+  }, [dueGates, dueFollowUps, decisionReady, founderLeads, toSend, stale, roleReminders, ownerRejected, ownerStuck]);
 
   // ── Referans görsel için yeni türetilmiş veriler — HEPSİ gerçek, uydurma yok ──
   const activeCandidates = useMemo(() => candidates.filter((c) => c.stage !== 'archived'), [candidates]);

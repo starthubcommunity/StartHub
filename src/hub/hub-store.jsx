@@ -11,7 +11,7 @@ import { supabase } from '../lib/supabase';
 import { HUB_TABLES } from './hub-mappers';
 import { roleStatusAfterReject, inheritedTrack, undoPlan } from './hub-rules';
 import { findDuplicate } from './hub-parse';
-import { STAGE_ORDER } from './hub-constants';
+import { STAGE_ORDER, OWNER_ACTIVE_STAGES } from './hub-constants';
 
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
 // v2: roleLog / views / sources düştü (menüde yok). interviews tek aday için
@@ -113,6 +113,13 @@ export function HubStoreProvider({ children }) {
     const current = (data[collection] || []).find((it) => it.id === id) || {};
     const dbRecord = entry.toDb({ ...current, ...updates });
     delete dbRecord.id; // PK asla güncellenmez
+    // 0057 (Adım 4/5) — üye adayı kurucunun (Team App) elindeyken aşama/karar
+    // alanlarını SUNUCU yönetir (hub-owner-decision). HR'daki eski bir yerel
+    // kopyadan yapılan ilgisiz bir düzenleme (not, puan…) onları geri almasın.
+    if (collection === 'candidates' && OWNER_ACTIVE_STAGES.includes(current.ownerStage)) {
+      ['stage', 'stage_changed_at', 'owner_decision', 'owner_decision_note', 'presented_at', 'startup_id']
+        .forEach((k) => { delete dbRecord[k]; });
+    }
     return supabase.from(entry.table).update(dbRecord).eq('id', id).select().single()
       .then(({ data: row, error }) => {
         if (error) throw new Error(error.message);
@@ -472,7 +479,21 @@ export function HubStoreProvider({ children }) {
       throw new Error(error?.message || res?.error || 'Sunulamadı.');
     }
     const now = new Date().toISOString();
-    patchLocal('candidates', candidateId, { presentedAt: now, ownerDecision: 'pending', ownerDecisionNote: null });
+    patchLocal('candidates', candidateId, { presentedAt: now, ownerDecision: 'pending', ownerDecisionNote: null, ownerStage: 'presented' });
+    return res;
+  }, [patchLocal]);
+
+  // 0057 (Adım 4/5) — istisnai, yalnızca cofounder (Bölüm I): kurucu uzun süre
+  // cevap vermezse sunumu geri çek ('withdraw') ya da "Kapı A sonucu: reddet"
+  // ('owner_fail'). Sunucu Team App teklifini de kapatır. Gerekçe zorunlu.
+  const ownerException = useCallback(async (candidateId, action, note) => {
+    const { data: res, error } = await supabase.functions.invoke('hub-present-to-owner', {
+      body: { candidateId, action, note },
+    });
+    if (error || res?.error) throw new Error(res?.error || error?.message || 'İşlem başarısız.');
+    patchLocal('candidates', candidateId, action === 'withdraw'
+      ? { ownerDecision: null, ownerDecisionNote: note, ownerStage: 'withdrawn' }
+      : { ownerDecision: 'rejected', ownerDecisionNote: '[HR istisnai ret] ' + note, ownerStage: 'rejected' });
     return res;
   }, [patchLocal]);
 
@@ -628,7 +649,7 @@ export function HubStoreProvider({ children }) {
     sendTouch, markReplied, replyAndAdvance, undoLastStage, undoSend, sendCandidateMail,
     startGate, markGate, extendGate, moveToTeam,
     importCandidates, purgeCandidate,
-    advanceRole, presentCandidate, ownerDecide, presentToOwner, linkCandidateRole,
+    advanceRole, presentCandidate, ownerDecide, presentToOwner, ownerException, linkCandidateRole,
   };
 
   // Konsoldan aday ekle/güncelle/sil denemesi için (yalnızca geliştirme).

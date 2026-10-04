@@ -16,7 +16,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { computeOfferPresentPatch, offerMailRecipients, offerNotifyMail } from "./logic.ts";
+import { computeOfferPresentPatch, computeOfferClosePatch, offerMailRecipients, offerNotifyMail } from "./logic.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -68,6 +68,19 @@ serve(async (req) => {
     if (readErr || !cur || !cur.data) return json({ ok: false, error: readErr?.message || "mevcut satır okunamadı" }, 500);
 
     const knownAt = cur.data._at;
+
+    // Adım 4 — HR'dan istisnai kapatma (geri çekme / Kapı A'da ret). Mail yok.
+    if (payload?.action === "close") {
+      const closed: any = computeOfferClosePatch(cur.data, payload);
+      if (!closed.ok) return json(closed, 400);
+      if (closed.noop) return json({ ok: true, noop: true });
+      const { data: again } = await admin.from("app_state").select("data").eq("id", "shl_v5").maybeSingle();
+      if (again?.data?._at !== knownAt) continue;
+      const { error: wErr } = await admin.from("app_state").upsert({ id: "shl_v5", data: { ...closed.snapshot, _by: "hub-bridge", _at: Date.now() } });
+      if (wErr) return json({ ok: false, error: wErr.message }, 500);
+      return json({ ok: true, offerId: closed.offerId });
+    }
+
     const result = computeOfferPresentPatch(cur.data, payload);
     if (!result.ok) return json(result, result.error?.includes("zorunlu") ? 400 : 404);
 

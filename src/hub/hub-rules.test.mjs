@@ -626,4 +626,21 @@ t('applyFilters: ilgi alanı kutucukları (interest) — çoklu seçim + boş = 
   assert.equal(countActiveFilters({ interest: ['frontend', 'backend'] }), 2);
 });
 
+// ── 0057 (Adım 4/5): üye hattında aksiyon kurucuda ──────────────────
+t('nextAction: kurucuya önerilen üye adayı → "Kurucuda" (HR\'ın işi değil)', () => {
+  for (const st of ['presented', 'interview']) assert.equal(nextAction(cand({ stage: 'interview', track: 'member', ownerStage: st })).key, 'owner');
+  for (const st of ['gate', 'gate_passed']) assert.equal(nextAction(cand({ stage: 'trial', track: 'member', ownerStage: st }), [], [{ candidateId: undefined }]).key, 'owner');
+});
+t('nextAction: kurucu reddetti → "Ret maili gönder"; arşivde/ekipte null', () => {
+  assert.equal(nextAction(cand({ stage: 'trial', track: 'member', ownerStage: 'rejected' })).key, 'reject_mail');
+  assert.equal(nextAction(cand({ stage: 'archived', track: 'member', ownerStage: 'rejected' })), null);
+  assert.equal(nextAction(cand({ stage: 'member', track: 'member', ownerStage: 'joined' })), null);
+});
+t('nextAction: kurucu hattı ownerStage\'den etkilenmez (süreç HR\'da)', () => {
+  assert.equal(nextAction(cand({ stage: 'trial', track: 'founder', ownerStage: 'gate' })).key, 'start_gate');
+});
+t('nextAction: geri çekilen üye adayı yeniden karar bekler', () => {
+  assert.notEqual(nextAction(cand({ stage: 'interview', track: 'member', ownerStage: 'withdrawn' })).key, 'owner');
+});
+
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

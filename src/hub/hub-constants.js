@@ -169,6 +169,21 @@ export const OWNER_DECISIONS = [
 ];
 export const OWNER_DECISION_LABEL = toLabelMap(OWNER_DECISIONS);
 
+// 0057 (Adım 4/5) — üye hattında kurucunun (Team Lead) süreç durumu.
+// Yalnızca sunucu yazar; HR'da salt okunur gösterilir.
+export const OWNER_STAGES = [
+  { value: 'presented',   label: 'Kurucuya önerildi — kararı bekleniyor' },
+  { value: 'interview',   label: 'Kurucu kendisi görüşecek' },
+  { value: 'gate',        label: 'Kapı A kurucudan gönderildi' },
+  { value: 'gate_passed', label: 'Kapı A yeterli bulundu — ekibe alım bekleniyor' },
+  { value: 'joined',      label: 'Kurucu ekibe aldı' },
+  { value: 'rejected',    label: 'Kurucu reddetti' },
+  { value: 'withdrawn',   label: 'Sunum geri çekildi' },
+];
+export const OWNER_STAGE_LABEL = toLabelMap(OWNER_STAGES);
+// Kurucunun elinde olan (HR'ın aksiyonu bitmiş) durumlar.
+export const OWNER_ACTIVE_STAGES = ['presented', 'interview', 'gate', 'gate_passed'];
+
 // ─── Bayatlama sayacı (v2 §12 — istemcide isStale()) ──────────────
 // ⚠️ updated_at ASLA referans değildir. Yalnızca stageChangedAt ve
 // lastContactAt. Listede olmayan aşamada bayatlama yok.

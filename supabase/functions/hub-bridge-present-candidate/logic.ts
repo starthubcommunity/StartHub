@@ -18,6 +18,9 @@ export interface PresentPayload {
   phone?: string | null;
   roleTitle?: string | null;
   note?: string | null;
+  // Adım 4 — kurucunun Kapı A şablon seçicisi için (Bölüm H)
+  category?: string | null;
+  suggestedTemplateId?: string | null;
 }
 
 export interface PresentResult {
@@ -28,6 +31,9 @@ export interface PresentResult {
   alreadyPending?: boolean;
 }
 
+// Kurucunun hâlâ karar sürecinde olduğu durumlar (hub-team-decide-offer/logic.ts ile aynı küme).
+const ACTIVE = ["pending", "interview", "gate", "gate_passed"];
+
 function effRole(u: any, tid: string): string {
   return (u.teamRoles && u.teamRoles[tid]) || u.role;
 }
@@ -35,7 +41,7 @@ function effRole(u: any, tid: string): string {
 // snapshot'ın DIŞINDAKİ hiçbir alana dokunulmaz — yalnızca candidateOffers
 // üretilir/güncellenir, geri kalanı olduğu gibi spread edilir.
 export function computeOfferPresentPatch(snapshot: any, payload: PresentPayload): PresentResult {
-  const { teamId, hubCandidateId, fullName, email, phone, roleTitle, note } = payload || ({} as PresentPayload);
+  const { teamId, hubCandidateId, fullName, email, phone, roleTitle, note, category, suggestedTemplateId } = payload || ({} as PresentPayload);
 
   const errors: string[] = [];
   if (!teamId) errors.push("teamId zorunlu");
@@ -49,7 +55,7 @@ export function computeOfferPresentPatch(snapshot: any, payload: PresentPayload)
 
   const offers: any[] = snapshot.candidateOffers || [];
   const existing = offers.find(
-    (o) => o.hubCandidateId === hubCandidateId && o.teamId === teamId && o.status === "pending"
+    (o) => o.hubCandidateId === hubCandidateId && o.teamId === teamId && ACTIVE.includes(o.status)
   );
   if (existing) {
     // İdempotent — aynı aday için ikinci "sun" tıklaması yeni kayıt açmaz.
@@ -65,6 +71,8 @@ export function computeOfferPresentPatch(snapshot: any, payload: PresentPayload)
     phone: phone || null,
     roleTitle: roleTitle || null,
     note: note || null,
+    category: category || null,
+    suggestedTemplateId: suggestedTemplateId || null,
     status: "pending",
     createdAt: Date.now(),
     decidedAt: null,
@@ -126,4 +134,19 @@ export function offerNotifyMail(teamName: string, payload: PresentPayload, recip
     "StartHub",
   );
   return { subject, body: lines.join("\n") };
+}
+
+// ── Adım 4: HR tarafından kapatma (istisnai — kurucu cevap vermiyorsa) ────
+// 'withdrawn': cofounder sunumu geri çekti. 'rejected': cofounder Kapı A'yı
+// istisnai olarak reddetti (Bölüm I — "yedek/istisnai" ret). Aktif olmayan
+// teklif tekrar kapatılmaz; teklif yoksa (hiç sunulmamış) ok + noop.
+export function computeOfferClosePatch(snapshot: any, p: { hubCandidateId: string; status: "withdrawn" | "rejected"; note?: string | null; now?: number }) {
+  if (!p?.hubCandidateId) return { ok: false, error: "hubCandidateId zorunlu" };
+  if (p.status !== "withdrawn" && p.status !== "rejected") return { ok: false, error: "status 'withdrawn' ya da 'rejected' olmalı" };
+  const offers: any[] = snapshot.candidateOffers || [];
+  const target = offers.find((o) => o.hubCandidateId === p.hubCandidateId && ACTIVE.includes(o.status));
+  if (!target) return { ok: true, noop: true, snapshot };
+  const now = p.now ?? Date.now();
+  const closed = { ...target, status: p.status, closedByHr: true, rejectNote: p.note || null, decidedAt: now, log: [...(target.log || []), { at: now, by: "hr", action: p.status }] };
+  return { ok: true, noop: false, offerId: target.id, snapshot: { ...snapshot, candidateOffers: offers.map((o) => (o.id === target.id ? closed : o)) } };
 }
