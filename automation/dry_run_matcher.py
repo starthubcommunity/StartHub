@@ -127,6 +127,25 @@ def main():
 
     print(f"\nFiltre gevşetme tetiklenme sayısı (YENİ): {dict(relax_hits) or 0}")
 
+    print("\nKATEGORİ UYUM ORANI (YENİ; seçilen görsel makalenin kategorisi/alias'ı):")
+    fit_by_cat = {}
+    for (slug, _, cat, res) in new_picks:
+        img = res["image"]
+        ok = im._is_same_category(cat, img.get("category") or "")
+        f, t = fit_by_cat.get(cat, (0, 0))
+        fit_by_cat[cat] = (f + int(ok), t + 1)
+    for cat, (f, t) in sorted(fit_by_cat.items()):
+        print(f"  {cat}: {f}/{t} ({100 * f / t:.0f}%)")
+
+    print("\nYATIRIM (bg=yeşil) yazılarında seçilen görseller:")
+    dist = Counter()
+    for (slug, _, cat, res) in new_picks:
+        if cat == "Yatırım":
+            img = res["image"]
+            dist[(img.get("category"), img.get("visual_type"), bool(img.get("is_generic")))] += 1
+    for (c, vt, g), n in dist.most_common():
+        print(f"  {n}x kategori={c} tip={vt} klişe={g}")
+
     print("\nÖRNEK 10 YAZI — ESKİ vs YENİ:")
     for (slug, old_id, cat), (_, new_id, _, res) in list(zip(old_picks, new_picks))[-10:]:
         print(f"  [{cat}] {slug[:60]}")

@@ -74,6 +74,23 @@ def test_recent_post_image_is_excluded_and_relaxes_when_no_alternative():
     assert res2["relaxed_count"] >= 1
 
 
+def test_category_fit_beats_stronger_off_category_image():
+    images = [
+        img(1, category="Teknoloji", tags=["xyz"]),
+        img(2, category="Genel", tags=["robot", "yapay zeka"]),
+    ]
+    res = im.select_image(text("Robot ve yapay zeka haberi"), "Teknoloji", images, [], NOW)
+    assert res["image"]["id"] == 1
+    assert "category_fit" in res["reason"]["filters_applied"]
+
+
+def test_category_fit_relaxes_when_no_fitting_image_exists():
+    images = [img(1, category="Genel", tags=["robot"]), img(2, category="Fon", tags=["yatirim"])]
+    res = im.select_image(text("robot haberi"), "Teknoloji", images, [], NOW)
+    assert res["image"]["id"] == 1
+    assert "category_fit" in res["reason"]["filters_relaxed"]
+
+
 def test_visual_window_scales_with_stock_size():
     assert im.visual_window(47) == 3
     assert im.visual_window(70) == 4

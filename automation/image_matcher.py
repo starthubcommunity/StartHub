@@ -165,6 +165,8 @@ def select_image(text: str, article_category: str, images: list[dict], history: 
     }
 
     filters = [
+        # Kategori uyumu (doğrudan veya alias) skordan önce gelir: uyumlu aday varken uyumsuz görsel seçilmez.
+        ("category_fit", lambda img: _is_same_category(article_category, img.get("category") or "")),
         ("recent_posts", lambda img: img["id"] not in recent_ids),
         ("over_used_30d", lambda img: uses_30.get(img["id"], 0) < config.MAX_USES_IN_WINDOW),
         ("recent_visual_type", lambda img: not img.get("visual_type") or img["visual_type"] not in recent_types),
