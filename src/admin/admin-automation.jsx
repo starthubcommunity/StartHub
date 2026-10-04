@@ -23,6 +23,19 @@ const ALL_CATEGORIES = ['AI', 'Teknoloji', 'Girişim', 'Yatırım', 'Fintech', '
 // makale kategorilerine (AI/Girişim/Teknoloji/Yatırım) eşleniyor.
 const IMAGE_STOCK_CATEGORIES = ['Fon', 'Yapay Zeka', 'Girişim', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık', 'Teknoloji', 'Ortaklık', 'Genel'];
 
+// image_stock.visual_type — görselin ne gösterdiği (eşleştirmede tekrar/çeşitlilik kuralı bunu kullanır).
+const VISUAL_TYPES = [
+  ['el_sikisma', 'El sıkışma'], ['ofis_toplanti', 'Ofis / toplantı'], ['grafik_borsa', 'Grafik / borsa'],
+  ['para_finans', 'Para / finans'], ['robot_ai', 'Robot / yapay zeka'], ['cip_donanim', 'Çip / donanım'],
+  ['kod_ekran', 'Kod / ekran'], ['cihaz_telefon', 'Cihaz / telefon'], ['veri_merkezi', 'Veri merkezi'],
+  ['sehir_bina', 'Şehir / bina'], ['arac_enerji', 'Araç / enerji'], ['insan_portre', 'İnsan / portre'],
+  ['laboratuvar', 'Laboratuvar'], ['soyut_diger', 'Soyut / diğer'],
+];
+const VISUAL_TYPE_LABEL = Object.fromEntries(VISUAL_TYPES);
+
+// config.py'deki GENERIC_TAGS ile aynı liste — yalnızca uyarı için (engelleme yok).
+const GENERIC_TAG_HINTS = ['is', 'yatirim', 'girisim', 'basari', 'buyume', 'anlasma', 'ortaklik', 'teknoloji', 'ekonomi', 'sirket', 'para'];
+
 const TABS = [
   { id: 'drafts',      label: 'Taslaklar',    icon: 'layers'   },
   { id: 'imagestock',  label: 'Görsel Stoğu', icon: 'image'    },
@@ -135,7 +148,7 @@ function AutomationPage() {
   const [imageStock,   setImageStock]   = useState([]);
   const [imgLoading,   setImgLoading]   = useState(true);
   const [imgModal,     setImgModal]     = useState(null); // null | {mode:'add'} | {mode:'edit',row}
-  const [imgForm,      setImgForm]      = useState({ url: '', category: '', tags: [], alt_tr: '', alt_en: '' });
+  const [imgForm,      setImgForm]      = useState({ url: '', category: '', tags: [], alt_tr: '', alt_en: '', visual_type: '', is_generic: false, license: '', source_url: '' });
   const [imgSaving,    setImgSaving]    = useState(false);
 
   const loadImageStock = useCallback(async () => {
@@ -148,15 +161,16 @@ function AutomationPage() {
   }, [flash]);
 
   const openAddImage = () => {
-    setImgForm({ url: '', category: '', tags: [], alt_tr: '', alt_en: '' });
+    setImgForm({ url: '', category: '', tags: [], alt_tr: '', alt_en: '', visual_type: '', is_generic: false, license: '', source_url: '' });
     setImgModal({ mode: 'add' });
   };
   const openEditImage = (row) => {
-    setImgForm({ url: row.url, category: row.category || '', tags: row.tags || [], alt_tr: row.alt_tr || '', alt_en: row.alt_en || '' });
+    setImgForm({ url: row.url, category: row.category || '', tags: row.tags || [], alt_tr: row.alt_tr || '', alt_en: row.alt_en || '', visual_type: row.visual_type || '', is_generic: !!row.is_generic, license: row.license || '', source_url: row.source_url || '' });
     setImgModal({ mode: 'edit', row });
   };
   const saveImage = async () => {
     if (!imgForm.url) { flash('Önce bir görsel yükleyin.', 'orange'); return; }
+    if (!imgForm.visual_type) { flash('Görsel tipini seçin.', 'orange'); return; }
     setImgSaving(true);
     const payload = {
       url: imgForm.url,
@@ -164,6 +178,10 @@ function AutomationPage() {
       tags: imgForm.tags,
       alt_tr: imgForm.alt_tr || null,
       alt_en: imgForm.alt_en || null,
+      visual_type: imgForm.visual_type,
+      is_generic: !!imgForm.is_generic,
+      license: imgForm.license || null,
+      source_url: imgForm.source_url || null,
     };
     if (imgModal.mode === 'add') {
       const { error } = await supabase.from('image_stock').insert(payload);
@@ -882,6 +900,27 @@ function AutomationPage() {
               <AIcon name="plus" size={15} /> Görsel Ekle
             </button>
           </div>
+          {imageStock.length > 0 && (() => {
+            const byType = {};
+            VISUAL_TYPES.forEach(([k]) => { byType[k] = { n: 0, generic: 0 }; });
+            imageStock.forEach(r => {
+              const k = r.visual_type || '(tanımsız)';
+              byType[k] = byType[k] || { n: 0, generic: 0 };
+              byType[k].n += 1;
+              if (r.is_generic) byType[k].generic += 1;
+            });
+            const byCat = {};
+            imageStock.forEach(r => { const k = r.category || '(yok)'; byCat[k] = (byCat[k] || 0) + 1; });
+            return (
+              <div className="adm-card" style={{ marginBottom: 16 }}>
+                <div className="adm-card__header"><h3>Stok özeti</h3></div>
+                <div className="adm-card__body" style={{ fontSize: 13 }}>
+                  <div style={{ marginBottom: 8 }}><strong>Tipe göre:</strong> {Object.entries(byType).filter(([, v]) => v.n > 0).map(([k, v]) => `${VISUAL_TYPE_LABEL[k] || k}: ${v.n}${v.generic ? ` (${v.generic} genel)` : ''}`).join(' · ') || '—'}</div>
+                  <div><strong>Kategoriye göre:</strong> {Object.entries(byCat).map(([k, v]) => `${k}: ${v}`).join(' · ')}</div>
+                </div>
+              </div>
+            );
+          })()}
           <div className="adm-card">
             <div className="adm-card__header"><h3>Görsel Stoğu</h3></div>
             <div className="adm-card__body" style={{ padding: 0 }}>
@@ -1402,7 +1441,36 @@ function AutomationPage() {
             </Field>
             <Field label="Etiketler" hint="Enter ile ekle — örn. anlaşma, el sıkışma, iş insanı, toplantı, yatırım">
               <TagInput tags={imgForm.tags} onChange={v => setImgForm(p => ({ ...p, tags: v }))} />
+              {imgForm.tags.some(t => GENERIC_TAG_HINTS.includes(String(t).toLowerCase().replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c'))) && (
+                <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--adm-orange, #b45309)' }}>
+                  Bu etiketlerden biri çok genel. Görselde görünen somut nesneleri yazın (uyarı — engel değil).
+                </div>
+              )}
             </Field>
+            <div className="adm-form-grid">
+              <Field label="Görsel tipi" hint="Zorunlu — tekrar/çeşitlilik kuralı bunu kullanır">
+                <Select
+                  value={imgForm.visual_type}
+                  onChange={v => setImgForm(p => ({ ...p, visual_type: v }))}
+                  placeholder="Seç..."
+                  options={VISUAL_TYPES.map(([value, label]) => ({ value, label }))}
+                />
+              </Field>
+              <Field label="Klişe / genel görsel" hint="İşaretliyse yalnızca spesifik eşleşme yoksa seçilir">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                  <input type="checkbox" checked={imgForm.is_generic} onChange={e => setImgForm(p => ({ ...p, is_generic: e.target.checked }))} />
+                  Evet, genel bir görsel
+                </label>
+              </Field>
+            </div>
+            <div className="adm-form-grid">
+              <Field label="Lisans" hint="Opsiyonel — örn. Unsplash, Pexels, satın alındı">
+                <Input value={imgForm.license} onChange={v => setImgForm(p => ({ ...p, license: v }))} />
+              </Field>
+              <Field label="Kaynak URL" hint="Opsiyonel">
+                <Input value={imgForm.source_url} onChange={v => setImgForm(p => ({ ...p, source_url: v }))} />
+              </Field>
+            </div>
             <div className="adm-form-grid">
               <Field label="Alt Metin (TR)" hint="Opsiyonel, SEO/erişilebilirlik için">
                 <Input value={imgForm.alt_tr} onChange={v => setImgForm(p => ({ ...p, alt_tr: v }))} />
