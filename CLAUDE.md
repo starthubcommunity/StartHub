@@ -216,6 +216,25 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   (candidate.jsx) Kapı A'da serbest yazı yerine şablon seçici + gün seçici + katlanmış açıklama
   override; Kapı B serbest metin kaldı. Yardımcılar `src/hub/gate-templates.js` (+ `.test.mjs`).
   Team App'teki kurucu seçici Adım 4'te (akış sırası değişince) aynı tabloyu kullanacak.
+- **Adım 3 ✅ — bildirim + çift onaylı mail (migration yok):**
+  - Bilgi maili (tek adım): `hub-bridge-present-candidate` (Team App projesine `--no-verify-jwt` ile
+    deploy edildi) sunma kaydı yazıldıktan SONRA o ekibin lead'(ler)ine — lead yoksa admin'lere —
+    "Sana bir aday önerildi — {rol}" maili atar (aynı projedeki `send-mail`); başarısız olursa sunma
+    düşmez. Alıcı/metin saf fonksiyonlarda (`logic.ts` → `offerMailRecipients`/`offerNotifyMail`, test:
+    `hub-bridge-present-logic.test.mjs` — dosyanın sonundaki `process.exit` yeni testlerden SONRA olmalı).
+  - Team App: zil bildirimi (`candidate_offer`) artık karar penceresini (`offerModal`) doğrudan açar;
+    Team kartındaki Kabul/Ret de aynı pencereye gider. Kabul = karar maili → mail önizlemesi →
+    ayrı "Evet, eminim". Ret → gerekçe zorunlu (≥5 karakter), `hub-owner-decision`'a not olarak gider.
+    Önizleme metni `offerInviteMail()` — `hub-team-decide-offer`'daki `sendInviteEmail` ile AYNI
+    olmalı (biri değişirse diğeri de). Yan düzeltme: `notify(..., "err")` önceden yeşil görünüyordu
+    (yalnızca "warn" tanınıyordu) — artık kırmızı.
+  - HR: `components/mail-confirm.jsx` (`MailSendConfirm`, önizleme → "Evet, eminim", z 1150/1160 —
+    HubWizard 1100'ün üstünde). Adaya giden iki mail yolu da (`DecisionMail` davet/ret, `GateStartForm`
+    Kapı görevi) bundan geçer. Üye hattında e-postasız aday "Proje sahibine sun"amaz (buton pasif).
+  - Team App önizleme yöntemi (oturum gerektirmeden): `dist`'i `vite preview` ile sun, headless Chrome'u
+    `--host-resolver-rules="MAP *.supabase.co 127.0.0.1"` ile aç (canlı veriye istek ÇIKAMAZ), React
+    fiber'da `openOffer` metodu olan nesneyi bul (stateNode'un bir alt alanında), `persist`/
+    `_refreshFromCloud`'u no-op yap, demo state'i `setState` ile ver.
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 

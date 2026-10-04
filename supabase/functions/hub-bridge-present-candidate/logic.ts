@@ -87,3 +87,43 @@ export function computeOfferPresentPatch(snapshot: any, payload: PresentPayload)
   const newSnapshot = { ...snapshot, candidateOffers: newOffers, notifications };
   return { ok: true, snapshot: newSnapshot, offerId: offer.id, alreadyPending: false };
 }
+
+// ── Adım 3 (2026-10-04): kurucuya otomatik bildirim maili ─────────────────
+// Bölüm I, Tetikleyici 1 — "Sana bir aday önerildi". Karar değil BİLGİ maili
+// olduğu için çift onay YOK, sunma anında tek adımda gider. Alıcı: o ekibin
+// lead'i/lead'leri; ekipte lead yoksa admin'ler (aksi halde kimse haberdar
+// olmaz). E-postası olmayan kullanıcı atlanır.
+export function offerMailRecipients(snapshot: any, teamId: string): { id: any; name: string; email: string }[] {
+  const users: any[] = snapshot?.users || [];
+  const withMail = (u: any) => typeof u.email === "string" && u.email.includes("@");
+  const teamsOf = (u: any) => ((u.teams && u.teams.length) ? u.teams : (u.team ? [u.team] : []));
+  const leads = users.filter((u) => withMail(u) && teamsOf(u).includes(teamId) && effRole(u, teamId) === "lead");
+  const pick = leads.length ? leads : users.filter((u) => withMail(u) && u.role === "admin");
+  const seen = new Set<string>();
+  return pick
+    .map((u) => ({ id: u.id, name: u.name || "", email: String(u.email).trim().toLowerCase() }))
+    .filter((u) => (seen.has(u.email) ? false : (seen.add(u.email), true)));
+}
+
+export const TEAM_APP_URL = "https://www.starthub-community.com/team/";
+
+export function offerNotifyMail(teamName: string, payload: PresentPayload, recipientName: string) {
+  const role = payload.roleTitle || "açık rol";
+  const subject = `Sana bir aday önerildi — ${role}`;
+  const lines = [
+    `Merhaba ${recipientName || ""},`.trim(),
+    "",
+    `"${teamName}" ekibi için ${role} rolüne bir aday önerildi: ${payload.fullName}.`,
+  ];
+  if (payload.note) lines.push("", `Neden bu kişi: ${payload.note}`);
+  lines.push(
+    "",
+    `İncelemek ve karar vermek için Ekip Paneli'ne gir — sağ üstteki zil simgesinde bekliyor:`,
+    TEAM_APP_URL,
+    "",
+    "Adayı bekletmemek için 1-2 gün içinde karar vermen önerilir.",
+    "",
+    "StartHub",
+  );
+  return { subject, body: lines.join("\n") };
+}

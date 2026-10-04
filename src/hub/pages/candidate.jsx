@@ -18,6 +18,7 @@ import { fillTemplate } from './templates';
 import { GATE_TEMPLATE_CATEGORIES, DELIVERY_LABEL, DURATION_DAY_OPTIONS, gateCategoryFor, templatesFor, composeGateTask } from '../gate-templates';
 import { generateDraft } from '../hub-ai-draft';
 import HubWizard from '../components/wizard';
+import MailSendConfirm from '../components/mail-confirm';
 import { lastChannel, rememberChannel } from '../hub-channel';
 
 const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunication', capacity: 'scoreCapacity' };
@@ -595,6 +596,16 @@ function DecisionMail({ kind, c, role, openRole, onCancel, onDone, flash }) {
   const [err, setErr] = useState('');
 
   const trialChk = kind === 'invite' ? canAdvance({ ...c, stage: 'interview' }, 'trial', { role, openRole }) : { ok: true };
+  // Adım 3 — mail gidecekse önce önizleme + "Evet, eminim" (Bölüm J).
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const willMail = sendMail && !!c.email;
+  const trigger = () => {
+    if (kind === 'invite' && !trialChk.ok) { setErr(trialChk.reason || 'Eşik sağlanmıyor.'); return; }
+    if (willMail) {
+      if (!subject.trim() || !body.trim()) { setErr('Konu ve metin boş olamaz.'); return; }
+      setErr(''); setConfirmOpen(true);
+    } else run();
+  };
 
   const run = async () => {
     if (kind === 'invite' && !trialChk.ok) { setErr(trialChk.reason || 'Eşik sağlanmıyor.'); return; }
@@ -659,13 +670,17 @@ function DecisionMail({ kind, c, role, openRole, onCancel, onDone, flash }) {
       {err && <div style={{ fontSize: 12, color: 'var(--adm-red)', marginBottom: 8 }}>{err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || (kind === 'invite' && !trialChk.ok)} onClick={run}>
+        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || (kind === 'invite' && !trialChk.ok)} onClick={trigger}>
           {busy ? '…' : kind === 'invite'
             ? (sendMail && c.email ? 'Gönder ve Deneme\'ye al' : 'Mailsiz Deneme\'ye al')
             : (sendMail && c.email ? 'Gönder ve arşivle' : 'Mailsiz arşivle')}
         </button>
         <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={onCancel}>Vazgeç</button>
       </div>
+      <MailSendConfirm open={confirmOpen} to={c.email} toName={c.fullName} subject={subject.trim()} body={body.trim()}
+        actionLabel={kind === 'invite' ? 'Denemeye davet mailini' : 'Ret mailini'}
+        consequence={kind === 'invite' ? 'Gönderilince aday Deneme aşamasına geçer.' : 'Gönderilince aday arşivlenir.'}
+        onSend={run} onClose={() => setConfirmOpen(false)} />
     </div>
   );
 }
@@ -779,6 +794,15 @@ function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
   const autoBody = `Merhaba ${c.fullName || ''},\n\nDeneme adımına geçtik. Kapı ${gate} görevin:\n\n${taskText.trim() || '(görev metni ayrıca paylaşılacak)'}\n\nSon teslim: ${dueLabel}\n\nSorun olursa yaz.\n\nStart-Hub`;
   const effectiveBody = body.trim() ? body : autoBody;
 
+  // Adım 3 — görev maili karar mailidir: önizleme + "Evet, eminim" (Bölüm J).
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const trigger = () => {
+    if (sendMail && c.email) {
+      if (!subject.trim() || !effectiveBody.trim()) { setErr('Konu ve metin boş olamaz.'); return; }
+      setErr(''); setConfirmOpen(true);
+    } else start();
+  };
+
   const start = async () => {
     setBusy(true); setErr('');
     try {
@@ -882,11 +906,15 @@ function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
 
       {err && <div style={{ fontSize: 12, color: 'var(--adm-red)', marginBottom: 8 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={start}>
+        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy} onClick={trigger}>
           {busy ? '…' : (sendMail && c.email ? `Mail gönder ve Kapı ${gate}'yı başlat` : `Kapı ${gate}'yı başlat`)}
         </button>
         <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={onCancel}>Vazgeç</button>
       </div>
+      <MailSendConfirm open={confirmOpen} to={c.email} toName={c.fullName} subject={subject.trim()} body={effectiveBody.trim()}
+        actionLabel={`Kapı ${gate} görev mailini`}
+        consequence={`Gönderilince Kapı ${gate} başlar; son teslim ${durLabel} sonra.`}
+        onSend={start} onClose={() => setConfirmOpen(false)} />
     </div>
   );
 }
@@ -960,7 +988,8 @@ function PresentToOwnerConfirm({ c, store, busy, onCancel, onConfirm }) {
         </select>
       </Field>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || !roleId} onClick={() => onConfirm(roleId)}>
+        <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={busy || !roleId || !c.email} onClick={() => onConfirm(roleId)}
+          title={c.email ? '' : 'Önce adayın e-postasını ekle'}>
           {busy ? '…' : 'Proje sahibine sun'}
         </button>
         <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={busy} onClick={onCancel}>Vazgeç</button>
@@ -1061,9 +1090,18 @@ function TrialSection({ c }) {
         ) : (
           ownerConfirm
             ? <PresentToOwnerConfirm c={c} store={store} busy={busy} onCancel={() => setOwnerConfirm(false)} onConfirm={toOwner} />
-            : <button className="hub-wz__next" style={{ margin: '4px 0 0' }} disabled={busy} onClick={() => setOwnerConfirm(true)}>
-                Proje sahibine sun
-              </button>
+            : <>
+                {/* Adım 3 — Bölüm I: e-posta yoksa sunulamaz (sunucu da reddeder). */}
+                <button className="hub-wz__next" style={{ margin: '4px 0 0' }} disabled={busy || !c.email} onClick={() => setOwnerConfirm(true)}
+                  title={c.email ? '' : 'Önce adayın e-postasını ekle'}>
+                  Proje sahibine sun
+                </button>
+                {!c.email && (
+                  <div style={{ fontSize: 12.5, color: 'var(--adm-red)', marginTop: 6 }}>
+                    Sunmak için adayın e-postası zorunlu — kartın üstündeki “Detay”dan ekle.
+                  </div>
+                )}
+              </>
         )
       )}
       {msg && <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginTop: 8 }}>{msg}</div>}
