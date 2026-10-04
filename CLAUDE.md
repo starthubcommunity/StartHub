@@ -190,6 +190,26 @@ verisi, `type:'project_member'`) `npx supabase db query --linked` ile elle
 silindi (anon key ile DELETE RLS'e takılırdı), ikisi de doğrulandı — hiçbir
 `hub_open_roles`/`posts` kaydı bu projeye referans vermiyordu, temiz silme.
 
+## Pay / vesting (Equity) — 2026-10-04, Adım 1/5
+
+Kaynak belgeler: `Start-Hub_Equity_Governance_Framework.md`, `StartHub_Vesting_Kurallari_ve_Senaryolar.md`,
+`StartHub_Aday_Bulma_Senaryosu.md` (kullanıcı oturuma ekledi, repoda değil). 5 adımlı plan, her adım
+kullanıcı onayıyla: (1) pay tabloları ✅ (2) Kapı A şablonları (3) bildirim + çift onaylı mail
+(4) kurucu/üye ayrımı — üye hattında akış sırası DEĞİŞİYOR: sun → kurucu kabul → Kapı A'yı kurucu
+şablondan atar → değerlendirir → "Ekibe Al" (5) Team App "Payım" + "Genel" kaynak filtresi.
+Kullanıcı kararları: pay verisi ana projede, Team App bir köprü fonksiyonuyla okur (Team App ayrı
+Supabase projesinde oturum açtığı için RLS onu tanımaz); kilometre taşı = sabit +5 puan, zaman
+tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler; sözleşme onay ekranı
+(IP/PDF) bu turda YOK; "Kendim görüşeyim" yalnızca durum işareti.
+- `0052_equity.sql` (canlıda): `equity_seats` (koltuk bütçesi, Kural 4b), `equity_grants` (pay sözü),
+  `equity_milestones`, `equity_events` (Kural 11-12 süreç kaydı + otomatik `audit` satırları,
+  append-only). RLS `has_perm('equity.read'|'equity.manage')` — yalnızca cofounder. Koltuk/söz
+  silinmez. "Şu an ne kadar kazanıldı" DB'de SAKLANMAZ — `src/lib/equity-rules.js` hesaplar
+  (istisna: ayrılınca donan `vested_at_end`). Testler: `node src/lib/equity-rules.test.mjs`.
+- HR › Yönetim › "Pay Sözleri" (`src/hub/pages/equity.jsx`).
+- **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
+  (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
+
 ## Kurucu Hattı / İnsan Kaynağı (`/HR/`)
 
 Yapım şartnamesi: **`HUB_SPEC.md`** — artık **v3** (v2'nin canlı kullanımından
