@@ -9,6 +9,7 @@ import { AIcon, Modal, Field, Input, Textarea, Select, ConfirmDialog } from '../
 import { useHubStore } from '../hub-store';
 import { usePerms } from '../../lib/use-perms';
 import { SOURCES, KVKK_NOTICE_LINE } from '../hub-constants';
+import GateTemplatesSection from './gate-templates';
 
 export const TEMPLATE_TYPES = [
   { value: '', label: 'Genel' },
@@ -53,6 +54,9 @@ export default function TemplatesPage() {
   // 2026-09-24 CRM-lite Round 2 — "zincir anahtarı" (takip zinciri/drip-campaign)
   // genel kullanıcı için jargon; silinmedi, Gelişmiş'e taşındı.
   const [advanced, setAdvanced] = useState(false);
+  // 0053 — Kapı A görev şablonları aynı sayfada ayrı sekme.
+  const [tab, setTab] = useState('messages');
+  const { gateTemplates = [] } = useHubStore();
   const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 3000); };
 
   const groups = useMemo(() => {
@@ -87,15 +91,24 @@ export default function TemplatesPage() {
           </p>
         </div>
         <div className="adm-page-head__actions">
-          <button type="button" className={`adm-chip ${advanced ? 'adm-chip--active' : ''}`} onClick={() => setAdvanced((v) => !v)}>
+          {tab === 'messages' && <button type="button" className={`adm-chip ${advanced ? 'adm-chip--active' : ''}`} onClick={() => setAdvanced((v) => !v)}>
             <AIcon name="settings" size={13} /> Gelişmiş
-          </button>
-          {canWrite && (
+          </button>}
+          {tab === 'messages' && canWrite && (
             <button className="adm-btn adm-btn--primary adm-btn--sm adm-btn--cta" onClick={() => setEditing({ ...BLANK })}>
               <AIcon name="edit" size={14} /> Yeni şablon
             </button>
           )}
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        <button type="button" className={`adm-chip ${tab === 'messages' ? 'adm-chip--active' : ''}`} onClick={() => setTab('messages')}>
+          Mesaj şablonları ({templates.length})
+        </button>
+        <button type="button" className={`adm-chip ${tab === 'gate' ? 'adm-chip--active' : ''}`} onClick={() => setTab('gate')}>
+          Kapı A görevleri ({gateTemplates.filter((t) => t.active !== false).length})
+        </button>
       </div>
 
       {!canWrite && (
@@ -104,6 +117,7 @@ export default function TemplatesPage() {
         </div>
       )}
 
+      {tab === 'gate' ? <GateTemplatesSection flash={flash} /> : <>
       {groups.length === 0 && <div className="adm-empty">İlk şablonunu ekle — sağ üstteki “Yeni şablon”.</div>}
 
       {groups.map(([name, variants]) => (
@@ -150,6 +164,7 @@ export default function TemplatesPage() {
           </div>
         </div>
       ))}
+      </>}
 
       <Modal open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? 'Şablonu düzenle' : 'Yeni şablon'}>
         {editing && (

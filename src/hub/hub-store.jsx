@@ -16,7 +16,7 @@ import { STAGE_ORDER } from './hub-constants';
 // Ana ekranların ihtiyaç duyduğu koleksiyonlar (paralel yüklenir).
 // v2: roleLog / views / sources düştü (menüde yok). interviews tek aday için
 // loadHistory() ile; touches/gates Bugün ekranı için; stageLog dönüşüm için.
-const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources', 'folders'];
+const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources', 'folders', 'gateTemplates'];
 
 const EMPTY = { ...COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {}), hiddenHub: [] };
 
@@ -354,9 +354,9 @@ export function HubStoreProvider({ children }) {
   // ── Kapılar (v2 §2.1–2.2) ─────────────────────────────────────
   // Kapı A/B ayrı AŞAMA değil — aday `trial`'da kalır, hub_gates satırı açılır.
   // Team sistemine yalnızca referansla bağlanır (startup_id + person_id).
-  const startGate = useCallback(async (candidate, gate, { taskText = null, dueAt, startupId = null, personId = null }) => {
+  const startGate = useCallback(async (candidate, gate, { taskText = null, dueAt, startupId = null, personId = null, templateId = null }) => {
     await addItem('gates', {
-      candidateId: candidate.id, gate, startupId, personId,
+      candidateId: candidate.id, gate, startupId, personId, templateId,
       taskText, startedAt: new Date().toISOString(), dueAt, extendedDays: 0, result: 'pending',
     });
     // Aday zaten trial'da; yalnızca ilk kez trial'a girecekse taşı.

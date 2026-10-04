@@ -15,6 +15,7 @@ import {
 } from '../hub-constants';
 import { thresholdText, canAdvance, presentGate, gateStatus, gateDueAt, canDraftAI, nextAction, undoPlan } from '../hub-rules';
 import { fillTemplate } from './templates';
+import { GATE_TEMPLATE_CATEGORIES, DELIVERY_LABEL, DURATION_DAY_OPTIONS, gateCategoryFor, templatesFor, composeGateTask } from '../gate-templates';
 import { generateDraft } from '../hub-ai-draft';
 import HubWizard from '../components/wizard';
 import { lastChannel, rememberChannel } from '../hub-channel';
@@ -748,11 +749,25 @@ function InterviewSection({ c, save, role, openRole, flash, onDone }) {
 // ── Kapı başlatma + "Görevi mail ile gönder" (C3) ────────────────
 // Tek akış: görev metni + (opsiyonel) mail. Mail gönderilince süre başlar
 // (due_at bu anda hesaplanır); mail atlanırsa kapı yine başlar.
+// 0053 (Adım 2/5): Kapı A'da görev YAZILMAZ, şablondan SEÇİLİR (Bölüm H) —
+// süre gün seçiciyle, açıklama katlanmış isteğe bağlı override. Kapı B
+// (kurucu, 10 gün gerçek sprint görevleri) serbest metinle kalır.
 function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
   const store = useHubStore();
-  const hours = gate === 'A' ? GATE.aHours : GATE.bDays * 24;
-  const durLabel = gate === 'A' ? '72 saat' : '10 gün';
-  const [taskText, setTaskText] = useState('');
+  const isA = gate === 'A';
+  const [category, setCategory] = useState(() => gateCategoryFor(c));
+  const options = isA ? templatesFor(store.gateTemplates, category) : [];
+  const [tplId, setTplId] = useState(null);
+  const tpl = isA ? (options.find((t) => t.id === tplId) || options[0] || null) : null;
+  const [days, setDays] = useState(null);           // null = şablonun süresi
+  const [descOverride, setDescOverride] = useState(null);
+  const [editDesc, setEditDesc] = useState(false);
+  const hours = isA ? (days ? days * 24 : (tpl?.durationHours || GATE.aHours)) : GATE.bDays * 24;
+  const durLabel = isA ? `${Math.round(hours / 24)} gün` : '10 gün';
+  const [freeText, setFreeText] = useState('');
+  const taskText = isA ? (tpl ? composeGateTask(tpl, descOverride ?? tpl.description) : freeText) : freeText;
+  const setTaskText = setFreeText;
+  const pickTemplate = (id) => { setTplId(id); setDescOverride(null); setEditDesc(false); setDays(null); };
   const [sendMail, setSendMail] = useState(!!c.email);
   const [subject, setSubject] = useState(`Start-Hub — Kapı ${gate} görevi`);
   const [body, setBody] = useState('');
@@ -775,6 +790,7 @@ function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
         taskText: taskText.trim() || null,
         dueAt,
         startupId: c.startupId || null,
+        templateId: tpl?.id || null,
       });
       onStarted?.();
       flash?.(sendMail && c.email ? `Kapı ${gate} başladı · görev maili gönderildi.` : `Kapı ${gate} başladı.`);
@@ -786,11 +802,62 @@ function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
   return (
     <div className="hub-ai" style={{ marginTop: 8 }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>Kapı {gate} başlat ({durLabel})</div>
-      <Field label="Görev metni" hint="Adaya olduğu gibi gider. Boş bırakılabilir.">
-        <textarea className="adm-input adm-textarea" rows={3} value={taskText}
-          onChange={(e) => setTaskText(e.target.value)}
-          placeholder="Ör. Sektörden 3 kişiyle konuş, kısa notlarını getir." />
-      </Field>
+      {isA ? (
+        <>
+          <Field label="Görev kategorisi" hint="Adayın hattına / ilgi alanına göre önerildi.">
+            <select className="adm-input adm-select" value={category} onChange={(e) => { setCategory(e.target.value); pickTemplate(null); }}>
+              {GATE_TEMPLATE_CATEGORIES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Field>
+          {options.length === 0 ? (
+            <div className="hub-threshold hub-threshold--no" style={{ display: 'block', marginBottom: 8 }}>
+              Bu kategoride şablon yok — Yönetim › Şablonlar › Kapı A görevleri'nden ekle. Şimdilik görevi elle yazabilirsin:
+              <textarea className="adm-input adm-textarea" rows={3} style={{ marginTop: 6 }} value={freeText} onChange={(e) => setTaskText(e.target.value)} />
+            </div>
+          ) : (
+            <div className="hub-wz__opts" style={{ marginBottom: 8 }}>
+              {options.map((t, i) => (
+                <button key={t.id} type="button" className={`hub-wz__opt ${tpl?.id === t.id ? 'hub-wz__opt--on' : ''}`}
+                  style={tpl?.id === t.id ? { borderColor: 'var(--adm-accent)', background: 'color-mix(in srgb, var(--adm-accent) 6%, transparent)' } : undefined}
+                  onClick={() => pickTemplate(t.id)}>
+                  <span className="hub-wz__opt-l">{tpl?.id === t.id ? '● ' : '○ '}{t.title}{i === 0 ? ' · önerilen' : ''}</span>
+                  <span className="hub-wz__opt-r">{Math.round(t.durationHours / 24)} gün · {DELIVERY_LABEL[t.deliveryType]}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {tpl && (
+            <>
+              <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', whiteSpace: 'pre-wrap', background: 'var(--adm-bg)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+                {descOverride ?? tpl.description}
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                <label style={{ fontSize: 12.5, display: 'flex', gap: 6, alignItems: 'center' }}>
+                  Süre
+                  <select className="adm-input adm-select" style={{ width: 'auto', padding: '4px 8px' }} value={String(Math.round(hours / 24))} onChange={(e) => setDays(Number(e.target.value))}>
+                    {DURATION_DAY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="hub-linkbtn" style={{ fontSize: 12.5, background: 'none', border: 'none', color: 'var(--adm-text-dim)', textDecoration: 'underline', cursor: 'pointer' }}
+                  onClick={() => setEditDesc((v) => !v)}>
+                  {editDesc ? 'Açıklama düzenlemeyi kapat' : 'Açıklamayı düzenle (isteğe bağlı)'}
+                </button>
+              </div>
+              {editDesc && (
+                <Field label="Açıklama (bu aday için)" hint="Yalnızca bu kapıya uygulanır; şablon değişmez.">
+                  <textarea className="adm-input adm-textarea" rows={4} value={descOverride ?? tpl.description} onChange={(e) => setDescOverride(e.target.value)} />
+                </Field>
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        <Field label="Görev metni" hint="Adaya olduğu gibi gider. Boş bırakılabilir.">
+          <textarea className="adm-input adm-textarea" rows={3} value={freeText}
+            onChange={(e) => setTaskText(e.target.value)}
+            placeholder="Ör. Sektörden 3 kişiyle konuş, kısa notlarını getir." />
+        </Field>
+      )}
 
       {c.email ? (
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, margin: '4px 0 8px' }}>

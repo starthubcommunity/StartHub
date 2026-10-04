@@ -207,6 +207,15 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   silinmez. "Şu an ne kadar kazanıldı" DB'de SAKLANMAZ — `src/lib/equity-rules.js` hesaplar
   (istisna: ayrılınca donan `vested_at_end`). Testler: `node src/lib/equity-rules.test.mjs`.
 - HR › Yönetim › "Pay Sözleri" (`src/hub/pages/equity.jsx`).
+- **Adım 2 ✅ — `0053_hub_gate_templates.sql` (canlıda):** belgedeki `kapi_a_sablonlari` proje kuralına
+  uygun adla `hub_gate_templates` (category = `hub_candidates.interest` anahtarları + `founder`, title,
+  description, duration_hours 24–336, delivery_type link/file/recording) + `hub_gates.template_id`.
+  11 başlangıç şablonu belge örneklerinden türetilmiş TASLAKTIR (projeye göre düzenlenmeli). RLS
+  `templates.read/manage`. Store koleksiyonu `gateTemplates`. HR › Şablonlar › "Kapı A görevleri"
+  sekmesi (`pages/gate-templates.jsx`; kullanılmış şablon silinmez, pasifleştirilir). `GateStartForm`
+  (candidate.jsx) Kapı A'da serbest yazı yerine şablon seçici + gün seçici + katlanmış açıklama
+  override; Kapı B serbest metin kaldı. Yardımcılar `src/hub/gate-templates.js` (+ `.test.mjs`).
+  Team App'teki kurucu seçici Adım 4'te (akış sırası değişince) aynı tabloyu kullanacak.
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 
