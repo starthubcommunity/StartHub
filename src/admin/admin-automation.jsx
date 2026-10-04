@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AIcon, Modal, Field, Input, Select, PageHead, TagInput, PostCoverUpload } from './admin-ui';
 import { supabase } from '../lib/supabase';
+import { IMAGE_STOCK_CATEGORIES, VISUAL_TYPES, GENERIC_TAG_HINTS } from './image-constants';
+import { ImageSwapModal, ImageReasonBox } from './image-swap';
+import { StockMatrix, BulkTypeTable } from './image-stock-tools';
 
 // ── Sabitler ─────────────────────────────────────────────────────────────────
 const GITHUB_REPO     = 'starthubcommunity/StartHub';
@@ -19,22 +22,6 @@ const TONE_LEVELS = [
 
 const ALL_CATEGORIES = ['AI', 'Teknoloji', 'Girişim', 'Yatırım', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık'];
 
-// image_stock.category seçenekleri — image_matcher.py'deki CATEGORY_ALIAS ile
-// makale kategorilerine (AI/Girişim/Teknoloji/Yatırım) eşleniyor.
-const IMAGE_STOCK_CATEGORIES = ['Fon', 'Yapay Zeka', 'Girişim', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık', 'Teknoloji', 'Ortaklık', 'Genel'];
-
-// image_stock.visual_type — görselin ne gösterdiği (eşleştirmede tekrar/çeşitlilik kuralı bunu kullanır).
-const VISUAL_TYPES = [
-  ['el_sikisma', 'El sıkışma'], ['ofis_toplanti', 'Ofis / toplantı'], ['grafik_borsa', 'Grafik / borsa'],
-  ['para_finans', 'Para / finans'], ['robot_ai', 'Robot / yapay zeka'], ['cip_donanim', 'Çip / donanım'],
-  ['kod_ekran', 'Kod / ekran'], ['cihaz_telefon', 'Cihaz / telefon'], ['veri_merkezi', 'Veri merkezi'],
-  ['sehir_bina', 'Şehir / bina'], ['arac_enerji', 'Araç / enerji'], ['insan_portre', 'İnsan / portre'],
-  ['laboratuvar', 'Laboratuvar'], ['soyut_diger', 'Soyut / diğer'],
-];
-const VISUAL_TYPE_LABEL = Object.fromEntries(VISUAL_TYPES);
-
-// config.py'deki GENERIC_TAGS ile aynı liste — yalnızca uyarı için (engelleme yok).
-const GENERIC_TAG_HINTS = ['is', 'yatirim', 'girisim', 'basari', 'buyume', 'anlasma', 'ortaklik', 'teknoloji', 'ekonomi', 'sirket', 'para'];
 
 const TABS = [
   { id: 'drafts',      label: 'Taslaklar',    icon: 'layers'   },
@@ -302,6 +289,8 @@ function AutomationPage() {
   const [rejectedLoad, setRejectedLoad]= useState(false);
   const [actingId,     setActingId]    = useState(null);
   const [preview,      setPreview]     = useState(null);
+  const [swapPost,     setSwapPost]    = useState(null);
+  const [onlyReview,   setOnlyReview]  = useState(false);
 
   const loadDrafts = useCallback(async () => {
     setDraftsLoad(true);
@@ -697,7 +686,8 @@ function AutomationPage() {
             </span>
           </div>
           <div className="adm-card">
-            <div className="adm-card__header"><h3>Onay Bekleyen Taslaklar</h3></div>
+            <div className="adm-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h3>Onay Bekleyen Taslaklar</h3>
+              <label style={{ fontSize: 12.5, display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={onlyReview} onChange={e => setOnlyReview(e.target.checked)} /> Sadece görsel kontrolü bekleyenler</label></div>
             <div className="adm-card__body" style={{ padding: 0 }}>
               {draftsLoad ? (
                 <div className="adm-empty"><span className="adm-spinner" style={{ width: 28, height: 28 }}></span></div>
@@ -749,13 +739,14 @@ function AutomationPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {drafts.map(d => (
+                        {drafts.filter(d => !onlyReview || d.needs_review).map(d => (
                           <tr key={d.id} style={{ background: selectedIds.has(d.id) ? 'var(--adm-blue-light)' : undefined }}>
                             <td>
                               <input type="checkbox" checked={selectedIds.has(d.id)} onChange={() => toggleSelect(d.id)} style={{ cursor: 'pointer' }} />
                             </td>
                             <td style={{ maxWidth: 340 }}>
                               <div style={{ fontWeight: 600, lineHeight: 1.35 }}>{d.title_tr}</div>
+                              {d.needs_review && <span style={{ display: 'inline-block', fontSize: 11.5, color: '#b45309', background: '#fef3c7', borderRadius: 4, padding: '1px 6px', marginTop: 3 }}>⚠ Görsel kontrol edilmeli</span>}
                               <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>/{d.slug}</div>
                               {d.excerpt_tr && <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>{d.excerpt_tr.slice(0, 90)}{d.excerpt_tr.length > 90 ? '…' : ''}</div>}
                             </td>
@@ -900,27 +891,8 @@ function AutomationPage() {
               <AIcon name="plus" size={15} /> Görsel Ekle
             </button>
           </div>
-          {imageStock.length > 0 && (() => {
-            const byType = {};
-            VISUAL_TYPES.forEach(([k]) => { byType[k] = { n: 0, generic: 0 }; });
-            imageStock.forEach(r => {
-              const k = r.visual_type || '(tanımsız)';
-              byType[k] = byType[k] || { n: 0, generic: 0 };
-              byType[k].n += 1;
-              if (r.is_generic) byType[k].generic += 1;
-            });
-            const byCat = {};
-            imageStock.forEach(r => { const k = r.category || '(yok)'; byCat[k] = (byCat[k] || 0) + 1; });
-            return (
-              <div className="adm-card" style={{ marginBottom: 16 }}>
-                <div className="adm-card__header"><h3>Stok özeti</h3></div>
-                <div className="adm-card__body" style={{ fontSize: 13 }}>
-                  <div style={{ marginBottom: 8 }}><strong>Tipe göre:</strong> {Object.entries(byType).filter(([, v]) => v.n > 0).map(([k, v]) => `${VISUAL_TYPE_LABEL[k] || k}: ${v.n}${v.generic ? ` (${v.generic} genel)` : ''}`).join(' · ') || '—'}</div>
-                  <div><strong>Kategoriye göre:</strong> {Object.entries(byCat).map(([k, v]) => `${k}: ${v}`).join(' · ')}</div>
-                </div>
-              </div>
-            );
-          })()}
+          <StockMatrix images={imageStock} />
+          <BulkTypeTable images={imageStock} onSaved={loadImageStock} flash={flash} />
           <div className="adm-card">
             <div className="adm-card__header"><h3>Görsel Stoğu</h3></div>
             <div className="adm-card__body" style={{ padding: 0 }}>
@@ -1504,6 +1476,7 @@ function AutomationPage() {
         </Modal>
       )}
 
+      {swapPost && <ImageSwapModal post={swapPost} flash={flash} onClose={() => setSwapPost(null)} onSaved={() => { setPreview(null); loadDrafts(); }} />}
       {/* Taslak önizleme */}
       {preview && (
         <Modal open onClose={() => setPreview(null)} title="Taslak Önizleme" wide>
@@ -1535,6 +1508,12 @@ function AutomationPage() {
                 )}
               </div>
             )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+              <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setSwapPost(preview)}>Görseli değiştir</button>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <ImageReasonBox post={preview} flash={flash} onChanged={() => { setPreview(null); loadDrafts(); }} />
+            </div>
             <div className="adm-pv-article__lead">{preview.excerpt_tr}</div>
             <div className="adm-pv-article__body">
               {(preview.body_tr || []).map((p, i) => <p key={i}>{p}</p>)}
