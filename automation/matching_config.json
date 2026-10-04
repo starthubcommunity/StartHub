@@ -1,0 +1,28 @@
+{
+  "CATEGORY_ALIAS": {
+    "AI": ["Yapay Zeka"],
+    "Yatırım": ["Fon", "Fintech"],
+    "Girişim": ["Ortaklık"],
+    "Teknoloji": ["Fintech"]
+  },
+  "CATEGORY_DIRECT_BONUS": 3.0,
+  "CATEGORY_ALIAS_BONUS": 2.0,
+  "GENEL_CATEGORY": "Genel",
+  "GENEL_CATEGORY_BONUS": 1.0,
+  "IDF_SCALE": 2.0,
+  "GENERIC_TAG_MAX_WEIGHT": 0.5,
+  "TAG_SCORE_CAP": 15.0,
+  "GENERIC_TAGS": ["is", "yatirim", "girisim", "basari", "buyume", "anlasma", "ortaklik", "teknoloji", "ekonomi", "sirket", "para"],
+  "TEXT_BODY_CHARS": 600,
+  "USAGE_BONUS_MAX": 2.0,
+  "USAGE_WINDOW_DAYS": 90,
+  "HISTORY_LIMIT": 500,
+  "RECENT_POSTS_EXCLUDE": 10,
+  "DAILY_WINDOW_DAYS": 30,
+  "MAX_USES_IN_WINDOW": 3,
+  "VISUAL_TYPES": ["el_sikisma", "ofis_toplanti", "grafik_borsa", "para_finans", "robot_ai", "cip_donanim", "kod_ekran", "cihaz_telefon", "veri_merkezi", "sehir_bina", "arac_enerji", "insan_portre", "laboratuvar", "soyut_diger"],
+  "VISUAL_WINDOW_RULES": [[4.0, 3], [8.0, 4]],
+  "VISUAL_WINDOW_DEFAULT": 6,
+  "MIN_SPECIFIC_SCORE": 4.0,
+  "RELAX_REVIEW_THRESHOLD": 2
+}

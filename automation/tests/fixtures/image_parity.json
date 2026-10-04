@@ -1,0 +1,913 @@
+{
+ "now": "2026-10-04T12:00:00+00:00",
+ "images": [
+  {
+   "id": 1,
+   "url": "https://example.test/1.webp",
+   "alt_tr": "portföy grafiği",
+   "category": "Fon",
+   "visual_type": "grafik_borsa",
+   "is_generic": false,
+   "tags": [
+    "fon",
+    "portfoy",
+    "borsa"
+   ]
+  },
+  {
+   "id": 2,
+   "url": "https://example.test/2.webp",
+   "alt_tr": "madeni para",
+   "category": "Fon",
+   "visual_type": "para_finans",
+   "is_generic": false,
+   "tags": [
+    "fon",
+    "fintech",
+    "yatirim"
+   ]
+  },
+  {
+   "id": 3,
+   "url": "https://example.test/3.webp",
+   "alt_tr": "ofiste el",
+   "category": "Fon",
+   "visual_type": "ofis_toplanti",
+   "is_generic": true,
+   "tags": [
+    "yatirim",
+    "fon"
+   ]
+  },
+  {
+   "id": 4,
+   "url": "https://example.test/4.webp",
+   "alt_tr": "mobil ödeme",
+   "category": "Fintech",
+   "visual_type": "cihaz_telefon",
+   "is_generic": false,
+   "tags": [
+    "mobil odeme",
+    "fintech",
+    "cuzdan"
+   ]
+  },
+  {
+   "id": 5,
+   "url": "https://example.test/5.webp",
+   "alt_tr": "robot kol",
+   "category": "Yapay Zeka",
+   "visual_type": "robot_ai",
+   "is_generic": false,
+   "tags": [
+    "yapay zeka",
+    "robot",
+    "model"
+   ]
+  },
+  {
+   "id": 6,
+   "url": "https://example.test/6.webp",
+   "alt_tr": "kod ekranı",
+   "category": "Yapay Zeka",
+   "visual_type": "kod_ekran",
+   "is_generic": false,
+   "tags": [
+    "kod",
+    "model",
+    "yazilim"
+   ]
+  },
+  {
+   "id": 7,
+   "url": "https://example.test/7.webp",
+   "alt_tr": "yapay zeka soyut",
+   "category": "Yapay Zeka",
+   "visual_type": "robot_ai",
+   "is_generic": true,
+   "tags": [
+    "yapay zeka"
+   ]
+  },
+  {
+   "id": 8,
+   "url": "https://example.test/8.webp",
+   "alt_tr": "el sıkışma",
+   "category": "Girişim",
+   "visual_type": "el_sikisma",
+   "is_generic": false,
+   "tags": [
+    "girisim",
+    "ortaklik",
+    "anlasma"
+   ]
+  },
+  {
+   "id": 9,
+   "url": "https://example.test/9.webp",
+   "alt_tr": "startup ekibi",
+   "category": "Girişim",
+   "visual_type": "ofis_toplanti",
+   "is_generic": false,
+   "tags": [
+    "startup",
+    "ekip",
+    "toplanti"
+   ]
+  },
+  {
+   "id": 10,
+   "url": "https://example.test/10.webp",
+   "alt_tr": "soyut renk",
+   "category": "Genel",
+   "visual_type": "soyut_diger",
+   "is_generic": false,
+   "tags": [
+    "soyut",
+    "renk"
+   ]
+  },
+  {
+   "id": 11,
+   "url": "https://example.test/11.webp",
+   "alt_tr": "dashboard",
+   "category": "SaaS",
+   "visual_type": "kod_ekran",
+   "is_generic": false,
+   "tags": [
+    "saas",
+    "bulut",
+    "dashboard"
+   ]
+  },
+  {
+   "id": 12,
+   "url": "https://example.test/12.webp",
+   "alt_tr": "laboratuvar",
+   "category": "Sağlık",
+   "visual_type": "laboratuvar",
+   "is_generic": false,
+   "tags": [
+    "saglik",
+    "laboratuvar",
+    "ilac"
+   ]
+  }
+ ],
+ "history": [
+  {
+   "image_id": 1,
+   "post_id": 101,
+   "used_at": "2026-10-03T12:00:00+00:00"
+  },
+  {
+   "image_id": 5,
+   "post_id": 102,
+   "used_at": "2026-10-02T12:00:00+00:00"
+  },
+  {
+   "image_id": 2,
+   "post_id": 103,
+   "used_at": "2026-09-29T12:00:00+00:00"
+  },
+  {
+   "image_id": 5,
+   "post_id": 104,
+   "used_at": "2026-09-25T12:00:00+00:00"
+  },
+  {
+   "image_id": 8,
+   "post_id": 105,
+   "used_at": "2026-09-22T12:00:00+00:00"
+  },
+  {
+   "image_id": 2,
+   "post_id": 106,
+   "used_at": "2026-09-14T12:00:00+00:00"
+  },
+  {
+   "image_id": 2,
+   "post_id": 107,
+   "used_at": "2026-09-09T12:00:00+00:00"
+  },
+  {
+   "image_id": 9,
+   "post_id": 108,
+   "used_at": "2026-08-25T12:00:00+00:00"
+  },
+  {
+   "image_id": 6,
+   "post_id": 109,
+   "used_at": "2026-08-05T12:00:00+00:00"
+  },
+  {
+   "image_id": 10,
+   "post_id": 110,
+   "used_at": "2026-07-11T12:00:00+00:00"
+  }
+ ],
+ "articles": [
+  {
+   "name": "yatirim_fon",
+   "category": "Yatırım",
+   "title_tr": "Yatırım fonu yeni portföy stratejisi",
+   "excerpt_tr": "Fon yöneticileri borsa hareketlerini izliyor.",
+   "body_tr": [
+    "Portföy dağılımı fon yönetiminde belirleyici."
+   ]
+  },
+  {
+   "name": "ai_model",
+   "category": "AI",
+   "title_tr": "Yapay zeka modelleri robot süreçleri",
+   "excerpt_tr": "Yeni model robot otomasyonu getiriyor.",
+   "body_tr": [
+    "Model eğitimi ve robot kullanımı artıyor."
+   ]
+  },
+  {
+   "name": "girisim_ekip",
+   "category": "Girişim",
+   "title_tr": "Startup ekip toplantısı ve ortaklık anlaşması",
+   "excerpt_tr": "Girişim ekibi yeni ortaklık kurdu.",
+   "body_tr": [
+    "Anlaşma sonrası ekip toplantısı yapıldı."
+   ]
+  },
+  {
+   "name": "teknoloji_odeme",
+   "category": "Teknoloji",
+   "title_tr": "Mobil ödeme cüzdan uygulaması",
+   "excerpt_tr": "Fintech uygulaması cüzdan özelliği ekledi.",
+   "body_tr": [
+    "Mobil odeme alışkanlığı büyüyor."
+   ]
+  },
+  {
+   "name": "teknoloji_bulut",
+   "category": "Teknoloji",
+   "title_tr": "Bulut dashboard yazılım ürünü",
+   "excerpt_tr": "SaaS şirketi yeni dashboard çıkardı.",
+   "body_tr": [
+    "Bulut tabanlı yazılım kullanımı."
+   ]
+  },
+  {
+   "name": "ai_kod",
+   "category": "AI",
+   "title_tr": "Kod ve yazılım modelleri",
+   "excerpt_tr": "Yazılım geliştirme için model.",
+   "body_tr": [
+    "Kod üretimi ve model değerlendirmesi."
+   ]
+  },
+  {
+   "name": "yatirim_generic",
+   "category": "Yatırım",
+   "title_tr": "Para ekonomi şirket başarı",
+   "excerpt_tr": "Büyüme ve ekonomi haberi.",
+   "body_tr": [
+    "Şirket başarı hikayesi para kazandı."
+   ]
+  },
+  {
+   "name": "saglik_lab",
+   "category": "Teknoloji",
+   "title_tr": "Laboratuvar ilaç araştırması",
+   "excerpt_tr": "Yeni ilaç laboratuvar testleri.",
+   "body_tr": [
+    "Saglik alanında laboratuvar çalışması."
+   ]
+  }
+ ],
+ "expected": {
+  "yatirim_fon": {
+   "scores": {
+    "1": 16.18,
+    "3": 7.86,
+    "2": 5.86,
+    "4": 4.0,
+    "10": 2.33,
+    "7": 2.0,
+    "11": 2.0,
+    "12": 2.0,
+    "6": 1.33,
+    "8": 1.33,
+    "9": 1.33,
+    "5": 0.67
+   },
+   "ranking": [
+    1,
+    3,
+    2,
+    4,
+    10,
+    7,
+    11,
+    12,
+    6,
+    8,
+    9,
+    5
+   ],
+   "flags": {
+    "1": [
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "2": [
+     "over_used_30d",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "3": [
+     "generic_excluded"
+    ],
+    "4": [],
+    "5": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "6": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "7": [
+     "category_fit",
+     "recent_visual_type"
+    ],
+    "8": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "9": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "10": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "11": [
+     "category_fit"
+    ],
+    "12": [
+     "category_fit"
+    ]
+   },
+   "pick": 4
+  },
+  "ai_model": {
+   "scores": {
+    "5": 15.28,
+    "7": 7.93,
+    "6": 7.27,
+    "10": 2.33,
+    "3": 2.0,
+    "4": 2.0,
+    "11": 2.0,
+    "12": 2.0,
+    "1": 1.33,
+    "8": 1.33,
+    "9": 1.33,
+    "2": 0.0
+   },
+   "ranking": [
+    5,
+    7,
+    6,
+    10,
+    3,
+    4,
+    11,
+    12,
+    1,
+    8,
+    9,
+    2
+   ],
+   "flags": {
+    "1": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "2": [
+     "category_fit",
+     "over_used_30d",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "3": [
+     "category_fit"
+    ],
+    "4": [
+     "category_fit"
+    ],
+    "5": [
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "6": [
+     "recent_posts"
+    ],
+    "7": [
+     "generic_excluded",
+     "recent_visual_type"
+    ],
+    "8": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "9": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "10": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "11": [
+     "category_fit"
+    ],
+    "12": [
+     "category_fit"
+    ]
+   },
+   "pick": 7
+  },
+  "girisim_ekip": {
+   "scores": {
+    "9": 13.82,
+    "8": 5.83,
+    "10": 2.33,
+    "3": 2.0,
+    "4": 2.0,
+    "7": 2.0,
+    "11": 2.0,
+    "12": 2.0,
+    "1": 1.33,
+    "6": 1.33,
+    "5": 0.67,
+    "2": 0.0
+   },
+   "ranking": [
+    9,
+    8,
+    10,
+    3,
+    4,
+    7,
+    11,
+    12,
+    1,
+    6,
+    5,
+    2
+   ],
+   "flags": {
+    "1": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "2": [
+     "category_fit",
+     "over_used_30d",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "3": [
+     "category_fit"
+    ],
+    "4": [
+     "category_fit"
+    ],
+    "5": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "6": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "7": [
+     "category_fit",
+     "recent_visual_type"
+    ],
+    "8": [
+     "recent_posts"
+    ],
+    "9": [
+     "recent_posts"
+    ],
+    "10": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "11": [
+     "category_fit"
+    ],
+    "12": [
+     "category_fit"
+    ]
+   },
+   "pick": 9
+  },
+  "teknoloji_odeme": {
+   "scores": {
+    "4": 17.42,
+    "2": 3.93,
+    "10": 2.33,
+    "3": 2.0,
+    "7": 2.0,
+    "11": 2.0,
+    "12": 2.0,
+    "1": 1.33,
+    "6": 1.33,
+    "8": 1.33,
+    "9": 1.33,
+    "5": 0.67
+   },
+   "ranking": [
+    4,
+    2,
+    10,
+    3,
+    7,
+    11,
+    12,
+    1,
+    6,
+    8,
+    9,
+    5
+   ],
+   "flags": {
+    "1": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "2": [
+     "category_fit",
+     "over_used_30d",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "3": [
+     "category_fit"
+    ],
+    "4": [],
+    "5": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "6": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "7": [
+     "category_fit",
+     "recent_visual_type"
+    ],
+    "8": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "9": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "10": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "11": [
+     "category_fit"
+    ],
+    "12": [
+     "category_fit"
+    ]
+   },
+   "pick": 4
+  },
+  "teknoloji_bulut": {
+   "scores": {
+    "11": 16.23,
+    "6": 6.08,
+    "4": 4.0,
+    "10": 2.33,
+    "3": 2.0,
+    "7": 2.0,
+    "12": 2.0,
+    "1": 1.33,
+    "8": 1.33,
+    "9": 1.33,
+    "5": 0.67,
+    "2": 0.0
+   },
+   "ranking": [
+    11,
+    6,
+    4,
+    10,
+    3,
+    7,
+    12,
+    1,
+    8,
+    9,
+    5,
+    2
+   ],
+   "flags": {
+    "1": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "2": [
+     "category_fit",
+     "over_used_30d",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "3": [
+     "category_fit"
+    ],
+    "4": [],
+    "5": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "6": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "7": [
+     "category_fit",
+     "recent_visual_type"
+    ],
+    "8": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "9": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "10": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "11": [
+     "category_fit"
+    ],
+    "12": [
+     "category_fit"
+    ]
+   },
+   "pick": 4
+  },
+  "ai_kod": {
+   "scores": {
+    "6": 16.75,
+    "5": 6.6,
+    "7": 4.0,
+    "10": 2.33,
+    "3": 2.0,
+    "4": 2.0,
+    "11": 2.0,
+    "12": 2.0,
+    "1": 1.33,
+    "8": 1.33,
+    "9": 1.33,
+    "2": 0.0
+   },
+   "ranking": [
+    6,
+    5,
+    7,
+    10,
+    3,
+    4,
+    11,
+    12,
+    1,
+    8,
+    9,
+    2
+   ],
+   "flags": {
+    "1": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "2": [
+     "category_fit",
+     "over_used_30d",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "3": [
+     "category_fit"
+    ],
+    "4": [
+     "category_fit"
+    ],
+    "5": [
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "6": [
+     "recent_posts"
+    ],
+    "7": [
+     "generic_excluded",
+     "recent_visual_type"
+    ],
+    "8": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "9": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "10": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "11": [
+     "category_fit"
+    ],
+    "12": [
+     "category_fit"
+    ]
+   },
+   "pick": 7
+  },
+  "yatirim_generic": {
+   "scores": {
+    "3": 4.0,
+    "4": 4.0,
+    "1": 3.33,
+    "10": 2.33,
+    "2": 2.0,
+    "7": 2.0,
+    "11": 2.0,
+    "12": 2.0,
+    "6": 1.33,
+    "8": 1.33,
+    "9": 1.33,
+    "5": 0.67
+   },
+   "ranking": [
+    3,
+    4,
+    1,
+    10,
+    2,
+    7,
+    11,
+    12,
+    6,
+    8,
+    9,
+    5
+   ],
+   "flags": {
+    "1": [
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "2": [
+     "over_used_30d",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "3": [
+     "generic_excluded"
+    ],
+    "4": [],
+    "5": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "6": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "7": [
+     "category_fit",
+     "recent_visual_type"
+    ],
+    "8": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "9": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "10": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "11": [
+     "category_fit"
+    ],
+    "12": [
+     "category_fit"
+    ]
+   },
+   "pick": 4
+  },
+  "saglik_lab": {
+   "scores": {
+    "12": 16.23,
+    "4": 4.0,
+    "10": 2.33,
+    "3": 2.0,
+    "7": 2.0,
+    "11": 2.0,
+    "1": 1.33,
+    "6": 1.33,
+    "8": 1.33,
+    "9": 1.33,
+    "5": 0.67,
+    "2": 0.0
+   },
+   "ranking": [
+    12,
+    4,
+    10,
+    3,
+    7,
+    11,
+    1,
+    6,
+    8,
+    9,
+    5,
+    2
+   ],
+   "flags": {
+    "1": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "2": [
+     "category_fit",
+     "over_used_30d",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "3": [
+     "category_fit"
+    ],
+    "4": [],
+    "5": [
+     "category_fit",
+     "recent_posts",
+     "recent_visual_type"
+    ],
+    "6": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "7": [
+     "category_fit",
+     "recent_visual_type"
+    ],
+    "8": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "9": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "10": [
+     "category_fit",
+     "recent_posts"
+    ],
+    "11": [
+     "category_fit"
+    ],
+    "12": [
+     "category_fit"
+    ]
+   },
+   "pick": 4
+  }
+ }
+}

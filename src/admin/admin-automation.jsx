@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AIcon, Modal, Field, Input, Select, PageHead, TagInput, PostCoverUpload } from './admin-ui';
 import { supabase } from '../lib/supabase';
+import { IMAGE_STOCK_CATEGORIES, VISUAL_TYPES, GENERIC_TAG_HINTS } from './image-constants';
+import { ImageSwapModal, ImageReasonBox } from './image-swap';
+import { StockMatrix, BulkTypeTable } from './image-stock-tools';
 
 // ── Sabitler ─────────────────────────────────────────────────────────────────
 const GITHUB_REPO     = 'starthubcommunity/StartHub';
@@ -19,9 +22,6 @@ const TONE_LEVELS = [
 
 const ALL_CATEGORIES = ['AI', 'Teknoloji', 'Girişim', 'Yatırım', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık'];
 
-// image_stock.category seçenekleri — image_matcher.py'deki CATEGORY_ALIAS ile
-// makale kategorilerine (AI/Girişim/Teknoloji/Yatırım) eşleniyor.
-const IMAGE_STOCK_CATEGORIES = ['Fon', 'Yapay Zeka', 'Girişim', 'Fintech', 'SaaS', 'E-Ticaret', 'Sağlık', 'Teknoloji', 'Ortaklık', 'Genel'];
 
 const TABS = [
   { id: 'drafts',      label: 'Taslaklar',    icon: 'layers'   },
@@ -135,7 +135,7 @@ function AutomationPage() {
   const [imageStock,   setImageStock]   = useState([]);
   const [imgLoading,   setImgLoading]   = useState(true);
   const [imgModal,     setImgModal]     = useState(null); // null | {mode:'add'} | {mode:'edit',row}
-  const [imgForm,      setImgForm]      = useState({ url: '', category: '', tags: [], alt_tr: '', alt_en: '' });
+  const [imgForm,      setImgForm]      = useState({ url: '', category: '', tags: [], alt_tr: '', alt_en: '', visual_type: '', is_generic: false, license: '', source_url: '' });
   const [imgSaving,    setImgSaving]    = useState(false);
 
   const loadImageStock = useCallback(async () => {
@@ -148,15 +148,16 @@ function AutomationPage() {
   }, [flash]);
 
   const openAddImage = () => {
-    setImgForm({ url: '', category: '', tags: [], alt_tr: '', alt_en: '' });
+    setImgForm({ url: '', category: '', tags: [], alt_tr: '', alt_en: '', visual_type: '', is_generic: false, license: '', source_url: '' });
     setImgModal({ mode: 'add' });
   };
   const openEditImage = (row) => {
-    setImgForm({ url: row.url, category: row.category || '', tags: row.tags || [], alt_tr: row.alt_tr || '', alt_en: row.alt_en || '' });
+    setImgForm({ url: row.url, category: row.category || '', tags: row.tags || [], alt_tr: row.alt_tr || '', alt_en: row.alt_en || '', visual_type: row.visual_type || '', is_generic: !!row.is_generic, license: row.license || '', source_url: row.source_url || '' });
     setImgModal({ mode: 'edit', row });
   };
   const saveImage = async () => {
     if (!imgForm.url) { flash('Önce bir görsel yükleyin.', 'orange'); return; }
+    if (!imgForm.visual_type) { flash('Görsel tipini seçin.', 'orange'); return; }
     setImgSaving(true);
     const payload = {
       url: imgForm.url,
@@ -164,6 +165,10 @@ function AutomationPage() {
       tags: imgForm.tags,
       alt_tr: imgForm.alt_tr || null,
       alt_en: imgForm.alt_en || null,
+      visual_type: imgForm.visual_type,
+      is_generic: !!imgForm.is_generic,
+      license: imgForm.license || null,
+      source_url: imgForm.source_url || null,
     };
     if (imgModal.mode === 'add') {
       const { error } = await supabase.from('image_stock').insert(payload);
@@ -284,6 +289,8 @@ function AutomationPage() {
   const [rejectedLoad, setRejectedLoad]= useState(false);
   const [actingId,     setActingId]    = useState(null);
   const [preview,      setPreview]     = useState(null);
+  const [swapPost,     setSwapPost]    = useState(null);
+  const [onlyReview,   setOnlyReview]  = useState(false);
 
   const loadDrafts = useCallback(async () => {
     setDraftsLoad(true);
@@ -679,7 +686,8 @@ function AutomationPage() {
             </span>
           </div>
           <div className="adm-card">
-            <div className="adm-card__header"><h3>Onay Bekleyen Taslaklar</h3></div>
+            <div className="adm-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h3>Onay Bekleyen Taslaklar</h3>
+              <label style={{ fontSize: 12.5, display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={onlyReview} onChange={e => setOnlyReview(e.target.checked)} /> Sadece görsel kontrolü bekleyenler</label></div>
             <div className="adm-card__body" style={{ padding: 0 }}>
               {draftsLoad ? (
                 <div className="adm-empty"><span className="adm-spinner" style={{ width: 28, height: 28 }}></span></div>
@@ -731,13 +739,14 @@ function AutomationPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {drafts.map(d => (
+                        {drafts.filter(d => !onlyReview || d.needs_review).map(d => (
                           <tr key={d.id} style={{ background: selectedIds.has(d.id) ? 'var(--adm-blue-light)' : undefined }}>
                             <td>
                               <input type="checkbox" checked={selectedIds.has(d.id)} onChange={() => toggleSelect(d.id)} style={{ cursor: 'pointer' }} />
                             </td>
                             <td style={{ maxWidth: 340 }}>
                               <div style={{ fontWeight: 600, lineHeight: 1.35 }}>{d.title_tr}</div>
+                              {d.needs_review && <span style={{ display: 'inline-block', fontSize: 11.5, color: '#b45309', background: '#fef3c7', borderRadius: 4, padding: '1px 6px', marginTop: 3 }}>⚠ Görsel kontrol edilmeli</span>}
                               <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>/{d.slug}</div>
                               {d.excerpt_tr && <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>{d.excerpt_tr.slice(0, 90)}{d.excerpt_tr.length > 90 ? '…' : ''}</div>}
                             </td>
@@ -882,6 +891,8 @@ function AutomationPage() {
               <AIcon name="plus" size={15} /> Görsel Ekle
             </button>
           </div>
+          <StockMatrix images={imageStock} />
+          <BulkTypeTable images={imageStock} onSaved={loadImageStock} flash={flash} />
           <div className="adm-card">
             <div className="adm-card__header"><h3>Görsel Stoğu</h3></div>
             <div className="adm-card__body" style={{ padding: 0 }}>
@@ -1402,7 +1413,36 @@ function AutomationPage() {
             </Field>
             <Field label="Etiketler" hint="Enter ile ekle — örn. anlaşma, el sıkışma, iş insanı, toplantı, yatırım">
               <TagInput tags={imgForm.tags} onChange={v => setImgForm(p => ({ ...p, tags: v }))} />
+              {imgForm.tags.some(t => GENERIC_TAG_HINTS.includes(String(t).toLowerCase().replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c'))) && (
+                <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--adm-orange, #b45309)' }}>
+                  Bu etiketlerden biri çok genel. Görselde görünen somut nesneleri yazın (uyarı — engel değil).
+                </div>
+              )}
             </Field>
+            <div className="adm-form-grid">
+              <Field label="Görsel tipi" hint="Zorunlu — tekrar/çeşitlilik kuralı bunu kullanır">
+                <Select
+                  value={imgForm.visual_type}
+                  onChange={v => setImgForm(p => ({ ...p, visual_type: v }))}
+                  placeholder="Seç..."
+                  options={VISUAL_TYPES.map(([value, label]) => ({ value, label }))}
+                />
+              </Field>
+              <Field label="Klişe / genel görsel" hint="İşaretliyse yalnızca spesifik eşleşme yoksa seçilir">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                  <input type="checkbox" checked={imgForm.is_generic} onChange={e => setImgForm(p => ({ ...p, is_generic: e.target.checked }))} />
+                  Evet, genel bir görsel
+                </label>
+              </Field>
+            </div>
+            <div className="adm-form-grid">
+              <Field label="Lisans" hint="Opsiyonel — örn. Unsplash, Pexels, satın alındı">
+                <Input value={imgForm.license} onChange={v => setImgForm(p => ({ ...p, license: v }))} />
+              </Field>
+              <Field label="Kaynak URL" hint="Opsiyonel">
+                <Input value={imgForm.source_url} onChange={v => setImgForm(p => ({ ...p, source_url: v }))} />
+              </Field>
+            </div>
             <div className="adm-form-grid">
               <Field label="Alt Metin (TR)" hint="Opsiyonel, SEO/erişilebilirlik için">
                 <Input value={imgForm.alt_tr} onChange={v => setImgForm(p => ({ ...p, alt_tr: v }))} />
@@ -1436,6 +1476,7 @@ function AutomationPage() {
         </Modal>
       )}
 
+      {swapPost && <ImageSwapModal post={swapPost} flash={flash} onClose={() => setSwapPost(null)} onSaved={() => { setPreview(null); loadDrafts(); }} />}
       {/* Taslak önizleme */}
       {preview && (
         <Modal open onClose={() => setPreview(null)} title="Taslak Önizleme" wide>
@@ -1467,6 +1508,12 @@ function AutomationPage() {
                 )}
               </div>
             )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+              <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setSwapPost(preview)}>Görseli değiştir</button>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <ImageReasonBox post={preview} flash={flash} onChanged={() => { setPreview(null); loadDrafts(); }} />
+            </div>
             <div className="adm-pv-article__lead">{preview.excerpt_tr}</div>
             <div className="adm-pv-article__body">
               {(preview.body_tr || []).map((p, i) => <p key={i}>{p}</p>)}

@@ -1,4 +1,7 @@
 """
+MANUEL: canlı Supabase gerektirir; pytest (automation/tests) tarafından toplanmaz.
+Otomatik testler için automation/tests/ kullanılır.
+
 test_matcher.py — image_matcher.find_best_image() işlevini örnek makale
 dict'leriyle test eder. Her aday görsel için skoru, seçilen görseli ve
 usage_count'unu terminale yazdırır.

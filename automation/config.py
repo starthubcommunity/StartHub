@@ -83,3 +83,38 @@ GOOGLE_SHEETS_CREDENTIALS = os.environ.get("GOOGLE_SHEETS_CREDENTIALS", "")
 # Sütunlar: id | title | slug | category | planned_date | status | source_url | content_file
 # status değerleri: draft / approved / published
 
+# ---- Görsel eşleştirme (image_matcher.py) — ayarlar automation/matching_config.json'da ----
+# Aynı dosyayı admin paneli (src/admin/image-constants.js) de okur; tek kaynak.
+# Değeri değiştirmek için JSON'u düzenleyin.
+import json as _json
+
+with open(os.path.join(os.path.dirname(__file__), "matching_config.json"), encoding="utf-8") as _f:
+    _MC = _json.load(_f)
+
+CATEGORY_ALIAS = _MC["CATEGORY_ALIAS"]
+CATEGORY_DIRECT_BONUS = _MC["CATEGORY_DIRECT_BONUS"]
+CATEGORY_ALIAS_BONUS = _MC["CATEGORY_ALIAS_BONUS"]
+GENEL_CATEGORY = _MC["GENEL_CATEGORY"]
+GENEL_CATEGORY_BONUS = _MC["GENEL_CATEGORY_BONUS"]
+IDF_SCALE = _MC["IDF_SCALE"]
+GENERIC_TAG_MAX_WEIGHT = _MC["GENERIC_TAG_MAX_WEIGHT"]
+TAG_SCORE_CAP = _MC["TAG_SCORE_CAP"]
+GENERIC_TAGS = _MC["GENERIC_TAGS"]
+TEXT_BODY_CHARS = _MC["TEXT_BODY_CHARS"]
+USAGE_BONUS_MAX = _MC["USAGE_BONUS_MAX"]
+USAGE_WINDOW_DAYS = _MC["USAGE_WINDOW_DAYS"]
+HISTORY_LIMIT = _MC["HISTORY_LIMIT"]
+RECENT_POSTS_EXCLUDE = _MC["RECENT_POSTS_EXCLUDE"]
+DAILY_WINDOW_DAYS = _MC["DAILY_WINDOW_DAYS"]
+MAX_USES_IN_WINDOW = _MC["MAX_USES_IN_WINDOW"]
+VISUAL_TYPES = _MC["VISUAL_TYPES"]
+VISUAL_WINDOW_RULES = [tuple(r) for r in _MC["VISUAL_WINDOW_RULES"]]
+VISUAL_WINDOW_DEFAULT = _MC["VISUAL_WINDOW_DEFAULT"]
+MIN_SPECIFIC_SCORE = _MC["MIN_SPECIFIC_SCORE"]
+RELAX_REVIEW_THRESHOLD = _MC["RELAX_REVIEW_THRESHOLD"]
+
+# Son çare görselleri (stok okunamazsa / aday çıkmazsa). Kategori bazlı görsel
+# eklendikçe buraya yazılır; şimdilik markalı logo.
+FALLBACK_IMAGES = {
+    "default":   "https://www.starthub-community.com/logo-full.png",
+}
