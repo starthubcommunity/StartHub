@@ -74,6 +74,7 @@ function mapPostFromDb(row) {
     bg:          row.bg          || 'var(--blue-light)',
     cover:       row.image_url   || null,
     imageAlt:    row.image_alt   || null,
+    needsReview: row.needs_review ?? false,
     aspectRatio: row.aspect_ratio ?? 1.78,
     guestAuthor: row.guest_author || null,
     linkedinShare:  row.linkedin_share  ?? false,
