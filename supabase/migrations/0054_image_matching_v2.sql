@@ -1,4 +1,4 @@
--- 0052_image_matching_v2.sql
+-- 0054_image_matching_v2.sql
 -- Görsel eşleştirme v2 (automation/image_matcher.py). Görsel seçimi yayın anında
 -- deterministik ve yerel çalışır; bu tablolar kullanım geçmişini ve görsel
 -- sınıflandırmasını tutar.
@@ -36,6 +36,21 @@ create table if not exists image_usage (
 
 create index if not exists image_usage_used_at_idx on image_usage (used_at desc);
 create index if not exists image_usage_image_id_idx on image_usage (image_id);
+create unique index if not exists image_usage_image_post_uidx
+  on image_usage (image_id, post_id) where post_id is not null;
+
+-- RLS: yazma yalnızca service role (automation/publish.py) tarafından yapılır;
+-- admin paneli yalnızca okur. Anon ve diğer authenticated kullanıcılar erişemez.
+alter table image_usage enable row level security;
+
+drop policy if exists "admin reads image_usage" on image_usage;
+create policy "admin reads image_usage" on image_usage
+  for select to authenticated
+  using (exists (
+    select 1 from admin_members m
+    where m.active and (m.user_id = auth.uid()
+      or lower(m.email) = lower(coalesce(auth.jwt() ->> 'email', '')))
+  ));
 
 -- Görsel seçimi son çareye düştüyse veya çok sayıda filtre gevşediyse yazı
 -- admin panelinde "görsel kontrol edilmeli" olarak işaretlenir. Kolon yoksa
