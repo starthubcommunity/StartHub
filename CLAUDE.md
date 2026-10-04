@@ -231,6 +231,34 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   - HR: `components/mail-confirm.jsx` (`MailSendConfirm`, önizleme → "Evet, eminim", z 1150/1160 —
     HubWizard 1100'ün üstünde). Adaya giden iki mail yolu da (`DecisionMail` davet/ret, `GateStartForm`
     Kapı görevi) bundan geçer. Üye hattında e-postasız aday "Proje sahibine sun"amaz (buton pasif).
+  - (Adım 4'ten sonra Team App'teki "Kabul" doğrudan ekibe ALMAZ — aşağıya bkz.)
+- **Adım 4 ✅ — üye hattı yeni sıra (`0057_hub_owner_stage.sql`, canlıda):** görüşme (HR) → "Olumlu —
+  proje sahibine sun" (InterviewSection; recruiter bir Kapı A şablonu önerir →
+  `hub_candidates.suggested_gate_template_id`) → kurucu Team App'te: Kabul (Kapı A'yı şablondan seçer +
+  mail önizleme/düzenle + "Evet, eminim") / Ret (gerekçe) / Kendim görüşeyim (yalnızca işaret) → kurucu
+  Kapı A'yı değerlendirir (yeterli / yetersiz+gerekçe) → "Ekibe Al" (davet maili önizleme + onay).
+  Kurucu (founder) hattı DEĞİŞMEDİ (baştan sona HR). Ayrıntılı durum `hub_candidates.owner_stage`
+  (presented/interview/gate/gate_passed/joined/rejected/withdrawn) — YALNIZCA sunucu yazar
+  (`mapCandidateToDb` bu kolonu yazmaz; `updateItem` aday kurucunun elindeyken stage/owner_decision/
+  presented_at/startup_id alanlarını DB'ye göndermez — HR'ın bayat yerel kopyası ilerlemeyi ezmesin).
+  `owner_decision` pending/accepted/rejected olarak KALDI (rol yeniden açma hesabı ona bakıyor).
+  - Team App: `hub-team-decide-offer` artık `action` alır (templates/interview/start_gate/evaluate/
+    join/reject); durum makinesi `logic.ts` → `computeOfferActionPatch` (test: hub-team-decide-logic).
+    `join` YALNIZCA `gate_passed`'tan — eski istemcilerin `{decision:'accepted'}` çağrısı da Kapı A'yı
+    atlayamaz. `start_gate`'te adaya görev maili ÖNCE gider (kurucunun onayladığı metin), gidemezse
+    hiçbir şey yazılmaz. Teslim adresi kurucunun kendi e-postası (send-mail reply_to'su Start-Hub kutusu).
+  - Ana proje: `hub-owner-decision` action'ları (templates/interview/gate_started → hub_gates satırı +
+    stage trial / gate_result) + eski decision'lar; `hub-present-to-owner` cofounder'a istisnai
+    `withdraw` / `owner_fail` (Team App teklifini `hub-bridge-present-candidate` action 'close' ile kapatır).
+  - HR: `OwnerProgress` (candidate.jsx) salt okunur süreç kartı + "Yenile" (store'da realtime yok);
+    ret/geri çekme sonrası "nazik ret maili gönder ve arşivle"; Bugün listesi kurucudaki işleri
+    "Kurucuda" (yalnızca 3+ gün takılırsa) / "Ret maili" olarak gösterir; `nextAction` → 'owner'.
+  - Geriye dönük: 12 Eylül'den kalma (köprüden önceki) tek sunulmuş "Havuz" kaydının owner_stage'i boş
+    bırakıldı (Team App'te teklifi yok — yoksa sonsuza dek "kurucuda" görünürdü).
+  - **Migration numarası yine çakıştı:** ikinci katkıcı aynı gün 0054–0056'yı (görsel eşleştirme)
+    canlıya uygulamıştı; `db push` "Remote migration versions not found" ile durdu → `origin/main`
+    merge edildi, benimki 0057'ye alındı. `repair` YAPILMADI. Push öncesi `git fetch` + canlıdaki son
+    versiyon kontrolü şart.
   - Team App önizleme yöntemi (oturum gerektirmeden): `dist`'i `vite preview` ile sun, headless Chrome'u
     `--host-resolver-rules="MAP *.supabase.co 127.0.0.1"` ile aç (canlı veriye istek ÇIKAMAZ), React
     fiber'da `openOffer` metodu olan nesneyi bul (stateNode'un bir alt alanında), `persist`/
