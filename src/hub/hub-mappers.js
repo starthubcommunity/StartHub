@@ -334,6 +334,7 @@ export function mapGateToDb(g) {
     startup_id:   g.startupId ?? null,
     person_id:    g.personId ?? null,
     task_text:    g.taskText ?? null,
+    template_id:  g.templateId ?? null,   // 0053 — hangi Kapı A şablonundan
     started_at:   orUndef(g.startedAt),
     due_at:       g.dueAt,                // NOT NULL, default yok
     extended_days: g.extendedDays ?? 0,   // v2 §2.2 — süre uzatma
@@ -350,12 +351,39 @@ export function mapGateFromDb(r) {
     startupId:   r.startup_id ?? null,
     personId:    r.person_id ?? null,
     taskText:    r.task_text ?? null,
+    templateId:  r.template_id ?? null,
     startedAt:   r.started_at ?? null,
     dueAt:       r.due_at ?? null,
     extendedDays: r.extended_days ?? 0,
     delivered:   r.delivered ?? null,
     evaluation:  r.evaluation ?? null,
     result:      r.result || 'pending',
+  };
+}
+
+// ══ hub_gate_templates (0053 — Kapı A görev şablonları) ═══════════════
+export function mapGateTemplateToDb(t) {
+  return {
+    category:       t.category,
+    title:          (t.title || '').trim(),
+    description:    (t.description || '').trim(),
+    duration_hours: Number(t.durationHours) || 72,
+    delivery_type:  t.deliveryType || 'link',
+    sort_order:     Number(t.sortOrder) || 0,
+    active:         t.active ?? true,
+    updated_at:     new Date().toISOString(),
+  };
+}
+export function mapGateTemplateFromDb(r) {
+  return {
+    id:            r.id,
+    category:      r.category,
+    title:         r.title,
+    description:   r.description,
+    durationHours: r.duration_hours ?? 72,
+    deliveryType:  r.delivery_type || 'link',
+    sortOrder:     r.sort_order ?? 0,
+    active:        r.active ?? true,
   };
 }
 
@@ -452,4 +480,5 @@ export const HUB_TABLES = {
   templates:  { table: 'hub_templates',       toDb: mapTemplateToDb,  fromDb: mapTemplateFromDb  },
   sources:    { table: 'hub_source_registry', toDb: mapSourceToDb,    fromDb: mapSourceFromDb    },
   folders:    { table: 'hub_folders',         toDb: mapFolderToDb,    fromDb: mapFolderFromDb    },
+  gateTemplates: { table: 'hub_gate_templates', toDb: mapGateTemplateToDb, fromDb: mapGateTemplateFromDb },
 };

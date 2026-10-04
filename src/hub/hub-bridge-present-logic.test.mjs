@@ -76,5 +76,21 @@ function check(label, cond) {
   check("5b hata mesajı ekip yok diyor", /ekibi yok/.test(r.error || ""));
 }
 
+
+// ── Adım 3: kurucuya bildirim maili ─────────────────────────────────────
+import { offerMailRecipients, offerNotifyMail } from "../../supabase/functions/hub-bridge-present-candidate/logic.ts";
+{
+  const r = offerMailRecipients(baseSnapshot(), "A");
+  assert.deepEqual(r.map((u) => u.email), ["leada@x.com"], "lead varsa yalnızca lead'e gider");
+  const noLead = baseSnapshot({ users: [{ id: 2, name: "Admin", email: "Admin@X.com", role: "admin" }, { id: 3, email: "m@x.com", role: "member", team: "A" }] });
+  assert.deepEqual(offerMailRecipients(noLead, "A").map((u) => u.email), ["admin@x.com"], "lead yoksa admin'e düşer");
+  const teamRole = baseSnapshot({ users: [{ id: 5, name: "Çok ekipli", email: "c@x.com", role: "member", teams: ["B", "A"], teamRoles: { A: "lead" } }] });
+  assert.deepEqual(offerMailRecipients(teamRole, "A").map((u) => u.email), ["c@x.com"], "teamRoles ile lead olan da sayılır");
+  const m = offerNotifyMail("Team A", { teamId: "A", hubCandidateId: "h", fullName: "Ece", email: "e@x.com", roleTitle: "Mobil", note: "React Native deneyimi" }, "Lead A");
+  assert.equal(m.subject, "Sana bir aday önerildi — Mobil");
+  assert.ok(m.body.includes("Ece") && m.body.includes("Neden bu kişi: React Native deneyimi") && m.body.includes("/team/"));
+  console.log("ok — kurucuya bildirim maili (alıcı + metin)");
+}
+
 console.log(failures === 0 ? "\nTÜM TESTLER GEÇTİ" : `\n${failures} TEST BAŞARISIZ`);
 process.exit(failures === 0 ? 0 : 1);

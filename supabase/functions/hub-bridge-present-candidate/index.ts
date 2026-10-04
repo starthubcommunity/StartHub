@@ -16,12 +16,32 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { computeOfferPresentPatch } from "./logic.ts";
+import { computeOfferPresentPatch, offerMailRecipients, offerNotifyMail } from "./logic.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const HUB_BRIDGE_SECRET = Deno.env.get("HUB_BRIDGE_SECRET");
 const MAX_ATTEMPTS = 3;
+
+// Adım 3 — kurucuya "Sana bir aday önerildi" bilgi maili (çift onay yok).
+// Aynı projedeki send-mail üzerinden; başarısız olursa sunma DÜŞMEZ.
+async function mailRecipients(snapshot: any, payload: any): Promise<number> {
+  const team = (snapshot.teams || []).find((t: any) => t.id === payload.teamId);
+  let sent = 0;
+  for (const r of offerMailRecipients(snapshot, payload.teamId)) {
+    const { subject, body } = offerNotifyMail(team?.name || payload.teamId, payload, r.name);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-mail`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}`, apikey: SERVICE_ROLE_KEY },
+        body: JSON.stringify({ to: r.email, subject, body }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) sent++;
+    } catch (_e) { /* bilgi maili — yutulur */ }
+  }
+  return sent;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,7 +81,8 @@ serve(async (req) => {
     const { error: writeErr } = await admin.from("app_state").upsert({ id: "shl_v5", data: merged });
     if (writeErr) return json({ ok: false, error: writeErr.message }, 500);
 
-    return json({ ok: true, offerId: result.offerId, alreadyPending: false });
+    const mailed = await mailRecipients(merged, payload);
+    return json({ ok: true, offerId: result.offerId, alreadyPending: false, mailed });
   }
 
   return json({ ok: false, error: "çok fazla eşzamanlı yazma çakışması, tekrar deneyin" }, 409);

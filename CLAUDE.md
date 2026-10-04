@@ -190,6 +190,54 @@ verisi, `type:'project_member'`) `npx supabase db query --linked` ile elle
 silindi (anon key ile DELETE RLS'e takılırdı), ikisi de doğrulandı — hiçbir
 `hub_open_roles`/`posts` kaydı bu projeye referans vermiyordu, temiz silme.
 
+## Pay / vesting (Equity) — 2026-10-04, Adım 1/5
+
+Kaynak belgeler: `Start-Hub_Equity_Governance_Framework.md`, `StartHub_Vesting_Kurallari_ve_Senaryolar.md`,
+`StartHub_Aday_Bulma_Senaryosu.md` (kullanıcı oturuma ekledi, repoda değil). 5 adımlı plan, her adım
+kullanıcı onayıyla: (1) pay tabloları ✅ (2) Kapı A şablonları (3) bildirim + çift onaylı mail
+(4) kurucu/üye ayrımı — üye hattında akış sırası DEĞİŞİYOR: sun → kurucu kabul → Kapı A'yı kurucu
+şablondan atar → değerlendirir → "Ekibe Al" (5) Team App "Payım" + "Genel" kaynak filtresi.
+Kullanıcı kararları: pay verisi ana projede, Team App bir köprü fonksiyonuyla okur (Team App ayrı
+Supabase projesinde oturum açtığı için RLS onu tanımaz); kilometre taşı = sabit +5 puan, zaman
+tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler; sözleşme onay ekranı
+(IP/PDF) bu turda YOK; "Kendim görüşeyim" yalnızca durum işareti.
+- `0052_equity.sql` (canlıda): `equity_seats` (koltuk bütçesi, Kural 4b), `equity_grants` (pay sözü),
+  `equity_milestones`, `equity_events` (Kural 11-12 süreç kaydı + otomatik `audit` satırları,
+  append-only). RLS `has_perm('equity.read'|'equity.manage')` — yalnızca cofounder. Koltuk/söz
+  silinmez. "Şu an ne kadar kazanıldı" DB'de SAKLANMAZ — `src/lib/equity-rules.js` hesaplar
+  (istisna: ayrılınca donan `vested_at_end`). Testler: `node src/lib/equity-rules.test.mjs`.
+- HR › Yönetim › "Pay Sözleri" (`src/hub/pages/equity.jsx`).
+- **Adım 2 ✅ — `0053_hub_gate_templates.sql` (canlıda):** belgedeki `kapi_a_sablonlari` proje kuralına
+  uygun adla `hub_gate_templates` (category = `hub_candidates.interest` anahtarları + `founder`, title,
+  description, duration_hours 24–336, delivery_type link/file/recording) + `hub_gates.template_id`.
+  11 başlangıç şablonu belge örneklerinden türetilmiş TASLAKTIR (projeye göre düzenlenmeli). RLS
+  `templates.read/manage`. Store koleksiyonu `gateTemplates`. HR › Şablonlar › "Kapı A görevleri"
+  sekmesi (`pages/gate-templates.jsx`; kullanılmış şablon silinmez, pasifleştirilir). `GateStartForm`
+  (candidate.jsx) Kapı A'da serbest yazı yerine şablon seçici + gün seçici + katlanmış açıklama
+  override; Kapı B serbest metin kaldı. Yardımcılar `src/hub/gate-templates.js` (+ `.test.mjs`).
+  Team App'teki kurucu seçici Adım 4'te (akış sırası değişince) aynı tabloyu kullanacak.
+- **Adım 3 ✅ — bildirim + çift onaylı mail (migration yok):**
+  - Bilgi maili (tek adım): `hub-bridge-present-candidate` (Team App projesine `--no-verify-jwt` ile
+    deploy edildi) sunma kaydı yazıldıktan SONRA o ekibin lead'(ler)ine — lead yoksa admin'lere —
+    "Sana bir aday önerildi — {rol}" maili atar (aynı projedeki `send-mail`); başarısız olursa sunma
+    düşmez. Alıcı/metin saf fonksiyonlarda (`logic.ts` → `offerMailRecipients`/`offerNotifyMail`, test:
+    `hub-bridge-present-logic.test.mjs` — dosyanın sonundaki `process.exit` yeni testlerden SONRA olmalı).
+  - Team App: zil bildirimi (`candidate_offer`) artık karar penceresini (`offerModal`) doğrudan açar;
+    Team kartındaki Kabul/Ret de aynı pencereye gider. Kabul = karar maili → mail önizlemesi →
+    ayrı "Evet, eminim". Ret → gerekçe zorunlu (≥5 karakter), `hub-owner-decision`'a not olarak gider.
+    Önizleme metni `offerInviteMail()` — `hub-team-decide-offer`'daki `sendInviteEmail` ile AYNI
+    olmalı (biri değişirse diğeri de). Yan düzeltme: `notify(..., "err")` önceden yeşil görünüyordu
+    (yalnızca "warn" tanınıyordu) — artık kırmızı.
+  - HR: `components/mail-confirm.jsx` (`MailSendConfirm`, önizleme → "Evet, eminim", z 1150/1160 —
+    HubWizard 1100'ün üstünde). Adaya giden iki mail yolu da (`DecisionMail` davet/ret, `GateStartForm`
+    Kapı görevi) bundan geçer. Üye hattında e-postasız aday "Proje sahibine sun"amaz (buton pasif).
+  - Team App önizleme yöntemi (oturum gerektirmeden): `dist`'i `vite preview` ile sun, headless Chrome'u
+    `--host-resolver-rules="MAP *.supabase.co 127.0.0.1"` ile aç (canlı veriye istek ÇIKAMAZ), React
+    fiber'da `openOffer` metodu olan nesneyi bul (stateNode'un bir alt alanında), `persist`/
+    `_refreshFromCloud`'u no-op yap, demo state'i `setState` ile ver.
+- **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
+  (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
+
 ## Kurucu Hattı / İnsan Kaynağı (`/HR/`)
 
 Yapım şartnamesi: **`HUB_SPEC.md`** — artık **v3** (v2'nin canlı kullanımından
