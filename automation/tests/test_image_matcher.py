@@ -44,7 +44,7 @@ def test_word_boundary_match_counts():
 def test_generic_image_not_picked_when_specific_match_is_strong():
     images = [
         img(1, category="Teknoloji", tags=["kripto", "blokzincir"], visual_type="kod_ekran"),
-        img(2, category="Genel", tags=["anlasma", "yatirim"], visual_type="el_sikisma", is_generic=True),
+        img(2, category="Teknoloji", tags=["anlasma", "yatirim"], visual_type="el_sikisma", is_generic=True),
     ]
     res = im.select_image(text("Kripto ve blokzincir yatirim anlasmasi"), "Teknoloji", images, [], NOW)
     assert res["image"]["id"] == 1
@@ -105,3 +105,13 @@ def test_tie_break_prefers_least_recently_used_then_id():
     history = [use(1, 200)]
     res = im.select_image(text("robot haberi"), "Teknoloji", images, history, NOW)
     assert res["image"]["id"] == 2
+
+
+def test_generic_kept_when_strong_specific_is_in_other_category():
+    images = [
+        img(1, category="Teknoloji", tags=["kripto", "blokzincir"], visual_type="kod_ekran"),
+        img(2, category="Fon", tags=["yatirim"], visual_type="el_sikisma", is_generic=True),
+    ]
+    res = im.select_image(text("Kripto ve blokzincir yatirim haberi"), "Yatırım", images, [], NOW)
+    assert "generic_excluded" not in res["reason"]["filters_applied"]
+    assert res["reason"]["generic_allowed"] is True

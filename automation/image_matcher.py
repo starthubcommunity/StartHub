@@ -16,7 +16,8 @@ Filtreler (sırayla; aday kalmazsa o filtre gevşer ve reason'a yazılır):
   a. Son RECENT_POSTS_EXCLUDE yazıda kullanılan görseller
   b. Son DAILY_WINDOW_DAYS günde MAX_USES_IN_WINDOW'dan fazla kullanılanlar
   c. Son N yazının visual_type'ları, N = visual_window(stok büyüklüğü) (null olan muaf)
-  d. is_generic görseller, en iyi spesifik skor MIN_SPECIFIC_SCORE altındaysa geçer
+  d. is_generic görseller, yalnızca AYNI kategoride klişe olmayan ve MIN_SPECIFIC_SCORE
+     üstü bir aday varsa elenir; aksi halde seçilebilir
 """
 import logging
 import math
@@ -73,6 +74,13 @@ def tag_weights(images: list[dict]) -> dict[str, float]:
             w = min(w, config.GENERIC_TAG_MAX_WEIGHT)
         weights[tag] = w
     return weights
+
+
+def _is_same_category(article_category: str, image_category: str) -> bool:
+    return bool(image_category) and (
+        image_category == article_category
+        or image_category in config.CATEGORY_ALIAS.get(article_category, [])
+    )
 
 
 def _category_score(article_category: str, image_category: str) -> float:
@@ -174,11 +182,18 @@ def select_image(text: str, article_category: str, images: list[dict], history: 
 
     scored = {img["id"]: score_image(text, article_category, img, weights, usage_90, max_usage) for img in pool}
 
-    specific_best = max((scored[img["id"]][0] for img in pool if not img.get("is_generic")), default=None)
-    generic_allowed = specific_best is None or specific_best < config.MIN_SPECIFIC_SCORE
-    if not generic_allowed:
-        pool = [img for img in pool if not img.get("is_generic")]
+    # Klişe görsel, yalnızca AYNI kategoride klişe olmayan ve eşik üstü bir aday varsa elenir.
+    same_cat_specific_best = max(
+        (scored[img["id"]][0] for img in pool
+         if not img.get("is_generic") and _is_same_category(article_category, img.get("category") or "")),
+        default=None,
+    )
+    generic_excluded = same_cat_specific_best is not None and same_cat_specific_best >= config.MIN_SPECIFIC_SCORE
+    if generic_excluded:
+        pool = [img for img in pool
+                if not (img.get("is_generic") and _is_same_category(article_category, img.get("category") or ""))]
         applied.append("generic_excluded")
+    generic_allowed = not generic_excluded
 
     last_used: dict[int, float] = {}
     for h in history:
