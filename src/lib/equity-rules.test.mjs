@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
   computeVesting, vestedOnExit, removalNeedsReview, seatBudget, projectAllocation,
-  validateSeat, validateGrant, monthsElapsed, addMonths, toDate, effectiveStart,
+  validateSeat, validateGrant, monthsElapsed, addMonths, toDate, effectiveStart, summarizeGrant,
 } from './equity-rules.js';
 
 let pass = 0;
@@ -169,6 +169,22 @@ t('Kural 4: üye koltukları toplamı 50\'yi aşamaz', () => {
 });
 t('kapalı koltuk proje dağılımına sayılmaz', () => {
   assert.equal(projectAllocation([{ seatKind: 'member_critical', budgetPct: 20, active: false }]).reserve, 50);
+});
+
+// ── Adım 5: "Payım" özeti ───────────────────────────────────────────
+t('Payım: lider — MVP sonrası sıradaki taş "İlk kullanıcı", ilerleme yüzdesi', () => {
+  const s = summarizeGrant(lead(), { title: 'Team Lead', seatKind: 'lead' }, 'TİD Çevirici', [{ kind: 'mvp', achievedAt: '2026-05-10' }], '2026-09-01');
+  assert.equal(s.project, 'TİD Çevirici'); assert.equal(s.vested, 11.667); assert.equal(s.progress, 38.9);
+  assert.equal(s.nextMilestone, 'İlk kullanıcı / doğrulama'); assert.deepEqual(s.milestonesDone, ['MVP tamamlandı']);
+  assert.equal(s.cliffPassed, true); assert.equal(s.nextVest, '2026-10-01');
+});
+t('Payım: üyede kilometre taşı satırı yok; bekleme süresindeyken tarih görünür', () => {
+  const s = summarizeGrant(member(), { title: 'Mobil', seatKind: 'member_standard' }, 'P', [], '2026-03-01');
+  assert.equal(s.nextMilestone, null); assert.equal(s.cliffPassed, false); assert.equal(s.cliffDate, '2026-07-01'); assert.equal(s.vested, 0);
+});
+t('Payım: ayrılmış söz donmuş değeri gösterir', () => {
+  const s = summarizeGrant(member({ status: 'left_good', endedAt: '2026-09-10', vestedAtEnd: 8 }), { title: 'Mobil', seatKind: 'member_standard' }, 'P', [], '2027-06-01');
+  assert.equal(s.statusLabel, 'Ayrıldı (iyi niyetli)'); assert.equal(s.vested, 8); assert.equal(s.nextVest, null);
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

@@ -259,6 +259,26 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
     canlıya uygulamıştı; `db push` "Remote migration versions not found" ile durdu → `origin/main`
     merge edildi, benimki 0057'ye alındı. `repair` YAPILMADI. Push öncesi `git fetch` + canlıdaki son
     versiyon kontrolü şart.
+- **Adım 5 ✅ — "Payım" + "Genel" kaynaklar (migration yok) — 5 adımın SONUNCUSU:**
+  - Pay hesabının TEK kaynağı artık `supabase/functions/_shared/equity-rules.js`; `src/lib/equity-rules.js`
+    yalnızca onu re-export eder (edge function frontend dosyası import edemez, tersi olur).
+    `summarizeGrant()` Payım özetini üretir (test: equity-rules.test.mjs, 34 senaryo).
+  - `hub-team-my-equity` (Team App, JWT AÇIK): e-postayı kullanıcının KENDİ JWT'sinden alır (istemci
+    seçemez), lead olduğu ekipleri app_state'ten sunucuda hesaplar (admin → tüm ekipler) →
+    `hub-equity-bridge` (ana proje, `--no-verify-jwt`, x-hub-bridge-key): kişinin kendi sözleri +
+    lead'in ekibinin tablosu (Bölüm G m.9; startups.team_app_id eşlemesiyle; bu listede e-posta DÖNMEZ).
+    Pay verisi app_state'e YAZILMAZ — yalnızca oturum belleğinde (`state.equity`).
+  - Team App: sekme çubuğunun sağında küçük "💼 Payım" butonu (`tab: "equity"`, ana sekmelerde değil —
+    Bölüm M "ön planda değil"). Kartlar: söz/kazanılmış/kazanılmamış, ilerleme, bekleme süresi, sıradaki
+    hak ediş, (lider) kilometre taşları ve sıradaki taş; lead'e "Ekibimin pay durumu".
+    **Dikkat: bu DSL'de `<table>` içine `<sc-for>` KONMAZ** — HTML ayrıştırıcısı bilinmeyen etiketi
+    tablonun dışına taşır, satırlar boş çıkar (bulundu, div ızgarasına çevrildi).
+  - Kaynaklar: `app_state.data.sharedResources` (yeni üst düzey alan — `_snapshot` VE `_applySnapshot`
+    ikisine de eklendi; okumada `d.sharedResources || this.state.sharedResources` ile eski bir sekmenin
+    alanı bilmeden yazması kalıcı silmeye dönüşmez). "Genel" satırı yalnızca admin düzenler; sentinel
+    `GENERAL_RES = "__GENERAL__"`, `_resList/_resPatch` ile mevcut openResEdit/saveRes/removeRes/flow
+    yolları yönlendirildi. "Tümü / Bu proje / Genel" filtre çipleri (`resFilter`). İçerik (PRD, üye kural
+    özeti) kod değil — admin/lead Team App'ten ekler.
   - Team App önizleme yöntemi (oturum gerektirmeden): `dist`'i `vite preview` ile sun, headless Chrome'u
     `--host-resolver-rules="MAP *.supabase.co 127.0.0.1"` ile aç (canlı veriye istek ÇIKAMAZ), React
     fiber'da `openOffer` metodu olan nesneyi bul (stateNode'un bir alt alanında), `persist`/
