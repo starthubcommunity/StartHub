@@ -6,6 +6,7 @@ import { PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
 import { usePerms } from '../lib/use-perms';
 import { people } from '../data';
 import { ImageSwapModal, ImageReasonBox } from './image-swap';
+import { scheduleSiteRebuild } from './site-rebuild';
 
 // ============================================
 // DASHBOARD — istatistikler (auto/manuel) + özet
@@ -603,7 +604,13 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
                         post={{ ...f, id: item.id }}
                         flash={flashImg}
                         onClose={() => setSwapOpen(false)}
-                        onSaved={(url, alt) => { set('cover', url); set('imageAlt', alt); set('needsReview', false); }}
+                        onSaved={(url, alt) => {
+                          set('cover', url); set('imageAlt', alt); set('needsReview', false);
+                          if (f.status === 'published') {
+                            scheduleSiteRebuild();
+                            flashImg('Görsel değiştirildi. Değişiklik birkaç dakika içinde sitede görünecek.');
+                          }
+                        }}
                       />
                     )}
                   </div>

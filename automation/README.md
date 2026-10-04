@@ -115,3 +115,11 @@ Saati değiştirmek için cron'u UTC'ye göre ayarla.
 - Servis hesabı JSON'unu repoya **commit etme**.
 - Gemini çıktısını yayınlamadan önce editör onayı (`approved`) zorunlu tutman önerilir
   (panelde "Otomatik Onay" KAPALI tut).
+
+## Görsel değiştirme yetkisi (admin paneli)
+
+"Görseli değiştir" (taslak ve yayınlanmış yazılar) `swap_post_image` RPC'si ile yapılır (`supabase/migrations/0056_swap_post_image.sql`).
+Yetki kontrolü `has_perm('posts.write')`'tır — yani **admin ve editör** rolleri değiştirebilir (editör rolüne bu izin `0009_permissions.sql`'de varsayılan olarak verilmiş; yazı düzenleme yetkisiyle aynı).
+Migration yorumundaki "bir adım sıkı" ifadesi bu anlamda yanıltıcıdır: kontrol "yalnızca admin" değil, "posts.write yetkisi olan herkes"tir. Yalnızca `admin` rolünün değiştirmesi istenirse `admin_role() = 'admin'` koşuluyla yeni bir migration gerekir.
+
+Yayınlanmış bir yazıda görsel değişince, statik build'deki `og:image`, JSON-LD ve sitemap görsel girdileri yeniden build edilene kadar eski kalır. Bunun için admin paneli `site-rebuild` edge function'ını çağırır (30 sn debounce); function `VERCEL_DEPLOY_HOOK_URL` secret'ıyla Vercel deploy hook'unu tetikler. Secret ayarlanmamışsa çağrı 500 döner ve site yeniden build edilmez.
