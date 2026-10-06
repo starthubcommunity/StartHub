@@ -7,7 +7,7 @@ import { usePerms } from '../lib/use-perms';
 import { people } from '../data';
 import { ImageSwapModal, ImageReasonBox } from './image-swap';
 import { scheduleSiteRebuild } from './site-rebuild';
-import { translateTrToEn } from './translate';
+import { translateText } from './translate';
 
 // ============================================
 // DASHBOARD — istatistikler (auto/manuel) + özet
@@ -502,33 +502,17 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
   const [swapOpen, setSwapOpen] = useStateP(false);
   const [imgMsg, setImgMsg] = useStateP(null);
   const flashImg = (msg, kind = 'green') => setImgMsg({ msg, kind });
+  // Yazı hangi dilde yazılıyor: diğer dil kaydederken OTOMATİK çevrilir (admin elle yazmaz,
+  // ayrı bir "çevir" butonu da yok — site'deki TR/EN butonu zaten title_tr/title_en'i okuyor,
+  // biz sadece ikisinin de dolu olmasını sağlıyoruz).
+  const [sourceLang, setSourceLang] = useStateP(
+    item && !(item.title_tr || '').trim() && (item.title_en || '').trim() ? 'en' : 'tr'
+  );
   const [translating, setTranslating] = useStateP(false);
-  const [trMsg, setTrMsg] = useStateP(null);
-
-  const translateAll = async () => {
-    if (!f.title_tr.trim() && !f.excerpt_tr.trim() && (f.body_tr || []).length === 0) {
-      setTrMsg({ msg: 'Önce Türkçe metni yazın.', kind: 'orange' }); return;
-    }
-    setTranslating(true); setTrMsg(null);
-    try {
-      const texts = { title: f.title_tr, excerpt: f.excerpt_tr };
-      (f.body_tr || []).forEach((p, i) => { texts['body_' + i] = p; });
-      const t = await translateTrToEn(texts);
-      if (t.title) set('title_en', t.title);
-      if (t.excerpt) set('excerpt_en', t.excerpt);
-      const bodyEn = (f.body_tr || []).map((_, i) => t['body_' + i] || '');
-      if (bodyEn.some(Boolean)) set('body_en', bodyEn);
-      setTrMsg({ msg: 'Çevrildi — kontrol edip gerekirse düzeltin.', kind: 'green' });
-    } catch (e) {
-      setTrMsg({ msg: 'Çeviri başarısız: ' + e.message, kind: 'orange' });
-    } finally {
-      setTranslating(false);
-    }
-  };
 
   const set = (k, v) => setF(prev => {
     const next = { ...prev, [k]: v };
-    if (k === 'title_tr' && !slugLocked.current) next.slug = toSlug(v);
+    if ((k === 'title_tr' || k === 'title_en') && !slugLocked.current) next.slug = toSlug(v);
     return next;
   });
   const setSlug = (v) => { slugLocked.current = true; setF(prev => ({ ...prev, slug: v.toLowerCase().replace(/[^a-z0-9-]/g, '-') })); };
@@ -536,23 +520,47 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
   const authorName = f.guestAuthor?.name || (people.find(p => p.id === f.authorId) || {}).name;
   const authors = people.filter(p => p.type === 'author' || p.type === 'team' || p.type === 'mentor');
 
-  const contentValid = f.title_tr.trim() && f.excerpt_tr.trim() && (f.body_tr || []).length > 0;
+  const contentValid = (f[`title_${sourceLang}`] || '').trim() && (f[`excerpt_${sourceLang}`] || '').trim() && (f[`body_${sourceLang}`] || []).length > 0;
   const goNext = () => {
     if (!contentValid) { setErr('Başlık, özet ve içerik zorunludur — boş yazı yayınlanamaz.'); return; }
     setErr(''); setStep(1);
   };
+
+  // Kaynak dildeki metni diğer dile çevirip payload'a yazar. Başarısız olursa yayın
+  // DÜŞMEZ — yazı sadece yazıldığı dilde kaydedilir (site'deki buton TR'ye geri düşer).
+  const withOtherLangTranslated = async (payload) => {
+    const from = sourceLang, to = from === 'tr' ? 'en' : 'tr';
+    const texts = { title: payload[`title_${from}`] || '', excerpt: payload[`excerpt_${from}`] || '' };
+    const bodySrc = payload[`body_${from}`] || [];
+    bodySrc.forEach((p, i) => { texts['body_' + i] = p; });
+    const t = await translateText(texts, from, to);
+    return {
+      ...payload,
+      [`title_${to}`]: t.title || payload[`title_${to}`] || '',
+      [`excerpt_${to}`]: t.excerpt || payload[`excerpt_${to}`] || '',
+      [`body_${to}`]: bodySrc.map((_, i) => t['body_' + i] || ''),
+    };
+  };
+
   const submit = async () => {
     if (!contentValid) { setErr('Başlık, özet ve içerik zorunludur — boş yazı yayınlanamaz.'); setStep(0); return; }
     if (!f.slug) { setErr('Slug boş olamaz — başlık girilince otomatik oluşur.'); setStep(0); return; }
     if (f.guestAuthor && !f.guestAuthor.name?.trim()) { setErr('Misafir yazarın adı zorunludur.'); setStep(1); return; }
     setSaving(true); setErr('');
     try {
-      const payload = { ...f };
+      let payload = { ...f };
       if (payload.status === 'published' && !payload.publishedAt) {
         payload.publishedAt = new Date().toISOString();
       } else if (payload.status === 'draft' || payload.status === 'rejected') {
         payload.publishedAt = null;
       }
+      setTranslating(true);
+      try {
+        payload = await withOtherLangTranslated(payload);
+      } catch (e) {
+        console.warn('[çeviri] başarısız, yazı yalnızca ' + sourceLang + ' olarak kaydediliyor:', e);
+      }
+      setTranslating(false);
       await onSave(payload);
     } catch (e) {
       if (e.code === '23505' || (e.message || '').includes('duplicate') || (e.message || '').includes('unique')) {
@@ -579,8 +587,13 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
 
         {step === 0 && (
           <div style={{ marginTop: 18 }}>
-            <Field label="Başlık (TR)" required><Input value={f.title_tr} onChange={v => set('title_tr', v)} placeholder="Yazının başlığı" /></Field>
-            <Field label="Başlık (EN)"><Input value={f.title_en} onChange={v => set('title_en', v)} /></Field>
+            <Field label="Yazı dili" hint="Kaydedince diğer dile otomatik çevrilir (ücretsiz) — site'deki TR/EN butonu için elle ikinci bir metin yazmanıza gerek yok">
+              <div className="adm-tri" style={{ display: 'inline-flex' }}>
+                <button type="button" className={`adm-tri__btn ${sourceLang === 'tr' ? 'adm-tri__btn--active' : ''}`} onClick={() => setSourceLang('tr')}>Türkçe</button>
+                <button type="button" className={`adm-tri__btn ${sourceLang === 'en' ? 'adm-tri__btn--active' : ''}`} onClick={() => setSourceLang('en')}>English</button>
+              </div>
+            </Field>
+            <Field label="Başlık" required><Input value={f[`title_${sourceLang}`] || ''} onChange={v => set(`title_${sourceLang}`, v)} placeholder="Yazının başlığı" /></Field>
             <Field label="Slug (URL)" hint="Başlıktan otomatik oluşur, düzenleyebilirsin"><Input value={f.slug} onChange={setSlug} placeholder="yazi-basligi-buraya" /></Field>
             <Field label="Durum">
               <Select
@@ -599,19 +612,10 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
                 <span>Bu yazı <strong>reddedildi</strong> — sitede görünmüyor. Yeniden yayınlamak için durumu "Yayınlandı"ya çevir ya da <strong>Otomasyon → Taslaklar → Reddedilenler</strong> sekmesindeki "Geri Al" akışını kullan.</span>
               </div>
             )}
-            <div className="adm-form-grid">
-              <Field label="Özet (TR)" required hint="Kartlarda ve giriş bölümünde görünür"><Textarea value={f.excerpt_tr} onChange={v => set('excerpt_tr', v)} /></Field>
-              <Field label="Özet (EN)"><Textarea value={f.excerpt_en} onChange={v => set('excerpt_en', v)} /></Field>
-            </div>
-            <Field label="İçerik (TR)" required hint="Her paragraf ayrı satırda"><Textarea value={(f.body_tr || []).join('\n')} onChange={v => set('body_tr', v.split('\n').filter(Boolean))} rows={8} /></Field>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 10px', flexWrap: 'wrap' }}>
-              <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" disabled={translating} onClick={translateAll}>
-                {translating ? 'Çevriliyor…' : "TR'den İngilizceye çevir"}
-              </button>
-              <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Ücretsiz otomatik çeviri — göndermeden önce kontrol edin.</span>
-              {trMsg && <span style={{ fontSize: 12.5, color: trMsg.kind === 'orange' ? 'var(--adm-orange)' : 'var(--adm-green)' }}>{trMsg.msg}</span>}
-            </div>
-            <Field label="İçerik (EN)" hint="Otomatik çevrilir, elle de düzenleyebilirsiniz"><Textarea value={(f.body_en || []).join('\n')} onChange={v => set('body_en', v.split('\n').filter(Boolean))} rows={6} /></Field>
+            <Field label="Özet" required hint="Kartlarda ve giriş bölümünde görünür"><Textarea value={f[`excerpt_${sourceLang}`] || ''} onChange={v => set(`excerpt_${sourceLang}`, v)} /></Field>
+            <Field label="İçerik" required hint="Her paragraf ayrı satırda">
+              <Textarea value={(f[`body_${sourceLang}`] || []).join('\n')} onChange={v => set(`body_${sourceLang}`, v.split('\n').filter(Boolean))} rows={10} />
+            </Field>
           </div>
         )}
 
@@ -714,7 +718,7 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
             : <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose}>İptal</button>}
           {step === 0
             ? <button type="button" className="adm-btn adm-btn--primary" onClick={goNext}>İleri <AIcon name="arrowRight" size={15} /></button>
-            : <button type="button" className="adm-btn adm-btn--primary" onClick={submit} disabled={saving}><AIcon name={saving ? 'refresh' : 'save'} size={16} /> {saving ? 'Kaydediliyor…' : 'Kaydet'}</button>}
+            : <button type="button" className="adm-btn adm-btn--primary" onClick={submit} disabled={saving}><AIcon name={saving ? 'refresh' : 'save'} size={16} /> {saving ? (translating ? 'Çevriliyor…' : 'Kaydediliyor…') : 'Kaydet'}</button>}
         </div>
       </div>
       )}
