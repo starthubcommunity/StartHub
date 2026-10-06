@@ -7,6 +7,7 @@ import { usePerms } from '../lib/use-perms';
 import { people } from '../data';
 import { ImageSwapModal, ImageReasonBox } from './image-swap';
 import { scheduleSiteRebuild } from './site-rebuild';
+import { translateTrToEn } from './translate';
 
 // ============================================
 // DASHBOARD — istatistikler (auto/manuel) + özet
@@ -501,6 +502,29 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
   const [swapOpen, setSwapOpen] = useStateP(false);
   const [imgMsg, setImgMsg] = useStateP(null);
   const flashImg = (msg, kind = 'green') => setImgMsg({ msg, kind });
+  const [translating, setTranslating] = useStateP(false);
+  const [trMsg, setTrMsg] = useStateP(null);
+
+  const translateAll = async () => {
+    if (!f.title_tr.trim() && !f.excerpt_tr.trim() && (f.body_tr || []).length === 0) {
+      setTrMsg({ msg: 'Önce Türkçe metni yazın.', kind: 'orange' }); return;
+    }
+    setTranslating(true); setTrMsg(null);
+    try {
+      const texts = { title: f.title_tr, excerpt: f.excerpt_tr };
+      (f.body_tr || []).forEach((p, i) => { texts['body_' + i] = p; });
+      const t = await translateTrToEn(texts);
+      if (t.title) set('title_en', t.title);
+      if (t.excerpt) set('excerpt_en', t.excerpt);
+      const bodyEn = (f.body_tr || []).map((_, i) => t['body_' + i] || '');
+      if (bodyEn.some(Boolean)) set('body_en', bodyEn);
+      setTrMsg({ msg: 'Çevrildi — kontrol edip gerekirse düzeltin.', kind: 'green' });
+    } catch (e) {
+      setTrMsg({ msg: 'Çeviri başarısız: ' + e.message, kind: 'orange' });
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const set = (k, v) => setF(prev => {
     const next = { ...prev, [k]: v };
@@ -580,7 +604,14 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
               <Field label="Özet (EN)"><Textarea value={f.excerpt_en} onChange={v => set('excerpt_en', v)} /></Field>
             </div>
             <Field label="İçerik (TR)" required hint="Her paragraf ayrı satırda"><Textarea value={(f.body_tr || []).join('\n')} onChange={v => set('body_tr', v.split('\n').filter(Boolean))} rows={8} /></Field>
-            <Field label="İçerik (EN)"><Textarea value={(f.body_en || []).join('\n')} onChange={v => set('body_en', v.split('\n').filter(Boolean))} rows={6} /></Field>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 10px', flexWrap: 'wrap' }}>
+              <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" disabled={translating} onClick={translateAll}>
+                {translating ? 'Çevriliyor…' : "TR'den İngilizceye çevir"}
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>Ücretsiz otomatik çeviri — göndermeden önce kontrol edin.</span>
+              {trMsg && <span style={{ fontSize: 12.5, color: trMsg.kind === 'orange' ? 'var(--adm-orange)' : 'var(--adm-green)' }}>{trMsg.msg}</span>}
+            </div>
+            <Field label="İçerik (EN)" hint="Otomatik çevrilir, elle de düzenleyebilirsiniz"><Textarea value={(f.body_en || []).join('\n')} onChange={v => set('body_en', v.split('\n').filter(Boolean))} rows={6} /></Field>
           </div>
         )}
 

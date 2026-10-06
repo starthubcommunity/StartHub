@@ -1,14 +1,14 @@
 // Supabase Edge Function: translate-text  (main proje: fdlghaafspcuagxfrofz)
 // Team App'in ("Proje Vitrini" modalı) TR alanlarını EN'e otomatik çevirmek
 // için — kullanıcı kararı: "İngilizce'yi kendimiz yazmayalım, fazla iş yükü".
-// Ücretsiz, anahtarsız Google Translate uç noktasını SUNUCU tarafında
-// çağırır (tarayıcıdan CORS engeller). Yalnızca metin döner, hiçbir kayıt
-// tutulmaz. Paylaşılan anahtarla korunur (TEAM_PUBLISH_KEY — Team App'in
-// diğer köprü fonksiyonlarıyla aynı, spam/kötüye kullanım freni).
+// Çeviri mantığı _shared/translate.ts'te (admin paneli için translate-post da
+// aynı modülü kullanır). Paylaşılan anahtarla korunur (TEAM_PUBLISH_KEY —
+// Team App'in diğer köprü fonksiyonlarıyla aynı, spam/kötüye kullanım freni).
 //
 //   supabase functions deploy translate-text --project-ref fdlghaafspcuagxfrofz --no-verify-jwt
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { translateBatch } from "../_shared/translate.ts";
 
 const TEAM_PUBLISH_KEY = Deno.env.get("TEAM_PUBLISH_KEY");
 
@@ -18,20 +18,6 @@ const cors = {
 };
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
-
-// Google'ın anahtarsız uç noktası Supabase'in paylaşımlı IP aralığından
-// 429 (rate limit) veriyor — MyMemory (api.mymemory.translated.net)
-// kullanılıyor: anahtarsız, ücretsiz, Deno ortamından doğrulandı.
-async function translateOne(text: string, from: string, to: string): Promise<string> {
-  if (!text || !text.trim()) return "";
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("çeviri servisi " + res.status);
-  const data = await res.json();
-  const out = data?.responseData?.translatedText;
-  if (!out || data?.responseStatus !== 200) throw new Error("çeviri boş döndü: " + JSON.stringify(data?.responseDetails || data));
-  return out;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -43,12 +29,8 @@ serve(async (req) => {
     const { texts, from = "tr", to = "en" } = await req.json();
     if (!texts || typeof texts !== "object") return json({ error: "texts (obje: {key: metin}) zorunlu" }, 400);
 
-    const keys = Object.keys(texts);
-    const results = await Promise.all(keys.map((k) => translateOne(String(texts[k] || ""), from, to).catch(() => "")));
-    const out: Record<string, string> = {};
-    keys.forEach((k, i) => { out[k] = results[i]; });
-
-    return json({ ok: true, translations: out });
+    const translations = await translateBatch(texts, from, to);
+    return json({ ok: true, translations });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
