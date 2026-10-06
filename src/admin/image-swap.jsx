@@ -78,7 +78,8 @@ export function ImageSwapModal({ post, flash, onClose, onSaved }) {
     flash(data?.usage_inserted === false
       ? 'Görsel değiştirildi. (Bu görsel bu yazıda zaten kayıtlıydı; kayıt tekrarlanmadı.)'
       : 'Görsel değiştirildi.');
-    onSaved();
+    // Yayınlanmış yazı formu açıksa yeni URL'i formda da günceller; kaydetme eski görseli geri yazmasın.
+    onSaved?.(data?.image_url || r.image.url, r.image.alt_tr || null);
     onClose();
   };
 

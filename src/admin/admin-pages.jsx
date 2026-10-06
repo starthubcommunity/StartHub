@@ -5,6 +5,8 @@ import { AIcon, StatCard, DataTable, Modal, Field, Input, Textarea, Select, Post
 import { PostPreview, PreviewToggle, PV_STAGE, PV_TAG } from './admin-previews';
 import { usePerms } from '../lib/use-perms';
 import { people } from '../data';
+import { ImageSwapModal, ImageReasonBox } from './image-swap';
+import { scheduleSiteRebuild } from './site-rebuild';
 
 // ============================================
 // DASHBOARD — istatistikler (auto/manuel) + özet
@@ -496,6 +498,9 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
   const [err, setErr] = useStateP('');
   const [saving, setSaving] = useStateP(false);
   const slugLocked = useRefP(!!item?.slug);
+  const [swapOpen, setSwapOpen] = useStateP(false);
+  const [imgMsg, setImgMsg] = useStateP(null);
+  const flashImg = (msg, kind = 'green') => setImgMsg({ msg, kind });
 
   const set = (k, v) => setF(prev => {
     const next = { ...prev, [k]: v };
@@ -585,6 +590,31 @@ function PostForm({ item, onClose, onSave, people, startups, recCount }) {
               <div>
                 <label className="adm-field__label">Kapak Görseli</label>
                 <PostCoverUpload value={f.cover} onChange={v => set('cover', v)} postSlug={f.slug || ''} />
+                {item?.id && (
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8, width: 260 }}>
+                    <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setSwapOpen(true)}>Görseli değiştir</button>
+                    {imgMsg && <div style={{ fontSize: 12.5, color: imgMsg.kind === 'orange' ? 'var(--adm-orange)' : 'var(--adm-green)' }}>{imgMsg.msg}</div>}
+                    <ImageReasonBox
+                      post={{ id: item.id, image_url: f.cover, needs_review: f.needsReview }}
+                      flash={flashImg}
+                      onChanged={() => set('needsReview', false)}
+                    />
+                    {swapOpen && (
+                      <ImageSwapModal
+                        post={{ ...f, id: item.id }}
+                        flash={flashImg}
+                        onClose={() => setSwapOpen(false)}
+                        onSaved={(url, alt) => {
+                          set('cover', url); set('imageAlt', alt); set('needsReview', false);
+                          if (f.status === 'published') {
+                            scheduleSiteRebuild();
+                            flashImg('Görsel değiştirildi. Değişiklik birkaç dakika içinde sitede görünecek.');
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
               <div style={{ flex: 1 }}>
                 <Field label="Kategori"><Select value={f.tag} onChange={v => set('tag', v)} options={[{value:'blog',label:'Blog'},{value:'gundem',label:'Gündem'}]} /></Field>
