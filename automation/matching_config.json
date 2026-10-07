@@ -3,7 +3,7 @@
     "AI": ["Yapay Zeka"],
     "Yatırım": ["Fon", "Fintech"],
     "Girişim": ["Ortaklık"],
-    "Teknoloji": ["Fintech"]
+    "Teknoloji": ["Fintech", "SaaS", "E-Ticaret", "Sağlık"]
   },
   "CATEGORY_DIRECT_BONUS": 3.0,
   "CATEGORY_ALIAS_BONUS": 2.0,

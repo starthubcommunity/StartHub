@@ -124,6 +124,15 @@ def test_tie_break_prefers_least_recently_used_then_id():
     assert res["image"]["id"] == 2
 
 
+def test_teknoloji_articles_accept_saas_ecommerce_saglik_images_as_alias():
+    for alias_category in ("SaaS", "E-Ticaret", "Sağlık"):
+        images = [img(1, category=alias_category, tags=["xyz"])]
+        res = im.select_image(text("teknoloji haberi"), "Teknoloji", images, [], NOW)
+        assert res["image"]["id"] == 1
+        assert "category_fit" not in res["reason"]["filters_relaxed"]
+        assert res["reason"]["best"]["category"] == im.config.CATEGORY_ALIAS_BONUS
+
+
 def test_generic_kept_when_strong_specific_is_in_other_category():
     images = [
         img(1, category="Teknoloji", tags=["kripto", "blokzincir"], visual_type="kod_ekran"),
