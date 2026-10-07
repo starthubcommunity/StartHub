@@ -16,8 +16,10 @@ Filtreler (sırayla; aday kalmazsa o filtre gevşer ve reason'a yazılır):
   a. Son RECENT_POSTS_EXCLUDE yazıda kullanılan görseller
   b. Son DAILY_WINDOW_DAYS günde MAX_USES_IN_WINDOW'dan fazla kullanılanlar
   c. Son N yazının visual_type'ları, N = visual_window(stok büyüklüğü) (null olan muaf)
-  d. is_generic görseller, yalnızca AYNI kategoride klişe olmayan ve MIN_SPECIFIC_SCORE
-     üstü bir aday varsa elenir; aksi halde seçilebilir
+  d. is_generic görseller: AYNI kategoride (alias dahil) klişe olmayan EN AZ BİR aday
+     varsa elenir (puana bakılmaz) — istisna: el_sikisma, haber ortaklık/anlaşma/
+     birleşme/satın alma konuluysa (PARTNERSHIP_TOPIC_TAGS) elenmez, diğerleriyle eşit
+     şartlarda yarışır
 """
 import logging
 import math
@@ -95,19 +97,16 @@ def _has_partnership_topic(text: str) -> bool:
     return any(p.search(text) for p in _partnership_pattern_cache)
 
 
-def _generic_excluded_ids(article_category: str, images: list[dict], scored: dict[int, tuple[float, dict]],
-                          text: str) -> set[int]:
-    """Konuyla uyumlu (kategori+etiket, kullanım bonusu HARİÇ) ve klişe olmayan güçlü bir aday
-    varsa, aynı kategorideki klişe (is_generic) görseller elenir. İstisna: el_sikisma tipi bir
-    görsel, haberde ortaklık/anlaşma vb. kelimeler geçiyorsa bu elemeden muaf tutulur — o durumda
-    diğer görsellerle eşit şartlarda yarışır."""
-    same_cat_specific_best = max(
-        (scored[img["id"]][1]["category"] + scored[img["id"]][1]["tag_score"]
-         for img in images
-         if not img.get("is_generic") and _is_same_category(article_category, img.get("category") or "")),
-        default=None,
+def _generic_excluded_ids(article_category: str, images: list[dict], text: str) -> set[int]:
+    """Aynı kategoride (alias dahil) klişe olmayan EN AZ BİR aday varsa (puana bakılmaz),
+    klişe (is_generic) görseller elenir. İstisna: el_sikisma tipi bir görsel, haberde
+    ortaklık/anlaşma vb. kelimeler geçiyorsa bu elemeden muaf tutulur — o durumda diğer
+    görsellerle eşit şartlarda yarışır."""
+    has_non_generic_alt = any(
+        not img.get("is_generic") and _is_same_category(article_category, img.get("category") or "")
+        for img in images
     )
-    if same_cat_specific_best is None or same_cat_specific_best < config.MIN_SPECIFIC_SCORE:
+    if not has_non_generic_alt:
         return set()
     has_topic = _has_partnership_topic(text)
     excluded = set()
@@ -225,8 +224,7 @@ def image_flags(text: str, article_category: str, images: list[dict], history: l
         if img.get("visual_type") and img["visual_type"] in recent_types:
             f.append("recent_visual_type")
 
-    scored = score_all(text, article_category, images, history, now)
-    for img_id in _generic_excluded_ids(article_category, images, scored, text):
+    for img_id in _generic_excluded_ids(article_category, images, text):
         flags[img_id].append("generic_excluded")
     return flags
 
@@ -258,10 +256,9 @@ def select_image(text: str, article_category: str, images: list[dict], history: 
         else:
             relaxed.append(name)
 
-    # Klişe görsel, yalnızca AYNI kategoride klişe olmayan ve eşik üstü bir aday varsa elenir
-    # (konuyla uyum = kategori + etiket skoru; kullanım bonusu bu eşiğe dahil edilmez — yalnızca
-    # sıralamada kullanılır). İstisna: el_sikisma, haber ortaklık/anlaşma vb. konuluysa elenmez.
-    excluded_ids = _generic_excluded_ids(article_category, pool, scored, text)
+    # Klişe görsel, yalnızca AYNI kategoride klişe olmayan EN AZ BİR aday varsa elenir (puana
+    # bakılmaz). İstisna: el_sikisma, haber ortaklık/anlaşma vb. konuluysa elenmez.
+    excluded_ids = _generic_excluded_ids(article_category, pool, text)
     generic_excluded = bool(excluded_ids)
     if generic_excluded:
         pool = [img for img in pool if img["id"] not in excluded_ids]

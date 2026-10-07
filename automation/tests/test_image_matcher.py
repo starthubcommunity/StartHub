@@ -56,9 +56,9 @@ def test_handshake_image_can_win_on_partnership_topic():
         img(1, category="Girişim", tags=["ortaklik", "anlasma"], visual_type="el_sikisma", is_generic=True),
         img(2, category="Girişim", tags=["ofis", "ekip", "toplanti"], visual_type="ofis_toplanti"),
     ]
-    # img(2) tek başına eşiği (MIN_SPECIFIC_SCORE) geçecek kadar güçlü — eski kuralda el sıkışma
-    # otomatik elenirdi. Haberde "ortaklık"/"anlaşma" geçtiği için artık elenmeden eşit şartlarda
-    # yarışıyor ve kendi güçlü etiket eşleşmesiyle kazanıyor.
+    # img(2) aynı kategoride klişe olmayan bir aday olduğu için normalde el sıkışma elenirdi.
+    # Haberde "ortaklık"/"anlaşma" geçtiği için artık elenmeden eşit şartlarda yarışıyor ve
+    # kendi güçlü etiket eşleşmesiyle kazanıyor.
     res = im.select_image(
         text("İki şirket ortaklık anlaşması için toplantı yaptı"), "Girişim", images, [], NOW
     )
@@ -78,17 +78,21 @@ def test_handshake_image_still_excluded_on_unrelated_investment_topic():
     assert "generic_excluded" in res["reason"]["filters_applied"]
 
 
-def test_min_specific_score_check_excludes_usage_bonus():
+def test_handshake_excluded_even_with_low_score_alternative():
     images = [
         img(1, category="Fon", tags=[], visual_type="para_finans"),
-        img(2, category="Fon", tags=[], visual_type="soyut_diger", is_generic=True),
+        img(2, category="Fon", tags=["ortaklik", "anlasma"], visual_type="el_sikisma", is_generic=True),
     ]
-    # img(1)'in konu uyumu yalnızca alias kategori puanı (2.0) — eşiğin (4.0) altında. Eski kuralda
-    # kullanım bonusu (iki görsel de hiç kullanılmamış, +2.0) bu açığı kapatıp eşiği yanlışlıkla
-    # geçiyordu. Artık yalnızca konu uyumu bakılıyor, klişe haksız yere elenmiyor.
-    res = im.select_image(text("Yatirim haberi"), "Yatırım", images, [], NOW)
-    assert "generic_excluded" not in res["reason"]["filters_applied"]
-    assert res["reason"]["generic_allowed"] is True
+    # "Arcee AI değerleme" tarzı bir haber: ortaklık/anlaşma kelimesi geçmiyor, img(1)'in konu
+    # uyumu zayıf (yalnızca alias kategori puanı, hiç etiket eşleşmesi yok). Eski kuralda bu
+    # düşük puan eşiği (MIN_SPECIFIC_SCORE) geçemediği için el sıkışma seçilebiliyordu. Artık
+    # puana bakılmıyor — aynı kategoride klişe olmayan BİR aday var olması yeterli, el sıkışma
+    # elenir.
+    res = im.select_image(
+        text("Arcee AI 1 milyar dolar değerleme açık ağırlıklı modeller"), "Yatırım", images, [], NOW
+    )
+    assert res["image"]["id"] == 1
+    assert "generic_excluded" in res["reason"]["filters_applied"]
 
 
 def test_generic_image_allowed_when_no_specific_match():

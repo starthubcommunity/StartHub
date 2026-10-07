@@ -75,17 +75,14 @@ function hasPartnershipTopic(text) {
   return partnershipPatterns.some(p => p.test(text));
 }
 
-// Konuyla uyumlu (kategori+etiket, kullanım bonusu HARİÇ) ve klişe olmayan güçlü bir aday varsa,
-// aynı kategorideki klişe görseller elenir. İstisna: el_sikisma, haber ortaklık/anlaşma vb.
-// konuluysa elenmez — image_matcher.py _generic_excluded_ids ile aynı mantık.
-function genericExcludedIds(articleCategory, images, scored, text) {
-  let specBest = null;
-  for (const img of images) {
-    if (img.is_generic || !isSameCategory(articleCategory, img.category || '')) continue;
-    const v = scored[img.id].parts.cat + scored[img.id].parts.tagScore;
-    if (specBest === null || v > specBest) specBest = v;
-  }
-  if (specBest === null || specBest < SCORE.MIN_SPECIFIC_SCORE) return new Set();
+// Aynı kategoride klişe olmayan EN AZ BİR aday varsa (puana bakılmaz), klişe görseller elenir.
+// İstisna: el_sikisma, haber ortaklık/anlaşma vb. konuluysa elenmez — image_matcher.py
+// _generic_excluded_ids ile aynı mantık.
+function genericExcludedIds(articleCategory, images, text) {
+  const hasNonGenericAlt = images.some(
+    img => !img.is_generic && isSameCategory(articleCategory, img.category || '')
+  );
+  if (!hasNonGenericAlt) return new Set();
   const hasTopic = hasPartnershipTopic(text);
   const excluded = new Set();
   for (const img of images) {
@@ -171,9 +168,7 @@ export function imageFlags({ post, articleCategory, images, history, now }) {
     flags[img.id] = f;
   }
 
-  const usage90 = usageCounts(history, now, SCORE.USAGE_WINDOW_DAYS);
-  const scored = scoreAll(text, articleCategory, images, usage90);
-  for (const id of genericExcludedIds(articleCategory, images, scored, text)) {
+  for (const id of genericExcludedIds(articleCategory, images, text)) {
     flags[id].push('generic_excluded');
   }
   return flags;

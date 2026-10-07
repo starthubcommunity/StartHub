@@ -24,6 +24,5 @@
   "VISUAL_TYPES": ["el_sikisma", "ofis_toplanti", "grafik_borsa", "para_finans", "robot_ai", "cip_donanim", "kod_ekran", "cihaz_telefon", "veri_merkezi", "sehir_bina", "arac_enerji", "insan_portre", "laboratuvar", "soyut_diger"],
   "VISUAL_WINDOW_RULES": [[4.0, 3], [8.0, 4]],
   "VISUAL_WINDOW_DEFAULT": 6,
-  "MIN_SPECIFIC_SCORE": 4.0,
   "RELAX_REVIEW_THRESHOLD": 2
 }

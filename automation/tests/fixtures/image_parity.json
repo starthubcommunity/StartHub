@@ -382,7 +382,7 @@
      "generic_excluded"
     ]
    },
-   "pick": 3
+   "pick": 4
   },
   "ai_model": {
    "scores": {
@@ -837,7 +837,9 @@
      "recent_posts",
      "recent_visual_type"
     ],
-    "3": [],
+    "3": [
+     "generic_excluded"
+    ],
     "4": [],
     "5": [
      "category_fit",
@@ -870,9 +872,11 @@
     "12": [
      "category_fit"
     ],
-    "13": []
+    "13": [
+     "generic_excluded"
+    ]
    },
-   "pick": 3
+   "pick": 4
   },
   "saglik_lab": {
    "scores": {
@@ -995,7 +999,9 @@
      "recent_posts",
      "recent_visual_type"
     ],
-    "3": [],
+    "3": [
+     "generic_excluded"
+    ],
     "4": [],
     "5": [
      "category_fit",
