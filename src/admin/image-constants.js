@@ -17,6 +17,7 @@ export const VISUAL_TYPES = MC.VISUAL_TYPES.map(v => [v, VISUAL_TYPE_LABELS[v] |
 export const VISUAL_TYPE_LABEL = Object.fromEntries(VISUAL_TYPES);
 
 export const GENERIC_TAG_HINTS = MC.GENERIC_TAGS;
+export const PARTNERSHIP_TOPIC_TAGS = MC.PARTNERSHIP_TOPIC_TAGS;
 export const CATEGORY_ALIAS = MC.CATEGORY_ALIAS;
 
 // Python config'in JS karşılığı (isimler image-score.js'te kullanılan biçimde).

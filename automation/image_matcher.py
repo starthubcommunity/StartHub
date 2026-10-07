@@ -83,6 +83,43 @@ def _is_same_category(article_category: str, image_category: str) -> bool:
     )
 
 
+_partnership_pattern_cache: list[re.Pattern] | None = None
+
+
+def _has_partnership_topic(text: str) -> bool:
+    """Haberde ortaklık/anlaşma/birleşme vb. kelimeler geçiyor mu (el_sikisma görsellerinin
+    'son çare' elenmesinden muaf tutulup tutulmayacağına karar vermek için)."""
+    global _partnership_pattern_cache
+    if _partnership_pattern_cache is None:
+        _partnership_pattern_cache = [_tag_pattern(_tag_norm(t)) for t in config.PARTNERSHIP_TOPIC_TAGS]
+    return any(p.search(text) for p in _partnership_pattern_cache)
+
+
+def _generic_excluded_ids(article_category: str, images: list[dict], scored: dict[int, tuple[float, dict]],
+                          text: str) -> set[int]:
+    """Konuyla uyumlu (kategori+etiket, kullanım bonusu HARİÇ) ve klişe olmayan güçlü bir aday
+    varsa, aynı kategorideki klişe (is_generic) görseller elenir. İstisna: el_sikisma tipi bir
+    görsel, haberde ortaklık/anlaşma vb. kelimeler geçiyorsa bu elemeden muaf tutulur — o durumda
+    diğer görsellerle eşit şartlarda yarışır."""
+    same_cat_specific_best = max(
+        (scored[img["id"]][1]["category"] + scored[img["id"]][1]["tag_score"]
+         for img in images
+         if not img.get("is_generic") and _is_same_category(article_category, img.get("category") or "")),
+        default=None,
+    )
+    if same_cat_specific_best is None or same_cat_specific_best < config.MIN_SPECIFIC_SCORE:
+        return set()
+    has_topic = _has_partnership_topic(text)
+    excluded = set()
+    for img in images:
+        if not img.get("is_generic") or not _is_same_category(article_category, img.get("category") or ""):
+            continue
+        if img.get("visual_type") == "el_sikisma" and has_topic:
+            continue
+        excluded.add(img["id"])
+    return excluded
+
+
 def _category_score(article_category: str, image_category: str) -> float:
     score = 0.0
     if image_category:
@@ -189,15 +226,8 @@ def image_flags(text: str, article_category: str, images: list[dict], history: l
             f.append("recent_visual_type")
 
     scored = score_all(text, article_category, images, history, now)
-    spec_best = max(
-        (scored[img["id"]][0] for img in images
-         if not img.get("is_generic") and _is_same_category(article_category, img.get("category") or "")),
-        default=None,
-    )
-    if spec_best is not None and spec_best >= config.MIN_SPECIFIC_SCORE:
-        for img in images:
-            if img.get("is_generic") and _is_same_category(article_category, img.get("category") or ""):
-                flags[img["id"]].append("generic_excluded")
+    for img_id in _generic_excluded_ids(article_category, images, scored, text):
+        flags[img_id].append("generic_excluded")
     return flags
 
 
@@ -228,16 +258,13 @@ def select_image(text: str, article_category: str, images: list[dict], history: 
         else:
             relaxed.append(name)
 
-    # Klişe görsel, yalnızca AYNI kategoride klişe olmayan ve eşik üstü bir aday varsa elenir.
-    same_cat_specific_best = max(
-        (scored[img["id"]][0] for img in pool
-         if not img.get("is_generic") and _is_same_category(article_category, img.get("category") or "")),
-        default=None,
-    )
-    generic_excluded = same_cat_specific_best is not None and same_cat_specific_best >= config.MIN_SPECIFIC_SCORE
+    # Klişe görsel, yalnızca AYNI kategoride klişe olmayan ve eşik üstü bir aday varsa elenir
+    # (konuyla uyum = kategori + etiket skoru; kullanım bonusu bu eşiğe dahil edilmez — yalnızca
+    # sıralamada kullanılır). İstisna: el_sikisma, haber ortaklık/anlaşma vb. konuluysa elenmez.
+    excluded_ids = _generic_excluded_ids(article_category, pool, scored, text)
+    generic_excluded = bool(excluded_ids)
     if generic_excluded:
-        pool = [img for img in pool
-                if not (img.get("is_generic") and _is_same_category(article_category, img.get("category") or ""))]
+        pool = [img for img in pool if img["id"] not in excluded_ids]
         applied.append("generic_excluded")
     generic_allowed = not generic_excluded
 

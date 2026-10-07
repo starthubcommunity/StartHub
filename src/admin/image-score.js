@@ -1,7 +1,7 @@
 // Görsel skorunun JS karşılığı — automation/image_matcher.py ile aynı formül ve aynı filtre bayrakları.
 // Sabitler automation/matching_config.json'dan (image-constants.js üzerinden) gelir.
 // Parite: src/admin/image-score.test.mjs ve automation/tests/test_image_parity.py aynı fixture'ı kullanır.
-import { CATEGORY_ALIAS, SCORE, GENERIC_TAG_HINTS, VISUAL_TYPES } from './image-constants.js';
+import { CATEGORY_ALIAS, SCORE, GENERIC_TAG_HINTS, PARTNERSHIP_TOPIC_TAGS, VISUAL_TYPES } from './image-constants.js';
 
 const TR = { 'ı': 'i', 'İ': 'i', 'ş': 's', 'Ş': 's', 'ğ': 'g', 'Ğ': 'g', 'ü': 'u', 'Ü': 'u', 'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c' };
 
@@ -65,6 +65,35 @@ function tagWeights(images) {
 
 export function isSameCategory(articleCat, imgCat) {
   return !!imgCat && (imgCat === articleCat || (CATEGORY_ALIAS[articleCat] || []).includes(imgCat));
+}
+
+const partnershipPatterns = PARTNERSHIP_TOPIC_TAGS.map(t => new RegExp(`(?<!\\w)${escapeRe(tagNorm(t))}(?!\\w)`));
+
+// Haberde ortaklık/anlaşma/birleşme vb. kelimeler geçiyor mu (el_sikisma görsellerinin 'son çare'
+// elenmesinden muaf tutulup tutulmayacağına karar vermek için) — image_matcher.py ile aynı mantık.
+function hasPartnershipTopic(text) {
+  return partnershipPatterns.some(p => p.test(text));
+}
+
+// Konuyla uyumlu (kategori+etiket, kullanım bonusu HARİÇ) ve klişe olmayan güçlü bir aday varsa,
+// aynı kategorideki klişe görseller elenir. İstisna: el_sikisma, haber ortaklık/anlaşma vb.
+// konuluysa elenmez — image_matcher.py _generic_excluded_ids ile aynı mantık.
+function genericExcludedIds(articleCategory, images, scored, text) {
+  let specBest = null;
+  for (const img of images) {
+    if (img.is_generic || !isSameCategory(articleCategory, img.category || '')) continue;
+    const v = scored[img.id].parts.cat + scored[img.id].parts.tagScore;
+    if (specBest === null || v > specBest) specBest = v;
+  }
+  if (specBest === null || specBest < SCORE.MIN_SPECIFIC_SCORE) return new Set();
+  const hasTopic = hasPartnershipTopic(text);
+  const excluded = new Set();
+  for (const img of images) {
+    if (!img.is_generic || !isSameCategory(articleCategory, img.category || '')) continue;
+    if (img.visual_type === 'el_sikisma' && hasTopic) continue;
+    excluded.add(img.id);
+  }
+  return excluded;
 }
 
 function categoryScore(articleCat, imgCat) {
@@ -144,13 +173,8 @@ export function imageFlags({ post, articleCategory, images, history, now }) {
 
   const usage90 = usageCounts(history, now, SCORE.USAGE_WINDOW_DAYS);
   const scored = scoreAll(text, articleCategory, images, usage90);
-  const specBest = images
-    .filter(i => !i.is_generic && isSameCategory(articleCategory, i.category || ''))
-    .reduce((m, i) => Math.max(m, scored[i.id].raw), -Infinity);
-  if (specBest >= SCORE.MIN_SPECIFIC_SCORE) {
-    for (const img of images) {
-      if (img.is_generic && isSameCategory(articleCategory, img.category || '')) flags[img.id].push('generic_excluded');
-    }
+  for (const id of genericExcludedIds(articleCategory, images, scored, text)) {
+    flags[id].push('generic_excluded');
   }
   return flags;
 }

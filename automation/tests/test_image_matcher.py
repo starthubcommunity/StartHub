@@ -51,6 +51,46 @@ def test_generic_image_not_picked_when_specific_match_is_strong():
     assert "generic_excluded" in res["reason"]["filters_applied"]
 
 
+def test_handshake_image_can_win_on_partnership_topic():
+    images = [
+        img(1, category="Girişim", tags=["ortaklik", "anlasma"], visual_type="el_sikisma", is_generic=True),
+        img(2, category="Girişim", tags=["ofis", "ekip", "toplanti"], visual_type="ofis_toplanti"),
+    ]
+    # img(2) tek başına eşiği (MIN_SPECIFIC_SCORE) geçecek kadar güçlü — eski kuralda el sıkışma
+    # otomatik elenirdi. Haberde "ortaklık"/"anlaşma" geçtiği için artık elenmeden eşit şartlarda
+    # yarışıyor ve kendi güçlü etiket eşleşmesiyle kazanıyor.
+    res = im.select_image(
+        text("İki şirket ortaklık anlaşması için toplantı yaptı"), "Girişim", images, [], NOW
+    )
+    assert res["image"]["id"] == 1
+    assert "generic_excluded" not in res["reason"]["filters_applied"]
+
+
+def test_handshake_image_still_excluded_on_unrelated_investment_topic():
+    images = [
+        img(1, category="Fon", tags=["ortaklik", "anlasma"], visual_type="el_sikisma", is_generic=True),
+        img(2, category="Fon", tags=["grafik", "borsa", "hisse"], visual_type="grafik_borsa"),
+    ]
+    # Haberde ortaklık/anlaşma kelimeleri yok — "son çare" kuralı eskisi gibi çalışır, uygun
+    # spesifik bir aday varken el sıkışma elenir.
+    res = im.select_image(text("Borsa hisse grafik haberi"), "Yatırım", images, [], NOW)
+    assert res["image"]["id"] == 2
+    assert "generic_excluded" in res["reason"]["filters_applied"]
+
+
+def test_min_specific_score_check_excludes_usage_bonus():
+    images = [
+        img(1, category="Fon", tags=[], visual_type="para_finans"),
+        img(2, category="Fon", tags=[], visual_type="soyut_diger", is_generic=True),
+    ]
+    # img(1)'in konu uyumu yalnızca alias kategori puanı (2.0) — eşiğin (4.0) altında. Eski kuralda
+    # kullanım bonusu (iki görsel de hiç kullanılmamış, +2.0) bu açığı kapatıp eşiği yanlışlıkla
+    # geçiyordu. Artık yalnızca konu uyumu bakılıyor, klişe haksız yere elenmiyor.
+    res = im.select_image(text("Yatirim haberi"), "Yatırım", images, [], NOW)
+    assert "generic_excluded" not in res["reason"]["filters_applied"]
+    assert res["reason"]["generic_allowed"] is True
+
+
 def test_generic_image_allowed_when_no_specific_match():
     images = [
         img(1, category="Teknoloji", tags=["robot"], visual_type="robot_ai"),
