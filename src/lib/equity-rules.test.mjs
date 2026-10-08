@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
   computeVesting, vestedOnExit, removalNeedsReview, seatBudget, projectAllocation,
-  validateSeat, validateGrant, monthsElapsed, addMonths, toDate, effectiveStart, summarizeGrant, compareRoster,
+  validateSeat, validateGrant, monthsElapsed, addMonths, toDate, effectiveStart, summarizeGrant, compareRoster, pendingGrantJoins,
 } from './equity-rules.js';
 
 let pass = 0;
@@ -201,6 +201,27 @@ t('ekip karşılaştırması: ayrılmış söz sayılmaz; ekipte olmayan e-posta
   const r = compareRoster(members, grants);
   assert.deepEqual(r.missing.map((m) => m.email), ['uye@x.com']);
   assert.deepEqual([...r.orphanIds], ['g2']);
+});
+
+// ── 2026-10-08: "Ekibe Al" → pay sözü taslağı ──
+t('pay sözü bekleyen: ekibe alınan, sözü olmayan; bağlı koltuk ve Kapı A günü önerilir', () => {
+  const cands = [
+    { id: 'c1', fullName: 'Elif', email: 'Elif@x.com', stage: 'member', startupId: 1, openRoleId: 'r1', joinedAt: '2026-10-05T10:00:00Z', vestingStartDate: '2026-10-01' },
+    { id: 'c2', fullName: 'Mert', email: 'mert@x.com', stage: 'member', startupId: 1, openRoleId: 'r2', joinedAt: '2026-10-02T10:00:00Z' },
+    { id: 'c3', fullName: 'Aday', email: 'aday@x.com', stage: 'trial', startupId: 1 },
+    { id: 'c4', fullName: 'Başka', email: 'b@x.com', stage: 'member', startupId: 2 },
+  ];
+  const seats = [{ id: 's1', openRoleId: 'r1', title: 'Mobil', active: true }];
+  const grants = [{ id: 'g1', holderEmail: 'mert@x.com', status: 'left_good' }];
+  const r = pendingGrantJoins(cands, grants, seats, { startupId: 1 });
+  assert.deepEqual(r.map((x) => x.candidateId), ['c1']);
+  assert.equal(r[0].seatId, 's1'); assert.equal(r[0].startDate, '2026-10-01'); assert.equal(r[0].email, 'elif@x.com');
+});
+t('pay sözü bekleyen: hub_candidate_id ile bağlı söz varsa listelenmez; startup rol üzerinden de eşleşir', () => {
+  const cands = [{ id: 'c1', fullName: 'Elif', email: 'yeni@x.com', stage: 'member', startupId: null, openRoleId: 'r9', joinedAt: '2026-10-05' }];
+  assert.equal(pendingGrantJoins(cands, [{ hubCandidateId: 'c1', holderEmail: 'eski@x.com' }], [], { startupId: 1, roleStartup: { r9: 1 } }).length, 0);
+  const r = pendingGrantJoins(cands, [], [], { startupId: 1, roleStartup: { r9: 1 } });
+  assert.equal(r.length, 1); assert.equal(r[0].seatId, null); assert.equal(r[0].startDate, '2026-10-05');
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

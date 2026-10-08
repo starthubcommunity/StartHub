@@ -340,3 +340,28 @@ export function compareRoster(members = [], grants = []) {
   const orphanIds = new Set(active.filter((g) => !memberEmails.has(norm(g.holderEmail))).map((g) => g.id));
   return { missing, orphanIds };
 }
+
+// ── "Ekibe Al" → pay sözü taslağı (2026-10-08) ──────────────────────────
+// candidates: HR adayları (mapCandidateFromDb) — yalnızca stage='member' sayılır
+// grants    : pay sözleri (herhangi bir durumda — ayrılmış söz de "verilmiş" sayılır)
+// seats     : projenin koltukları (openRoleId ile role bağlı olabilir)
+// Dönen her kayıt GrantForm'u önceden doldurmak içindir; söz OTOMATİK
+// oluşturulmaz — tutarı cofounder onaylar.
+export function pendingGrantJoins(candidates = [], grants = [], seats = [], { startupId = null, roleStartup = {} } = {}) {
+  const norm = (e) => String(e || '').trim().toLowerCase();
+  const byCand = new Set(grants.map((g) => g.hubCandidateId).filter(Boolean));
+  const byEmail = new Set(grants.map((g) => norm(g.holderEmail)));
+  return candidates
+    .filter((c) => c.stage === 'member')
+    .filter((c) => startupId == null || Number(c.startupId ?? roleStartup[c.openRoleId]) === Number(startupId))
+    .filter((c) => !byCand.has(c.id) && !(norm(c.email) && byEmail.has(norm(c.email))))
+    .map((c) => {
+      const seat = seats.find((s) => s.active !== false && s.openRoleId && s.openRoleId === c.openRoleId) || null;
+      return {
+        candidateId: c.id, name: c.fullName || '', email: norm(c.email), track: c.track || null,
+        joinedAt: c.joinedAt || null, startDate: (c.vestingStartDate || String(c.joinedAt || '').slice(0, 10)) || null,
+        seatId: seat ? seat.id : null, seatTitle: seat ? seat.title : null,
+      };
+    })
+    .sort((a, b) => String(b.joinedAt || '').localeCompare(String(a.joinedAt || '')));
+}

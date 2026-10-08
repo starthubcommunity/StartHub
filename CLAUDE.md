@@ -283,6 +283,34 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
     `--host-resolver-rules="MAP *.supabase.co 127.0.0.1"` ile aç (canlı veriye istek ÇIKAMAZ), React
     fiber'da `openOffer` metodu olan nesneyi bul (stateNode'un bir alt alanında), `persist`/
     `_refreshFromCloud`'u no-op yap, demo state'i `setState` ile ver.
+- **2026-10-08 — dört ek iş (her biri ayrı commit, `main`'de):**
+  - **Team App üyeliği yalnızca admin:** "+ Yeni üye", "Mevcut üyeyi ekle", üye "Düzenle" (ad/e-posta/rol)
+    ve çıkarma/silme → `can("manageMembers")` (lead için false; eskiden kart `admin || isLeadHere`
+    kullanıyordu). İşlem fonksiyonları da `_canEditMembership()` ile korunuyor. Lead'in görev/sprint/review/
+    kaynak/proje bilgisi yetkileri ve "Önerilen Adaylar → Kapı A → Ekibe Al" DEĞİŞMEDİ. Sınır: Team App
+    tarayıcıdan yazıyor — sunucu tarafı zorlama değil.
+  - **Pay Sözleri ekip ↔ söz karşılaştırması:** `hub-equity-roster` (ana, JWT, `has_perm('equity.read')`) →
+    `hub-bridge-team-roster` (Team App, köprü anahtarı, salt okuma). "Pay sözü olmayan üyeler" (Team App
+    admin'leri hariç) + "Söz ekle" (koltuk seç → ad/e-posta dolu); e-postası ekipte olmayan aktif söz kırmızı.
+    `compareRoster()` ortak dosyada.
+  - **Kişi talebi (`0058_hub_role_requests.sql`, canlıda):** 0010 talep akışını kaldırmıştı çünkü proje
+    sahibi HR'da rolü kendisi açıyordu (HUB_SPEC v2 §10.1); 2026-09-23'ten beri HR'a giremediği için gerekçe
+    düştü. `status 'requested'` + `requested_by_email/name/at` (yalnızca sunucu yazar). Team App ekip kartında
+    "+ Kişi talep et" (lead/admin) → `hub-team-role-request` (Team App, JWT, yetki sunucuda) →
+    `hub-role-request` (ana, köprü). HR: "Talep edildi" (→ Yayınla / Taslağa al), kartta talep eden, Bugün'de
+    "Rol talebi" (→ Açık Pozisyonlar). Proje kaydı olmayan ekip (Erasmus+, kimlik D) talep açamaz (404 mesajı).
+  - **"Ekibe Al" → pay sözü taslağı:** koltuk formunda "Bağlı açık rol" (`equity_seats.open_role_id`);
+    Pay Sözleri'nde "Ekibe alındı — pay sözü bekliyor" (`pendingGrantJoins()`; söz OTOMATİK oluşmaz, form
+    kişi/e-posta/bağlı koltuk/başlangıç = Kapı A ilk günü ile dolu gelir, `hub_candidate_id` yazılır);
+    Bugün'de yalnızca `equity.read` sahibine, son 30 günde ekibe alınıp sözü olmayanlar ("Pay sözü" → Pay
+    Sözleri). Testler: equity-rules.test.mjs 38.
+  - **Team App ekip kimlikleri (2026-10-08 okundu):** A=TİD Çevirici, B=EventHub, C=GrantAgent,
+    BD="İş Geliştirme" (StartHub Proje Geliştirme), **D="Erasmus+"** (Erasmus Project Writing — ana projede
+    proje kaydı YOK, kullanıcı kararıyla açılmadı), **E="Team D"** (Hoca Puanla — ekranda "Team D" yazar ama
+    kimliği E). Team App DB'si `npx supabase db query --linked --project-ref umgdtjlgivvymngsnqtv` ile
+    okunabiliyor (anon REST RLS'e takılır).
+  - Flutter rolü ("Dolduruldu", 0 aday, `filled_at` boş — kaynağı tespit edilemedi) kullanıcı kararıyla
+    DOKUNULMADI.
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 

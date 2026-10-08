@@ -19,6 +19,7 @@ import { STAGE_LABEL, STAGES, INTEREST_LABEL, SOURCE_LABEL, OWNER_ACTIVE_STAGES 
 import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
 import { intervalToDays } from '../hub-metrics';
 import { EMPTY_FILTERS } from '../hub-filter';
+import { pendingGrantJoins } from '../../lib/equity-rules';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -368,6 +369,20 @@ export default function TodayPage({ onGoto, setFilters }) {
   const OWNER_NUDGE_DAYS = 3;
   const ownerStuck = candidates.filter((c) => ownerHeld(c) && (c.ownerStage === 'presented' || c.ownerStage === 'interview')
     && c.presentedAt && now - new Date(c.presentedAt).getTime() > OWNER_NUDGE_DAYS * 86400000);
+  // 2026-10-08 — "Ekibe Al" ile son 30 günde ekibe giren ama pay sözü olmayanlar.
+  // Yalnızca pay sözlerini görebilene (equity.read — cofounder); söz otomatik
+  // oluşturulmaz, satır Pay Sözleri'ne götürür (form orada önceden dolu).
+  const canEquity = can('equity.read');
+  const [eqGrants, setEqGrants] = useState(null);
+  useEffect(() => {
+    if (!canEquity) return;
+    supabase.from('equity_grants').select('holder_email, hub_candidate_id, status').then(({ data, error }) => {
+      if (!error) setEqGrants((data || []).map((g) => ({ holderEmail: g.holder_email, hubCandidateId: g.hub_candidate_id, status: g.status })));
+    });
+  }, [canEquity]);
+  const pendingEquity = eqGrants
+    ? pendingGrantJoins(candidates, eqGrants, []).filter((p) => p.joinedAt && now - new Date(p.joinedAt).getTime() <= 30 * 86400000)
+    : [];
   const ownerRejected = candidates.filter((c) => (c.track || 'founder') === 'member'
     && (c.ownerStage === 'rejected' || c.ownerStage === 'withdrawn') && c.stage !== 'archived' && c.stage !== 'member');
   const decisionReady = candidates.filter((c) => {
@@ -431,6 +446,10 @@ export default function TodayPage({ onGoto, setFilters }) {
       meta: c.presentedAt ? `sunuldu ${String(c.presentedAt).slice(0, 10)} · karar bekliyor` : 'görüşme eşiği hazır',
       urgency: 1,
     }));
+    pendingEquity.forEach((p) => rows.push({
+      id: `eq-${p.candidateId}`, c: { id: p.candidateId, fullName: p.name || p.email }, kind: 'Pay sözü', tone: 'purple', goto: 'equity',
+      meta: `ekibe alındı ${String(p.joinedAt).slice(0, 10)} · pay sözü bekliyor`, urgency: 2,
+    }));
     // 0058 — Team Lead'in Team App'ten açtığı kişi talebi (recruiter'ın Bugün'üne düşer, Bölüm A Gün 0).
     openRoles.filter((r) => r.status === 'requested').forEach((r) => rows.push({
       id: `req-${r.id}`, c: { id: null, fullName: r.title }, kind: 'Rol talebi', tone: 'amber', goto: 'roles',
@@ -454,7 +473,7 @@ export default function TodayPage({ onGoto, setFilters }) {
     }));
     return rows.sort((a, b) => a.urgency - b.urgency
       || (a.sortAt && b.sortAt ? new Date(a.sortAt) - new Date(b.sortAt) : 0));
-  }, [dueGates, dueFollowUps, decisionReady, founderLeads, toSend, stale, roleReminders, ownerRejected, ownerStuck, openRoles]);
+  }, [dueGates, dueFollowUps, decisionReady, founderLeads, toSend, stale, roleReminders, ownerRejected, ownerStuck, openRoles, eqGrants]);
 
   // ── Referans görsel için yeni türetilmiş veriler — HEPSİ gerçek, uydurma yok ──
   const activeCandidates = useMemo(() => candidates.filter((c) => c.stage !== 'archived'), [candidates]);

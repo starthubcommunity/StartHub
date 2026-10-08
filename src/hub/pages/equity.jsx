@@ -10,7 +10,7 @@ import { usePerms } from '../../lib/use-perms';
 import {
   SEAT_KINDS, SEAT_KIND, MILESTONES, MILESTONE_LABEL, POOLS, isMemberSeat,
   computeVesting, vestedOnExit, removalNeedsReview, seatBudget, projectAllocation,
-  validateSeat, validateGrant, grantDefaultsForSeat, iso, toDate, compareRoster,
+  validateSeat, validateGrant, grantDefaultsForSeat, iso, toDate, compareRoster, pendingGrantJoins,
   mapSeatFromDb, mapSeatToDb, mapGrantFromDb, mapGrantToDb, mapMilestoneFromDb, mapEventFromDb,
 } from '../../lib/equity-rules';
 
@@ -140,7 +140,7 @@ function MilestonesCard({ startupId, milestones, canManage, onChanged, flash }) 
 }
 
 // ── Koltuk formu ────────────────────────────────────────────────────────
-function SeatForm({ seat, startupId, projectSeats, onClose, onSaved }) {
+function SeatForm({ seat, startupId, projectSeats, roles = [], onClose, onSaved }) {
   const blank = { startupId, title: '', seatKind: 'member_standard', budgetPct: 10, reserveTopupPct: 0, note: '', active: true };
   const [f, setF] = useState(seat ? { ...seat } : blank);
   const [saving, setSaving] = useState(false);
@@ -174,6 +174,10 @@ function SeatForm({ seat, startupId, projectSeats, onClose, onSaved }) {
             <Input type="number" step="0.25" min="0" value={f.reserveTopupPct} onChange={(v) => set('reserveTopupPct', v)} />
           </Field>
         )}
+        <Field label="Bağlı açık rol (isteğe bağlı)" hint="“Ekibe Al” ile bu role giren kişi için pay sözü taslağı bu koltuğu önerir.">
+          <Select value={f.openRoleId || ''} onChange={(v) => set('openRoleId', v || null)} placeholder="— bağlı rol yok —"
+            options={roles.map((r) => ({ value: r.id, label: r.title }))} />
+        </Field>
         <Field label="Not"><Textarea value={f.note} onChange={(v) => set('note', v)} rows={2} /></Field>
         {seat && (
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, margin: '4px 0 10px' }}>
@@ -544,6 +548,38 @@ function RosterCard({ roster, missing, orphanCount, canManage, onAdd }) {
   </>, 'warn');
 }
 
+
+// ── "Ekibe Al" ile gelen, pay sözü olmayanlar (2026-10-08) ─────────────
+// Söz OTOMATİK oluşturulmaz; "Söz oluştur" formu kişi/e-posta, (role bağlı
+// koltuk varsa) koltuk ve başlangıç = Kapı A'nın ilk günü ile doldurur.
+function PendingJoinsCard({ pending, canManage, onCreate }) {
+  if (!pending.length) return null;
+  return (
+    <div className="adm-card" style={{ marginBottom: 16, borderColor: '#FDE68A' }}>
+      <div className="adm-card__body">
+        <div style={{ fontWeight: 700 }}>Ekibe alındı — pay sözü bekliyor ({pending.length})</div>
+        <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '2px 0 10px' }}>
+          Kurucu Hattı'nda “Ekibe Al” ile ekibe giren ama henüz pay sözü olmayan kişiler. Tutarı sen onaylarsın.
+        </div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          {pending.map((p) => (
+            <div key={p.candidateId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: 8, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <span style={{ fontWeight: 600 }}>{p.name || p.email}</span>
+                <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
+                  {' '}· {p.email || 'e-posta yok'} · ekibe alındı {fmtDate(p.joinedAt)}
+                  {p.seatTitle ? ` · koltuk: ${p.seatTitle}` : ' · bağlı koltuk yok'}
+                </span>
+              </div>
+              {canManage && <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onCreate(p)}><AIcon name="plus" size={13} /> Söz oluştur</button>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Söz eklerken koltuk seçimi (adı/e-postası önceden dolu gelir).
 function SeatPicker({ seats, grantsBySeat, person, onPick, onClose }) {
   const open = seats.filter((s) => s.active !== false);
@@ -577,7 +613,7 @@ export default function EquityPage() {
   const canManage = can('equity.manage');
   const [projects, setProjects] = useState([]);
   const [startupId, setStartupId] = useState('');
-  const [data, setData] = useState({ seats: [], grants: [], milestones: [], events: [] });
+  const [data, setData] = useState({ seats: [], grants: [], milestones: [], events: [], roles: [], members: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
@@ -599,10 +635,12 @@ export default function EquityPage() {
     const { data: seatRows, error: e1 } = await supabase.from('equity_seats').select('*').eq('startup_id', sid).order('created_at');
     if (e1) { flash('Yüklenemedi: ' + e1.message); setLoading(false); return; }
     const seatIds = (seatRows || []).map((s) => s.id);
-    const [g, m, ev] = await Promise.all([
+    const [g, m, ev, rl, cd] = await Promise.all([
       seatIds.length ? supabase.from('equity_grants').select('*').in('seat_id', seatIds).order('start_date') : { data: [] },
       supabase.from('equity_milestones').select('*').eq('startup_id', sid),
       seatIds.length ? supabase.from('equity_events').select('*').in('seat_id', seatIds).neq('kind', 'audit').order('happened_at') : { data: [] },
+      supabase.from('hub_open_roles').select('id, title, status, startup_id').eq('startup_id', sid).order('created_at'),
+      supabase.from('hub_candidates').select('id, full_name, email, stage, track, startup_id, open_role_id, joined_at, vesting_start_date').eq('stage', 'member'),
     ]);
     const err = g.error || m.error || ev.error;
     if (err) flash('Yüklenemedi: ' + err.message);
@@ -610,6 +648,8 @@ export default function EquityPage() {
       seats: (seatRows || []).map(mapSeatFromDb),
       grants: (g.data || []).map(mapGrantFromDb),
       milestones: (m.data || []).map(mapMilestoneFromDb),
+      roles: (rl.data || []).map((r) => ({ id: r.id, title: r.title, status: r.status, startupId: r.startup_id })),
+      members: (cd.data || []).map((c) => ({ id: c.id, fullName: c.full_name, email: c.email, stage: c.stage, track: c.track, startupId: c.startup_id, openRoleId: c.open_role_id, joinedAt: c.joined_at, vestingStartDate: c.vesting_start_date })),
       events: (ev.data || []).map(mapEventFromDb),
     });
     setLoading(false);
@@ -625,6 +665,10 @@ export default function EquityPage() {
     setRoster({ loading: false, teamAppId: res.teamAppId, teamName: res.teamName, members: res.members || [] });
   };
   useEffect(() => { loadRoster(); }, [startupId]);
+  const pendingJoins = useMemo(() => pendingGrantJoins(data.members || [], data.grants, data.seats, {
+    startupId: Number(startupId), roleStartup: Object.fromEntries((data.roles || []).map((r) => [r.id, r.startupId])),
+  }), [data, startupId]);
+  const pendingEmails = useMemo(() => new Set(pendingJoins.map((p) => p.email)), [pendingJoins]);
   const rosterCmp = useMemo(
     () => (roster && !roster.loading && !roster.err && roster.teamAppId ? compareRoster(roster.members, data.grants) : { missing: [], orphanIds: new Set() }),
     [roster, data.grants],
@@ -665,7 +709,12 @@ export default function EquityPage() {
         <div style={{ textAlign: 'center', padding: 32, color: 'var(--adm-text-dim)' }}>Yükleniyor…</div>
       ) : (
         <>
-          <RosterCard roster={roster} missing={rosterCmp.missing} orphanCount={rosterCmp.orphanIds.size} canManage={canManage}
+          <PendingJoinsCard pending={pendingJoins} canManage={canManage} onCreate={(p) => {
+            const prefill = { holderName: p.name, holderEmail: p.email, hubCandidateId: p.candidateId, ...(p.startDate ? { startDate: p.startDate } : {}) };
+            const seat = p.seatId && data.seats.find((s) => s.id === p.seatId);
+            setModal(seat ? { type: 'grant', seat, prefill } : { type: 'pickSeat', person: { name: p.name, email: p.email }, prefill });
+          }} />
+          <RosterCard roster={roster} missing={rosterCmp.missing.filter((m) => !pendingEmails.has(m.email))} orphanCount={rosterCmp.orphanIds.size} canManage={canManage}
             onAdd={(m) => setModal({ type: 'pickSeat', person: m })} />
           <AllocationBar seats={data.seats} />
           <MilestonesCard startupId={Number(startupId)} milestones={data.milestones} canManage={canManage} onChanged={load} flash={flash} />
@@ -685,9 +734,9 @@ export default function EquityPage() {
         </>
       )}
 
-      {modal?.type === 'seat' && <SeatForm seat={modal.seat} startupId={Number(startupId)} projectSeats={data.seats} onClose={() => setModal(null)} onSaved={() => done('Koltuk kaydedildi.')} />}
+      {modal?.type === 'seat' && <SeatForm seat={modal.seat} startupId={Number(startupId)} projectSeats={data.seats} roles={data.roles || []} onClose={() => setModal(null)} onSaved={() => done('Koltuk kaydedildi.')} />}
       {modal?.type === 'pickSeat' && <SeatPicker seats={data.seats} grantsBySeat={grantsBySeat} person={modal.person} onClose={() => setModal(null)}
-        onPick={(s) => setModal({ type: 'grant', seat: s, prefill: { holderName: modal.person.name || '', holderEmail: modal.person.email } })} />}
+        onPick={(s) => setModal({ type: 'grant', seat: s, prefill: { holderName: modal.person.name || '', holderEmail: modal.person.email, ...(modal.prefill || {}) } })} />}
       {modal?.type === 'grant' && <GrantForm grant={modal.grant} seat={modal.seat} prefill={modal.prefill} seatGrants={grantsBySeat[modal.seat.id] || []} milestones={data.milestones} onClose={() => setModal(null)} onSaved={() => done('Pay sözü kaydedildi.')} />}
       {modal?.type === 'exit' && <ExitForm grant={modal.grant} milestones={data.milestones} events={eventsByGrant[modal.grant.id] || []} onClose={() => setModal(null)} onSaved={() => done('Söz sonlandırıldı.')} />}
       {modal?.type === 'event' && <EventForm grant={modal.grant} onClose={() => setModal(null)} onSaved={() => done('Süreç kaydı eklendi.')} />}
