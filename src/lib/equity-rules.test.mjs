@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
   computeVesting, vestedOnExit, removalNeedsReview, seatBudget, projectAllocation,
-  validateSeat, validateGrant, monthsElapsed, addMonths, toDate, effectiveStart, summarizeGrant,
+  validateSeat, validateGrant, monthsElapsed, addMonths, toDate, effectiveStart, summarizeGrant, compareRoster,
 } from './equity-rules.js';
 
 let pass = 0;
@@ -185,6 +185,22 @@ t('Payım: üyede kilometre taşı satırı yok; bekleme süresindeyken tarih g�
 t('Payım: ayrılmış söz donmuş değeri gösterir', () => {
   const s = summarizeGrant(member({ status: 'left_good', endedAt: '2026-09-10', vestedAtEnd: 8 }), { title: 'Mobil', seatKind: 'member_standard' }, 'P', [], '2027-06-01');
   assert.equal(s.statusLabel, 'Ayrıldı (iyi niyetli)'); assert.equal(s.vested, 8); assert.equal(s.nextVest, null);
+});
+
+// ── 2026-10-08: ekip ↔ pay sözü ──
+t('ekip karşılaştırması: sözü olmayan üye listelenir, admin hariç, e-posta büyük/küçük harf duyarsız', () => {
+  const members = [{ name: 'Lead', email: 'Lead@x.com', role: 'lead' }, { name: 'Üye', email: 'uye@x.com', role: 'member' }, { name: 'Admin', email: 'a@x.com', role: 'admin', isAdmin: true }];
+  const grants = [{ id: 'g1', holderEmail: 'lead@X.com', status: 'active' }];
+  const r = compareRoster(members, grants);
+  assert.deepEqual(r.missing.map((m) => m.email), ['uye@x.com']);
+  assert.equal(r.orphanIds.size, 0);
+});
+t('ekip karşılaştırması: ayrılmış söz sayılmaz; ekipte olmayan e-postalı aktif söz "orphan"', () => {
+  const members = [{ name: 'Üye', email: 'uye@x.com', role: 'member' }];
+  const grants = [{ id: 'g1', holderEmail: 'uye@x.com', status: 'left_good' }, { id: 'g2', holderEmail: 'baska@x.com', status: 'active' }];
+  const r = compareRoster(members, grants);
+  assert.deepEqual(r.missing.map((m) => m.email), ['uye@x.com']);
+  assert.deepEqual([...r.orphanIds], ['g2']);
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

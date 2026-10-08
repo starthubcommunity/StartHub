@@ -10,7 +10,7 @@ import { usePerms } from '../../lib/use-perms';
 import {
   SEAT_KINDS, SEAT_KIND, MILESTONES, MILESTONE_LABEL, POOLS, isMemberSeat,
   computeVesting, vestedOnExit, removalNeedsReview, seatBudget, projectAllocation,
-  validateSeat, validateGrant, grantDefaultsForSeat, iso, toDate,
+  validateSeat, validateGrant, grantDefaultsForSeat, iso, toDate, compareRoster,
   mapSeatFromDb, mapSeatToDb, mapGrantFromDb, mapGrantToDb, mapMilestoneFromDb, mapEventFromDb,
 } from '../../lib/equity-rules';
 
@@ -189,9 +189,9 @@ function SeatForm({ seat, startupId, projectSeats, onClose, onSaved }) {
 }
 
 // ── Pay sözü formu ──────────────────────────────────────────────────────
-function GrantForm({ grant, seat, seatGrants, milestones, onClose, onSaved }) {
+function GrantForm({ grant, seat, seatGrants, milestones, prefill, onClose, onSaved }) {
   const avail = seatBudget(seat, seatGrants.filter((g) => g.id !== grant?.id)).available;
-  const blank = { seatId: seat.id, holderName: '', holderEmail: '', startDate: today(), retroCreditMonths: 0, retroCreditNote: '', note: '', ...grantDefaultsForSeat(seat, avail) };
+  const blank = { seatId: seat.id, holderName: '', holderEmail: '', startDate: today(), retroCreditMonths: 0, retroCreditNote: '', note: '', ...grantDefaultsForSeat(seat, avail), ...(prefill || {}) };
   const [f, setF] = useState(grant ? { ...grant } : blank);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -405,7 +405,7 @@ function AccelForm({ grant, onClose, onSaved }) {
 }
 
 // ── Koltuk kartı ────────────────────────────────────────────────────────
-function SeatCard({ seat, grants, milestones, eventsByGrant, canManage, onEditSeat, onNewGrant, onEditGrant, onExit, onEvent, onAccel }) {
+function SeatCard({ seat, grants, milestones, eventsByGrant, canManage, orphanIds, onEditSeat, onNewGrant, onEditGrant, onExit, onEvent, onAccel }) {
   const b = seatBudget(seat, grants);
   const k = SEAT_KIND[seat.seatKind];
   const w = (x) => (b.cap ? `${(x / b.cap) * 100}%` : '0%');
@@ -448,7 +448,8 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, canManage, onEditSe
                   return (
                     <React.Fragment key={g.id}>
                       <tr>
-                        <td><div style={{ fontWeight: 600 }}>{g.holderName}</div><div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{g.holderEmail}</div></td>
+                        <td><div style={{ fontWeight: 600 }}>{g.holderName}</div><div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{g.holderEmail}</div>
+                          {orphanIds?.has(g.id) && <div style={{ fontSize: 11.5, color: 'var(--adm-red, #DC2626)', marginTop: 2 }}>Bu e-posta ekipte yok — Payım'da görünmez</div>}</td>
                         <td>{pct(g.grantPct)}<div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>{g.vestMonths} ay · bekleme {g.cliffMonths}{g.retroCreditMonths ? ` · ${g.retroCreditMonths} ay kredi` : ''}</div></td>
                         <td><b>{pct(v.vested)}</b>{v.bonusVested > 0 && <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>{pct(v.bonusVested)} kilometre taşından</div>}</td>
                         <td>{pct(v.unvested)}</td>
@@ -499,6 +500,77 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, canManage, onEditSe
   );
 }
 
+
+// ── Ekip ↔ pay sözü (2026-10-08) ───────────────────────────────────────
+// Seçili projenin Team App ekibi (hub-equity-roster → hub-bridge-team-roster)
+// ile bu projedeki AKTİF pay sözleri e-postayla karşılaştırılır. Team App
+// admin'leri listede yok (yönetici; pay sözü konusu değil).
+function RosterCard({ roster, missing, orphanCount, canManage, onAdd }) {
+  if (!roster || roster.loading) return null;
+  const box = (children, tone) => (
+    <div className="adm-card" style={{ marginBottom: 16, borderColor: tone === 'warn' ? '#FDE68A' : undefined }}>
+      <div className="adm-card__body">{children}</div>
+    </div>
+  );
+  if (roster.err) return box(<div style={{ fontSize: 13, color: 'var(--adm-red)' }}>Ekip listesi alınamadı: {roster.err}</div>);
+  if (!roster.teamAppId) return box(<div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Bu proje bir Ekip Paneli (Team App) ekibine bağlı değil — üye karşılaştırması yapılamıyor.</div>);
+  if (!missing.length && !orphanCount) {
+    return box(<div style={{ fontSize: 13, color: 'var(--adm-green, #16A34A)' }}>✓ Ekipteki herkesin aktif bir pay sözü var ve her sözün e-postası ekipte eşleşiyor.</div>);
+  }
+  return box(<>
+    <div style={{ fontWeight: 700 }}>Ekip ↔ pay sözü</div>
+    <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '2px 0 10px' }}>
+      Ekip Paneli'ndeki {roster.teamName || 'ekip'} ile karşılaştırıldı (e-postayla). Yöneticiler hariç.
+    </div>
+    {missing.length > 0 && (
+      <>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#B45309', marginBottom: 6 }}>Pay sözü olmayan üyeler ({missing.length})</div>
+        <div style={{ display: 'grid', gap: 6, marginBottom: orphanCount ? 10 : 0 }}>
+          {missing.map((m) => (
+            <div key={m.email} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: 8, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <span style={{ fontWeight: 600 }}>{m.name || m.email}</span>
+                <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}> · {m.email} · {m.role === 'lead' ? 'Team Lead' : 'Üye'}</span>
+              </div>
+              {canManage && <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onAdd(m)}><AIcon name="plus" size={13} /> Söz ekle</button>}
+            </div>
+          ))}
+        </div>
+      </>
+    )}
+    {orphanCount > 0 && (
+      <Notice tone="err">{orphanCount} aktif sözün e-postası ekipte yok — o kişiler sözlerini Payım'da göremez. Aşağıda kırmızıyla işaretli; e-postayı Ekip Paneli'ndeki giriş adresiyle düzelt.</Notice>
+    )}
+  </>, 'warn');
+}
+
+// Söz eklerken koltuk seçimi (adı/e-postası önceden dolu gelir).
+function SeatPicker({ seats, grantsBySeat, person, onPick, onClose }) {
+  const open = seats.filter((s) => s.active !== false);
+  return (
+    <Modal open onClose={onClose} title={`${person.name || person.email} — hangi koltuk?`}>
+      {open.length === 0 ? (
+        <div style={{ fontSize: 13, color: 'var(--adm-text-dim)' }}>Bu projede açık koltuk yok — önce “Yeni koltuk” ile bir koltuk aç.</div>
+      ) : (
+        <div className="hub-wz__opts">
+          {open.every((s) => seatBudget(s, grantsBySeat[s.id] || []).available <= 0) && (
+            <Notice>Açık koltukların bütçesi dolu. Koltuğu “Koltuk” ile düzenleyip rezervden takviye ekle (Kural 4b) ya da yeni bir koltuk aç.</Notice>
+          )}
+          {open.map((s) => {
+            const b = seatBudget(s, grantsBySeat[s.id] || []);
+            return (
+              <button key={s.id} type="button" className="hub-wz__opt" disabled={b.available <= 0} onClick={() => onPick(s)}>
+                <span className="hub-wz__opt-l">{s.title}</span>
+                <span className="hub-wz__opt-r">{SEAT_KIND[s.seatKind]?.label} · kalan {pct(b.available)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 // ── Sayfa ───────────────────────────────────────────────────────────────
 export default function EquityPage() {
   const { can } = usePerms();
@@ -509,6 +581,7 @@ export default function EquityPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
+  const [roster, setRoster] = useState(null);   // { loading, err, teamAppId, teamName, members }
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
 
   useEffect(() => {
@@ -542,6 +615,20 @@ export default function EquityPage() {
     setLoading(false);
   };
   useEffect(() => { load(); }, [startupId]);
+
+  // Ekip listesi (Team App) — proje değişince; pay verisinden bağımsız yüklenir.
+  const loadRoster = async () => {
+    if (!startupId) { setRoster(null); return; }
+    setRoster({ loading: true });
+    const { data: res, error } = await supabase.functions.invoke('hub-equity-roster', { body: { startupId: Number(startupId) } });
+    if (error || !res?.ok) { setRoster({ loading: false, err: res?.error || error?.message || 'hata' }); return; }
+    setRoster({ loading: false, teamAppId: res.teamAppId, teamName: res.teamName, members: res.members || [] });
+  };
+  useEffect(() => { loadRoster(); }, [startupId]);
+  const rosterCmp = useMemo(
+    () => (roster && !roster.loading && !roster.err && roster.teamAppId ? compareRoster(roster.members, data.grants) : { missing: [], orphanIds: new Set() }),
+    [roster, data.grants],
+  );
 
   const grantsBySeat = useMemo(() => {
     const out = {};
@@ -578,6 +665,8 @@ export default function EquityPage() {
         <div style={{ textAlign: 'center', padding: 32, color: 'var(--adm-text-dim)' }}>Yükleniyor…</div>
       ) : (
         <>
+          <RosterCard roster={roster} missing={rosterCmp.missing} orphanCount={rosterCmp.orphanIds.size} canManage={canManage}
+            onAdd={(m) => setModal({ type: 'pickSeat', person: m })} />
           <AllocationBar seats={data.seats} />
           <MilestonesCard startupId={Number(startupId)} milestones={data.milestones} canManage={canManage} onChanged={load} flash={flash} />
           {data.seats.length === 0 ? (
@@ -585,7 +674,7 @@ export default function EquityPage() {
               {projectName} için henüz koltuk yok. Önce bir koltuk (ör. “Team Lead”, %30) aç, sonra o koltuğa pay sözü ekle.
             </div></div>
           ) : data.seats.map((s) => (
-            <SeatCard key={s.id} seat={s} grants={grantsBySeat[s.id] || []} milestones={data.milestones} eventsByGrant={eventsByGrant} canManage={canManage}
+            <SeatCard key={s.id} seat={s} grants={grantsBySeat[s.id] || []} milestones={data.milestones} eventsByGrant={eventsByGrant} canManage={canManage} orphanIds={rosterCmp.orphanIds}
               onEditSeat={() => setModal({ type: 'seat', seat: s })}
               onNewGrant={() => setModal({ type: 'grant', seat: s })}
               onEditGrant={(g) => setModal({ type: 'grant', seat: s, grant: g })}
@@ -597,7 +686,9 @@ export default function EquityPage() {
       )}
 
       {modal?.type === 'seat' && <SeatForm seat={modal.seat} startupId={Number(startupId)} projectSeats={data.seats} onClose={() => setModal(null)} onSaved={() => done('Koltuk kaydedildi.')} />}
-      {modal?.type === 'grant' && <GrantForm grant={modal.grant} seat={modal.seat} seatGrants={grantsBySeat[modal.seat.id] || []} milestones={data.milestones} onClose={() => setModal(null)} onSaved={() => done('Pay sözü kaydedildi.')} />}
+      {modal?.type === 'pickSeat' && <SeatPicker seats={data.seats} grantsBySeat={grantsBySeat} person={modal.person} onClose={() => setModal(null)}
+        onPick={(s) => setModal({ type: 'grant', seat: s, prefill: { holderName: modal.person.name || '', holderEmail: modal.person.email } })} />}
+      {modal?.type === 'grant' && <GrantForm grant={modal.grant} seat={modal.seat} prefill={modal.prefill} seatGrants={grantsBySeat[modal.seat.id] || []} milestones={data.milestones} onClose={() => setModal(null)} onSaved={() => done('Pay sözü kaydedildi.')} />}
       {modal?.type === 'exit' && <ExitForm grant={modal.grant} milestones={data.milestones} events={eventsByGrant[modal.grant.id] || []} onClose={() => setModal(null)} onSaved={() => done('Söz sonlandırıldı.')} />}
       {modal?.type === 'event' && <EventForm grant={modal.grant} onClose={() => setModal(null)} onSaved={() => done('Süreç kaydı eklendi.')} />}
       {modal?.type === 'accel' && seatOf(modal.grant) && <AccelForm grant={modal.grant} onClose={() => setModal(null)} onSaved={() => done('Tamamı açıldı (çift şart).')} />}

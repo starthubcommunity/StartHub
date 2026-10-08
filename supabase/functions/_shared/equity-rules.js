@@ -322,3 +322,21 @@ export function summarizeGrant(grant, seat, projectName, milestones = [], asOf =
     endedAt: grant.endedAt || null,
   };
 }
+
+// ── Ekip ↔ pay sözü karşılaştırması (2026-10-08) ─────────────────────────
+// members: Team App ekibinin kullanıcıları [{ name, email, role, isAdmin }]
+// grants : o projenin TÜM pay sözleri (mapGrantFromDb)
+// • missing: ekipte olup AKTİF sözü olmayanlar (Team App admin'leri hariç —
+//   yöneticiler ekiplere üye görünür ama pay sözü konusu değildir)
+// • orphan : aktif sözün e-postası ekipte yok → Payım'da görünmez
+export function compareRoster(members = [], grants = []) {
+  const norm = (e) => String(e || '').trim().toLowerCase();
+  const active = grants.filter((g) => (g.status || 'active') === 'active');
+  const grantEmails = new Set(active.map((g) => norm(g.holderEmail)));
+  const memberEmails = new Set(members.map((m) => norm(m.email)).filter(Boolean));
+  const missing = members
+    .filter((m) => !m.isAdmin && norm(m.email) && !grantEmails.has(norm(m.email)))
+    .map((m) => ({ name: m.name, email: norm(m.email), role: m.role }));
+  const orphanIds = new Set(active.filter((g) => !memberEmails.has(norm(g.holderEmail))).map((g) => g.id));
+  return { missing, orphanIds };
+}
