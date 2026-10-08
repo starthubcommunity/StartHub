@@ -431,6 +431,11 @@ export default function TodayPage({ onGoto, setFilters }) {
       meta: c.presentedAt ? `sunuldu ${String(c.presentedAt).slice(0, 10)} · karar bekliyor` : 'görüşme eşiği hazır',
       urgency: 1,
     }));
+    // 0058 — Team Lead'in Team App'ten açtığı kişi talebi (recruiter'ın Bugün'üne düşer, Bölüm A Gün 0).
+    openRoles.filter((r) => r.status === 'requested').forEach((r) => rows.push({
+      id: `req-${r.id}`, c: { id: null, fullName: r.title }, kind: 'Rol talebi', tone: 'amber', goto: 'roles',
+      meta: `${r.requestedByName || r.requestedByEmail || 'Team Lead'} istedi · yayına al`, urgency: 1,
+    }));
     founderLeads.forEach((c) => rows.push({
       id: `lead-${c.id}`, c, kind: 'Liderlik', tone: 'purple',
       meta: `${STAGE_LABEL[c.stage]} · kurucu hattı`, urgency: 2,
@@ -449,7 +454,7 @@ export default function TodayPage({ onGoto, setFilters }) {
     }));
     return rows.sort((a, b) => a.urgency - b.urgency
       || (a.sortAt && b.sortAt ? new Date(a.sortAt) - new Date(b.sortAt) : 0));
-  }, [dueGates, dueFollowUps, decisionReady, founderLeads, toSend, stale, roleReminders, ownerRejected, ownerStuck]);
+  }, [dueGates, dueFollowUps, decisionReady, founderLeads, toSend, stale, roleReminders, ownerRejected, ownerStuck, openRoles]);
 
   // ── Referans görsel için yeni türetilmiş veriler — HEPSİ gerçek, uydurma yok ──
   const activeCandidates = useMemo(() => candidates.filter((c) => c.stage !== 'archived'), [candidates]);
@@ -544,7 +549,7 @@ export default function TodayPage({ onGoto, setFilters }) {
         <KpiCard icon="layers" tone="blue" value={activeCandidates.length} label="Aktif Aday"
           onClick={() => { setFilters?.({ ...EMPTY_FILTERS }); onGoto?.('candidates'); }} />
         <KpiCard icon="clock" tone="amber" value={todos.length} label="Bugün Yapılacak"
-          onClick={todos.length ? () => setOpenId(todos[0].c.id) : undefined} />
+          onClick={todos.length ? () => (todos[0].goto ? onGoto?.(todos[0].goto) : setOpenId(todos[0].c.id)) : undefined} />
         {/* 2026-09-25 — Ekibe alınan adaylar artık Adaylar listesinde hiç
             görünmüyor (applyFilters her zaman eliyor, bkz. hub-filter.js),
             o yüzden bu kart tıklanabilir olamaz — tıklansa hep boş sonuca
@@ -595,7 +600,7 @@ export default function TodayPage({ onGoto, setFilters }) {
             ) : (
               <div className="hub-todo-list hub-todo-list--panel">
                 {todos.slice(0, 6).map((row) => (
-                  <TodoRow key={row.id} onClick={() => setOpenId(row.c.id)}
+                  <TodoRow key={row.id} onClick={() => (row.goto ? onGoto?.(row.goto) : setOpenId(row.c.id))}
                     name={row.c.fullName} kind={row.kind} kindTone={row.tone}
                     meta={row.sortAt ? relTime(row.sortAt) : row.meta} />
                 ))}

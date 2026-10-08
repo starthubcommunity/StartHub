@@ -146,6 +146,7 @@ export const THRESHOLD = {
 // ve kafa karıştırıyordu — etiket/rozet, otomatik oluştuğunda hâlâ doğru
 // gösteriliyor, sadece manuel buton gitti.
 export const ROLE_STATUSES = [
+  { value: 'requested', label: 'Talep edildi' },   // 0058 — Team Lead'in Team App'ten açtığı talep
   { value: 'draft',     label: 'Taslak' },
   { value: 'sourcing',  label: 'Yayında' },
   { value: 'shortlist', label: 'Kısa liste' },
@@ -156,6 +157,7 @@ export const ROLE_STATUS_LABEL = toLabelMap(ROLE_STATUSES);
 // filled sisteme aittir (aday `member` olunca otomatik).
 // sourcing -> shortlist ELLE yok (yukarıdaki not) — yalnızca geri dönüş var.
 export const ROLE_STATUS_NEXT = {
+  requested: ['sourcing', 'draft'],   // recruiter talebi yayına alır ya da taslağa çeker
   draft:     ['sourcing'],
   sourcing:  ['draft'],
   shortlist: ['sourcing'],   // filled otomatik

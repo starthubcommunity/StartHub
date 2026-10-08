@@ -249,6 +249,10 @@ export function mapOpenRoleFromDb(r) {
     teamSize:            r.team_size ?? null,
     assignedTo:          r.assigned_to ?? null,
     filledAt:            r.filled_at ?? null,
+    // 0058 — yalnızca okunur (sunucu yazar: hub-role-request); toDb bu alanları göndermez.
+    requestedByEmail:    r.requested_by_email ?? null,
+    requestedByName:     r.requested_by_name ?? null,
+    requestedAt:         r.requested_at ?? null,
     createdAt: r.created_at ?? null,
   };
 }

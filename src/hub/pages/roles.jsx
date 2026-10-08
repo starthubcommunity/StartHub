@@ -12,8 +12,8 @@ import { EMPTY_FILTERS } from '../components/filter-bar';
 import HubWizard from '../components/wizard';
 import NewCandidateModal from './new-candidate';
 
-const STATUS_PILL = { draft: '', sourcing: 'hub-pill--stage', shortlist: 'hub-pill--warn', filled: 'hub-pill--ok' };
-const STATUS_LEAD = { draft: '#A29D94', sourcing: '#7C3AED', shortlist: '#EA580C', filled: '#16A34A' };
+const STATUS_PILL = { requested: 'hub-pill--inbound', draft: '', sourcing: 'hub-pill--stage', shortlist: 'hub-pill--warn', filled: 'hub-pill--ok' };
+const STATUS_LEAD = { requested: '#D97706', draft: '#A29D94', sourcing: '#7C3AED', shortlist: '#EA580C', filled: '#16A34A' };
 
 const BLANK = {
   startupId: '', title: '', roleType: 'technical', track: 'member',
@@ -202,6 +202,13 @@ export default function RolesPage({ onGoto, setFilters }) {
                   {r.roleType && <span className="hub-pill">{ROLE_TYPE_LABEL[r.roleType] || r.roleType}</span>}
                   <span style={{ fontSize: 12, color: '#A29D94', marginLeft: 'auto' }}>{daysSince(r.createdAt)} gündür açık</span>
                 </div>
+                {r.requestedByEmail && (
+                  <div style={{ fontSize: 12.5, color: '#B45309', margin: '6px 0 0' }}>
+                    Team Lead talebi: <b>{r.requestedByName || r.requestedByEmail}</b> · {String(r.requestedAt || r.createdAt).slice(0, 10)}
+                    {r.weeklyHours ? ` · haftada ~${r.weeklyHours} saat` : ''}
+                    {r.status === 'requested' ? ' — yayına al ya da taslağa çek' : ''}
+                  </div>
+                )}
                 {r.profile && <div style={{ fontSize: 13, color: 'var(--adm-text-secondary)', margin: '6px 0' }}>{r.profile}</div>}
                 <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
                   {(r.skills || []).join(', ') || 'beceri yok'}
