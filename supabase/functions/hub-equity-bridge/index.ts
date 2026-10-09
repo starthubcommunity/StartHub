@@ -72,10 +72,32 @@ serve(async (req) => {
     const nameOf = new Map((sRows || []).map((r: any) => [Number(r.id), r.name]));
     const msOf = (sid: number) => (mRows || []).filter((m: any) => Number(m.startup_id) === Number(sid)).map(mapMilestoneFromDb);
 
+    // Adım 7 — haftalık saat beklentisi: koltuğa bağlı rol, yoksa sözdeki adayın rolü.
+    const allGrantsForHours = myGrants;
+    const candIds = [...new Set(allGrantsForHours.map((g: any) => g.hubCandidateId).filter(Boolean))];
+    const { data: candRows } = candIds.length ? await db.from("hub_candidates").select("id, open_role_id").in("id", candIds) : { data: [] as any[] };
+    const roleOfCand = new Map((candRows || []).map((r: any) => [r.id, r.open_role_id]));
+    const hoursFor = async (grantList: any[]) => {
+      const roleIds = new Set<string>();
+      for (const g of grantList) {
+        const seat: any = seatById.get(g.seatId);
+        if (seat?.openRoleId) roleIds.add(seat.openRoleId);
+        const r = roleOfCand.get(g.hubCandidateId); if (r) roleIds.add(r);
+      }
+      if (!roleIds.size) return new Map();
+      const { data } = await db.from("hub_open_roles").select("id, weekly_hours").in("id", [...roleIds]);
+      return new Map((data || []).map((r: any) => [r.id, r.weekly_hours]));
+    };
+    const hoursOf = (g: any, hm: Map<any, any>) => {
+      const seat: any = seatById.get(g.seatId);
+      return (seat?.openRoleId && hm.get(seat.openRoleId)) || hm.get(roleOfCand.get(g.hubCandidateId)) || null;
+    };
+    const hoursMap = await hoursFor(myGrants);
+
     const now = new Date();
     const mine = myGrants
       .filter((g: any) => seatById.has(g.seatId))
-      .map((g: any) => { const seat: any = seatById.get(g.seatId); return summarizeGrant(g, seat, nameOf.get(Number(seat.startupId)), msOf(seat.startupId), now); });
+      .map((g: any) => { const seat: any = seatById.get(g.seatId); return { ...summarizeGrant(g, seat, nameOf.get(Number(seat.startupId)), msOf(seat.startupId), now), weeklyHours: hoursOf(g, hoursMap) }; });
 
     // 3) Ekip tablosu (lead) — e-posta yok, yalnızca ad + koltuk + rakamlar
     let team: any[] = [];

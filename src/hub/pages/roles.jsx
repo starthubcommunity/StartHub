@@ -200,11 +200,12 @@ export default function RolesPage({ onGoto, setFilters }) {
                   <span className={`hub-pill ${STATUS_PILL[r.status] || ''}`}>{ROLE_STATUS_LABEL[r.status]}</span>
                   <span className={`hub-pill hub-pill--track-${r.track === 'founder' ? 'founder' : 'member'}`}>{r.track === 'founder' ? 'Kurucu hattı' : 'Üye hattı'}</span>
                   {r.roleType && <span className="hub-pill">{ROLE_TYPE_LABEL[r.roleType] || r.roleType}</span>}
+                  {r.requestedByEmail && <span className="hub-pill hub-pill--inbound">Team Lead talebi</span>}
                   <span style={{ fontSize: 12, color: '#A29D94', marginLeft: 'auto' }}>{daysSince(r.createdAt)} gündür açık</span>
                 </div>
                 {r.requestedByEmail && (
                   <div style={{ fontSize: 12.5, color: '#B45309', margin: '6px 0 0' }}>
-                    Team Lead talebi: <b>{r.requestedByName || r.requestedByEmail}</b> · {String(r.requestedAt || r.createdAt).slice(0, 10)}
+                    Talep eden: <b>{r.requestedByName || r.requestedByEmail}</b> · {String(r.requestedAt || r.createdAt).slice(0, 10)}
                     {r.weeklyHours ? ` · haftada ~${r.weeklyHours} saat` : ''}
                     {r.status === 'requested' ? ' — yayına al ya da taslağa çek' : ''}
                   </div>

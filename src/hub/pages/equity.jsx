@@ -703,7 +703,7 @@ export default function EquityPage() {
         </Field>
       </div>
 
-      <Notice>Taslak çerçeve — Equity Promise'in nihai hukuki dili avukat incelemesinden sonra güncellenecek. Buradaki kayıtlar gerçek hisse değil, şirketleşmeye bağlı taahhüttür.</Notice>
+      <Notice>Buradaki kayıtlar gerçek hisse değil, proje şirketleştiğinde geçerli olan pay sözleridir.</Notice>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 32, color: 'var(--adm-text-dim)' }}>Yükleniyor…</div>

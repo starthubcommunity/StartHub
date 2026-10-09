@@ -113,6 +113,7 @@ serve(async (req) => {
         roleTitle: roleRow.title || null,
         note: cand.why_this_one || null,
         category: cand.interest || null,
+        weeklyHours: roleRow.weekly_hours ?? null,   // Adım 7 — teklifte haftalık saat beklentisi
         suggestedTemplateId: cand.suggested_gate_template_id || null,
       }),
       signal: AbortSignal.timeout(8000),

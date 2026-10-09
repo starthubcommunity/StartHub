@@ -109,5 +109,13 @@ import { computeOfferClosePatch } from "../../supabase/functions/hub-bridge-pres
   check("A5 geçersiz status", computeOfferClosePatch(inGate, { hubCandidateId: "h9", status: "x" }).ok === false);
 }
 
+// ── Adım 7: haftalık saat beklentisi teklife taşınır ──
+{
+  const r = computeOfferPresentPatch(baseSnapshot(), { teamId: "A", hubCandidateId: "h10", fullName: "Saat", email: "s@x.com", weeklyHours: 8 });
+  check("H1 haftalık saat teklife yazıldı", r.snapshot.candidateOffers[0].weeklyHours === 8);
+  const r2 = computeOfferPresentPatch(baseSnapshot(), { teamId: "A", hubCandidateId: "h11", fullName: "Saatsiz", email: "t@x.com" });
+  check("H2 saat yoksa null", r2.snapshot.candidateOffers[0].weeklyHours === null);
+}
+
 console.log(failures === 0 ? "\nTÜM TESTLER GEÇTİ" : `\n${failures} TEST BAŞARISIZ`);
 process.exit(failures === 0 ? 0 : 1);

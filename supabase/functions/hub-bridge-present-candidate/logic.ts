@@ -21,6 +21,7 @@ export interface PresentPayload {
   // Adım 4 — kurucunun Kapı A şablon seçicisi için (Bölüm H)
   category?: string | null;
   suggestedTemplateId?: string | null;
+  weeklyHours?: number | null;   // yalnızca beklenti (saat takibi yok)
 }
 
 export interface PresentResult {
@@ -41,7 +42,7 @@ function effRole(u: any, tid: string): string {
 // snapshot'ın DIŞINDAKİ hiçbir alana dokunulmaz — yalnızca candidateOffers
 // üretilir/güncellenir, geri kalanı olduğu gibi spread edilir.
 export function computeOfferPresentPatch(snapshot: any, payload: PresentPayload): PresentResult {
-  const { teamId, hubCandidateId, fullName, email, phone, roleTitle, note, category, suggestedTemplateId } = payload || ({} as PresentPayload);
+  const { teamId, hubCandidateId, fullName, email, phone, roleTitle, note, category, suggestedTemplateId, weeklyHours } = payload || ({} as PresentPayload);
 
   const errors: string[] = [];
   if (!teamId) errors.push("teamId zorunlu");
@@ -73,6 +74,7 @@ export function computeOfferPresentPatch(snapshot: any, payload: PresentPayload)
     note: note || null,
     category: category || null,
     suggestedTemplateId: suggestedTemplateId || null,
+    weeklyHours: Number.isFinite(Number(weeklyHours)) && Number(weeklyHours) > 0 ? Number(weeklyHours) : null,
     status: "pending",
     createdAt: Date.now(),
     decidedAt: null,
