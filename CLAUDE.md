@@ -332,6 +332,27 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   "Gizlemeyi kaldır", gövde salt okunur; Adaylar'da "Gizlenenler (N)". Kayıtları kullanıcı işaretler —
   "shqiptar" GERÇEK başvuran. Test: `supabase/tests/0059_hub_candidate_hide.test.sql` (10 senaryo, geri alınır).
   Aynı commit'te HR arama kutusu: ≤900px boşluk elemanı gizli, kutu 44px, ≤600px placeholder "Ara…".
+- **A ✅ — sürümlü sözleşme + kabul kaydı (`0060_equity_contracts.sql`, canlıda; test: `supabase/tests/0060_equity_contracts.test.sql`, 22 senaryo):**
+  - Söz durumları: `pending_confirm` "Teyit bekliyor" → `pending_signature` "Onay bekliyor" → `active` (+`signed_at` → arayüzde
+    "İmzalandı"; 0060 öncesi sözler "Aktif" kalır). Bekleyen söz pay İŞLETMEZ ama koltuk bütçesinde ayrılmış sayılır
+    (`isPendingGrant`/`isOpenGrant`, equity-rules). Hak ediş başlangıcı = sözleşme ONAY günü (Europe/Istanbul) — Kapı A değil;
+    `move-to-team-core` artık `vesting_start_date` yazmıyor.
+  - `equity_grants_contract_guard`: tarayıcı yeni sözü yalnızca `pending_confirm` ekleyebilir; `pending_signature`/`active`'e geçişi
+    ve sözleşme kolonlarını YALNIZCA servis rolü yazar; gönderilmiş sözün şartları "Geri çek" olmadan, imzalanmışınki hiç değişmez.
+  - `contract_templates` (kind founder|member, sürüm numarasını tetikleyici verir, "YER TUTUCU" geçen metin zorla `is_placeholder`) ve
+    `contract_acceptances` (ad soyad, onay kutusu, zaman, IP, UA, SHA-256, metin kopyası, terms) servis rolü dahil DEĞİŞTİRİLEMEZ/SİLİNEMEZ.
+    v1 metinleri yer tutucu — gerçek metni kullanıcı verecek (HR › Yönetim › Sözleşme Metinleri › "Yeni sürüm yayınla").
+  - Gönderim kilidi (`recipientLock`, `_shared/contract-render.js` — HR, sunucu ve test aynı kod): `contract_settings.test_mode` açıkken
+    VEYA metin yer tutucuyken yalnızca `test_emails` (starthub.community@gmail.com, ka2003em@gmail.com). Liste arayüzden değişmez;
+    test modunu yalnızca cofounder "Canlıya aç, evet eminim" ile kapatır (kim/ne zaman otomatik yazılır).
+  - "Ekibe Al" (`move-to-team-core` adım 6): adayın rolüne bağlı açık koltuk + bütçe varsa `pending_confirm` söz açar
+    (yüzde = koltuk yüzdesi, kalan bütçeyi aşmaz); yoksa söz açılmaz, Bugün/Pay Sözleri hatırlatır.
+  - Fonksiyonlar: `equity-contract` (ana, JWT, equity.manage — preview/send; mail ÖNCE, gidemezse hiçbir şey yazılmaz),
+    `hub-equity-bridge` (Payım'da "Onay bekliyor" sözün metni + `accept` — metni sunucuda yeniden üretip parmak izini karşılaştırır),
+    `hub-team-my-equity` (Team App, JWT — `accept`'te IP/UA'yı isteğin kendisinden alır). Ortak DB okuma: `_shared/contract-server.ts`.
+  - Team App: Payım'da "Sözleşmeni onayla" kartı + onay penceresi (özet, tam metin, ad soyad, "Okudum, kabul ediyorum", KVKK satırı).
+    Test hesabı Team App'e girebilmek için `app_state.users`'ta olmalı (yalnızca auth'ta olmak yetmez).
+  - B'ye kalanlar: PDF + PDF ekli mail, cofounder'lara "onaylandı" bildirimi/maili.
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 

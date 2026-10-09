@@ -64,7 +64,7 @@ serve(async (req) => {
     const core = await runMoveToTeamCore(db, candidateId);
     if (!core.ok) return json({ error: core.error }, core.error === "Aday bulunamadı." ? 404 : 500);
 
-    const { cand, startupId, personId, vestingStart, steps, warnings } = core;
+    const { cand, startupId, personId, vestingStart, equityDraft, steps, warnings } = core;
 
     // ── 4. Team app'e (ayrı Supabase projesi) gerçek üye olarak ekle ──
     if (cand!.email && startupId != null) {
@@ -103,7 +103,7 @@ serve(async (req) => {
       warnings.push("bağlı proje yok — Ekip Paneli'ne eklenemedi");
     }
 
-    return json({ ok: true, personId, vestingStart, steps, warnings });
+    return json({ ok: true, personId, vestingStart, equityDraft, steps, warnings });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

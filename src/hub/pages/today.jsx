@@ -376,13 +376,17 @@ export default function TodayPage({ onGoto, setFilters }) {
   const [eqGrants, setEqGrants] = useState(null);
   useEffect(() => {
     if (!canEquity) return;
-    supabase.from('equity_grants').select('holder_email, hub_candidate_id, status').then(({ data, error }) => {
-      if (!error) setEqGrants((data || []).map((g) => ({ holderEmail: g.holder_email, hubCandidateId: g.hub_candidate_id, status: g.status })));
+    supabase.from('equity_grants').select('id, holder_name, holder_email, hub_candidate_id, status, grant_pct, created_at, contract_sent_at').then(({ data, error }) => {
+      if (!error) setEqGrants((data || []).map((g) => ({ id: g.id, holderName: g.holder_name, holderEmail: g.holder_email, hubCandidateId: g.hub_candidate_id, status: g.status, grantPct: Number(g.grant_pct), createdAt: g.created_at, contractSentAt: g.contract_sent_at })));
     });
   }, [canEquity]);
   const pendingEquity = eqGrants
     ? pendingGrantJoins(candidates, eqGrants, []).filter((p) => p.joinedAt && now - new Date(p.joinedAt).getTime() <= 30 * 86400000)
     : [];
+  // 0060 — teyit bekleyen taslak sözler; 7+ gündür onaylanmamış sözleşmeler.
+  const eqToConfirm = (eqGrants || []).filter((g) => g.status === 'pending_confirm');
+  const eqUnsigned = (eqGrants || []).filter((g) => g.status === 'pending_signature' && g.contractSentAt
+    && now - new Date(g.contractSentAt).getTime() > 7 * 86400000);
   const ownerRejected = candidates.filter((c) => (c.track || 'founder') === 'member'
     && (c.ownerStage === 'rejected' || c.ownerStage === 'withdrawn') && c.stage !== 'archived' && c.stage !== 'member');
   const decisionReady = candidates.filter((c) => {
@@ -448,7 +452,15 @@ export default function TodayPage({ onGoto, setFilters }) {
     }));
     pendingEquity.forEach((p) => rows.push({
       id: `eq-${p.candidateId}`, c: { id: p.candidateId, fullName: p.name || p.email }, kind: 'Pay sözü', tone: 'purple', goto: 'equity',
-      meta: `ekibe alındı ${String(p.joinedAt).slice(0, 10)} · pay sözü bekliyor`, urgency: 2,
+      meta: `ekibe alındı ${String(p.joinedAt).slice(0, 10)} · bağlı koltuk yok, taslak açılmadı`, urgency: 2,
+    }));
+    eqToConfirm.forEach((g) => rows.push({
+      id: `eqc-${g.id}`, c: { id: null, fullName: g.holderName || g.holderEmail }, kind: 'Pay sözü', tone: 'purple', goto: 'equity',
+      meta: `%${g.grantPct} taslak · teyit et ve sözleşmeyi gönder`, urgency: 1,
+    }));
+    eqUnsigned.forEach((g) => rows.push({
+      id: `eqs-${g.id}`, c: { id: null, fullName: g.holderName || g.holderEmail }, kind: 'Sözleşme', tone: 'amber', goto: 'equity',
+      meta: `gönderildi ${String(g.contractSentAt).slice(0, 10)} · 7+ gündür onaylanmadı`, urgency: 2,
     }));
     // 0058 — Team Lead'in Team App'ten açtığı kişi talebi (recruiter'ın Bugün'üne düşer, Bölüm A Gün 0).
     openRoles.filter((r) => r.status === 'requested').forEach((r) => rows.push({

@@ -1120,9 +1120,10 @@ function TrialSection({ c }) {
       if (r.warnings?.length) {
         flash('Kısmen aktarıldı — ' + r.warnings.join(' · '));
       } else {
-        flash(r.vestingStart
-          ? `Ekibe alındı · hesap açıldı, davet gönderildi · hak ediş ${r.vestingStart}.`
-          : 'Ekibe alındı · hesap açıldı, davet gönderildi.');
+        const d = r.equityDraft;
+        flash('Ekibe alındı · hesap açıldı, davet gönderildi · ' + (d?.created
+          ? `pay sözü taslağı açıldı (%${d.grantPct}, “Teyit bekliyor”) — Pay Sözleri'nden teyit edip sözleşmeyi gönder.`
+          : 'bağlı koltuk olmadığı için pay sözü taslağı açılmadı — Pay Sözleri hatırlatacak.'));
       }
     } catch (e) { flash('Aktarılamadı: ' + e.message); }
     setTeamConfirm(false);
@@ -1387,8 +1388,8 @@ function MemberSection({ c }) {
   return (
     <div className="hub-gate" style={{ background: 'var(--adm-green-light)', borderColor: 'transparent' }}>
       <div style={{ fontSize: 13 }}>
-        <strong>Hak ediş başlangıcı:</strong> {c.vestingStartDate || '—'}
-        <span style={{ color: 'var(--adm-text-dim)' }}> · Kapı A'nın ilk günü (geriye dönük)</span>
+        <strong>Hak ediş başlangıcı:</strong> sözleşme onay tarihinde başlar
+        <span style={{ color: 'var(--adm-text-dim)' }}> · Pay Sözleri'nden takip edilir</span>
       </div>
       {c.joinedAt && (
         <div style={{ fontSize: 12, color: 'var(--adm-text-secondary)', marginTop: 2 }}>

@@ -73,8 +73,24 @@ export function effectiveStart(grant) {
 // milestones: [{ kind, achievedAt }] — o projenin kilometre taşları
 // Dönüş: { vested, unvested, total, timeVested, bonusVested, monthsIn,
 //          cliffDate, cliffPassed, fullyVestedDate, nextVest, frozen, ... }
+// 0060 — sözleşme bekleyen söz ("Teyit bekliyor" / "Onay bekliyor") pay İŞLETMEZ;
+// hak ediş, sözleşmenin onaylandığı gün (start_date o gün yazılır) başlar.
+export const PENDING_STATUSES = ['pending_confirm', 'pending_signature'];
+export const isPendingGrant = (g) => PENDING_STATUSES.includes(g?.status);
+// Koltuk bütçesinde yer tutan (henüz sonlanmamış) sözler.
+export const isOpenGrant = (g) => (g?.status || 'active') === 'active' || isPendingGrant(g);
+
 export function computeVesting(grant, milestones = [], asOfInput = new Date()) {
   const total = Number(grant.grantPct) || 0;
+  if (isPendingGrant(grant)) {
+    return {
+      total: round3(total), vested: 0, unvested: round3(total), timeVested: 0, bonusVested: 0,
+      milestonesCounted: [], monthsIn: 0, vestMonths: Math.max(1, grant.vestMonths || 1),
+      cliffMonths: Math.max(0, grant.cliffMonths ?? 6), cliffDate: null, cliffPassed: false,
+      effectiveStart: null, fullyVestedDate: null, nextVest: null, accelerated: false, frozen: false,
+      clawedBack: false, pending: true,
+    };
+  }
   const start = effectiveStart(grant);
   const asOfRaw = toDate(asOfInput);
   const ended = grant.status && grant.status !== 'active';
@@ -149,6 +165,7 @@ export function computeVesting(grant, milestones = [], asOfInput = new Date()) {
 
 // Ayrılma anında donacak kazanılmış pay (vested_at_end'e yazılır).
 export function vestedOnExit(grant, milestones, exitDate) {
+  if (isPendingGrant(grant)) return 0;   // hiç işlememiş söz
   return computeVesting({ ...grant, status: 'active', endedAt: null, vestedAtEnd: null, clawedBack: false },
     milestones, exitDate).vested;
 }
@@ -168,7 +185,7 @@ export function seatBudget(seat, grants = []) {
   const cap = (Number(seat.budgetPct) || 0) + (Number(seat.reserveTopupPct) || 0);
   let consumed = 0, committed = 0;
   for (const g of grants) {
-    if (g.status === 'active') committed += Number(g.grantPct) || 0;
+    if (isOpenGrant(g)) committed += Number(g.grantPct) || 0;   // bekleyen söz de ayrılmış sayılır
     else if (!g.clawedBack) consumed += Number(g.vestedAtEnd) || 0;
   }
   const available = cap - consumed - committed;
@@ -273,14 +290,18 @@ export const mapGrantFromDb = (r) => ({
   status: r.status, endedAt: r.ended_at, vestedAtEnd: r.vested_at_end == null ? null : Number(r.vested_at_end),
   clawedBack: r.clawed_back, acceleratedAt: r.accelerated_at, accelerationNote: r.acceleration_note,
   note: r.note, createdAt: r.created_at,
+  contractTemplateId: r.contract_template_id || null, contractSentAt: r.contract_sent_at || null,
+  contractSentBy: r.contract_sent_by || null, signedAt: r.signed_at || null, acceptanceId: r.acceptance_id || null,
 });
+// Sözleşme alanlarını (contract_*, signed_at, acceptance_id) YAZMAZ — onları
+// yalnızca sunucu yazar (0060 tetikleyicisi). Yeni söz "Teyit bekliyor" başlar.
 export const mapGrantToDb = (g) => ({
   seat_id: g.seatId, holder_name: g.holderName?.trim(), holder_email: g.holderEmail?.trim().toLowerCase(),
   hub_candidate_id: g.hubCandidateId || null, grant_pct: Number(g.grantPct), schedule: g.schedule,
   vest_months: Number(g.vestMonths), cliff_months: Number(g.cliffMonths),
   milestone_bonus_pct: Number(g.milestoneBonusPct || 0), start_date: g.startDate,
   retro_credit_months: Number(g.retroCreditMonths || 0), retro_credit_note: g.retroCreditNote || null,
-  status: g.status || 'active', ended_at: g.endedAt || null,
+  status: g.status || 'pending_confirm', ended_at: g.endedAt || null,
   vested_at_end: g.vestedAtEnd == null ? null : Number(g.vestedAtEnd),
   clawed_back: !!g.clawedBack, accelerated_at: g.acceleratedAt || null,
   acceleration_note: g.accelerationNote || null, note: g.note || null,
@@ -295,7 +316,16 @@ export const mapEventFromDb = (r) => ({
 // ── "Payım" görünümü (Adım 5/5) — Team App'e giden, salt okunur özet ─────
 // Bölüm M: detay ekranı tam ve eksiksiz — kazanılmış/kazanılmamış, bekleme
 // süresi, bir sonraki hak ediş ve (Lider için) sıradaki kilometre taşı.
-export const STATUS_TR = { active: 'Aktif', left_good: 'Ayrıldı (iyi niyetli)', left_bad: 'Çıkarıldı (ağır ihlal)', removed: 'Çıkarıldı' };
+export const STATUS_TR = {
+  pending_confirm: 'Teyit bekliyor', pending_signature: 'Onay bekliyor',
+  active: 'Aktif', left_good: 'Ayrıldı (iyi niyetli)', left_bad: 'Çıkarıldı (ağır ihlal)', removed: 'Çıkarıldı',
+};
+// Aktif + kabul kaydı varsa "İmzalandı" (0060 öncesi sözler "Aktif" kalır).
+export function grantStatusLabel(g) {
+  const st = g?.status || 'active';
+  if (st === 'active' && g?.signedAt) return 'İmzalandı';
+  return STATUS_TR[st] || st;
+}
 
 export function summarizeGrant(grant, seat, projectName, milestones = [], asOf = new Date()) {
   const v = computeVesting(grant, milestones, asOf);
@@ -306,7 +336,8 @@ export function summarizeGrant(grant, seat, projectName, milestones = [], asOf =
     seat: seat?.title || '—',
     seatKind: SEAT_KIND[seat?.seatKind]?.label || '',
     status: grant.status || 'active',
-    statusLabel: STATUS_TR[grant.status || 'active'] || grant.status,
+    statusLabel: grantStatusLabel(grant),
+    signedAt: grant.signedAt || null,
     schedule: grant.schedule,
     total: v.total, vested: v.vested, unvested: v.unvested,
     progress: v.total ? Math.round((v.vested / v.total) * 1000) / 10 : 0,
@@ -331,7 +362,7 @@ export function summarizeGrant(grant, seat, projectName, milestones = [], asOf =
 // • orphan : aktif sözün e-postası ekipte yok → Payım'da görünmez
 export function compareRoster(members = [], grants = []) {
   const norm = (e) => String(e || '').trim().toLowerCase();
-  const active = grants.filter((g) => (g.status || 'active') === 'active');
+  const active = grants.filter(isOpenGrant);   // bekleyen söz de "sözü var" sayılır
   const grantEmails = new Set(active.map((g) => norm(g.holderEmail)));
   const memberEmails = new Set(members.map((m) => norm(m.email)).filter(Boolean));
   const missing = members
@@ -345,8 +376,9 @@ export function compareRoster(members = [], grants = []) {
 // candidates: HR adayları (mapCandidateFromDb) — yalnızca stage='member' sayılır
 // grants    : pay sözleri (herhangi bir durumda — ayrılmış söz de "verilmiş" sayılır)
 // seats     : projenin koltukları (openRoleId ile role bağlı olabilir)
-// Dönen her kayıt GrantForm'u önceden doldurmak içindir; söz OTOMATİK
-// oluşturulmaz — tutarı cofounder onaylar.
+// 0060'tan sonra "Ekibe Al" role bağlı koltuk varsa taslak sözü KENDİSİ açar;
+// burada kalanlar koltuğu/bütçesi olmadığı için taslak açılamayanlardır.
+// Hak ediş sözleşme onay gününde başlar — başlangıç tarihi önerilmez.
 export function pendingGrantJoins(candidates = [], grants = [], seats = [], { startupId = null, roleStartup = {} } = {}) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const byCand = new Set(grants.map((g) => g.hubCandidateId).filter(Boolean));
@@ -359,7 +391,7 @@ export function pendingGrantJoins(candidates = [], grants = [], seats = [], { st
       const seat = seats.find((s) => s.active !== false && s.openRoleId && s.openRoleId === c.openRoleId) || null;
       return {
         candidateId: c.id, name: c.fullName || '', email: norm(c.email), track: c.track || null,
-        joinedAt: c.joinedAt || null, startDate: (c.vestingStartDate || String(c.joinedAt || '').slice(0, 10)) || null,
+        joinedAt: c.joinedAt || null,
         seatId: seat ? seat.id : null, seatTitle: seat ? seat.title : null,
       };
     })

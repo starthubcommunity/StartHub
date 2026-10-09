@@ -23,6 +23,7 @@ import RolesPage from './pages/roles';
 import ApplicationsPage from './pages/applications';
 import SponsorsPage from './pages/sponsors';
 import EquityPage from './pages/equity';
+import ContractsPage from './pages/contracts';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -324,6 +325,7 @@ const GEAR_NAV = [
   { id: 'metrics',      label: 'Metrikler',        icon: 'trendingUp', perm: 'metrics.read' },
   { id: 'sources',      label: 'Kaynaklar',        icon: 'layers',     perm: 'sources.read' },
   { id: 'equity',       label: 'Pay Sözleri',      icon: 'award',      perm: 'equity.read' },     // 0052 — yalnızca cofounder
+  { id: 'contracts',    label: 'Sözleşme Metinleri', icon: 'briefcase', perm: 'equity.read' },    // 0060 — sürümlü metin + gönderim ayarı
   { id: 'sponsors',     label: 'Site Destekçileri', icon: 'building',  perm: 'sponsors.read' },   // anasayfa logo şeridi
   { id: 'members',      label: 'Yetkiler',         icon: 'users',      perm: 'members.manage' },
   { id: 'settings',     label: 'Ayarlar',          icon: 'settings',   perm: 'settings.write' },
@@ -612,6 +614,7 @@ function HubApp({ email, onLogout }) {
             : activePage === 'sources' ? <SourcesPage />
             : activePage === 'sponsors' ? <SponsorsPage />
             : activePage === 'equity' ? <EquityPage />
+            : activePage === 'contracts' ? <ContractsPage />
             : activePage === 'members' ? <PermissionsScreen area="hub" />
             : activePage === 'settings' ? <SettingsPage />
             : <div className="adm-empty">Bu ekran yok.</div>}

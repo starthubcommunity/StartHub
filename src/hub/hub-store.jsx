@@ -405,7 +405,7 @@ export function HubStoreProvider({ children }) {
   // invite-member(area:'team') + markalı davet maili, person_id geri yaz,
   // rol→filled. Client-side RLS bu tabloların çoğunu yazamadığı için fonksiyon
   // şart. Kısmi başarı → { warnings } döner; çağıran kullanıcıya gösterir.
-  // Dönüş: { vestingStart, steps, warnings }.
+  // Dönüş: { vestingStart, equityDraft, steps, warnings } (0060: vestingStart artık hep null — onay günü).
   const moveToTeam = useCallback(async (candidateId) => {
     const { data: res, error } = await supabase.functions.invoke('hub-move-to-team', {
       body: { candidateId },
@@ -426,7 +426,7 @@ export function HubStoreProvider({ children }) {
         patchLocal('openRoles', cand.openRoleId, { status: 'filled', filledAt: new Date().toISOString() });
       }
     }
-    return { vestingStart: res?.vestingStart ?? null, steps: res?.steps || {}, warnings: res?.warnings || [] };
+    return { vestingStart: res?.vestingStart ?? null, equityDraft: res?.equityDraft || null, steps: res?.steps || {}, warnings: res?.warnings || [] };
   }, [data, patchLocal]);
 
   // ── Açık roller: durum makinesi (v2 §10.1 — talep akışı yok) ──

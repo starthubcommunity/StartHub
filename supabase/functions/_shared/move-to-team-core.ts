@@ -7,6 +7,15 @@
 // tarafında önceden yapılmış olur).
 //
 // Her adım ayrı try/catch — patlayan adım `warnings`e yazılır, akış durmaz.
+//
+// 0060 (A) — adım 6: pay sözü taslağı. Adayın rolüne bağlı AÇIK bir koltuk
+// varsa ve bütçesi kaldıysa "Teyit bekliyor" (pending_confirm) bir söz açılır;
+// yüzde = koltuğun yüzdesi, kalan bütçeyi asla aşmaz (grantDefaultsForSeat).
+// Söz cofounder teyit edip sözleşme kabul edilene kadar GEÇERSİZDİR (pay işlemez).
+// Koltuk/bütçe yoksa söz açılmaz — HR › Bugün / Pay Sözleri cofounder'a hatırlatır.
+// Hak ediş başlangıcı artık Kapı A'nın ilk günü DEĞİL, sözleşmenin onay günü.
+
+import { seatBudget, grantDefaultsForSeat, mapSeatFromDb, mapGrantFromDb } from "./equity-rules.js";
 
 export interface MoveToTeamCoreResult {
   ok: boolean;
@@ -17,6 +26,7 @@ export interface MoveToTeamCoreResult {
   personId?: string | null;
   vestingStart?: string | null;
   joinedAt?: string;
+  equityDraft?: { created: boolean; grantId?: string; seatTitle?: string; grantPct?: number; reason?: string };
   steps: Record<string, boolean>;
   warnings: string[];
 }
@@ -36,12 +46,8 @@ export async function runMoveToTeamCore(db: any, candidateId: string): Promise<M
   }
   const startupId = (roleRow?.startup_id as number | null) ?? (cand.startup_id as number | null) ?? null;
 
-  // Hak ediş başlangıcı = Kapı A'nın ilk günü (geriye dönük).
-  const { data: gatesA } = await db
-    .from("hub_gates").select("started_at")
-    .eq("candidate_id", candidateId).eq("gate", "A").not("started_at", "is", null)
-    .order("started_at", { ascending: true }).limit(1);
-  const vestingStart = gatesA?.[0]?.started_at ? String(gatesA[0].started_at).slice(0, 10) : null;
+  // 0060: hak ediş başlangıcı sözleşme onay günüdür — burada tarih yazılmaz.
+  const vestingStart: string | null = null;
   const joinedAt = new Date().toISOString();
 
   // ── 1. aşama -> member ─────────────────────────────────────
@@ -53,7 +59,7 @@ export async function runMoveToTeamCore(db: any, candidateId: string): Promise<M
     if (error) throw new Error(error.message);
     await db.from("hub_stage_log").insert({
       candidate_id: candidateId, from_stage: cand.stage, to_stage: "member",
-      reason: vestingStart ? `hak ediş başlangıcı: ${vestingStart} (Kapı A ilk günü)` : "ekibe aktarıldı",
+      reason: "ekibe aktarıldı (hak ediş sözleşme onay gününde başlar)",
     });
     steps.stage = true;
   } catch (e) {
@@ -119,5 +125,50 @@ export async function runMoveToTeamCore(db: any, candidateId: string): Promise<M
     else steps.roleFilled = true;
   }
 
-  return { ok: true, cand, roleRow, startupId, personId, vestingStart, joinedAt, steps, warnings };
+  // ── 6. pay sözü taslağı (0060) ───────────────────────────
+  let equityDraft: MoveToTeamCoreResult["equityDraft"] = { created: false };
+  try {
+    equityDraft = await createDraftGrant(db, cand, startupId);
+  } catch (e) {
+    warnings.push("pay sözü taslağı açılamadı: " + (e as Error).message);
+    equityDraft = { created: false, reason: "error" };
+  }
+
+  return { ok: true, cand, roleRow, startupId, personId, vestingStart, joinedAt, equityDraft, steps, warnings };
+}
+
+// deno-lint-ignore no-explicit-any
+async function createDraftGrant(db: any, cand: any, startupId: number | null) {
+  const email = String(cand.email || "").trim().toLowerCase();
+  if (!email) return { created: false, reason: "no_email" };
+  if (!cand.open_role_id) return { created: false, reason: "no_seat" };
+  const { data: seatRows } = await db.from("equity_seats").select("*")
+    .eq("open_role_id", cand.open_role_id).eq("active", true).order("created_at").limit(1);
+  const seatRow = seatRows?.[0];
+  if (!seatRow) return { created: false, reason: "no_seat" };
+  if (startupId != null && Number(seatRow.startup_id) !== Number(startupId)) return { created: false, reason: "no_seat" };
+
+  // Aynı kişinin bu projede zaten (açık ya da sonlanmış) sözü varsa yenisi açılmaz.
+  const { data: projSeats } = await db.from("equity_seats").select("id").eq("startup_id", seatRow.startup_id);
+  const seatIds = (projSeats || []).map((s: any) => s.id);
+  const { data: existing } = await db.from("equity_grants").select("id, holder_email, hub_candidate_id").in("seat_id", seatIds);
+  if ((existing || []).some((g: any) => g.hub_candidate_id === cand.id || String(g.holder_email).toLowerCase() === email)) {
+    return { created: false, reason: "exists" };
+  }
+
+  const seat = mapSeatFromDb(seatRow);
+  const { data: seatGrants } = await db.from("equity_grants").select("*").eq("seat_id", seat.id);
+  const avail = seatBudget(seat, (seatGrants || []).map(mapGrantFromDb)).available;
+  if (!(avail > 0)) return { created: false, reason: "no_budget", seatTitle: seat.title };
+  const d = grantDefaultsForSeat(seat, avail);
+  const today = new Date().toISOString().slice(0, 10);   // geçici; onay günü üzerine yazılır
+  const { data: ins, error } = await db.from("equity_grants").insert({
+    seat_id: seat.id, holder_name: cand.full_name || email, holder_email: email, hub_candidate_id: cand.id,
+    grant_pct: d.grantPct, schedule: d.schedule, vest_months: d.vestMonths, cliff_months: d.cliffMonths,
+    milestone_bonus_pct: d.milestoneBonusPct, start_date: today, status: "pending_confirm",
+    note: "“Ekibe Al” ile otomatik açılan taslak — yüzdeyi teyit edip sözleşmeyi gönder.",
+    created_by: "ekibe-al",
+  }).select("id").single();
+  if (error) throw new Error(error.message);
+  return { created: true, grantId: ins.id, seatTitle: seat.title, grantPct: d.grantPct };
 }

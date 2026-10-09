@@ -7,6 +7,10 @@
 // isteyemez. Lead olduğu ekipler de sunucuda app_state.data.users'tan
 // hesaplanır (admin → tüm ekipler). Ana projedeki hub-equity-bridge'e
 // HUB_BRIDGE_SECRET ile gider (sır tarayıcıya inmez).
+//
+// 0060 (A) — { action: 'accept', grantId, typedName, consent, sha256 }:
+// sözleşme onayı. E-posta yine JWT'den; IP (x-forwarded-for'un ilki) ve
+// tarayıcı bilgisi (user-agent) İSTEĞİN KENDİSİNDEN alınır — gövdeden değil.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -47,6 +51,27 @@ serve(async (req) => {
   const leadTeamIds = !me ? [] : me.role === "admin"
     ? teams.map((t) => String(t.id))
     : teamsOf(me).filter((tid) => effRole(me, tid) === "lead").map(String);
+
+  const reqBody = await req.json().catch(() => ({}));
+  if (reqBody?.action === "accept") {
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || req.headers.get("x-real-ip") || null;
+    try {
+      const res = await fetch(`${MAIN_PROJECT_URL}/functions/v1/hub-equity-bridge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hub-bridge-key": HUB_BRIDGE_SECRET },
+        body: JSON.stringify({
+          action: "accept", email,
+          grantId: reqBody.grantId, typedName: reqBody.typedName, consent: reqBody.consent === true, sha256: reqBody.sha256,
+          ip, userAgent: req.headers.get("user-agent") || null,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const b = await res.json().catch(() => null);
+      return json(b || { ok: false, error: `hub-equity-bridge ${res.status}` }, b?.ok ? 200 : (res.status >= 400 && res.status < 500 ? res.status : 502));
+    } catch (e) {
+      return json({ ok: false, error: String(e) }, 502);
+    }
+  }
 
   try {
     const res = await fetch(`${MAIN_PROJECT_URL}/functions/v1/hub-equity-bridge`, {

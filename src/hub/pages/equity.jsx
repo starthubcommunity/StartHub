@@ -3,14 +3,22 @@
 // koltuklar (Kural 4b bütçe tavanı) ve her koltuktaki pay sözleri.
 // "Şu an ne kadar kazanıldı" DB'de değil — src/lib/equity-rules.js hesaplar.
 // Koltuk/söz SİLİNMEZ: koltuk kapatılır, söz "ayrılma" ile sonlandırılır.
+//
+// 0060 (A) — sözleşme akışı: Teyit bekliyor → (cofounder yüzdeyi teyit edip
+// "Sözleşmeyi gönder" — önizleme + "Evet, eminim") → Onay bekliyor → kişi Team
+// App › Payım'da onaylar → İmzalandı. Hak ediş onay gününde başlar. Gönderim
+// kilitleri (test modu / yer tutucu metin) SUNUCUDA uygulanır (equity-contract).
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { AIcon, PageHead, Modal, Field, Input, Textarea, Select } from '../../admin/admin-ui';
 import { usePerms } from '../../lib/use-perms';
+import MailSendConfirm from '../components/mail-confirm';
+import { CONTRACT_KIND_LABEL, mapAcceptanceFromDb } from '../../lib/contract-render';
 import {
   SEAT_KINDS, SEAT_KIND, MILESTONES, MILESTONE_LABEL, POOLS, isMemberSeat,
   computeVesting, vestedOnExit, removalNeedsReview, seatBudget, projectAllocation,
   validateSeat, validateGrant, grantDefaultsForSeat, iso, toDate, compareRoster, pendingGrantJoins,
+  isPendingGrant, isOpenGrant, grantStatusLabel,
   mapSeatFromDb, mapSeatToDb, mapGrantFromDb, mapGrantToDb, mapMilestoneFromDb, mapEventFromDb,
 } from '../../lib/equity-rules';
 
@@ -23,6 +31,38 @@ const EVENT_LABEL = {
   decision: 'Karar', starthub_review: 'Start-Hub kontrolü (Kural 12)', note: 'Not',
 };
 const OUTCOME_LABEL = { stay: 'Kalsın', role_change: 'Rolü değişsin', remove: 'Çıkarılsın' };
+const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
+
+// Sözleşme durumu rozeti (0060)
+function StatusPill({ g }) {
+  const st = g.status || 'active';
+  const tone = st === 'pending_confirm' ? { bg: '#FEF3C7', fg: '#92400E' }
+    : st === 'pending_signature' ? { bg: '#DBEAFE', fg: '#1E40AF' }
+    : st === 'active' && g.signedAt ? { bg: 'var(--adm-green-light, #DCFCE7)', fg: 'var(--adm-green, #15803D)' }
+    : null;
+  if (!tone) return null;
+  return <span className="hub-pill" style={{ background: tone.bg, color: tone.fg, borderColor: 'transparent' }}>{grantStatusLabel(g)}</span>;
+}
+
+// Küçük onay penceresi (silme dışı işler için — admin-ui ConfirmDialog "Sil" der)
+function SmallConfirm({ title, message, confirmLabel, danger, onConfirm, onClose }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const go = async () => {
+    setBusy(true); setErr('');
+    try { await onConfirm(); } catch (e) { setErr(e?.message || 'Olmadı.'); setBusy(false); }
+  };
+  return (
+    <Modal open onClose={() => !busy && onClose()} title={title}>
+      <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>{message}</div>
+      {err && <div style={{ fontSize: 12.5, color: 'var(--adm-red)', marginTop: 10 }}>{err}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+        <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose} disabled={busy}>Vazgeç</button>
+        <button type="button" className={`adm-btn ${danger ? 'adm-btn--danger' : 'adm-btn--primary'}`} onClick={go} disabled={busy}>{busy ? 'Bekle…' : confirmLabel}</button>
+      </div>
+    </Modal>
+  );
+}
 
 function Notice({ tone = 'warn', children }) {
   const c = tone === 'err' ? 'var(--adm-red, #DC2626)' : tone === 'ok' ? 'var(--adm-green, #16A34A)' : '#B45309';
@@ -195,14 +235,18 @@ function SeatForm({ seat, startupId, projectSeats, roles = [], onClose, onSaved 
 // ── Pay sözü formu ──────────────────────────────────────────────────────
 function GrantForm({ grant, seat, seatGrants, milestones, prefill, onClose, onSaved }) {
   const avail = seatBudget(seat, seatGrants.filter((g) => g.id !== grant?.id)).available;
-  const blank = { seatId: seat.id, holderName: '', holderEmail: '', startDate: today(), retroCreditMonths: 0, retroCreditNote: '', note: '', ...grantDefaultsForSeat(seat, avail), ...(prefill || {}) };
+  const blank = { seatId: seat.id, holderName: '', holderEmail: '', startDate: today(), retroCreditMonths: 0, retroCreditNote: '', note: '', status: 'pending_confirm', ...grantDefaultsForSeat(seat, avail), ...(prefill || {}) };
   const [f, setF] = useState(grant ? { ...grant } : blank);
+  // 0060: yeni / taslak sözde başlangıç tarihi sorulmaz (onay günü yazılır);
+  // imzalanmış sözün şartları kilitli (yalnızca kredi ve not).
+  const startsOnSign = !grant || isPendingGrant(grant);
+  const signed = !!grant?.signedAt;
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const norm = { ...f, grantPct: Number(f.grantPct), vestMonths: Number(f.vestMonths), cliffMonths: Number(f.cliffMonths), retroCreditMonths: Number(f.retroCreditMonths || 0) };
   const check = validateGrant(norm, seat, seatGrants);
-  const preview = check.errors.length ? null : computeVesting(norm, milestones, today());
+  const preview = check.errors.length || startsOnSign ? null : computeVesting(norm, milestones, today());
   const submit = async () => {
     if (check.errors.length) { setErr(check.errors[0]); return; }
     setSaving(true); setErr('');
@@ -215,16 +259,21 @@ function GrantForm({ grant, seat, seatGrants, milestones, prefill, onClose, onSa
     onSaved();
   };
   return (
-    <Modal open onClose={onClose} title={grant ? `${grant.holderName} — pay sözünü düzenle` : `${seat.title} — yeni pay sözü`}>
+    <Modal open onClose={onClose} title={grant?.status === 'pending_confirm' ? `${grant.holderName} — pay sözünü teyit et` : grant ? `${grant.holderName} — pay sözünü düzenle` : `${seat.title} — yeni pay sözü`}>
       <form className="adm-form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <Notice tone="ok">Koltukta kalan bütçe: <b>{pct(avail)}</b></Notice>
+        {signed
+          ? <Notice>İmzalanmış sözün şartları değiştirilemez — yalnızca geriye dönük kredi ve not düzenlenir.</Notice>
+          : <Notice tone="ok">Koltukta kalan bütçe: <b>{pct(avail)}</b></Notice>}
+        <fieldset disabled={signed} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <Field label="Ad Soyad" required><Input value={f.holderName} onChange={(v) => set('holderName', v)} /></Field>
         <Field label="E-posta" required hint="Ekip Paneli'nde giriş yaptığı adres — “Payım” bu adresle eşleşir.">
           <Input type="email" value={f.holderEmail} onChange={(v) => set('holderEmail', v)} />
         </Field>
         <div className="hub-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Pay sözü (%)" required><Input type="number" step="0.25" min="0" value={f.grantPct} onChange={(v) => set('grantPct', v)} /></Field>
-          <Field label="Başlangıç (imza) tarihi" required><Input type="date" value={f.startDate} onChange={(v) => set('startDate', v)} /></Field>
+          {startsOnSign
+            ? <Field label="Hak ediş başlangıcı"><div style={{ fontSize: 13, padding: '9px 0', color: 'var(--adm-text-secondary)' }}>Sözleşme onay tarihinde başlar</div></Field>
+            : <Field label="Başlangıç tarihi" required><Input type="date" value={f.startDate} onChange={(v) => set('startDate', v)} disabled={signed} /></Field>}
           <Field label="Hak ediş süresi (ay)" required hint="Kural 16: yüksek performansta kısaltılabilir"><Input type="number" min="1" value={f.vestMonths} onChange={(v) => set('vestMonths', v)} /></Field>
           <Field label="Bekleme süresi (ay)" required hint={isMemberSeat(seat.seatKind) ? 'Üyede en az 6 (Kural 3)' : undefined}>
             <Input type="number" min="0" value={f.cliffMonths} onChange={(v) => set('cliffMonths', v)} />
@@ -236,6 +285,7 @@ function GrantForm({ grant, seat, seatGrants, milestones, prefill, onClose, onSa
             { value: 'lead_hybrid', label: 'Hibrit — zaman + kilometre taşı (+5 puan/taş)' },
           ]} />
         </Field>
+        </fieldset>
         <Field label="Geriye dönük kredi (ay, en fazla 3)" hint="Kural 8 — sözleşme öncesi belgelenmiş çalışma. Otomatik değil: Lider önerisi + Start-Hub onayı.">
           <Input type="number" min="0" max="3" value={f.retroCreditMonths} onChange={(v) => set('retroCreditMonths', v)} />
         </Field>
@@ -249,9 +299,83 @@ function GrantForm({ grant, seat, seatGrants, milestones, prefill, onClose, onSa
             Önizleme: bekleme süresi {fmtDate(preview.cliffDate)} tarihinde dolar · tamamı {fmtDate(preview.fullyVestedDate)} · bugün kazanılmış {pct(preview.vested)}
           </div>
         )}
+        {startsOnSign && !grant && (
+          <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', margin: '6px 0' }}>
+            Kaydedince söz “Teyit bekliyor” olur; pay, sözleşme gönderilip kişi onaylayınca işlemeye başlar.
+          </div>
+        )}
         <FormFooter err={err} saving={saving} onClose={onClose} />
       </form>
     </Modal>
+  );
+}
+
+// ── Sözleşmeyi gönder (0060) ────────────────────────────────────────────
+// 1) Sözleşme özeti + tam metin (sunucunun ürettiği, parmak izi alınan metin)
+// 2) Mail önizlemesi → 3) "Evet, eminim". Kilitler sunucuda uygulanır;
+// burada yalnızca önceden gösterilir (gönder düğmesi pasif).
+function SendContract({ grant, onClose, onSent }) {
+  const [p, setP] = useState(null);
+  const [err, setErr] = useState('');
+  const [mailOpen, setMailOpen] = useState(false);
+  useEffect(() => {
+    supabase.functions.invoke('equity-contract', { body: { action: 'preview', grantId: grant.id } }).then(({ data, error }) => {
+      if (error || !data?.ok) setErr(data?.error || error?.message || 'Önizleme alınamadı.');
+      else setP(data);
+    });
+  }, [grant.id]);
+  const send = async () => {
+    const { data, error } = await supabase.functions.invoke('equity-contract', { body: { action: 'send', grantId: grant.id, confirm: true } });
+    if (error || !data?.ok) {
+      let msg = data?.error;
+      if (!msg && error?.context?.json) { try { msg = (await error.context.json())?.error; } catch {} }
+      throw new Error(msg || error?.message || 'Gönderilemedi.');
+    }
+    onSent();
+  };
+  const t = p?.terms;
+  const blocked = p && (!p.lock?.ok || p.overBudget);
+  return (
+    <>
+      <Modal open={!mailOpen} onClose={onClose} title={`${grant.holderName} — sözleşmeyi gönder`}>
+        {!p && !err && <div style={{ padding: 20, textAlign: 'center', color: 'var(--adm-text-dim)' }}>Hazırlanıyor…</div>}
+        {err && <Notice tone="err">{err}</Notice>}
+        {p && (
+          <div style={{ fontSize: 13 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 14px', marginBottom: 12 }}>
+              <span style={{ color: 'var(--adm-text-dim)' }}>Alıcı</span><span><b>{t.holderName}</b> · {t.holderEmail}</span>
+              <span style={{ color: 'var(--adm-text-dim)' }}>Proje</span><span>{t.project} · {t.seat}</span>
+              <span style={{ color: 'var(--adm-text-dim)' }}>Pay sözü</span><span><b>{pct(t.grantPct)}</b></span>
+              <span style={{ color: 'var(--adm-text-dim)' }}>Süre</span><span>{t.vestMonths} ay · bekleme {t.cliffMonths} ay</span>
+              <span style={{ color: 'var(--adm-text-dim)' }}>Haftalık saat</span><span>{t.weeklyHours ? `haftada ~${t.weeklyHours} saat` : 'belirtilmedi'}</span>
+              {t.milestones.length > 0 && <><span style={{ color: 'var(--adm-text-dim)' }}>Kilometre taşları</span><span>{t.milestones.join(', ')} (her biri +{t.milestoneBonusPct} puan)</span></>}
+              <span style={{ color: 'var(--adm-text-dim)' }}>Metin</span>
+              <span>{CONTRACT_KIND_LABEL[p.template.kind]} · v{p.template.version}{p.template.isPlaceholder && <span className="hub-pill" style={{ marginLeft: 6 }}>Yer tutucu</span>}</span>
+            </div>
+            <Notice tone="ok">Hak ediş, kişinin sözleşmeyi onayladığı gün başlar.</Notice>
+            {!p.lock.ok && <Notice tone="err">{p.lock.reason}</Notice>}
+            {p.lock.ok && p.lock.testOnly && <Notice>Test modu: bu adres test listesinde olduğu için gönderilebilir.</Notice>}
+            {p.overBudget && <Notice tone="err">Koltukta yalnızca {pct(p.available)} kaldı — önce yüzdeyi düşür.</Notice>}
+            <details style={{ margin: '10px 0' }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Sözleşmenin tam metni</summary>
+              <div style={{ whiteSpace: 'pre-wrap', background: 'var(--adm-bg)', border: '1px solid var(--adm-border)', borderRadius: 10, padding: '12px 14px', lineHeight: 1.55, maxHeight: 320, overflowY: 'auto', marginTop: 8 }}>{p.text}</div>
+            </details>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+              <button type="button" className="adm-btn adm-btn--ghost" onClick={onClose}>Vazgeç</button>
+              <button type="button" className="adm-btn adm-btn--primary" disabled={blocked} onClick={() => setMailOpen(true)}>
+                <AIcon name="mail" size={14} /> Mail önizlemesine geç
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+      {p && (
+        <MailSendConfirm open={mailOpen} to={t.holderEmail} toName={t.holderName} subject={p.mail.subject} body={p.mail.body}
+          actionLabel="Sözleşme onay mailini"
+          consequence="Gönderince söz “Onay bekliyor” olur; şartlar ancak “Geri çek” ile değiştirilebilir."
+          onSend={send} onClose={() => setMailOpen(false)} />
+      )}
+    </>
   );
 }
 
@@ -409,11 +533,12 @@ function AccelForm({ grant, onClose, onSaved }) {
 }
 
 // ── Koltuk kartı ────────────────────────────────────────────────────────
-function SeatCard({ seat, grants, milestones, eventsByGrant, canManage, orphanIds, onEditSeat, onNewGrant, onEditGrant, onExit, onEvent, onAccel }) {
+function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant = {}, canManage, orphanIds, onEditSeat, onNewGrant, onEditGrant, onExit, onEvent, onAccel, onSend, onRecall, onDiscard }) {
   const b = seatBudget(seat, grants);
   const k = SEAT_KIND[seat.seatKind];
   const w = (x) => (b.cap ? `${(x / b.cap) * 100}%` : '0%');
   const [openHist, setOpenHist] = useState(null);
+  const [openText, setOpenText] = useState(null);
   return (
     <div className="adm-card" style={{ marginBottom: 14, opacity: seat.active === false ? 0.6 : 1 }}>
       <div className="adm-card__body">
@@ -433,10 +558,10 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, canManage, orphanId
         </div>
         <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#F1F5F9', margin: '10px 0 4px' }}>
           <div style={{ width: w(b.consumed), background: '#94A3B8' }} title="Ayrılanlarca kullanılan" />
-          <div style={{ width: w(b.committed), background: '#2563EB' }} title="Aktif sözler" />
+          <div style={{ width: w(b.committed), background: '#2563EB' }} title="Aktif ve bekleyen sözler" />
         </div>
         <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
-          Ayrılanlarca kalıcı kullanılan {pct(b.consumed)} · aktif sözler {pct(b.committed)} · <b style={{ color: 'inherit' }}>kalan {pct(b.available)}</b>
+          Ayrılanlarca kalıcı kullanılan {pct(b.consumed)} · aktif ve bekleyen sözler {pct(b.committed)} · <b style={{ color: 'inherit' }}>kalan {pct(b.available)}</b>
           {b.overBy > 0 && <span style={{ color: '#DC2626' }}> · bütçe {pct(b.overBy)} aşılmış</span>}
         </div>
 
@@ -449,23 +574,36 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, canManage, orphanId
                   const v = computeVesting(g, milestones);
                   const evs = eventsByGrant[g.id] || [];
                   const active = g.status === 'active';
+                  const pending = isPendingGrant(g);
+                  const acc = acceptanceByGrant[g.id];
                   return (
                     <React.Fragment key={g.id}>
                       <tr>
                         <td><div style={{ fontWeight: 600 }}>{g.holderName}</div><div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>{g.holderEmail}</div>
                           {orphanIds?.has(g.id) && <div style={{ fontSize: 11.5, color: 'var(--adm-red, #DC2626)', marginTop: 2 }}>Bu e-posta ekipte yok — Payım'da görünmez</div>}</td>
                         <td>{pct(g.grantPct)}<div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>{g.vestMonths} ay · bekleme {g.cliffMonths}{g.retroCreditMonths ? ` · ${g.retroCreditMonths} ay kredi` : ''}</div></td>
-                        <td><b>{pct(v.vested)}</b>{v.bonusVested > 0 && <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>{pct(v.bonusVested)} kilometre taşından</div>}</td>
-                        <td>{pct(v.unvested)}</td>
+                        <td>{pending ? <span style={{ color: 'var(--adm-text-dim)' }}>—</span> : <><b>{pct(v.vested)}</b>{v.bonusVested > 0 && <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)' }}>{pct(v.bonusVested)} kilometre taşından</div>}</>}</td>
+                        <td>{pending ? <span style={{ color: 'var(--adm-text-dim)' }}>—</span> : pct(v.unvested)}</td>
                         <td style={{ fontSize: 12.5 }}>
-                          {!active ? <>{STATUS_LABEL[g.status]}<div style={{ color: 'var(--adm-text-dim)' }}>{fmtDate(g.endedAt)}{v.clawedBack ? ' · geri alındı' : ''}</div></>
+                          {pending ? <><StatusPill g={g} /><div style={{ color: 'var(--adm-text-dim)', marginTop: 3 }}>
+                              {g.status === 'pending_signature' ? `gönderildi ${fmtDate(g.contractSentAt)}` : 'yüzdeyi teyit et'}</div></>
+                            : !active ? <>{STATUS_LABEL[g.status]}<div style={{ color: 'var(--adm-text-dim)' }}>{fmtDate(g.endedAt)}{v.clawedBack ? ' · geri alındı' : ''}</div></>
                             : v.accelerated ? 'Tamamı açıldı (çift şart)'
                             : !v.cliffPassed ? <>Bekleme süresinde<div style={{ color: 'var(--adm-text-dim)' }}>dolum {fmtDate(v.cliffDate)}</div></>
                             : v.nextVest ? <>{v.monthsIn}/{v.vestMonths} ay<div style={{ color: 'var(--adm-text-dim)' }}>sonraki {fmtDate(v.nextVest)}</div></>
                             : 'Tamamen hak edildi'}
+                          {active && g.signedAt && <div style={{ marginTop: 3 }}><StatusPill g={g} /></div>}
                         </td>
                         <td><div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                           <button className="adm-icon-btn" title="Geçmiş" onClick={() => setOpenHist(openHist === g.id ? null : g.id)}><AIcon name="clock" size={14} /></button>
+                          {canManage && g.status === 'pending_confirm' && <>
+                            <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onSend(g)}><AIcon name="mail" size={13} /> Sözleşmeyi gönder</button>
+                            <button className="adm-icon-btn" title="Yüzdeyi teyit et / düzenle" onClick={() => onEditGrant(g)}><AIcon name="edit" size={14} /></button>
+                            <button className="adm-icon-btn adm-icon-btn--danger" title="Taslağı kapat" onClick={() => onDiscard(g)}><AIcon name="x" size={14} /></button>
+                          </>}
+                          {canManage && g.status === 'pending_signature' && (
+                            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onRecall(g)}>Geri çek</button>
+                          )}
                           {canManage && active && <>
                             <button className="adm-icon-btn" title="Düzenle" onClick={() => onEditGrant(g)}><AIcon name="edit" size={14} /></button>
                             <button className="adm-icon-btn" title="Süreç kaydı (uyarı)" onClick={() => onEvent(g)}><AIcon name="penEdit" size={14} /></button>
@@ -476,6 +614,16 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, canManage, orphanId
                       </tr>
                       {openHist === g.id && (
                         <tr><td colSpan={6} style={{ background: 'var(--adm-bg-soft, #FAFAF9)' }}>
+                          {acc && (
+                            <div style={{ fontSize: 12.5, marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--adm-border)' }}>
+                              <b>Kabul kaydı</b> · {acc.typedName} · {fmtDateTime(acc.acceptedAt)} · {CONTRACT_KIND_LABEL[acc.templateKind]} v{acc.templateVersion}
+                              <div style={{ color: 'var(--adm-text-dim)' }}>IP {acc.ip || '—'} · parmak izi {String(acc.textSha256).slice(0, 16)}… · {acc.userAgent ? String(acc.userAgent).slice(0, 80) : 'tarayıcı bilgisi yok'}</div>
+                              <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginTop: 6 }} onClick={() => setOpenText(openText === g.id ? null : g.id)}>
+                                {openText === g.id ? 'Onaylanan metni gizle' : 'Onaylanan metni göster'}
+                              </button>
+                              {openText === g.id && <div style={{ whiteSpace: 'pre-wrap', background: 'var(--adm-bg)', border: '1px solid var(--adm-border)', borderRadius: 8, padding: '10px 12px', marginTop: 6, maxHeight: 280, overflowY: 'auto' }}>{acc.textSnapshot}</div>}
+                            </div>
+                          )}
                           {evs.length === 0 ? <span style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>Süreç kaydı yok.</span> : (
                             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5 }}>
                               {evs.map((e) => (
@@ -549,9 +697,10 @@ function RosterCard({ roster, missing, orphanCount, canManage, onAdd }) {
 }
 
 
-// ── "Ekibe Al" ile gelen, pay sözü olmayanlar (2026-10-08) ─────────────
-// Söz OTOMATİK oluşturulmaz; "Söz oluştur" formu kişi/e-posta, (role bağlı
-// koltuk varsa) koltuk ve başlangıç = Kapı A'nın ilk günü ile doldurur.
+// ── "Ekibe Al" ile gelen, pay sözü olmayanlar (2026-10-08, 0060) ───────
+// Role bağlı koltuk + bütçe varsa "Ekibe Al" taslağı KENDİSİ açar; burada
+// kalanlar koltuğu/bütçesi olmadığı için taslağı açılamayanlardır.
+// Hak ediş sözleşme onay gününde başlar — başlangıç tarihi sorulmaz.
 function PendingJoinsCard({ pending, canManage, onCreate }) {
   if (!pending.length) return null;
   return (
@@ -559,7 +708,7 @@ function PendingJoinsCard({ pending, canManage, onCreate }) {
       <div className="adm-card__body">
         <div style={{ fontWeight: 700 }}>Ekibe alındı — pay sözü bekliyor ({pending.length})</div>
         <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '2px 0 10px' }}>
-          Kurucu Hattı'nda “Ekibe Al” ile ekibe giren ama henüz pay sözü olmayan kişiler. Tutarı sen onaylarsın.
+          “Ekibe Al” ile ekibe giren ama rolüne bağlı koltuk olmadığı (ya da koltuk bütçesi dolduğu) için pay sözü taslağı açılamayan kişiler. Hak ediş, sözleşme onay tarihinde başlar.
         </div>
         <div style={{ display: 'grid', gap: 6 }}>
           {pending.map((p) => (
@@ -572,6 +721,41 @@ function PendingJoinsCard({ pending, canManage, onCreate }) {
                 </span>
               </div>
               {canManage && <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onCreate(p)}><AIcon name="plus" size={13} /> Söz oluştur</button>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Onay bekleyenler (0060) — tüm projelerde Teyit/Onay bekleyen sözler ──
+function WaitingCard({ waiting, projects, currentId, onOpen, onSend, canManage }) {
+  if (!waiting.length) return null;
+  const nameOf = (sid) => projects.find((p) => String(p.id) === String(sid))?.name || `#${sid}`;
+  const nConfirm = waiting.filter((w) => w.status === 'pending_confirm').length;
+  const nSign = waiting.length - nConfirm;
+  return (
+    <div className="adm-card" style={{ marginBottom: 16 }}>
+      <div className="adm-card__body">
+        <div style={{ fontWeight: 700 }}>Onay bekleyenler</div>
+        <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '2px 0 10px' }}>
+          {nConfirm} söz senin teyidini, {nSign} söz kişinin onayını bekliyor. Bu sözlerde pay henüz işlemiyor.
+        </div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          {waiting.map((w) => (
+            <div key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid var(--adm-border)', borderRadius: 8, flexWrap: 'wrap' }}>
+              <StatusPill g={w} />
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <span style={{ fontWeight: 600 }}>{w.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}> · {nameOf(w.startupId)} · {w.seatTitle} · {pct(w.grantPct)}
+                  {w.status === 'pending_signature' ? ` · gönderildi ${fmtDate(w.contractSentAt)}` : ''}</span>
+              </div>
+              {String(w.startupId) !== String(currentId) ? (
+                <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onOpen(w.startupId)}>Projeye git</button>
+              ) : canManage && w.status === 'pending_confirm' && (
+                <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onSend(w.id)}><AIcon name="mail" size={13} /> Sözleşmeyi gönder</button>
+              )}
             </div>
           ))}
         </div>
@@ -613,7 +797,8 @@ export default function EquityPage() {
   const canManage = can('equity.manage');
   const [projects, setProjects] = useState([]);
   const [startupId, setStartupId] = useState('');
-  const [data, setData] = useState({ seats: [], grants: [], milestones: [], events: [], roles: [], members: [] });
+  const [data, setData] = useState({ seats: [], grants: [], milestones: [], events: [], roles: [], members: [], acceptances: [] });
+  const [waiting, setWaiting] = useState([]);   // tüm projelerde Teyit/Onay bekleyen sözler
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
@@ -644,6 +829,8 @@ export default function EquityPage() {
     ]);
     const err = g.error || m.error || ev.error;
     if (err) flash('Yüklenemedi: ' + err.message);
+    const signedIds = (g.data || []).filter((r) => r.acceptance_id).map((r) => r.id);
+    const ac = signedIds.length ? await supabase.from('contract_acceptances').select('*').in('grant_id', signedIds) : { data: [] };
     setData({
       seats: (seatRows || []).map(mapSeatFromDb),
       grants: (g.data || []).map(mapGrantFromDb),
@@ -651,10 +838,21 @@ export default function EquityPage() {
       roles: (rl.data || []).map((r) => ({ id: r.id, title: r.title, status: r.status, startupId: r.startup_id })),
       members: (cd.data || []).map((c) => ({ id: c.id, fullName: c.full_name, email: c.email, stage: c.stage, track: c.track, startupId: c.startup_id, openRoleId: c.open_role_id, joinedAt: c.joined_at, vestingStartDate: c.vesting_start_date })),
       events: (ev.data || []).map(mapEventFromDb),
+      acceptances: (ac.data || []).map(mapAcceptanceFromDb),
     });
     setLoading(false);
   };
   useEffect(() => { load(); }, [startupId]);
+
+  const loadWaiting = async () => {
+    const { data: rows } = await supabase.from('equity_grants')
+      .select('id, holder_name, holder_email, grant_pct, status, contract_sent_at, created_at, equity_seats(title, startup_id)')
+      .in('status', ['pending_confirm', 'pending_signature']).order('created_at');
+    setWaiting((rows || []).map((r) => ({ id: r.id, name: r.holder_name, email: r.holder_email, grantPct: Number(r.grant_pct), status: r.status,
+      contractSentAt: r.contract_sent_at, seatTitle: r.equity_seats?.title, startupId: r.equity_seats?.startup_id })));
+  };
+  useEffect(() => { loadWaiting(); }, []);
+  const acceptanceByGrant = useMemo(() => Object.fromEntries((data.acceptances || []).map((a) => [a.grantId, a])), [data.acceptances]);
 
   // Ekip listesi (Team App) — proje değişince; pay verisinden bağımsız yüklenir.
   const loadRoster = async () => {
@@ -685,7 +883,19 @@ export default function EquityPage() {
     return out;
   }, [data.events]);
 
-  const done = (msg) => { setModal(null); flash(msg); load(); };
+  const done = (msg) => { setModal(null); flash(msg); load(); loadWaiting(); };
+  const recall = async (g) => {
+    const { error } = await supabase.from('equity_grants').update({ status: 'pending_confirm', contract_template_id: null, contract_sent_at: null, contract_sent_by: null }).eq('id', g.id).eq('status', 'pending_signature');
+    if (error) throw new Error(error.message);
+    await supabase.from('equity_events').insert({ grant_id: g.id, seat_id: g.seatId, kind: 'note', note: 'Sözleşme geri çekildi (onaylanmamıştı) — söz yeniden “Teyit bekliyor”.' });
+    done('Sözleşme geri çekildi — söz yeniden “Teyit bekliyor”.');
+  };
+  const discard = async (g) => {
+    const { error } = await supabase.from('equity_grants').update({ status: 'removed', ended_at: today(), vested_at_end: 0 }).eq('id', g.id).eq('status', 'pending_confirm');
+    if (error) throw new Error(error.message);
+    await supabase.from('equity_events').insert({ grant_id: g.id, seat_id: g.seatId, kind: 'note', note: 'Taslak söz kapatıldı (gönderilmemişti).' });
+    done('Taslak kapatıldı — bütçe koltuğa döndü.');
+  };
   const seatOf = (g) => data.seats.find((s) => s.id === g.seatId);
   const projectName = projects.find((p) => String(p.id) === startupId)?.name || '';
 
@@ -704,6 +914,9 @@ export default function EquityPage() {
       </div>
 
       <Notice>Buradaki kayıtlar gerçek hisse değil, proje şirketleştiğinde geçerli olan pay sözleridir.</Notice>
+
+      <WaitingCard waiting={waiting} projects={projects} currentId={startupId} onOpen={(sid) => setStartupId(String(sid))} canManage={canManage}
+        onSend={(id) => { const g = data.grants.find((x) => x.id === id); if (g) setModal({ type: 'send', grant: g }); }} />
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 32, color: 'var(--adm-text-dim)' }}>Yükleniyor…</div>
@@ -729,7 +942,11 @@ export default function EquityPage() {
               onEditGrant={(g) => setModal({ type: 'grant', seat: s, grant: g })}
               onExit={(g) => setModal({ type: 'exit', grant: g })}
               onEvent={(g) => setModal({ type: 'event', grant: g })}
-              onAccel={(g) => setModal({ type: 'accel', grant: g })} />
+              onAccel={(g) => setModal({ type: 'accel', grant: g })}
+              acceptanceByGrant={acceptanceByGrant}
+              onSend={(g) => setModal({ type: 'send', grant: g })}
+              onRecall={(g) => setModal({ type: 'recall', grant: g })}
+              onDiscard={(g) => setModal({ type: 'discard', grant: g })} />
           ))}
         </>
       )}
@@ -740,6 +957,11 @@ export default function EquityPage() {
       {modal?.type === 'grant' && <GrantForm grant={modal.grant} seat={modal.seat} prefill={modal.prefill} seatGrants={grantsBySeat[modal.seat.id] || []} milestones={data.milestones} onClose={() => setModal(null)} onSaved={() => done('Pay sözü kaydedildi.')} />}
       {modal?.type === 'exit' && <ExitForm grant={modal.grant} milestones={data.milestones} events={eventsByGrant[modal.grant.id] || []} onClose={() => setModal(null)} onSaved={() => done('Söz sonlandırıldı.')} />}
       {modal?.type === 'event' && <EventForm grant={modal.grant} onClose={() => setModal(null)} onSaved={() => done('Süreç kaydı eklendi.')} />}
+      {modal?.type === 'send' && <SendContract grant={modal.grant} onClose={() => setModal(null)} onSent={() => done('Sözleşme gönderildi — söz “Onay bekliyor”.')} />}
+      {modal?.type === 'recall' && <SmallConfirm title="Sözleşmeyi geri çek" confirmLabel="Evet, geri çek" onClose={() => setModal(null)} onConfirm={() => recall(modal.grant)}
+        message={<>{modal.grant.holderName} henüz onaylamadı. Geri çekersen söz “Teyit bekliyor”a döner; şartları değiştirip yeniden gönderebilirsin. Kişiye ayrıca mail gitmez.</>} />}
+      {modal?.type === 'discard' && <SmallConfirm title="Taslağı kapat" confirmLabel="Evet, kapat" danger onClose={() => setModal(null)} onConfirm={() => discard(modal.grant)}
+        message={<>{modal.grant.holderName} için {pct(modal.grant.grantPct)} taslak söz kapatılır (silinmez, geçmişte “Çıkarıldı” görünür) ve ayrılan bütçe koltuğa döner.</>} />}
       {modal?.type === 'accel' && seatOf(modal.grant) && <AccelForm grant={modal.grant} onClose={() => setModal(null)} onSaved={() => done('Tamamı açıldı (çift şart).')} />}
     </div>
   );

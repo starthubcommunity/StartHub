@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   computeVesting, vestedOnExit, removalNeedsReview, seatBudget, projectAllocation,
   validateSeat, validateGrant, monthsElapsed, addMonths, toDate, effectiveStart, summarizeGrant, compareRoster, pendingGrantJoins,
+  grantStatusLabel, grantDefaultsForSeat, mapGrantToDb,
 } from './equity-rules.js';
 
 let pass = 0;
@@ -204,7 +205,7 @@ t('ekip karşılaştırması: ayrılmış söz sayılmaz; ekipte olmayan e-posta
 });
 
 // ── 2026-10-08: "Ekibe Al" → pay sözü taslağı ──
-t('pay sözü bekleyen: ekibe alınan, sözü olmayan; bağlı koltuk ve Kapı A günü önerilir', () => {
+t('pay sözü bekleyen: ekibe alınan, sözü olmayan; bağlı koltuk önerilir, başlangıç önerilmez (onay günü)', () => {
   const cands = [
     { id: 'c1', fullName: 'Elif', email: 'Elif@x.com', stage: 'member', startupId: 1, openRoleId: 'r1', joinedAt: '2026-10-05T10:00:00Z', vestingStartDate: '2026-10-01' },
     { id: 'c2', fullName: 'Mert', email: 'mert@x.com', stage: 'member', startupId: 1, openRoleId: 'r2', joinedAt: '2026-10-02T10:00:00Z' },
@@ -215,13 +216,45 @@ t('pay sözü bekleyen: ekibe alınan, sözü olmayan; bağlı koltuk ve Kapı A
   const grants = [{ id: 'g1', holderEmail: 'mert@x.com', status: 'left_good' }];
   const r = pendingGrantJoins(cands, grants, seats, { startupId: 1 });
   assert.deepEqual(r.map((x) => x.candidateId), ['c1']);
-  assert.equal(r[0].seatId, 's1'); assert.equal(r[0].startDate, '2026-10-01'); assert.equal(r[0].email, 'elif@x.com');
+  assert.equal(r[0].seatId, 's1'); assert.equal(r[0].startDate, undefined); assert.equal(r[0].email, 'elif@x.com');
 });
 t('pay sözü bekleyen: hub_candidate_id ile bağlı söz varsa listelenmez; startup rol üzerinden de eşleşir', () => {
   const cands = [{ id: 'c1', fullName: 'Elif', email: 'yeni@x.com', stage: 'member', startupId: null, openRoleId: 'r9', joinedAt: '2026-10-05' }];
   assert.equal(pendingGrantJoins(cands, [{ hubCandidateId: 'c1', holderEmail: 'eski@x.com' }], [], { startupId: 1, roleStartup: { r9: 1 } }).length, 0);
   const r = pendingGrantJoins(cands, [], [], { startupId: 1, roleStartup: { r9: 1 } });
-  assert.equal(r.length, 1); assert.equal(r[0].seatId, null); assert.equal(r[0].startDate, '2026-10-05');
+  assert.equal(r.length, 1); assert.equal(r[0].seatId, null);
+});
+
+// ── 0060: sözleşme bekleyen sözler ──
+t('bekleyen söz pay işletmez ama koltuk bütçesinde ayrılmış sayılır', () => {
+  for (const st of ['pending_confirm', 'pending_signature']) {
+    const g = member({ status: st, startDate: '2025-01-01' });
+    const v = computeVesting(g, [], '2026-10-09');
+    assert.equal(v.vested, 0); assert.equal(v.unvested, 12); assert.equal(v.nextVest, null); assert.equal(v.pending, true);
+    assert.equal(vestedOnExit(g, [], '2026-10-09'), 0);
+  }
+  const seat = { budgetPct: 20, reserveTopupPct: 0 };
+  const b = seatBudget(seat, [member({ status: 'pending_confirm', grantPct: 8 }), member({ status: 'active', grantPct: 5 })]);
+  assert.equal(b.committed, 13); assert.equal(b.available, 7);
+});
+t('durum etiketi: Teyit bekliyor / Onay bekliyor / İmzalandı / eski Aktif', () => {
+  assert.equal(grantStatusLabel({ status: 'pending_confirm' }), 'Teyit bekliyor');
+  assert.equal(grantStatusLabel({ status: 'pending_signature' }), 'Onay bekliyor');
+  assert.equal(grantStatusLabel({ status: 'active', signedAt: '2026-10-09T10:00:00Z' }), 'İmzalandı');
+  assert.equal(grantStatusLabel({ status: 'active' }), 'Aktif');
+});
+t('ekip karşılaştırması: bekleyen sözü olan "sözü yok" sayılmaz', () => {
+  const r = compareRoster([{ name: 'A', email: 'a@x.com', role: 'member' }], [{ id: 'g', holderEmail: 'a@x.com', status: 'pending_signature' }]);
+  assert.equal(r.missing.length, 0);
+});
+t('taslak varsayılan yüzdesi: koltuğun yüzdesi, kalan bütçeyi aşmaz', () => {
+  assert.equal(grantDefaultsForSeat({ seatKind: 'member_standard', budgetPct: 10 }, 23.333).grantPct, 10);
+  assert.equal(grantDefaultsForSeat({ seatKind: 'lead', budgetPct: 30 }, 23.333).grantPct, 23.333);
+});
+t('yeni söz eşleyicisi varsayılan olarak "Teyit bekliyor" yazar, sözleşme alanlarını yazmaz', () => {
+  const row = mapGrantToDb({ seatId: 's', holderName: 'A', holderEmail: 'A@x.com', grantPct: 5, schedule: 'time', vestMonths: 12, cliffMonths: 6, startDate: '2026-10-09' });
+  assert.equal(row.status, 'pending_confirm');
+  assert.ok(!('signed_at' in row) && !('acceptance_id' in row) && !('contract_template_id' in row));
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

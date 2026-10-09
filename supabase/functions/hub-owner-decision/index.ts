@@ -131,7 +131,7 @@ serve(async (req) => {
       const core = await runMoveToTeamCore(db, hubCandidateId);
       if (!core.ok) return json({ ok: false, error: core.error }, 500);
       await db.from("hub_candidates").update({ owner_decision: "accepted", owner_stage: "joined" }).eq("id", hubCandidateId);
-      return json({ ok: true, decision: action, personId: core.personId, vestingStart: core.vestingStart, steps: core.steps, warnings: core.warnings });
+      return json({ ok: true, decision: action, personId: core.personId, vestingStart: core.vestingStart, equityDraft: core.equityDraft, steps: core.steps, warnings: core.warnings });
     }
 
     if (action === "rejected") {
