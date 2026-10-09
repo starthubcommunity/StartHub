@@ -311,6 +311,17 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
     okunabiliyor (anon REST RLS'e takılır).
   - Flutter rolü ("Dolduruldu", 0 aday, `filled_at` boş — kaynağı tespit edilemedi) kullanıcı kararıyla
     DOKUNULMADI.
+- **2026-10-09 — Team App üyelik kısıtı SUNUCUDA (`supabase/team-app/0001_app_state_membership_guard.sql`,
+  Team App projesine uygulandı; repoda migration klasörü olmadığı için `supabase/team-app/`):** `app_state`'in tek
+  RLS kuralı (`sadece_uyeler`, authenticated, true/true) her oturumlu kullanıcıya tüm JSON'u yazdırıyordu —
+  negatif kontrolle doğrulandı: üye kendini admin yapabiliyor, satırı silebiliyordu. `BEFORE UPDATE OR DELETE`
+  tetikleyicisi: authenticated yazmada `users` yalnızca üyelik alanlarıyla (id/e-posta/rol/team/teams/teamRoles/
+  mentorTeams) karşılaştırılır; fark varsa yazan ESKİ veride admin olmalı; ad/avatar/lastLoginAt serbest; servis
+  rolü (köprüler, Ekibe Al) ve panel/CLI etkilenmez; authenticated DELETE yasak. INSERT'e konmadı (istemci upsert).
+  Test: `.test.sql` (işlem içinde, geri alınır; 11 senaryo). Geri alma: `.rollback.sql`. `cloudSave` artık upsert
+  hatasını yutmuyor: kırmızı uyarı + `_refreshFromCloud()` (ağ hatalarında da uyarı çıkar — eskiden sessizdi).
+  Team App ekip kimliği 390px notu: "Tüm Ekipler" seçicisi (≤900px, `shl-hide-m`) ve sprint rozeti (≤600px,
+  `.shl-sprintchip`) dar ekranda BİLEREK gizli (2026-07-28'den beri) — Payım'dan kaynaklanmıyor.
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 
