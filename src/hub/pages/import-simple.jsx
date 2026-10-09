@@ -136,7 +136,7 @@ export default function ImportSimple({ onClose, presetFolderId }) {
       return findDuplicate({
         fullName: val('fullName'), email: val('email'),
         ...linkFields(val('link')), university: '',
-      }, store.candidates);
+      }, [...store.candidates, ...(store.hiddenCandidates || [])]);
     });
     setDups(d);
     setModes(d.map((x) => (x ? 'update' : 'new')));   // tekrar bulunan her satır varsayılan "güncelle"

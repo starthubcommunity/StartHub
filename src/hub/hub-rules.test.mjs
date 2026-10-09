@@ -643,4 +643,14 @@ t('nextAction: geri çekilen üye adayı yeniden karar bekler', () => {
   assert.notEqual(nextAction(cand({ stage: 'interview', track: 'member', ownerStage: 'withdrawn' })).key, 'owner');
 });
 
+// ── 0059: gizli aday mükerrer kontrolünde bulunur ─────────────────
+t('mükerrer: gizlenen aday (store.hiddenCandidates) havuza katılınca bulunur; katılmazsa bulunmaz', () => {
+  const visible = [{ id: 'v1', fullName: 'Ayşe', email: 'ayse@x.com' }];
+  const hidden = [{ id: 'h1', fullName: 'asd', email: 'test@x.com', hiddenAt: '2026-10-09' }];
+  const row = { fullName: 'asd', email: 'TEST@x.com', university: '' };
+  assert.equal(findDuplicate(row, visible), null);
+  const d = findDuplicate(row, [...visible, ...hidden]);
+  assert.ok(d && (d.id === 'h1' || d.candidate?.id === 'h1' || JSON.stringify(d).includes('h1')));
+});
+
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

@@ -322,6 +322,16 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   hatasını yutmuyor: kırmızı uyarı + `_refreshFromCloud()` (ağ hatalarında da uyarı çıkar — eskiden sessizdi).
   Team App ekip kimliği 390px notu: "Tüm Ekipler" seçicisi (≤900px, `shl-hide-m`) ve sprint rozeti (≤600px,
   `.shl-sprintchip`) dar ekranda BİLEREK gizli (2026-07-28'den beri) — Payım'dan kaynaklanmıyor.
+- **2026-10-09 — adayı silmeden gizleme (`0059_hub_candidate_hide.sql`, canlıda, yalnızca ekleme):**
+  `hub_candidates.hidden_at/hidden_reason(test|duplicate|other)/hidden_by` + yetki `candidates.hide` (yalnızca
+  cofounder). Sunucu: tetikleyici gizleme alanlarını yalnızca bu yetkiye açar; KISITLAYICI `hc_hidden_read`
+  RLS kuralı gizli satırı yalnızca bu yetkiye gösterir (recruiter ne görür ne geri getirir); mükerrer koruması
+  `hub_cand_email_uq` ile DB'de sürer. HR store gizlileri `hiddenCandidates`'a ayırır (Bugün/Adaylar/Metrikler/
+  arama/rol sayıları görmez; mükerrer havuzlarına — paste/CSV/tek aday/import — dahil). Pay Sözleri bekleyen
+  sorgusu `.is('hidden_at', null)`. Aday kartında "Gizle" (gerekçe + "Evet, gizle"); gizli kartta şerit +
+  "Gizlemeyi kaldır", gövde salt okunur; Adaylar'da "Gizlenenler (N)". Kayıtları kullanıcı işaretler —
+  "shqiptar" GERÇEK başvuran. Test: `supabase/tests/0059_hub_candidate_hide.test.sql` (10 senaryo, geri alınır).
+  Aynı commit'te HR arama kutusu: ≤900px boşluk elemanı gizli, kutu 44px, ≤600px placeholder "Ara…".
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 

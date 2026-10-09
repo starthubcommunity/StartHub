@@ -157,6 +157,10 @@ export function mapCandidateFromDb(r) {
     ownerDecision:     r.owner_decision      ?? null,
     ownerDecisionNote: r.owner_decision_note ?? null,
     ownerStage:        r.owner_stage ?? null,
+    // 0059 — yalnızca okunur; hideCandidate/unhideCandidate yazar, toDb göndermez.
+    hiddenAt:          r.hidden_at ?? null,
+    hiddenReason:      r.hidden_reason ?? null,
+    hiddenBy:          r.hidden_by ?? null,
     suggestedGateTemplateId: r.suggested_gate_template_id ?? null,
     // puanlama
     scoreFinishing:     r.score_finishing     ?? null,

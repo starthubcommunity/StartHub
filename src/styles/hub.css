@@ -864,6 +864,12 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
   .hub-topbar__search-wrap { flex: 1; min-width: 0; }
   .hub-topbar__search { width: 100%; }
   .hub-topbar__pop--search { left: 0; right: 0; width: auto; max-width: calc(100vw - 28px); }
+  /* 2026-10-09 — 390px'te arama kutusu 46px'e iniyordu (placeholder "Kişi, poz"):
+     boşluk elemanı da flex:1 ile yer paylaşıyordu. Dar ekranda boşluk kalkar,
+     arama kalan yerin tamamını alır; dokunma alanı en az 44px. */
+  .hub-topbar__spacer { display: none; }
+  .hub-topbar__search { height: 44px; }
+  .hub-topbar__search-btn { width: 34px; height: 34px; }
 }
 
 @media (max-width: 480px) {

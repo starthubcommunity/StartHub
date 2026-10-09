@@ -150,7 +150,13 @@ function LField({ label, value, onCommit, textarea, type = 'text', hint, options
 export default function CandidatePanel({ candidateId, onClose }) {
   const store = useHubStore();
   const role = useHubMember();
-  const candidate = store.candidates.find((c) => c.id === candidateId);
+  const { can: canPanel } = usePerms();
+  const canHide = canPanel('candidates.hide');
+  // 0059 — gizli aday yalnızca candidates.hide (cofounder) için bulunur/açılır.
+  const candidate = store.candidates.find((c) => c.id === candidateId)
+    || (canHide ? (store.hiddenCandidates || []).find((c) => c.id === candidateId) : null);
+  const [hideForm, setHideForm] = useState(null);   // null | { reason }
+  const [hideBusy, setHideBusy] = useState(false);
   const openRole = candidate?.openRoleId ? store.openRoles.find((r) => r.id === candidate.openRoleId) || null : null;
   const [history, setHistory] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -187,6 +193,20 @@ export default function CandidatePanel({ candidateId, onClose }) {
   if (!candidate) return null;
   const c = candidate;
   const stage = c.stage;
+  const isHidden = !!c.hiddenAt;
+  const HIDE_REASONS = { test: 'Test kaydı', duplicate: 'Mükerrer', other: 'Diğer' };
+  const runHide = async () => {
+    setHideBusy(true);
+    try { await store.hideCandidate(candidateId, hideForm.reason); setHideForm(null); flash('Gizlendi — Bugün, Adaylar ve Pay Sözleri listelerinde görünmeyecek.'); }
+    catch (e) { flash('Gizlenemedi: ' + e.message); }
+    setHideBusy(false);
+  };
+  const runUnhide = async () => {
+    setHideBusy(true);
+    try { await store.unhideCandidate(candidateId); flash('Gizleme kaldırıldı.'); }
+    catch (e) { flash('Geri getirilemedi: ' + e.message); }
+    setHideBusy(false);
+  };
 
   return (
     <div className="hub-panel-overlay" onClick={onClose}>
@@ -211,7 +231,35 @@ export default function CandidatePanel({ candidateId, onClose }) {
           <button className="adm-icon-btn" onClick={onClose}><AIcon name="x" size={18} /></button>
         </div>
 
+        {isHidden && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 16px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', fontSize: 13 }}>
+            <span style={{ flex: 1, minWidth: 200 }}>
+              <b>Bu kayıt gizli</b> ({HIDE_REASONS[c.hiddenReason] || 'Diğer'}) · {String(c.hiddenAt).slice(0, 10)}{c.hiddenBy ? ` · ${c.hiddenBy}` : ''}
+              <span style={{ color: 'var(--adm-text-dim)' }}> — düzenlemek için önce gizlemeyi kaldır.</span>
+            </span>
+            <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={hideBusy} onClick={runUnhide}>
+              <AIcon name="refresh" size={13} /> Gizlemeyi kaldır
+            </button>
+          </div>
+        )}
+        {!isHidden && hideForm && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '10px 16px', background: '#FBF9F4', borderBottom: '1px solid var(--adm-border)', fontSize: 13 }}>
+            <span>Neden gizleniyor?</span>
+            <select className="adm-input adm-select" style={{ width: 'auto', padding: '5px 8px' }} value={hideForm.reason} onChange={(e) => setHideForm({ reason: e.target.value })}>
+              {Object.entries(HIDE_REASONS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <span style={{ color: 'var(--adm-text-dim)', flex: 1, minWidth: 180 }}>Silinmez; istediğin an geri getirebilirsin.</span>
+            <button className="adm-btn adm-btn--primary adm-btn--sm" disabled={hideBusy} onClick={runHide}>{hideBusy ? '…' : 'Evet, gizle'}</button>
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" disabled={hideBusy} onClick={() => setHideForm(null)}>Vazgeç</button>
+          </div>
+        )}
+        {!isHidden && (
         <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--adm-border)', background: 'var(--adm-bg-card)', flexWrap: 'wrap' }}>
+          {canHide && !hideForm && (
+            <button className="adm-btn adm-btn--ghost adm-btn--sm" title="Test kaydı vb. — silinmez, geri alınabilir" onClick={() => setHideForm({ reason: 'test' })}>
+              <AIcon name="eyeOff" size={13} /> Gizle
+            </button>
+          )}
           {undo && (
             <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={doUndo}>
               <AIcon name="refresh" size={13} /> Geri al ({undo.label})
@@ -229,8 +277,9 @@ export default function CandidatePanel({ candidateId, onClose }) {
             </button>
           )}
         </div>
+        )}
 
-        <div className="hub-panel__body">
+        <div className="hub-panel__body" style={isHidden ? { pointerEvents: 'none', opacity: 0.6 } : undefined} aria-disabled={isHidden || undefined}>
           <StageStripe stage={stage} />
 
           <TrackRoleSection c={c} openRole={openRole} role={role} store={store} flash={flash} />

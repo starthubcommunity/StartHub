@@ -342,6 +342,14 @@ function HubApp({ email, onLogout }) {
   const { candidates, currentMember, openRoles, sources } = useHubStore();
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  // 2026-10-09 — dar ekranda (≤600px) kısa placeholder; uzun metin 390px'te kesiliyordu.
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 600px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 600px)');
+    const on = (e) => setNarrow(e.matches);
+    mq.addEventListener ? mq.addEventListener('change', on) : mq.addListener(on);
+    return () => (mq.removeEventListener ? mq.removeEventListener('change', on) : mq.removeListener(on));
+  }, []);
   const [bellOpen, setBellOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   // Global aday paneli — arama sonuçlarından (hangi sayfada olursan ol)
@@ -476,7 +484,7 @@ function HubApp({ email, onLogout }) {
               <input value={searchQ}
                 onChange={(e) => { setSearchQ(e.target.value); setSearchOpen(true); }}
                 onFocus={() => setSearchOpen(true)}
-                placeholder="Kişi, pozisyon veya kaynak ara…" />
+                placeholder={narrow ? 'Ara…' : 'Kişi, pozisyon veya kaynak ara…'} aria-label="Kişi, pozisyon veya kaynak ara" />
             </form>
             {searchOpen && searchQTrim.length > 0 && (
               <>

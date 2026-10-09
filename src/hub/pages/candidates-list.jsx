@@ -137,6 +137,10 @@ export default function CandidatesListPage({ filters, setFilters }) {
   const { candidates, members, openRoles, touches, gates, currentMember, loading, folders } = store;
   const { can } = usePerms();
   const canWrite = can('candidates.write');
+  // 0059 — gizlenen adaylar yalnızca candidates.hide (cofounder) için listelenir.
+  const canHide = can('candidates.hide');
+  const hiddenList = canHide ? (store.hiddenCandidates || []) : [];
+  const [showHidden, setShowHidden] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(null);   // 'one' | 'import' | 'paste' | null
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -343,7 +347,27 @@ export default function CandidatesListPage({ filters, setFilters }) {
         </div>
       )}
 
-      {loading ? (
+      {canHide && hiddenList.length > 0 && (
+        <div style={{ margin: '2px 0 8px' }}>
+          <button type="button" className={`adm-chip ${showHidden ? 'adm-chip--active' : ''}`} onClick={() => setShowHidden((v) => !v)}>
+            <AIcon name="eyeOff" size={13} /> {showHidden ? '← Adaylara dön' : `Gizlenenler (${hiddenList.length})`}
+          </button>
+        </div>
+      )}
+
+      {showHidden && canHide ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>Gizli kayıtlar Bugün, Adaylar, Metrikler ve Pay Sözleri listelerinde görünmez. Aç → “Gizlemeyi kaldır”.</div>
+          {hiddenList.length === 0 && <div className="adm-empty">Gizli kayıt yok.</div>}
+          {[...hiddenList].sort((a, b) => String(b.hiddenAt).localeCompare(String(a.hiddenAt))).map((c) => (
+            <div key={c.id} className="hub-c" style={{ cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }} onClick={() => setOpenId(c.id)}>
+              <strong style={{ fontSize: 14 }}>{c.fullName}</strong>
+              <span className="hub-pill">{{ test: 'Test kaydı', duplicate: 'Mükerrer', other: 'Diğer' }[c.hiddenReason] || 'Diğer'}</span>
+              <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginLeft: 'auto' }}>gizlendi {String(c.hiddenAt).slice(0, 10)}{c.hiddenBy ? ` · ${c.hiddenBy}` : ''}</span>
+            </div>
+          ))}
+        </div>
+      ) : loading ? (
         <div className="adm-empty">Yükleniyor…</div>
       ) : rows.length === 0 ? (
         <div className="adm-empty">{activeCount === 0 ? 'İlk adayını ekle — sağ üstteki “Aday ekle”.' : 'Bu filtreyle eşleşen aktif aday yok.'}</div>

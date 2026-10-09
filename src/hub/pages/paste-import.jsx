@@ -39,7 +39,7 @@ export default function PasteImport({ onClose, presetFolderId }) {
     // varsayılan "mevcudu güncelle" (aynı listeyi ikinci kez yapıştırınca yeni
     // kayıt yığılmasın); kullanıcı satırda "yeni kayıt"a çevirebilir.
     setRows(r.map((row) => {
-      const dup = findDuplicate(row, candidates);
+      const dup = findDuplicate(row, [...candidates, ...(store.hiddenCandidates || [])]);
       return {
         ...row,
         _dup: dup,

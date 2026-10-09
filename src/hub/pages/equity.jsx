@@ -640,7 +640,7 @@ export default function EquityPage() {
       supabase.from('equity_milestones').select('*').eq('startup_id', sid),
       seatIds.length ? supabase.from('equity_events').select('*').in('seat_id', seatIds).neq('kind', 'audit').order('happened_at') : { data: [] },
       supabase.from('hub_open_roles').select('id, title, status, startup_id').eq('startup_id', sid).order('created_at'),
-      supabase.from('hub_candidates').select('id, full_name, email, stage, track, startup_id, open_role_id, joined_at, vesting_start_date').eq('stage', 'member'),
+      supabase.from('hub_candidates').select('id, full_name, email, stage, track, startup_id, open_role_id, joined_at, vesting_start_date').eq('stage', 'member').is('hidden_at', null),   // 0059 — gizli aday düşer
     ]);
     const err = g.error || m.error || ev.error;
     if (err) flash('Yüklenemedi: ' + err.message);

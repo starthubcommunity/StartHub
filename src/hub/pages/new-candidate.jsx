@@ -41,7 +41,7 @@ export default function NewCandidateModal({ onClose, presetRoleId, presetFolderI
     if (!String(a.whyThisOne || '').trim()) throw new Error('"Neden bu kişi" zorunlu.');
     const link = linkFields(a.link);
     // D2 — kesin mükerrer (e-posta / GitHub / LinkedIn) yeni kayıt açtırmaz.
-    const dup = findDuplicate({ fullName: a.fullName.trim(), university: '', ...link }, store.candidates);
+    const dup = findDuplicate({ fullName: a.fullName.trim(), university: '', ...link }, [...store.candidates, ...(store.hiddenCandidates || [])]);
     if (dup?.certain) {
       throw new Error(`Zaten kayıtlı (${dup.reason}). Aynı kişiyse listeden mevcut kartını aç ve düzenle.`);
     }

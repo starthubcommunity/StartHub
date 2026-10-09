@@ -18,7 +18,7 @@ import { STAGE_ORDER, OWNER_ACTIVE_STAGES } from './hub-constants';
 // loadHistory() ile; touches/gates Bugün ekranı için; stageLog dönüşüm için.
 const COLLECTIONS = ['candidates', 'members', 'openRoles', 'templates', 'touches', 'gates', 'stageLog', 'sources', 'folders', 'gateTemplates'];
 
-const EMPTY = { ...COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {}), hiddenHub: [] };
+const EMPTY = { ...COLLECTIONS.reduce((o, k) => ((o[k] = []), o), {}), hiddenHub: [], hiddenCandidates: [] };
 
 // HR yalnızca LAB (startup) başvurularını alır (0041). Eskiden HUB (topluluk) başvurusu olarak
 // otomatik Adaylar'a düşmüş, henüz dokunulmamış ('pool') kayıtlar burada görünmez — bu kişiler
@@ -65,6 +65,11 @@ export function HubStoreProvider({ children }) {
           next[c] = (res.data || []).map(HUB_TABLES[c].fromDb);
         }
       });
+      // 0059 — cofounder'ın gizlediği adaylar (test kaydı vb.) ana listeden ayrılır:
+      // Bugün / Adaylar / Metrikler / arama / rol sayıları onları görmez. Recruiter
+      // bu satırları zaten alamaz (RLS hc_hidden_read). Mükerrer kontrolünde sayılır.
+      next.hiddenCandidates = next.candidates.filter((c) => !!c.hiddenAt);
+      next.candidates = next.candidates.filter((c) => !c.hiddenAt);
       next.hiddenHub = next.candidates.filter(isHubOrigin);
       next.candidates = next.candidates.filter((c) => !isHubOrigin(c));
       setData(next);
@@ -483,6 +488,27 @@ export function HubStoreProvider({ children }) {
     return res;
   }, [patchLocal]);
 
+  // 0059 — geri alınabilir gizleme (yalnızca candidates.hide / cofounder; sunucu
+  // tetikleyicisi de denetler). Yalnızca üç gizleme kolonu yazılır — adayın diğer
+  // alanlarına (aşama, karar…) dokunulmaz.
+  const hideCandidate = useCallback(async (candidateId, reason) => {
+    const c = data.candidates.find((x) => x.id === candidateId);
+    if (!c) return;
+    const patch = { hidden_at: new Date().toISOString(), hidden_reason: reason, hidden_by: currentMember?.email || null };
+    const { error } = await supabase.from('hub_candidates').update(patch).eq('id', candidateId);
+    if (error) throw new Error(error.message);
+    const hidden = { ...c, hiddenAt: patch.hidden_at, hiddenReason: reason, hiddenBy: patch.hidden_by };
+    setData((prev) => ({ ...prev, candidates: prev.candidates.filter((x) => x.id !== candidateId), hiddenCandidates: [hidden, ...(prev.hiddenCandidates || [])] }));
+  }, [data, currentMember]);
+  const unhideCandidate = useCallback(async (candidateId) => {
+    const c = (data.hiddenCandidates || []).find((x) => x.id === candidateId);
+    if (!c) return;
+    const { error } = await supabase.from('hub_candidates').update({ hidden_at: null, hidden_reason: null, hidden_by: null }).eq('id', candidateId);
+    if (error) throw new Error(error.message);
+    const shown = { ...c, hiddenAt: null, hiddenReason: null, hiddenBy: null };
+    setData((prev) => ({ ...prev, hiddenCandidates: (prev.hiddenCandidates || []).filter((x) => x.id !== candidateId), candidates: [shown, ...prev.candidates] }));
+  }, [data]);
+
   // 0057 (Adım 4/5) — istisnai, yalnızca cofounder (Bölüm I): kurucu uzun süre
   // cevap vermezse sunumu geri çek ('withdraw') ya da "Kapı A sonucu: reddet"
   // ('owner_fail'). Sunucu Team App teklifini de kapatır. Gerekçe zorunlu.
@@ -540,7 +566,7 @@ export function HubStoreProvider({ children }) {
     // Blok D düzeltmesi (mükerrer): önizleme yalnızca HAVUZa karşı bakıyordu;
     // aynı partide iki kez geçen kişi iki kayıt oluyordu. Burada büyüyen bir
     // havuza (mevcut + bu partide açılanlar) karşı tekrar bakılır.
-    const pool = [...data.candidates, ...data.hiddenHub];
+    const pool = [...data.candidates, ...data.hiddenHub, ...(data.hiddenCandidates || [])];
     for (const r of accepted) {
       // ── Mevcut kartı güncelle (yeni kayıt açma) ──────────────
       let dupId = (r._mode === 'update' && r._dupId) ? r._dupId : null;
@@ -638,6 +664,7 @@ export function HubStoreProvider({ children }) {
 
   const value = {
     data,
+    hideCandidate, unhideCandidate,
     ...data,                // candidates, members, openRoles, views, templates
     loading,
     loadError,
