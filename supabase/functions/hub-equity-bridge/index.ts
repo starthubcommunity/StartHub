@@ -21,6 +21,8 @@
 //     kabul kaydını (değiştirilemez) yazar, sözü aktifleştirir; hak ediş
 //     başlangıcı = onay günü (Europe/Istanbul). IP/UA'yı Team App fonksiyonu
 //     (hub-team-my-equity) isteğin kendisinden alır — istemci seçemez.
+//   • B (0061): kabul yazıldıktan SONRA PDF + mailler arka planda (waitUntil) —
+//     _shared/contract-delivery.ts. Hata kabulü geri almaz, equity_events'e yazılır.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -29,6 +31,9 @@ import {
 } from "../_shared/equity-rules.js";
 import { buildContract } from "../_shared/contract-server.ts";
 import { istanbulDate } from "../_shared/contract-render.js";
+import { deliverAcceptance } from "../_shared/contract-delivery.ts";
+// deno-lint-ignore no-explicit-any
+declare const EdgeRuntime: any;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -183,5 +188,10 @@ async function accept(db: any, email: string, body: any) {
     note: `Sözleşme onaylandı — ${c.template.title} v${c.template.version} · ${typedName} · hak ediş başlangıcı ${startDate}`,
     payload: { acceptanceId: acc.id, sha256: c.sha }, created_by: email,
   });
+  // B — PDF + bilgi mailleri arka planda; yanıt beklemez.
+  const job = deliverAcceptance(db, acc.id).catch(async (e: unknown) => {
+    await db.from("equity_events").insert({ grant_id: grantId, seat_id: row.seat_id, kind: "note", note: "Kabul sonrası teslim hatası: " + String(e), created_by: "sistem" });
+  });
+  try { EdgeRuntime.waitUntil(job); } catch { await job; }
   return json({ ok: true, acceptanceId: acc.id, startDate, acceptedAt: now.toISOString() });
 }

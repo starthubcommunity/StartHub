@@ -372,12 +372,12 @@ export function compareRoster(members = [], grants = []) {
   return { missing, orphanIds };
 }
 
-// ── "Ekibe Al" → pay sözü taslağı (2026-10-08) ──────────────────────────
+// ── "Ekibe Al" → pay sözü (2026-10-08) ──────────────────────────
 // candidates: HR adayları (mapCandidateFromDb) — yalnızca stage='member' sayılır
 // grants    : pay sözleri (herhangi bir durumda — ayrılmış söz de "verilmiş" sayılır)
 // seats     : projenin koltukları (openRoleId ile role bağlı olabilir)
-// 0060'tan sonra "Ekibe Al" role bağlı koltuk varsa taslak sözü KENDİSİ açar;
-// burada kalanlar koltuğu/bütçesi olmadığı için taslak açılamayanlardır.
+// 0060'tan sonra "Ekibe Al" role bağlı koltuk varsa "Teyit bekliyor" sözü KENDİSİ açar;
+// burada kalanlar koltuğu/bütçesi olmadığı için söz açılamayanlardır.
 // Hak ediş sözleşme onay gününde başlar — başlangıç tarihi önerilmez.
 export function pendingGrantJoins(candidates = [], grants = [], seats = [], { startupId = null, roleStartup = {} } = {}) {
   const norm = (e) => String(e || '').trim().toLowerCase();

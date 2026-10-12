@@ -154,3 +154,74 @@ export const mapAcceptanceFromDb = (r) => ({
   consent: r.consent, acceptedAt: r.accepted_at, ip: r.ip, userAgent: r.user_agent,
   textSha256: r.text_sha256, textSnapshot: r.text_snapshot, terms: r.terms,
 });
+
+// ── B (0061): kabul sonrası — PDF, bilgi mailleri, indirme bütünlüğü ─────
+
+// Arayüzde/PDF'te/mailde geçmemesi gereken kelimeler (kullanıcı kuralı).
+export const FORBIDDEN_WORDS = ['taslak', 'avukat'];
+export function forbiddenWordsIn(text) {
+  const low = String(text || '').toLocaleLowerCase('tr-TR');
+  return FORBIDDEN_WORDS.filter((w) => low.includes(w));
+}
+
+// Cofounder "onaylandı" mailinin alıcıları: test modunda YALNIZCA test adresleri;
+// canlıda HR'daki etkin cofounder kayıtlarının e-postaları (koda sabit adres yok).
+export function cofounderMailRecipients(settings, cofounderEmails = []) {
+  const norm = (xs) => [...new Set((xs || []).map((x) => String(x || '').trim().toLowerCase()).filter((x) => x.includes('@')))];
+  return settings?.testMode !== false ? norm(settings?.testEmails) : norm(cofounderEmails);
+}
+
+const slug = (s) => String(s || '').toLocaleLowerCase('tr-TR')
+  .replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ö/g, 'o').replace(/ç/g, 'c')
+  .normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'proje';
+export const pdfFileName = (project, version) => `StartHub-Pay-Sozu-${slug(project)}-v${version}.pdf`;
+
+// Kişiye bilgi maili (tek adım) — PDF ekte.
+export function acceptedHolderMail(terms, { acceptedAtText, startDate, version }) {
+  return {
+    subject: `Sözleşmen onaylandı — ${terms.project}`,
+    body: [
+      `Merhaba ${terms.holderName || ''},`.trim(),
+      '',
+      `${terms.project} projesindeki “${terms.seat}” rolün için pay sözü sözleşmeni ${acceptedAtText} tarihinde onayladın.`,
+      '',
+      `• Pay sözü: %${fmtPct(terms.grantPct)}`,
+      `• Hak ediş süresi: ${terms.vestMonths} ay, bekleme süresi: ${terms.cliffMonths} ay`,
+      `• Hak ediş başlangıcı: ${startDate}`,
+      '',
+      `Onayladığın metnin (sürüm v${version}) PDF kopyası bu mailin ekinde. Saklamanı öneririz.`,
+      'Payının durumunu Ekip Paneli’nde “💼 Payım”dan takip edebilirsin.',
+      '',
+      'Start-Hub',
+    ].join('\n'),
+  };
+}
+
+// Cofounder'lara "onaylandı" bilgi maili — ek yok, ayrıntı HR'da.
+export function acceptedCofounderMail(terms, { typedName, acceptedAtText, startDate, version }) {
+  return {
+    subject: `Sözleşme onaylandı — ${terms.holderName || typedName}, ${terms.project}`,
+    body: [
+      `${typedName} (${terms.holderEmail}) pay sözü sözleşmesini onayladı.`,
+      '',
+      `• Proje / koltuk: ${terms.project} · ${terms.seat}`,
+      `• Pay sözü: %${fmtPct(terms.grantPct)} · ${terms.vestMonths} ay, bekleme ${terms.cliffMonths} ay`,
+      `• Onay zamanı: ${acceptedAtText}`,
+      `• Hak ediş başlangıcı: ${startDate}`,
+      `• Metin sürümü: v${version}`,
+      '',
+      'Kabul kaydı ve PDF: Kurucu Hattı › Pay Sözleri.',
+    ].join('\n'),
+  };
+}
+
+// HR "PDF'i indir": dosyanın SHA-256'sı kayıttakiyle aynı değilse indirme verilmez.
+// doc: contract_documents satırı (ya da null), actualSha: depodaki dosyanın SHA-256'sı (ya da null)
+export function pdfDownloadDecision(doc, actualSha) {
+  if (!doc) return { ok: false, reason: 'missing', message: 'Bu kabul için henüz PDF yok.' };
+  if (!actualSha) return { ok: false, reason: 'file_missing', message: 'PDF dosyası depoda bulunamadı.', logEvent: true };
+  if (String(actualSha).toLowerCase() !== String(doc.pdf_sha256).toLowerCase()) {
+    return { ok: false, reason: 'tampered', message: 'Bu dosya değiştirilmiş olabilir — indirme durduruldu.', logEvent: true };
+  }
+  return { ok: true };
+}

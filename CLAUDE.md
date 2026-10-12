@@ -352,7 +352,21 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
     `hub-team-my-equity` (Team App, JWT — `accept`'te IP/UA'yı isteğin kendisinden alır). Ortak DB okuma: `_shared/contract-server.ts`.
   - Team App: Payım'da "Sözleşmeni onayla" kartı + onay penceresi (özet, tam metin, ad soyad, "Okudum, kabul ediyorum", KVKK satırı).
     Test hesabı Team App'e girebilmek için `app_state.users`'ta olmalı (yalnızca auth'ta olmak yetmez).
-  - B'ye kalanlar: PDF + PDF ekli mail, cofounder'lara "onaylandı" bildirimi/maili.
+  - (B aşağıda.)
+- **B ✅ — kabul belgesi PDF'i + mailler (`0061_contract_documents.sql`, canlıda; test: `supabase/tests/0061_contract_documents.test.sql`, 10 senaryo):**
+  - `contract-pdfs` PRIVATE bucket (yalnızca PDF, 2 MB; storage.objects'e tarayıcı politikası YOK) + `contract_documents`
+    (kabul başına tek PDF: yol `<grant>/<acceptance>.pdf`, PDF'in SHA-256'sı, boyut — servis rolü dahil değiştirilemez).
+  - PDF: `_shared/contract-pdf.js` (pdf-lib 1.17.1 + fontkit 1.1.1; edge'de `npm:`, testte devDependency), DM Sans
+    Regular/Bold alt küme (`_shared/fonts/dm-sans.js`, OFL — `OFL.txt`). İçerik yalnızca kabul kaydından; metin birebir.
+  - Teslim: `_shared/contract-delivery.ts` — `hub-equity-bridge` kabulden SONRA `EdgeRuntime.waitUntil` ile: PDF → kişiye PDF
+    ekli bilgi maili (`recipientLock`: test modu/yer tutucu → yalnızca test adresleri) → cofounder "onaylandı" maili
+    (`cofounderMailRecipients`: test modunda test adresleri, canlıda `hub_members` rol cofounder + aktif — sabit adres YOK;
+    Talha'nın HR adresi talha@starthub-community.com kullanılır, Team App'teki a.talhabaris@gmail.com DEĞİL). Her adım equity_events'e.
+  - `equity-contract`: `pdf` (equity.read; depodaki dosyanın SHA-256'sı kayıtla aynı değilse indirme YOK + olay), `deliver`
+    (equity.manage; "PDF'i üret ve gönder"), `selftest` (yalnızca servis rolü JWT'si; hiçbir şey yazmaz — canlıda 860 ms / 11,5 KB).
+  - HR: kabul kaydında "PDF'i indir" / uyarı; zil + Bugün "Onaylandı" satırı (`src/hub/recent-acceptances.js`, son 7 gün).
+  - Testler: `node src/lib/contract-pdf.test.mjs` (13 — Türkçe glifler, "taslak/avukat" yok, metin birebir, değiştirilmiş dosya).
+  - A'da pay ekranlarına "taslak" sözcüğü girmişti ("Taslağı kapat" vb.) — B'de "Teyit bekliyor"/"Sözü kapat" olarak düzeltildi.
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 

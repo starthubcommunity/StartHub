@@ -20,6 +20,7 @@ import { suggestArchivedFor, MATCH_MIN_POOL } from '../hub-match';
 import { intervalToDays } from '../hub-metrics';
 import { EMPTY_FILTERS } from '../hub-filter';
 import { pendingGrantJoins } from '../../lib/equity-rules';
+import { recentAcceptances } from '../recent-acceptances';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -374,16 +375,18 @@ export default function TodayPage({ onGoto, setFilters }) {
   // oluşturulmaz, satır Pay Sözleri'ne götürür (form orada önceden dolu).
   const canEquity = can('equity.read');
   const [eqGrants, setEqGrants] = useState(null);
+  const [eqSigned, setEqSigned] = useState([]);   // B — son 7 günde onaylanan sözleşmeler (zil ile aynı kaynak)
   useEffect(() => {
     if (!canEquity) return;
     supabase.from('equity_grants').select('id, holder_name, holder_email, hub_candidate_id, status, grant_pct, created_at, contract_sent_at').then(({ data, error }) => {
       if (!error) setEqGrants((data || []).map((g) => ({ id: g.id, holderName: g.holder_name, holderEmail: g.holder_email, hubCandidateId: g.hub_candidate_id, status: g.status, grantPct: Number(g.grant_pct), createdAt: g.created_at, contractSentAt: g.contract_sent_at })));
     });
+    recentAcceptances().then(setEqSigned);
   }, [canEquity]);
   const pendingEquity = eqGrants
     ? pendingGrantJoins(candidates, eqGrants, []).filter((p) => p.joinedAt && now - new Date(p.joinedAt).getTime() <= 30 * 86400000)
     : [];
-  // 0060 — teyit bekleyen taslak sözler; 7+ gündür onaylanmamış sözleşmeler.
+  // 0060 — teyit bekleyen sözler; 7+ gündür onaylanmamış sözleşmeler.
   const eqToConfirm = (eqGrants || []).filter((g) => g.status === 'pending_confirm');
   const eqUnsigned = (eqGrants || []).filter((g) => g.status === 'pending_signature' && g.contractSentAt
     && now - new Date(g.contractSentAt).getTime() > 7 * 86400000);
@@ -452,11 +455,15 @@ export default function TodayPage({ onGoto, setFilters }) {
     }));
     pendingEquity.forEach((p) => rows.push({
       id: `eq-${p.candidateId}`, c: { id: p.candidateId, fullName: p.name || p.email }, kind: 'Pay sözü', tone: 'purple', goto: 'equity',
-      meta: `ekibe alındı ${String(p.joinedAt).slice(0, 10)} · bağlı koltuk yok, taslak açılmadı`, urgency: 2,
+      meta: `ekibe alındı ${String(p.joinedAt).slice(0, 10)} · bağlı koltuk yok, söz açılmadı`, urgency: 2,
+    }));
+    eqSigned.forEach((a) => rows.push({
+      id: `eqa-${a.id}`, c: { id: null, fullName: a.name }, kind: 'Onaylandı', tone: 'green', goto: 'equity',
+      meta: `${a.project} · %${a.pct} · sözleşme onaylandı ${a.when}`, urgency: 3,
     }));
     eqToConfirm.forEach((g) => rows.push({
       id: `eqc-${g.id}`, c: { id: null, fullName: g.holderName || g.holderEmail }, kind: 'Pay sözü', tone: 'purple', goto: 'equity',
-      meta: `%${g.grantPct} taslak · teyit et ve sözleşmeyi gönder`, urgency: 1,
+      meta: `%${g.grantPct} · teyit et ve sözleşmeyi gönder`, urgency: 1,
     }));
     eqUnsigned.forEach((g) => rows.push({
       id: `eqs-${g.id}`, c: { id: null, fullName: g.holderName || g.holderEmail }, kind: 'Sözleşme', tone: 'amber', goto: 'equity',

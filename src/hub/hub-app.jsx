@@ -24,6 +24,7 @@ import ApplicationsPage from './pages/applications';
 import SponsorsPage from './pages/sponsors';
 import EquityPage from './pages/equity';
 import ContractsPage from './pages/contracts';
+import { recentAcceptances } from './recent-acceptances';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -393,6 +394,11 @@ function HubApp({ email, onLogout }) {
   const activePage = nav.some((n) => n.id === page) ? page : (nav[0]?.id || 'today');
 
   const pendingCandidates = candidates.filter((c) => c.stage === 'pool' && c.ownerId === currentMember?.id);
+  // B (0061) — son 7 günde onaylanan pay sözü sözleşmeleri (yalnızca equity.read; test modundan bağımsız).
+  const [signedRecent, setSignedRecent] = useState([]);
+  const canEquityBell = can('equity.read');
+  useEffect(() => { if (canEquityBell) recentAcceptances().then(setSignedRecent); }, [canEquityBell, bellOpen]);
+  const bellCount = pendingCandidates.length + signedRecent.length;
   const initialsOf = (n) => (n || email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const goSettings = () => { setPage('settings'); setProfileOpen(false); };
 
@@ -550,14 +556,26 @@ function HubApp({ email, onLogout }) {
             <button type="button" className="hub-topbar__bell" title="Bekleyen işler"
               onClick={() => { setBellOpen((v) => !v); setProfileOpen(false); }}>
               <AIcon name="bell" size={17} />
-              {pendingCandidates.length > 0 && (
-                <span className="hub-topbar__bell-badge">{pendingCandidates.length > 9 ? '9+' : pendingCandidates.length}</span>
+              {bellCount > 0 && (
+                <span className="hub-topbar__bell-badge">{bellCount > 9 ? '9+' : bellCount}</span>
               )}
             </button>
             {bellOpen && (
               <>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setBellOpen(false)} />
                 <div className="hub-topbar__pop hub-topbar__pop--bell">
+                  {signedRecent.length > 0 && (
+                    <>
+                      <div className="hub-topbar__pop-title">Onaylanan sözleşmeler</div>
+                      {signedRecent.slice(0, 5).map((a) => (
+                        <button type="button" key={a.id} className="hub-topbar__pop-row" style={{ width: '100%', border: 0, background: 'none', cursor: 'pointer', textAlign: 'left' }}
+                          onClick={() => { setPage('equity'); setBellOpen(false); }}>
+                          <span className="hub-av hub-av--sm">{initialsOf(a.name)}</span>
+                          <span className="hub-topbar__pop-row-name">{a.name} · {a.project} · %{a.pct} — {a.when}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
                   <div className="hub-topbar__pop-title">Mesaj yazman gerekenler</div>
                   {pendingCandidates.length === 0 ? (
                     <div className="hub-topbar__pop-empty">Bekleyen iş yok.</div>

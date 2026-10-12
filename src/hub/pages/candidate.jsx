@@ -1122,8 +1122,8 @@ function TrialSection({ c }) {
       } else {
         const d = r.equityDraft;
         flash('Ekibe alındı · hesap açıldı, davet gönderildi · ' + (d?.created
-          ? `pay sözü taslağı açıldı (%${d.grantPct}, “Teyit bekliyor”) — Pay Sözleri'nden teyit edip sözleşmeyi gönder.`
-          : 'bağlı koltuk olmadığı için pay sözü taslağı açılmadı — Pay Sözleri hatırlatacak.'));
+          ? `pay sözü açıldı (%${d.grantPct}, “Teyit bekliyor”) — Pay Sözleri'nden teyit edip sözleşmeyi gönder.`
+          : 'bağlı koltuk olmadığı için pay sözü açılmadı — Pay Sözleri hatırlatacak.'));
       }
     } catch (e) { flash('Aktarılamadı: ' + e.message); }
     setTeamConfirm(false);

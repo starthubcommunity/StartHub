@@ -504,6 +504,7 @@ textarea.hub-wz__input { min-height: 96px; resize: vertical; font-size: 15px; }
 .hub-todo-row__kind--amber  { background: #FFFBEB; color: #D97706; }
 .hub-todo-row__kind--purple { background: #F5F3FF; color: #7C3AED; }
 .hub-todo-row__kind--red    { background: #FEF2F2; color: #DC2626; }
+.hub-todo-row__kind--green  { background: var(--adm-green-light, #DCFCE7); color: var(--adm-green, #15803D); }
 .hub-todo-row__kind--gray   { background: #F4EFE5; color: #78716C; }
 .hub-todo-row__meta { font-size: 12px; color: #A29D94; margin-left: auto; padding-left: 10px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

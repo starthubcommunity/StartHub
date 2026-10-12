@@ -8,7 +8,7 @@
 //
 // Her adım ayrı try/catch — patlayan adım `warnings`e yazılır, akış durmaz.
 //
-// 0060 (A) — adım 6: pay sözü taslağı. Adayın rolüne bağlı AÇIK bir koltuk
+// 0060 (A) — adım 6: "Teyit bekliyor" pay sözü. Adayın rolüne bağlı AÇIK bir koltuk
 // varsa ve bütçesi kaldıysa "Teyit bekliyor" (pending_confirm) bir söz açılır;
 // yüzde = koltuğun yüzdesi, kalan bütçeyi asla aşmaz (grantDefaultsForSeat).
 // Söz cofounder teyit edip sözleşme kabul edilene kadar GEÇERSİZDİR (pay işlemez).
@@ -125,12 +125,12 @@ export async function runMoveToTeamCore(db: any, candidateId: string): Promise<M
     else steps.roleFilled = true;
   }
 
-  // ── 6. pay sözü taslağı (0060) ───────────────────────────
+  // ── 6. "Teyit bekliyor" pay sözü (0060) ───────────────────────────
   let equityDraft: MoveToTeamCoreResult["equityDraft"] = { created: false };
   try {
     equityDraft = await createDraftGrant(db, cand, startupId);
   } catch (e) {
-    warnings.push("pay sözü taslağı açılamadı: " + (e as Error).message);
+    warnings.push("pay sözü açılamadı: " + (e as Error).message);
     equityDraft = { created: false, reason: "error" };
   }
 
@@ -166,7 +166,7 @@ async function createDraftGrant(db: any, cand: any, startupId: number | null) {
     seat_id: seat.id, holder_name: cand.full_name || email, holder_email: email, hub_candidate_id: cand.id,
     grant_pct: d.grantPct, schedule: d.schedule, vest_months: d.vestMonths, cliff_months: d.cliffMonths,
     milestone_bonus_pct: d.milestoneBonusPct, start_date: today, status: "pending_confirm",
-    note: "“Ekibe Al” ile otomatik açılan taslak — yüzdeyi teyit edip sözleşmeyi gönder.",
+    note: "“Ekibe Al” ile otomatik açıldı — yüzdeyi teyit edip sözleşmeyi gönder.",
     created_by: "ekibe-al",
   }).select("id").single();
   if (error) throw new Error(error.message);

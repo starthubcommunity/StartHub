@@ -44,6 +44,56 @@ function StatusPill({ g }) {
   return <span className="hub-pill" style={{ background: tone.bg, color: tone.fg, borderColor: 'transparent' }}>{grantStatusLabel(g)}</span>;
 }
 
+// Kabul belgesi PDF'i (B, 0061): indirme sunucuda parmak izi denetiminden geçer.
+function AcceptancePdf({ acc, doc, canManage, onChanged }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);   // { tone, text }
+  const [ask, setAsk] = useState(false);
+  const errOf = async (data, error) => {
+    let m = data?.error; let reason = data?.reason;
+    if (!m && error?.context?.json) { try { const b = await error.context.json(); m = b?.error; reason = b?.reason; } catch {} }
+    return { m: m || error?.message || 'Olmadı.', reason };
+  };
+  const download = async () => {
+    setBusy(true); setMsg(null);
+    const { data, error } = await supabase.functions.invoke('equity-contract', { body: { action: 'pdf', acceptanceId: acc.id } });
+    setBusy(false);
+    if (error || !data?.ok) {
+      const { m, reason } = await errOf(data, error);
+      setMsg({ tone: 'err', text: reason === 'tampered' ? 'Bu dosya değiştirilmiş olabilir — indirme durduruldu ve olay sözün geçmişine yazıldı.' : m });
+      if (reason === 'tampered' || reason === 'file_missing') onChanged?.();
+      return;
+    }
+    window.open(data.url, '_blank', 'noopener');
+  };
+  const deliver = async () => {
+    const { data, error } = await supabase.functions.invoke('equity-contract', { body: { action: 'deliver', acceptanceId: acc.id, confirm: true } });
+    if (error || !data?.ok) { const { m } = await errOf(data, error); throw new Error(m); }
+    setAsk(false);
+    const h = data.holderMail;
+    setMsg({ tone: data.pdf?.ok ? 'ok' : 'err', text: !data.pdf?.ok ? `PDF: ${data.pdf?.error}` : h?.ok ? 'PDF hazır, kişiye PDF ekli mail gönderildi.' : h?.skipped === 'test_mode' ? 'PDF hazır; kişi test listesinde olmadığı için mail gönderilmedi (test modu).' : `PDF hazır; mail gönderilemedi: ${h?.error || '—'}` });
+    onChanged?.();
+  };
+  return (
+    <div style={{ marginTop: 6 }}>
+      {doc ? (
+        <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" onClick={download} disabled={busy}>
+          <AIcon name="download" size={13} /> {busy ? 'Denetleniyor…' : "PDF'i indir"}
+        </button>
+      ) : (
+        <span style={{ fontSize: 12, color: 'var(--adm-text-dim)', marginRight: 8 }}>PDF henüz yok.</span>
+      )}
+      {!doc && canManage && (
+        <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => setAsk(true)}><AIcon name="mail" size={13} /> PDF'i üret ve gönder</button>
+      )}
+      {doc && <span style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginLeft: 8 }}>PDF parmak izi {String(doc.pdfSha256).slice(0, 12)}… · {Math.round(doc.sizeBytes / 1024)} KB</span>}
+      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      {ask && <SmallConfirm title="PDF'i üret ve gönder" confirmLabel="Evet, gönder" onClose={() => setAsk(false)} onConfirm={deliver}
+        message={<>Kabul kaydındaki metinden PDF üretilir ve {acc.holderEmail} adresine PDF ekli bilgi maili gider. Test modu açıksa ya da metin yer tutucuysa mail yalnızca test adreslerine gider.</>} />}
+    </div>
+  );
+}
+
 // Küçük onay penceresi (silme dışı işler için — admin-ui ConfirmDialog "Sil" der)
 function SmallConfirm({ title, message, confirmLabel, danger, onConfirm, onClose }) {
   const [busy, setBusy] = useState(false);
@@ -214,7 +264,7 @@ function SeatForm({ seat, startupId, projectSeats, roles = [], onClose, onSaved 
             <Input type="number" step="0.25" min="0" value={f.reserveTopupPct} onChange={(v) => set('reserveTopupPct', v)} />
           </Field>
         )}
-        <Field label="Bağlı açık rol (isteğe bağlı)" hint="“Ekibe Al” ile bu role giren kişi için pay sözü taslağı bu koltuğu önerir.">
+        <Field label="Bağlı açık rol (isteğe bağlı)" hint="“Ekibe Al” bu role giren kişi için bu koltukta “Teyit bekliyor” bir pay sözü açar.">
           <Select value={f.openRoleId || ''} onChange={(v) => set('openRoleId', v || null)} placeholder="— bağlı rol yok —"
             options={roles.map((r) => ({ value: r.id, label: r.title }))} />
         </Field>
@@ -237,7 +287,7 @@ function GrantForm({ grant, seat, seatGrants, milestones, prefill, onClose, onSa
   const avail = seatBudget(seat, seatGrants.filter((g) => g.id !== grant?.id)).available;
   const blank = { seatId: seat.id, holderName: '', holderEmail: '', startDate: today(), retroCreditMonths: 0, retroCreditNote: '', note: '', status: 'pending_confirm', ...grantDefaultsForSeat(seat, avail), ...(prefill || {}) };
   const [f, setF] = useState(grant ? { ...grant } : blank);
-  // 0060: yeni / taslak sözde başlangıç tarihi sorulmaz (onay günü yazılır);
+  // 0060: yeni / teyit bekleyen sözde başlangıç tarihi sorulmaz (onay günü yazılır);
   // imzalanmış sözün şartları kilitli (yalnızca kredi ve not).
   const startsOnSign = !grant || isPendingGrant(grant);
   const signed = !!grant?.signedAt;
@@ -533,7 +583,7 @@ function AccelForm({ grant, onClose, onSaved }) {
 }
 
 // ── Koltuk kartı ────────────────────────────────────────────────────────
-function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant = {}, canManage, orphanIds, onEditSeat, onNewGrant, onEditGrant, onExit, onEvent, onAccel, onSend, onRecall, onDiscard }) {
+function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant = {}, docByAcceptance = {}, onReload, canManage, orphanIds, onEditSeat, onNewGrant, onEditGrant, onExit, onEvent, onAccel, onSend, onRecall, onDiscard }) {
   const b = seatBudget(seat, grants);
   const k = SEAT_KIND[seat.seatKind];
   const w = (x) => (b.cap ? `${(x / b.cap) * 100}%` : '0%');
@@ -599,7 +649,7 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant =
                           {canManage && g.status === 'pending_confirm' && <>
                             <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onSend(g)}><AIcon name="mail" size={13} /> Sözleşmeyi gönder</button>
                             <button className="adm-icon-btn" title="Yüzdeyi teyit et / düzenle" onClick={() => onEditGrant(g)}><AIcon name="edit" size={14} /></button>
-                            <button className="adm-icon-btn adm-icon-btn--danger" title="Taslağı kapat" onClick={() => onDiscard(g)}><AIcon name="x" size={14} /></button>
+                            <button className="adm-icon-btn adm-icon-btn--danger" title="Sözü kapat (gönderilmedi)" onClick={() => onDiscard(g)}><AIcon name="x" size={14} /></button>
                           </>}
                           {canManage && g.status === 'pending_signature' && (
                             <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onRecall(g)}>Geri çek</button>
@@ -615,13 +665,14 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant =
                       {openHist === g.id && (
                         <tr><td colSpan={6} style={{ background: 'var(--adm-bg-soft, #FAFAF9)' }}>
                           {acc && (
-                            <div style={{ fontSize: 12.5, marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--adm-border)' }}>
+                            <div style={{ fontSize: 12.5, marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--adm-border)', position: 'sticky', left: 0, maxWidth: 'calc(100vw - 96px)', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
                               <b>Kabul kaydı</b> · {acc.typedName} · {fmtDateTime(acc.acceptedAt)} · {CONTRACT_KIND_LABEL[acc.templateKind]} v{acc.templateVersion}
                               <div style={{ color: 'var(--adm-text-dim)' }}>IP {acc.ip || '—'} · parmak izi {String(acc.textSha256).slice(0, 16)}… · {acc.userAgent ? String(acc.userAgent).slice(0, 80) : 'tarayıcı bilgisi yok'}</div>
                               <button type="button" className="adm-btn adm-btn--ghost adm-btn--sm" style={{ marginTop: 6 }} onClick={() => setOpenText(openText === g.id ? null : g.id)}>
                                 {openText === g.id ? 'Onaylanan metni gizle' : 'Onaylanan metni göster'}
                               </button>
                               {openText === g.id && <div style={{ whiteSpace: 'pre-wrap', background: 'var(--adm-bg)', border: '1px solid var(--adm-border)', borderRadius: 8, padding: '10px 12px', marginTop: 6, maxHeight: 280, overflowY: 'auto' }}>{acc.textSnapshot}</div>}
+                              <AcceptancePdf acc={acc} doc={docByAcceptance[acc.id]} canManage={canManage} onChanged={onReload} />
                             </div>
                           )}
                           {evs.length === 0 ? <span style={{ fontSize: 12.5, color: 'var(--adm-text-dim)' }}>Süreç kaydı yok.</span> : (
@@ -698,8 +749,8 @@ function RosterCard({ roster, missing, orphanCount, canManage, onAdd }) {
 
 
 // ── "Ekibe Al" ile gelen, pay sözü olmayanlar (2026-10-08, 0060) ───────
-// Role bağlı koltuk + bütçe varsa "Ekibe Al" taslağı KENDİSİ açar; burada
-// kalanlar koltuğu/bütçesi olmadığı için taslağı açılamayanlardır.
+// Role bağlı koltuk + bütçe varsa "Ekibe Al" "Teyit bekliyor" sözü KENDİSİ açar; burada
+// kalanlar koltuğu/bütçesi olmadığı için söz açılamayanlardır.
 // Hak ediş sözleşme onay gününde başlar — başlangıç tarihi sorulmaz.
 function PendingJoinsCard({ pending, canManage, onCreate }) {
   if (!pending.length) return null;
@@ -708,7 +759,7 @@ function PendingJoinsCard({ pending, canManage, onCreate }) {
       <div className="adm-card__body">
         <div style={{ fontWeight: 700 }}>Ekibe alındı — pay sözü bekliyor ({pending.length})</div>
         <div style={{ fontSize: 12, color: 'var(--adm-text-dim)', margin: '2px 0 10px' }}>
-          “Ekibe Al” ile ekibe giren ama rolüne bağlı koltuk olmadığı (ya da koltuk bütçesi dolduğu) için pay sözü taslağı açılamayan kişiler. Hak ediş, sözleşme onay tarihinde başlar.
+          “Ekibe Al” ile ekibe giren ama rolüne bağlı koltuk olmadığı (ya da koltuk bütçesi dolduğu) için pay sözü açılamayan kişiler. Hak ediş, sözleşme onay tarihinde başlar.
         </div>
         <div style={{ display: 'grid', gap: 6 }}>
           {pending.map((p) => (
@@ -831,6 +882,8 @@ export default function EquityPage() {
     if (err) flash('Yüklenemedi: ' + err.message);
     const signedIds = (g.data || []).filter((r) => r.acceptance_id).map((r) => r.id);
     const ac = signedIds.length ? await supabase.from('contract_acceptances').select('*').in('grant_id', signedIds) : { data: [] };
+    const accIds = (ac.data || []).map((a) => a.id);
+    const cdoc = accIds.length ? await supabase.from('contract_documents').select('acceptance_id, pdf_sha256, size_bytes, created_at').in('acceptance_id', accIds) : { data: [] };
     setData({
       seats: (seatRows || []).map(mapSeatFromDb),
       grants: (g.data || []).map(mapGrantFromDb),
@@ -839,6 +892,7 @@ export default function EquityPage() {
       members: (cd.data || []).map((c) => ({ id: c.id, fullName: c.full_name, email: c.email, stage: c.stage, track: c.track, startupId: c.startup_id, openRoleId: c.open_role_id, joinedAt: c.joined_at, vestingStartDate: c.vesting_start_date })),
       events: (ev.data || []).map(mapEventFromDb),
       acceptances: (ac.data || []).map(mapAcceptanceFromDb),
+      documents: (cdoc.data || []).map((d) => ({ acceptanceId: d.acceptance_id, pdfSha256: d.pdf_sha256, sizeBytes: d.size_bytes, createdAt: d.created_at })),
     });
     setLoading(false);
   };
@@ -853,6 +907,7 @@ export default function EquityPage() {
   };
   useEffect(() => { loadWaiting(); }, []);
   const acceptanceByGrant = useMemo(() => Object.fromEntries((data.acceptances || []).map((a) => [a.grantId, a])), [data.acceptances]);
+  const docByAcceptance = useMemo(() => Object.fromEntries((data.documents || []).map((d) => [d.acceptanceId, d])), [data.documents]);
 
   // Ekip listesi (Team App) — proje değişince; pay verisinden bağımsız yüklenir.
   const loadRoster = async () => {
@@ -893,8 +948,8 @@ export default function EquityPage() {
   const discard = async (g) => {
     const { error } = await supabase.from('equity_grants').update({ status: 'removed', ended_at: today(), vested_at_end: 0 }).eq('id', g.id).eq('status', 'pending_confirm');
     if (error) throw new Error(error.message);
-    await supabase.from('equity_events').insert({ grant_id: g.id, seat_id: g.seatId, kind: 'note', note: 'Taslak söz kapatıldı (gönderilmemişti).' });
-    done('Taslak kapatıldı — bütçe koltuğa döndü.');
+    await supabase.from('equity_events').insert({ grant_id: g.id, seat_id: g.seatId, kind: 'note', note: 'Teyit bekleyen söz kapatıldı (sözleşme gönderilmemişti).' });
+    done('Söz kapatıldı — bütçe koltuğa döndü.');
   };
   const seatOf = (g) => data.seats.find((s) => s.id === g.seatId);
   const projectName = projects.find((p) => String(p.id) === startupId)?.name || '';
@@ -943,7 +998,7 @@ export default function EquityPage() {
               onExit={(g) => setModal({ type: 'exit', grant: g })}
               onEvent={(g) => setModal({ type: 'event', grant: g })}
               onAccel={(g) => setModal({ type: 'accel', grant: g })}
-              acceptanceByGrant={acceptanceByGrant}
+              acceptanceByGrant={acceptanceByGrant} docByAcceptance={docByAcceptance} onReload={load}
               onSend={(g) => setModal({ type: 'send', grant: g })}
               onRecall={(g) => setModal({ type: 'recall', grant: g })}
               onDiscard={(g) => setModal({ type: 'discard', grant: g })} />
@@ -960,8 +1015,8 @@ export default function EquityPage() {
       {modal?.type === 'send' && <SendContract grant={modal.grant} onClose={() => setModal(null)} onSent={() => done('Sözleşme gönderildi — söz “Onay bekliyor”.')} />}
       {modal?.type === 'recall' && <SmallConfirm title="Sözleşmeyi geri çek" confirmLabel="Evet, geri çek" onClose={() => setModal(null)} onConfirm={() => recall(modal.grant)}
         message={<>{modal.grant.holderName} henüz onaylamadı. Geri çekersen söz “Teyit bekliyor”a döner; şartları değiştirip yeniden gönderebilirsin. Kişiye ayrıca mail gitmez.</>} />}
-      {modal?.type === 'discard' && <SmallConfirm title="Taslağı kapat" confirmLabel="Evet, kapat" danger onClose={() => setModal(null)} onConfirm={() => discard(modal.grant)}
-        message={<>{modal.grant.holderName} için {pct(modal.grant.grantPct)} taslak söz kapatılır (silinmez, geçmişte “Çıkarıldı” görünür) ve ayrılan bütçe koltuğa döner.</>} />}
+      {modal?.type === 'discard' && <SmallConfirm title="Sözü kapat" confirmLabel="Evet, kapat" danger onClose={() => setModal(null)} onConfirm={() => discard(modal.grant)}
+        message={<>{modal.grant.holderName} için {pct(modal.grant.grantPct)} “Teyit bekliyor” söz kapatılır (silinmez, geçmişte “Çıkarıldı” görünür) ve ayrılan bütçe koltuğa döner.</>} />}
       {modal?.type === 'accel' && seatOf(modal.grant) && <AccelForm grant={modal.grant} onClose={() => setModal(null)} onSaved={() => done('Tamamı açıldı (çift şart).')} />}
     </div>
   );
