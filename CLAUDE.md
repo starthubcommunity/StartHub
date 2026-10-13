@@ -367,6 +367,15 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   - HR: kabul kaydında "PDF'i indir" / uyarı; zil + Bugün "Onaylandı" satırı (`src/hub/recent-acceptances.js`, son 7 gün).
   - Testler: `node src/lib/contract-pdf.test.mjs` (13 — Türkçe glifler, "taslak/avukat" yok, metin birebir, değiştirilmiş dosya).
   - A'da pay ekranlarına "taslak" sözcüğü girmişti ("Taslağı kapat" vb.) — B'de "Teyit bekliyor"/"Sözü kapat" olarak düzeltildi.
+- **2026-10-13 — zincir otomatik (migration yok):** rol açılırken cofounder "Bu rol için pay" belirler
+  (`components/role-seat.jsx`, "Evet, eminim"; koltuk `open_role_id` ile) → "Ekibe Al" söz açar VE sözleşmeyi
+  otomatik gönderir (`move-to-team-core` → `_shared/contract-send.ts` `sendContractForGrant`; HR "Sözleşmeyi gönder"
+  de aynı yol). Çift gönderim: söz önce CAS'la (`status=pending_confirm` + `contract_sent_at is null`) kilitlenir,
+  mail gidemezse geri alınır; karar `shouldAutoSend` (contract-render). Kilit/bütçe/mail hatasında söz "Teyit
+  bekliyor"da kalır, olay yazılır. Koltuksuz açık rol → Bugün "Pay koltuğu" (lead talebi dahil). Ekibe Al
+  pencerelerinde yüzde: HR `SeatPreviewLine`, Team App teklifte `seatPct/seatTitle/seatChecked` (sunma anında,
+  `hub-present-to-owner`). "Pay sözü" yalnızca Team App ekibindeki sözü olmayan kişilere (`PersonPicker`).
+  Davet mailleri `INVITE_EQUITY_LINE`; sözleşme maili "önce davet mailindeki bağlantıyla şifreni belirle".
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 

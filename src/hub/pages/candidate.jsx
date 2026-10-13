@@ -19,6 +19,9 @@ import { GATE_TEMPLATE_CATEGORIES, DELIVERY_LABEL, DURATION_DAY_OPTIONS, gateCat
 import { generateDraft } from '../hub-ai-draft';
 import HubWizard from '../components/wizard';
 import MailSendConfirm from '../components/mail-confirm';
+import { supabase } from '../../lib/supabase';
+import { seatPreview } from '../../lib/contract-render';
+import { mapSeatFromDb, mapGrantFromDb } from '../../lib/equity-rules';
 import { lastChannel, rememberChannel } from '../hub-channel';
 
 const AXIS_FIELD = { finishing: 'scoreFinishing', communication: 'scoreCommunication', capacity: 'scoreCapacity' };
@@ -997,6 +1000,32 @@ function GateStartForm({ c, gate, onCancel, onStarted, flash }) {
 }
 
 // ── "Ekibe al" onayı — projesiz adayda güçlü uyarı + inline rol seçimi (C4 düz. 2)
+// 2026-10-13 — Ekibe Al'da otomatik gidecek sözleşmenin yüzdesi (rolün koltuğu, kalan bütçeyi aşmaz).
+// Pay tablolarını okuyamayan (equity.read olmayan) kullanıcıya genel bir not gösterilir.
+function SeatPreviewLine({ roleId }) {
+  const [st, setSt] = useState({ loading: true });
+  useEffect(() => {
+    let off = false;
+    if (!roleId) { setSt({ loading: false, none: true }); return undefined; }
+    setSt({ loading: true });
+    (async () => {
+      const { data: seats, error } = await supabase.from('equity_seats').select('*').eq('open_role_id', roleId).eq('active', true).order('created_at').limit(1);
+      if (error) { if (!off) setSt({ loading: false, unknown: true }); return; }
+      if (!seats?.length) { if (!off) setSt({ loading: false, none: true }); return; }
+      const { data: g } = await supabase.from('equity_grants').select('*').eq('seat_id', seats[0].id);
+      const p = seatPreview(mapSeatFromDb(seats[0]), (g || []).map(mapGrantFromDb));
+      if (!off) setSt(p ? { loading: false, pct: p.pct, title: p.title } : { loading: false, noBudget: true, title: seats[0].title });
+    })();
+    return () => { off = true; };
+  }, [roleId]);
+  if (st.loading) return null;
+  const box = (bg, color, text) => <div style={{ fontSize: 12.5, background: bg, color, borderRadius: 8, padding: '7px 10px', marginBottom: 8 }}>{text}</div>;
+  if (st.pct) return box('#F0FDF4', '#166534', `Ekibe alınca pay sözü sözleşmesi otomatik gidecek: %${String(st.pct).replace('.', ',')} (${st.title}).`);
+  if (st.noBudget) return box('#FFFBEB', '#92400E', `${st.title} koltuğunun bütçesi dolu — sözleşme gitmeyecek, Pay Sözleri hatırlatacak.`);
+  if (st.none) return box('#FFFBEB', '#92400E', 'Bu rolün pay koltuğu yok — sözleşme gitmeyecek, Start-Hub\'a hatırlatılacak.');
+  return box('var(--adm-bg)', 'var(--adm-text-secondary)', 'Rolün pay koltuğu varsa sözleşme ekibe alınınca otomatik gider.');
+}
+
 function TeamMoveConfirm({ c, store, busy, onCancel, onConfirm }) {
   const linkable = store.openRoles.filter(
     (r) => ['sourcing', 'shortlist'].includes(r.status) || r.id === c.openRoleId
@@ -1017,6 +1046,7 @@ function TeamMoveConfirm({ c, store, busy, onCancel, onConfirm }) {
           Aday <b>{roleTitle || '—'}</b> rolüne bağlı olarak ekibe alınacak; hesabı açılır, davet maili gider.
         </div>
       )}
+      <SeatPreviewLine roleId={roleId || null} />
       <Field label="Açık rol">
         <select className="adm-input adm-select" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
           <option value="">— (projesiz) —</option>

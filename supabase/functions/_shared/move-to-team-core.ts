@@ -16,6 +16,7 @@
 // Hak ediş başlangıcı artık Kapı A'nın ilk günü DEĞİL, sözleşmenin onay günü.
 
 import { seatBudget, grantDefaultsForSeat, mapSeatFromDb, mapGrantFromDb } from "./equity-rules.js";
+import { sendContractForGrant } from "./contract-send.ts";
 
 export interface MoveToTeamCoreResult {
   ok: boolean;
@@ -26,7 +27,7 @@ export interface MoveToTeamCoreResult {
   personId?: string | null;
   vestingStart?: string | null;
   joinedAt?: string;
-  equityDraft?: { created: boolean; grantId?: string; seatTitle?: string; grantPct?: number; reason?: string };
+  equityDraft?: { created: boolean; grantId?: string; seatTitle?: string; grantPct?: number; reason?: string; contractSent?: boolean; contractReason?: string | null };
   steps: Record<string, boolean>;
   warnings: string[];
 }
@@ -129,6 +130,18 @@ export async function runMoveToTeamCore(db: any, candidateId: string): Promise<M
   let equityDraft: MoveToTeamCoreResult["equityDraft"] = { created: false };
   try {
     equityDraft = await createDraftGrant(db, cand, startupId);
+    // 2026-10-13 — yüzde rol açılırken (koltukta) belirlendiği için teyit sayılır: sözleşme otomatik gider.
+    // Kilitler (test modu / yer tutucu), bütçe ve çift gönderim kontrolü sendContractForGrant içinde;
+    // gönderilemezse söz "Teyit bekliyor"da kalır, olay yazılır, Bugün hatırlatır.
+    if (equityDraft?.created && equityDraft.grantId) {
+      try {
+        const r = await sendContractForGrant(db, equityDraft.grantId, "ekibe-al", { auto: true });
+        equityDraft = { ...equityDraft, contractSent: !!r.sent, contractReason: r.sent ? null : (r.reason as string) };
+      } catch (e) {
+        warnings.push("sözleşme otomatik gönderilemedi: " + (e as Error).message);
+        equityDraft = { ...equityDraft, contractSent: false, contractReason: "error" };
+      }
+    }
   } catch (e) {
     warnings.push("pay sözü açılamadı: " + (e as Error).message);
     equityDraft = { created: false, reason: "error" };

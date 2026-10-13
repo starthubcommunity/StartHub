@@ -3,7 +3,7 @@
 // (src/lib/contract-render.js yalnızca re-export eder) AYNI kodu kullanır —
 // kişinin gördüğü metin ile sunucunun parmak izini aldığı metin birebir aynı olmalı.
 // Saf JS: ağ / DB / tarih "şimdi"si yok (test: contract-render.test.mjs).
-import { MILESTONES } from './equity-rules.js';
+import { MILESTONES, seatBudget, grantDefaultsForSeat, isOpenGrant } from './equity-rules.js';
 
 export const CONTRACT_KINDS = [
   { value: 'founder', label: 'Kurucu (Team Lead)' },
@@ -124,7 +124,7 @@ export function contractInviteMail(terms, { teamUrl = 'https://www.starthub-comm
     '2) Sağ üstteki “💼 Payım” düğmesine bas, “Sözleşmeni onayla” kartını aç.',
     '',
     'Hak edişin, sözleşmeyi onayladığın gün başlar.',
-    'Henüz şifre belirlemediysen giriş ekranındaki “Şifremi unuttum” ile belirleyebilirsin.',
+    'Henüz giriş yapmadıysan önce davet mailindeki bağlantıyla şifreni belirle (bulamazsan giriş ekranındaki “Şifremi unuttum”).',
     '',
     'Sorun olursa bu maile yanıt verebilirsin.',
     'Start-Hub',
@@ -225,3 +225,33 @@ export function pdfDownloadDecision(doc, actualSha) {
   }
   return { ok: true };
 }
+
+// ── Otomatik gönderim (Ekibe Al → sözleşme, 2026-10-13) ───────────────────
+// Davet mailine eklenen satır (Team App davet mailleri + önizleme aynı metni kullanır).
+export const INVITE_EQUITY_LINE = 'Giriş yapınca “💼 Payım”da sözleşmen seni bekliyor (pay sözü olan rollerde).';
+
+// Rolün koltuğundan Ekibe Al'da açılacak sözün önizlemesi: koltuğun yüzdesi, kalan bütçeyi aşmaz.
+// seat yoksa / kapalıysa / bütçe bittiyse null döner (söz açılmaz, cofounder'a hatırlatılır).
+export function seatPreview(seat, seatGrants = []) {
+  if (!seat || seat.active === false) return null;
+  const avail = seatBudget(seat, seatGrants).available;
+  if (!(avail > 0)) return null;
+  return { pct: grantDefaultsForSeat(seat, avail).grantPct, title: seat.title, available: avail };
+}
+
+// Sözleşme gönderilsin mi? (otomatik ve elle aynı kural; çift gönderimi de burada keser)
+export function shouldAutoSend({ status, lock, overBudget, alreadySentAt }) {
+  if (status !== 'pending_confirm') return { send: false, reason: status === 'pending_signature' ? 'already_sent' : status === 'active' ? 'already_signed' : 'not_pending' };
+  if (alreadySentAt) return { send: false, reason: 'already_sent' };
+  if (!lock || !lock.ok) return { send: false, reason: 'locked' };
+  if (overBudget) return { send: false, reason: 'over_budget' };
+  return { send: true };
+}
+export const AUTO_SEND_REASON_TR = {
+  already_sent: 'sözleşme zaten gönderilmiş',
+  already_signed: 'sözleşme zaten imzalanmış',
+  not_pending: 'söz teyit bekleyen durumda değil',
+  locked: 'test modu / yer tutucu metin kilidi — alıcı test listesinde değil',
+  over_budget: 'koltuk bütçesi yetmiyor',
+  mail_failed: 'mail gönderilemedi',
+};

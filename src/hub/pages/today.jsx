@@ -376,12 +376,15 @@ export default function TodayPage({ onGoto, setFilters }) {
   const canEquity = can('equity.read');
   const [eqGrants, setEqGrants] = useState(null);
   const [eqSigned, setEqSigned] = useState([]);   // B — son 7 günde onaylanan sözleşmeler (zil ile aynı kaynak)
+  const [seatRoleIds, setSeatRoleIds] = useState(null);   // 2026-10-13 — pay koltuğu olan rol id'leri
   useEffect(() => {
     if (!canEquity) return;
     supabase.from('equity_grants').select('id, holder_name, holder_email, hub_candidate_id, status, grant_pct, created_at, contract_sent_at').then(({ data, error }) => {
       if (!error) setEqGrants((data || []).map((g) => ({ id: g.id, holderName: g.holder_name, holderEmail: g.holder_email, hubCandidateId: g.hub_candidate_id, status: g.status, grantPct: Number(g.grant_pct), createdAt: g.created_at, contractSentAt: g.contract_sent_at })));
     });
     recentAcceptances().then(setEqSigned);
+    supabase.from('equity_seats').select('open_role_id').not('open_role_id', 'is', null).eq('active', true)
+      .then(({ data, error }) => { if (!error) setSeatRoleIds(new Set((data || []).map((s) => s.open_role_id))); });
   }, [canEquity]);
   const pendingEquity = eqGrants
     ? pendingGrantJoins(candidates, eqGrants, []).filter((p) => p.joinedAt && now - new Date(p.joinedAt).getTime() <= 30 * 86400000)
@@ -457,6 +460,13 @@ export default function TodayPage({ onGoto, setFilters }) {
       id: `eq-${p.candidateId}`, c: { id: p.candidateId, fullName: p.name || p.email }, kind: 'Pay sözü', tone: 'purple', goto: 'equity',
       meta: `ekibe alındı ${String(p.joinedAt).slice(0, 10)} · bağlı koltuk yok, söz açılmadı`, urgency: 2,
     }));
+    // 2026-10-13 — açık rolün pay koltuğu yoksa (ör. Team Lead talebiyle açılan rol) cofounder'a hatırlat:
+    // koltuk yokken "Ekibe Al" sözleşme gönderemez.
+    if (seatRoleIds) openRoles.filter((r) => ['requested', 'sourcing', 'shortlist'].includes(r.status) && r.startupId != null && !seatRoleIds.has(r.id))
+      .forEach((r) => rows.push({
+        id: `seat-${r.id}`, c: { id: null, fullName: r.title }, kind: 'Pay koltuğu', tone: 'amber', goto: 'roles',
+        meta: `${r.requestedByEmail ? 'Team Lead talebi · ' : ''}pay koltuğu bekliyor — Açık Pozisyonlar'dan ekle`, urgency: 1,
+      }));
     eqSigned.forEach((a) => rows.push({
       id: `eqa-${a.id}`, c: { id: null, fullName: a.name }, kind: 'Onaylandı', tone: 'green', goto: 'equity',
       meta: `${a.project} · %${a.pct} · sözleşme onaylandı ${a.when}`, urgency: 3,

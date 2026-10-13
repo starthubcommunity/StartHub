@@ -22,6 +22,8 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { seatPreview } from "../_shared/contract-render.js";
+import { mapSeatFromDb, mapGrantFromDb } from "../_shared/equity-rules.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -101,6 +103,18 @@ serve(async (req) => {
     if (!teamId) return json({ error: "Proje Team App'e eşlenmemiş (startups.team_app_id boş) — önce Team App'te bu proje için Düzenle'yi kullan." }, 400);
     if (!HUB_BRIDGE_SECRET) return json({ error: "HUB_BRIDGE_SECRET tanımlı değil." }, 500);
 
+    // 2026-10-13 — Ekibe Al penceresinde gösterilecek pay: rolün açık koltuğu (yüzde, kalan bütçeyi aşmaz).
+    // Yalnızca bilgi; Ekibe Al anında sunucu yeniden hesaplar.
+    let seatInfo: { pct: number; title: string } | null = null;
+    try {
+      const { data: seatRows } = await db.from("equity_seats").select("*").eq("open_role_id", roleRow.id).eq("active", true).order("created_at").limit(1);
+      if (seatRows?.[0]) {
+        const { data: sg } = await db.from("equity_grants").select("*").eq("seat_id", seatRows[0].id);
+        const p = seatPreview(mapSeatFromDb(seatRows[0]), (sg || []).map(mapGrantFromDb));
+        if (p) seatInfo = { pct: p.pct, title: p.title };
+      }
+    } catch (_) { /* bilgi amaçlı */ }
+
     const bRes = await fetch(`${TEAM_PROJECT_URL}/functions/v1/hub-bridge-present-candidate`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-hub-bridge-key": HUB_BRIDGE_SECRET },
@@ -114,6 +128,7 @@ serve(async (req) => {
         note: cand.why_this_one || null,
         category: cand.interest || null,
         weeklyHours: roleRow.weekly_hours ?? null,   // Adım 7 — teklifte haftalık saat beklentisi
+        seatPct: seatInfo ? seatInfo.pct : null, seatTitle: seatInfo ? seatInfo.title : null, seatChecked: true,
         suggestedTemplateId: cand.suggested_gate_template_id || null,
       }),
       signal: AbortSignal.timeout(8000),

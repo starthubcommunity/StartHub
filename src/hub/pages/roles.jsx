@@ -11,6 +11,7 @@ import { ROLE_TYPES, ROLE_TYPE_LABEL, TRACKS, ROLE_STATUS_LABEL, ROLE_STATUS_NEX
 import { EMPTY_FILTERS } from '../components/filter-bar';
 import HubWizard from '../components/wizard';
 import NewCandidateModal from './new-candidate';
+import RoleSeatDialog from '../components/role-seat';
 
 const STATUS_PILL = { requested: 'hub-pill--inbound', draft: '', sourcing: 'hub-pill--stage', shortlist: 'hub-pill--warn', filled: 'hub-pill--ok' };
 const STATUS_LEAD = { requested: '#D97706', draft: '#A29D94', sourcing: '#7C3AED', shortlist: '#EA580C', filled: '#16A34A' };
@@ -41,6 +42,17 @@ export default function RolesPage({ onGoto, setFilters }) {
   // ÖNCE, ayrı küçük bir akışla çözülür — bkz. RoleSetupFlow altta.
   const [newRoleFlow, setNewRoleFlow] = useState(null);
   const [addToRole, setAddToRole] = useState(null);   // "+ Bu role aday ekle"
+  // 2026-10-13 — rolün pay koltuğu (equity.read görür, equity.manage belirler)
+  const canEquityRead = can('equity.read');
+  const canEquityManage = can('equity.manage');
+  const [seatByRole, setSeatByRole] = useState({});
+  const [seatFor, setSeatFor] = useState(null);   // RoleSeatDialog için rol
+  const loadSeats = () => {
+    if (!canEquityRead) return;
+    supabase.from('equity_seats').select('id, title, seat_kind, budget_pct, open_role_id, active').not('open_role_id', 'is', null).eq('active', true)
+      .then(({ data }) => setSeatByRole(Object.fromEntries((data || []).map((s) => [s.open_role_id, { title: s.title, pct: Number(s.budget_pct) }]))));
+  };
+  useEffect(loadSeats, [canEquityRead]);
 
   const goToRoleCandidates = (roleId) => {
     if (!onGoto || !setFilters) return;
@@ -138,7 +150,11 @@ export default function RolesPage({ onGoto, setFilters }) {
       status: editing?.status || 'sourcing',
     };
     if (editing?.id) await store.updateItem('openRoles', editing.id, payload);
-    else await store.addItem('openRoles', payload);
+    else {
+      const created = await store.addItem('openRoles', payload);
+      // Yeni rol → "Bu rol için pay" (yalnızca cofounder; projeye bağlıysa)
+      if (canEquityManage && created?.id && payload.startupId != null) setSeatFor({ ...payload, id: created.id });
+    }
   };
 
   const move = async (r, to) => {
@@ -210,6 +226,11 @@ export default function RolesPage({ onGoto, setFilters }) {
                     {r.status === 'requested' ? ' — yayına al ya da taslağa çek' : ''}
                   </div>
                 )}
+                {canEquityRead && r.status !== 'filled' && (
+                  seatByRole[r.id]
+                    ? <div style={{ fontSize: 12.5, color: '#166534', margin: '6px 0 0' }}>Pay: %{String(seatByRole[r.id].pct).replace('.', ',')} ({seatByRole[r.id].title}) — ekibe alınınca sözleşme otomatik gider</div>
+                    : <div style={{ fontSize: 12.5, color: '#B45309', margin: '6px 0 0' }}>Pay koltuğu yok — ekibe alınan kişiye sözleşme gitmez</div>
+                )}
                 {r.profile && <div style={{ fontSize: 13, color: 'var(--adm-text-secondary)', margin: '6px 0' }}>{r.profile}</div>}
                 <div style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}>
                   {(r.skills || []).join(', ') || 'beceri yok'}
@@ -227,6 +248,11 @@ export default function RolesPage({ onGoto, setFilters }) {
                   {can('candidates.write') && (
                     <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setAddToRole(r.id)}>
                       <AIcon name="plus" size={13} /> Bu role aday ekle
+                    </button>
+                  )}
+                  {canEquityManage && !seatByRole[r.id] && r.status !== 'filled' && r.startupId != null && (
+                    <button className="adm-btn adm-btn--soft adm-btn--sm" onClick={() => setSeatFor(r)}>
+                      <AIcon name="award" size={13} /> Pay koltuğu ekle
                     </button>
                   )}
                   {canManage && (ROLE_STATUS_NEXT[r.status] || []).map((to) => (
@@ -266,6 +292,9 @@ export default function RolesPage({ onGoto, setFilters }) {
           wide
         />
       )}
+
+      {seatFor && <RoleSeatDialog role={seatFor} onClose={() => setSeatFor(null)}
+        onSaved={() => { setSeatFor(null); loadSeats(); flash('Pay koltuğu kaydedildi — ekibe alınınca sözleşme otomatik gidecek.'); }} />}
 
       <ConfirmDialog open={!!confirm} onClose={() => !deleting && setConfirm(null)}
         onConfirm={() => confirm && !deleting && doDelete(confirm)}

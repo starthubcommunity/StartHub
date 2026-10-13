@@ -117,5 +117,16 @@ import { computeOfferClosePatch } from "../../supabase/functions/hub-bridge-pres
   check("H2 saat yoksa null", r2.snapshot.candidateOffers[0].weeklyHours === null);
 }
 
+// ── 2026-10-13: teklif, Ekibe Al'da gidecek sözleşmenin yüzdesini taşır ──
+{
+  const r = computeOfferPresentPatch(baseSnapshot(), { teamId: "A", hubCandidateId: "h20", fullName: "Koltuklu", email: "k@x.com", seatPct: 10, seatTitle: "Mobil", seatChecked: true });
+  const o = r.snapshot.candidateOffers[0];
+  check("S1 koltuk yüzdesi teklife yazıldı", o.seatPct === 10 && o.seatTitle === "Mobil" && o.seatChecked === true);
+  const r2 = computeOfferPresentPatch(baseSnapshot(), { teamId: "A", hubCandidateId: "h21", fullName: "Koltuksuz", email: "z@x.com", seatPct: null, seatChecked: true });
+  check("S2 koltuk yok → seatPct null, seatChecked true", r2.snapshot.candidateOffers[0].seatPct === null && r2.snapshot.candidateOffers[0].seatChecked === true);
+  const r3 = computeOfferPresentPatch(baseSnapshot(), { teamId: "A", hubCandidateId: "h22", fullName: "Eski", email: "e@x.com" });
+  check("S3 eski çağrı → seatChecked false (pencerede satır görünmez)", r3.snapshot.candidateOffers[0].seatChecked === false);
+}
+
 console.log(failures === 0 ? "\nTÜM TESTLER GEÇTİ" : `\n${failures} TEST BAŞARISIZ`);
 process.exit(failures === 0 ? 0 : 1);

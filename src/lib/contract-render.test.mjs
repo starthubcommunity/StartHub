@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   contractKindFor, contractTerms, contractVars, renderContract, unknownFields,
   recipientLock, contractInviteMail, istanbulDate,
+  shouldAutoSend, seatPreview, INVITE_EQUITY_LINE, forbiddenWordsIn,
 } from './contract-render.js';
 
 let pass = 0;
@@ -79,6 +80,42 @@ t('mail: herkese açık bağlantı yok, Payım’a yönlendirir, "taslak"/"avuka
 t('İstanbul takvim günü (UTC 22:30 → ertesi gün)', () => {
   assert.equal(istanbulDate(new Date('2026-10-09T22:30:00Z')), '2026-10-10');
   assert.equal(istanbulDate(new Date('2026-10-09T10:00:00Z')), '2026-10-09');
+});
+
+// ── 2026-10-13: Ekibe Al → otomatik sözleşme ──
+const OK = { ok: true };
+t('otomatik gönderim: Teyit bekliyor + kilit açık + bütçe yeterli → gönder', () => {
+  assert.deepEqual(shouldAutoSend({ status: 'pending_confirm', lock: OK, overBudget: false, alreadySentAt: null }), { send: true });
+});
+t('çift gönderim yok: zaten gönderilmiş / imzalı / tekrar Ekibe Al', () => {
+  assert.equal(shouldAutoSend({ status: 'pending_signature', lock: OK, overBudget: false }).reason, 'already_sent');
+  assert.equal(shouldAutoSend({ status: 'active', lock: OK, overBudget: false }).reason, 'already_signed');
+  // yarış: durum hâlâ "Teyit bekliyor" görünse de gönderim izi varsa ikinci mail gitmez
+  assert.equal(shouldAutoSend({ status: 'pending_confirm', lock: OK, overBudget: false, alreadySentAt: '2026-10-13T10:00:00Z' }).reason, 'already_sent');
+  assert.equal(shouldAutoSend({ status: 'removed', lock: OK }).send, false);
+});
+t('otomatik gönderimde de kilitler: test modu / yer tutucu → gönderilmez, söz bekler', () => {
+  const lock = recipientLock(TEST, { isPlaceholder: true }, 'gercek@ornek.com');
+  assert.equal(shouldAutoSend({ status: 'pending_confirm', lock, overBudget: false }).reason, 'locked');
+  const lock2 = recipientLock({ ...TEST, testMode: false }, { isPlaceholder: true }, 'starthub.community@gmail.com');
+  assert.equal(shouldAutoSend({ status: 'pending_confirm', lock: lock2, overBudget: false }).send, true);
+});
+t('otomatik gönderim: bütçe yetmezse gönderilmez', () => {
+  assert.equal(shouldAutoSend({ status: 'pending_confirm', lock: OK, overBudget: true }).reason, 'over_budget');
+});
+t('koltuk önizlemesi: yüzde = koltuk, kalan bütçeyi aşmaz; koltuk yok/kapalı/dolu → null', () => {
+  const seat = { title: 'Mobil', seatKind: 'member_standard', budgetPct: 10, reserveTopupPct: 0, active: true };
+  assert.deepEqual(seatPreview(seat, []).pct, 10);
+  assert.equal(seatPreview(seat, [{ status: 'left_good', vestedAtEnd: 4, grantPct: 10 }]).pct, 6);
+  assert.equal(seatPreview(seat, [{ status: 'active', grantPct: 10 }]), null);
+  assert.equal(seatPreview(null, []), null);
+  assert.equal(seatPreview({ ...seat, active: false }, []), null);
+});
+t('mail metinleri: davet satırı + sözleşme mailinde "önce davet mailindeki bağlantıyla şifreni belirle"', () => {
+  assert.ok(INVITE_EQUITY_LINE.includes('Payım') && INVITE_EQUITY_LINE.includes('sözleşmen seni bekliyor'));
+  const m = contractInviteMail(contractTerms({ grant: gMem, seat: seatMem, projectName: 'TİD', weeklyHours: 8 }));
+  assert.ok(m.body.includes('önce davet mailindeki bağlantıyla şifreni belirle'));
+  assert.deepEqual(forbiddenWordsIn(m.body + INVITE_EQUITY_LINE), []);
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

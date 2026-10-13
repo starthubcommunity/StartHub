@@ -22,6 +22,9 @@ export interface PresentPayload {
   category?: string | null;
   suggestedTemplateId?: string | null;
   weeklyHours?: number | null;   // yalnızca beklenti (saat takibi yok)
+  seatPct?: number | null;       // 2026-10-13 — Ekibe Al'da otomatik gidecek sözleşmenin yüzdesi (bilgi)
+  seatTitle?: string | null;
+  seatChecked?: boolean;         // true: koltuk arandı (seatPct null → koltuk yok)
 }
 
 export interface PresentResult {
@@ -42,7 +45,7 @@ function effRole(u: any, tid: string): string {
 // snapshot'ın DIŞINDAKİ hiçbir alana dokunulmaz — yalnızca candidateOffers
 // üretilir/güncellenir, geri kalanı olduğu gibi spread edilir.
 export function computeOfferPresentPatch(snapshot: any, payload: PresentPayload): PresentResult {
-  const { teamId, hubCandidateId, fullName, email, phone, roleTitle, note, category, suggestedTemplateId, weeklyHours } = payload || ({} as PresentPayload);
+  const { teamId, hubCandidateId, fullName, email, phone, roleTitle, note, category, suggestedTemplateId, weeklyHours, seatPct, seatTitle, seatChecked } = payload || ({} as PresentPayload);
 
   const errors: string[] = [];
   if (!teamId) errors.push("teamId zorunlu");
@@ -75,6 +78,9 @@ export function computeOfferPresentPatch(snapshot: any, payload: PresentPayload)
     category: category || null,
     suggestedTemplateId: suggestedTemplateId || null,
     weeklyHours: Number.isFinite(Number(weeklyHours)) && Number(weeklyHours) > 0 ? Number(weeklyHours) : null,
+    seatPct: seatPct != null && Number(seatPct) > 0 ? Number(seatPct) : null,
+    seatTitle: seatTitle || null,
+    seatChecked: !!seatChecked,
     status: "pending",
     createdAt: Date.now(),
     decidedAt: null,

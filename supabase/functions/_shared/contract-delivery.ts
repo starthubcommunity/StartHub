@@ -13,12 +13,9 @@ import {
   mapTemplateFromDb,
 } from "./contract-render.js";
 import { loadSettings, sha256Hex } from "./contract-server.ts";
+import { sendMail } from "./resend.ts";
 
 export const PDF_BUCKET = "contract-pdfs";
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const FROM_EMAIL = Deno.env.get("MAIL_FROM") || "StartHub <no-reply@mail.starthub-community.com>";
-const REPLY_TO = Deno.env.get("REPLY_TO") || "starthub.community@gmail.com";
-
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
@@ -31,17 +28,6 @@ const toB64 = (bytes: Uint8Array) => {
   for (let i = 0; i < bytes.length; i += CH) s += String.fromCharCode(...bytes.subarray(i, i + CH));
   return btoa(s);
 };
-
-export async function sendMail(to: string[], subject: string, text: string, attachments?: { filename: string; content: string }[]) {
-  if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY tanımlı değil" };
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify({ from: FROM_EMAIL, to, subject, text, reply_to: REPLY_TO, ...(attachments ? { attachments } : {}) }),
-  });
-  const b = await res.json().catch(() => null);
-  return res.ok ? { ok: true, id: b?.id || null } : { ok: false, error: JSON.stringify(b?.message || b || res.status) };
-}
 
 async function logEvent(db: Db, grantId: string, seatId: string, note: string, payload: Record<string, unknown>) {
   await db.from("equity_events").insert({ grant_id: grantId, seat_id: seatId, kind: "note", note, payload, created_by: "sistem" });
@@ -122,4 +108,4 @@ export async function deliverAcceptance(db: Db, acceptanceId: string, opts: { no
   return { ok: true, ...out };
 }
 
-export { sha256Hex, bytesSha };
+export { sha256Hex, bytesSha, sendMail };

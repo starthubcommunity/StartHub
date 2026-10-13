@@ -315,9 +315,9 @@ function GrantForm({ grant, seat, seatGrants, milestones, prefill, onClose, onSa
           ? <Notice>İmzalanmış sözün şartları değiştirilemez — yalnızca geriye dönük kredi ve not düzenlenir.</Notice>
           : <Notice tone="ok">Koltukta kalan bütçe: <b>{pct(avail)}</b></Notice>}
         <fieldset disabled={signed} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <Field label="Ad Soyad" required><Input value={f.holderName} onChange={(v) => set('holderName', v)} /></Field>
+        <Field label="Ad Soyad" required><Input value={f.holderName} onChange={(v) => set('holderName', v)} disabled /></Field>
         <Field label="E-posta" required hint="Ekip Paneli'nde giriş yaptığı adres — “Payım” bu adresle eşleşir.">
-          <Input type="email" value={f.holderEmail} onChange={(v) => set('holderEmail', v)} />
+          <Input type="email" value={f.holderEmail} onChange={(v) => set('holderEmail', v)} disabled />
         </Field>
         <div className="hub-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Pay sözü (%)" required><Input type="number" step="0.25" min="0" value={f.grantPct} onChange={(v) => set('grantPct', v)} /></Field>
@@ -815,6 +815,61 @@ function WaitingCard({ waiting, projects, currentId, onOpen, onSend, canManage }
   );
 }
 
+// ── Nasıl çalışır (2026-10-13) — kısa, kapatılabilir ──────────────────
+const HOWTO_KEY = 'sh_equity_howto_closed';
+function HowItWorks() {
+  const [closed, setClosed] = useState(() => { try { return localStorage.getItem(HOWTO_KEY) === '1'; } catch { return false; } });
+  if (closed) return null;
+  const close = () => { setClosed(true); try { localStorage.setItem(HOWTO_KEY, '1'); } catch { /* yok say */ } };
+  const steps = [
+    ['Rolü açarken pay', 'Açık Pozisyonlar’da rol açılınca yüzdesini belirlersin (koltuk).'],
+    ['Ekibe Al', 'Kişi ekibe alınınca hesabı açılır, sözleşmesi o yüzdeyle otomatik gider.'],
+    ['Kişi onaylar', 'Ekip Paneli › Payım’da onaylar; hak ediş o gün başlar, PDF’i mailine gelir.'],
+  ];
+  return (
+    <div className="adm-card" style={{ marginBottom: 16 }}>
+      <div className="adm-card__body" style={{ position: 'relative' }}>
+        <button type="button" className="adm-icon-btn" title="Kapat" onClick={close} style={{ position: 'absolute', top: 10, right: 10 }}><AIcon name="x" size={14} /></button>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Nasıl çalışır?</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          {steps.map(([t, d], i) => (
+            <div key={t} style={{ display: 'flex', gap: 10 }}>
+              <span style={{ width: 24, height: 24, borderRadius: 12, background: 'var(--adm-accent, #DC2626)', color: '#fff', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+              <div><div style={{ fontWeight: 600, fontSize: 13 }}>{t}</div><div style={{ fontSize: 12.5, color: 'var(--adm-text-dim)', lineHeight: 1.5 }}>{d}</div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// "Pay sözü" (koltuk kartı) → yalnızca Ekip Paneli ekibindeki, sözü olmayan kişiler.
+function PersonPicker({ seat, roster, candidates, onPick, onClose }) {
+  const noTeam = !roster || roster.loading || roster.err || !roster.teamAppId;
+  return (
+    <Modal open onClose={onClose} title={`${seat.title} — kime pay sözü?`}>
+      {noTeam || candidates.length === 0 ? (
+        <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+          {noTeam ? 'Bu projenin Ekip Paneli ekibi okunamadı.' : 'Ekipte pay sözü olmayan kimse yok.'}
+          <div style={{ marginTop: 8, color: 'var(--adm-text-secondary)' }}>
+            Pay sözü yalnızca ekipteki kişilere açılır. Yeni biri için <b>önce Kurucu Hattı’ndan “Ekibe Al”</b> — rolün pay koltuğu varsa sözleşmesi otomatik gider.
+          </div>
+        </div>
+      ) : (
+        <div className="hub-wz__opts">
+          {candidates.map((m) => (
+            <button key={m.email} type="button" className="hub-wz__opt" onClick={() => onPick(m)}>
+              <span className="hub-wz__opt-l">{m.name || m.email}</span>
+              <span className="hub-wz__opt-r">{m.email} · {m.role === 'lead' ? 'Team Lead' : 'Üye'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 // Söz eklerken koltuk seçimi (adı/e-postası önceden dolu gelir).
 function SeatPicker({ seats, grantsBySeat, person, onPick, onClose }) {
   const open = seats.filter((s) => s.active !== false);
@@ -969,6 +1024,7 @@ export default function EquityPage() {
       </div>
 
       <Notice>Buradaki kayıtlar gerçek hisse değil, proje şirketleştiğinde geçerli olan pay sözleridir.</Notice>
+      <HowItWorks />
 
       <WaitingCard waiting={waiting} projects={projects} currentId={startupId} onOpen={(sid) => setStartupId(String(sid))} canManage={canManage}
         onSend={(id) => { const g = data.grants.find((x) => x.id === id); if (g) setModal({ type: 'send', grant: g }); }} />
@@ -993,7 +1049,7 @@ export default function EquityPage() {
           ) : data.seats.map((s) => (
             <SeatCard key={s.id} seat={s} grants={grantsBySeat[s.id] || []} milestones={data.milestones} eventsByGrant={eventsByGrant} canManage={canManage} orphanIds={rosterCmp.orphanIds}
               onEditSeat={() => setModal({ type: 'seat', seat: s })}
-              onNewGrant={() => setModal({ type: 'grant', seat: s })}
+              onNewGrant={() => setModal({ type: 'pickPerson', seat: s })}
               onEditGrant={(g) => setModal({ type: 'grant', seat: s, grant: g })}
               onExit={(g) => setModal({ type: 'exit', grant: g })}
               onEvent={(g) => setModal({ type: 'event', grant: g })}
@@ -1009,6 +1065,8 @@ export default function EquityPage() {
       {modal?.type === 'seat' && <SeatForm seat={modal.seat} startupId={Number(startupId)} projectSeats={data.seats} roles={data.roles || []} onClose={() => setModal(null)} onSaved={() => done('Koltuk kaydedildi.')} />}
       {modal?.type === 'pickSeat' && <SeatPicker seats={data.seats} grantsBySeat={grantsBySeat} person={modal.person} onClose={() => setModal(null)}
         onPick={(s) => setModal({ type: 'grant', seat: s, prefill: { holderName: modal.person.name || '', holderEmail: modal.person.email, ...(modal.prefill || {}) } })} />}
+      {modal?.type === 'pickPerson' && <PersonPicker seat={modal.seat} roster={roster} candidates={rosterCmp.missing} onClose={() => setModal(null)}
+        onPick={(m) => setModal({ type: 'grant', seat: modal.seat, prefill: { holderName: m.name || m.email, holderEmail: m.email } })} />}
       {modal?.type === 'grant' && <GrantForm grant={modal.grant} seat={modal.seat} prefill={modal.prefill} seatGrants={grantsBySeat[modal.seat.id] || []} milestones={data.milestones} onClose={() => setModal(null)} onSaved={() => done('Pay sözü kaydedildi.')} />}
       {modal?.type === 'exit' && <ExitForm grant={modal.grant} milestones={data.milestones} events={eventsByGrant[modal.grant.id] || []} onClose={() => setModal(null)} onSaved={() => done('Söz sonlandırıldı.')} />}
       {modal?.type === 'event' && <EventForm grant={modal.grant} onClose={() => setModal(null)} onSaved={() => done('Süreç kaydı eklendi.')} />}
