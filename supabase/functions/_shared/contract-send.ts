@@ -4,7 +4,8 @@
 // "Teyit bekliyor"sa — tekrar basma/yarış ikinci maili engeller), sonra mail; mail gidemezse
 // söz geri "Teyit bekliyor"a alınır. Her sonuç equity_events'e yazılır.
 import { buildContract, loadSettings } from "./contract-server.ts";
-import { recipientLock, contractInviteMail, shouldAutoSend, AUTO_SEND_REASON_TR } from "./contract-render.js";
+import { recipientLock, contractInviteMail, shouldAutoSend, AUTO_SEND_REASON_TR, leadMailRecipients, leadSentMail } from "./contract-render.js";
+import { leadEmailsForStartup } from "./team-leads.ts";
 import { seatBudget, mapGrantFromDb } from "./equity-rules.js";
 import { sendMail } from "./resend.ts";
 
@@ -54,5 +55,16 @@ export async function sendContractForGrant(db: Db, grantId: string, actor: strin
     note: `Sözleşme gönderildi (${tag}) — ${c.template.title} v${c.template.version}${c.template.isPlaceholder ? " (yer tutucu)" : ""} → ${c.terms.holderEmail}`,
     payload: { mailId: r.id || null, sha256: c.sha, templateId: c.template.id, auto: !!opts.auto },
   });
+  // 3) Team Lead'e bilgi maili (test modunda yalnızca test adresleri) — hata akışı durdurmaz
+  try {
+    const leads = leadMailRecipients(settings, await leadEmailsForStartup(db, c.seat.startupId), c.terms.holderEmail);
+    if (leads.length) {
+      const lm = leadSentMail(c.terms);
+      const lr = await sendMail(leads, lm.subject, lm.body);
+      await db.from("equity_events").insert({ grant_id: row.id, seat_id: row.seat_id, kind: "note", created_by: actor,
+        note: lr.ok ? `Team Lead'e “sözleşme gönderildi” maili → ${leads.join(", ")}${settings.testMode ? " (test modu)" : ""}` : `Team Lead maili gönderilemedi: ${lr.error}`,
+        payload: { mailId: lr.id || null } });
+    }
+  } catch (_) { /* bilgi maili */ }
   return { sent: true, mailId: r.id || null, template: c.template, terms: c.terms, sha256: c.sha };
 }

@@ -475,10 +475,15 @@ export default function TodayPage({ onGoto, setFilters }) {
       id: `eqc-${g.id}`, c: { id: null, fullName: g.holderName || g.holderEmail }, kind: 'Pay sözü', tone: 'purple', goto: 'equity',
       meta: `%${g.grantPct} · teyit et ve sözleşmeyi gönder`, urgency: 1,
     }));
-    eqUnsigned.forEach((g) => rows.push({
-      id: `eqs-${g.id}`, c: { id: null, fullName: g.holderName || g.holderEmail }, kind: 'Sözleşme', tone: 'amber', goto: 'equity',
-      meta: `gönderildi ${String(g.contractSentAt).slice(0, 10)} · 7+ gündür onaylanmadı`, urgency: 2,
-    }));
+    // 2026-10-14 — 7–13 gün: bilgi; 14+ gün: "Süresi doldu" (kişiye 3. ve 7. gün hatırlatma gitti, karar cofounder'da)
+    eqUnsigned.forEach((g) => {
+      const d = Math.floor((now - new Date(g.contractSentAt).getTime()) / 86400000);
+      rows.push(d >= 14
+        ? { id: `eqs-${g.id}`, c: { id: null, fullName: g.holderName || g.holderEmail }, kind: 'Süresi doldu', tone: 'red', goto: 'equity',
+            meta: `${d} gündür onaylanmadı · tekrar gönder, geri çek ya da sözü kapat`, urgency: 1 }
+        : { id: `eqs-${g.id}`, c: { id: null, fullName: g.holderName || g.holderEmail }, kind: 'Sözleşme', tone: 'amber', goto: 'equity',
+            meta: `gönderildi ${String(g.contractSentAt).slice(0, 10)} · ${d} gündür onaylanmadı (hatırlatma gitti)`, urgency: 2 });
+    });
     // 0058 — Team Lead'in Team App'ten açtığı kişi talebi (recruiter'ın Bugün'üne düşer, Bölüm A Gün 0).
     openRoles.filter((r) => r.status === 'requested').forEach((r) => rows.push({
       id: `req-${r.id}`, c: { id: null, fullName: r.title }, kind: 'Rol talebi', tone: 'amber', goto: 'roles',

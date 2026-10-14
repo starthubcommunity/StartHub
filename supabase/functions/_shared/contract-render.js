@@ -255,3 +255,71 @@ export const AUTO_SEND_REASON_TR = {
   over_budget: 'koltuk bütçesi yetmiyor',
   mail_failed: 'mail gönderilemedi',
 };
+
+// ── 2026-10-14: hatırlatmalar + Team Lead bilgilendirmesi ─────────────────
+// Onaylanmayan sözleşme: 3. ve 7. gün kişiye hatırlatma; 14. günde "süresi doldu"
+// (otomatik kapanmaz — cofounder tekrar gönderir / geri çeker / kapatır).
+export const REMINDER_DAYS = [3, 7];
+export const CONTRACT_EXPIRE_DAYS = 14;
+export const daysSinceSent = (sentAt, now = Date.now()) => (sentAt ? Math.floor((now - new Date(sentAt).getTime()) / 86400000) : 0);
+// sentDays: bu gönderimden SONRA zaten atılmış hatırlatma günleri (ör. [3])
+export function reminderDue(sentAt, now = Date.now(), sentDays = []) {
+  if (!sentAt) return null;
+  const d = daysSinceSent(sentAt, now);
+  if (d >= CONTRACT_EXPIRE_DAYS) return null;               // süresi doldu → artık mail yok, karar cofounder'da
+  const due = REMINDER_DAYS.filter((x) => d >= x && !sentDays.includes(x));
+  return due.length ? due[due.length - 1] : null;           // gecikmeli çalışmada yalnızca en son hatırlatma
+}
+export const contractExpired = (sentAt, now = Date.now()) => !!sentAt && daysSinceSent(sentAt, now) >= CONTRACT_EXPIRE_DAYS;
+
+export function contractReminderMail(terms, day) {
+  const left = CONTRACT_EXPIRE_DAYS - day;
+  return {
+    subject: `Hatırlatma: pay sözü sözleşmen onayını bekliyor — ${terms.project}`,
+    body: [
+      `Merhaba ${terms.holderName || ''},`.trim(),
+      '',
+      `${terms.project} projesindeki “${terms.seat}” rolün için gönderilen pay sözü sözleşmesi ${day} gündür onayını bekliyor.`,
+      'Onaylayana kadar payın işlemeye başlamaz; hak edişin onayladığın gün başlar.',
+      '',
+      'Ekip Paneli’ne giriş yap → sağ üstteki “💼 Payım” → “Sözleşmeyi oku ve onayla”.',
+      'Şifreni hatırlamıyorsan giriş ekranındaki “Şifremi unuttum”u kullan.',
+      '',
+      `Yaklaşık ${left} gün içinde onaylanmazsa sözleşme Start-Hub tarafından yeniden değerlendirilir.`,
+      'Sorun olursa bu maile yanıt verebilirsin.',
+      'Start-Hub',
+    ].join('\n'),
+  };
+}
+
+// Team Lead'e bilgi: test modunda YALNIZCA test adresleri; canlıda ekibin lider(ler)i (kişinin kendisi hariç).
+export function leadMailRecipients(settings, leadEmails = [], holderEmail = '') {
+  const norm = (xs) => [...new Set((xs || []).map((x) => String(x || '').trim().toLowerCase()).filter((x) => x.includes('@')))];
+  const h = String(holderEmail || '').trim().toLowerCase();
+  const real = norm(leadEmails).filter((e) => e !== h);
+  if (!real.length) return [];                                  // ekibin (başka) lideri yok → mail yok
+  return settings?.testMode !== false ? norm(settings?.testEmails) : real;
+}
+export function leadSentMail(terms) {
+  return {
+    subject: `Ekibine pay sözü sözleşmesi gönderildi — ${terms.holderName}`,
+    body: [
+      `${terms.holderName} (${terms.seat}) için %${fmtPct(terms.grantPct)} pay sözü sözleşmesi gönderildi.`,
+      'Onayladığında ayrıca haber vereceğiz. Ekibinin pay durumunu Ekip Paneli › “💼 Payım”da görebilirsin.',
+      '',
+      'Start-Hub',
+    ].join('\n'),
+  };
+}
+export function leadAcceptedMail(terms, { acceptedAtText, startDate }) {
+  return {
+    subject: `${terms.holderName} pay sözü sözleşmesini onayladı`,
+    body: [
+      `${terms.holderName} (${terms.seat}) %${fmtPct(terms.grantPct)} pay sözü sözleşmesini ${acceptedAtText} tarihinde onayladı.`,
+      `Hak edişi ${startDate} itibarıyla başladı.`,
+      'Ekibinin pay durumu: Ekip Paneli › “💼 Payım”.',
+      '',
+      'Start-Hub',
+    ].join('\n'),
+  };
+}

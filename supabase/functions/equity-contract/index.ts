@@ -22,6 +22,7 @@ import { buildContract, loadSettings } from "../_shared/contract-server.ts";
 import { recipientLock, contractInviteMail } from "../_shared/contract-render.js";
 import { seatBudget, mapGrantFromDb } from "../_shared/equity-rules.js";
 import { sendContractForGrant } from "../_shared/contract-send.ts";
+import { sendMail } from "../_shared/resend.ts";
 import { deliverAcceptance, bytesSha, PDF_BUCKET } from "../_shared/contract-delivery.ts";
 import { pdfDownloadDecision, forbiddenWordsIn, pdfFileName, contractTerms, contractVars, renderContract } from "../_shared/contract-render.js";
 import { buildAcceptancePdf, fontBytes } from "../_shared/contract-pdf.js";
@@ -108,6 +109,25 @@ serve(async (req) => {
       if (confirm !== true) return json({ ok: false, error: "Onay gerekli." }, 400);
       const r = await deliverAcceptance(db, acceptanceId, { notifyCofounders: false });
       return json(r, r.ok ? 200 : 404);
+    }
+
+    // ── 2026-10-14: "Tekrar gönder" — onaylanmamış sözleşmenin mailini yeniden yollar, hatırlatma sayacı sıfırlanır.
+    if (action === "resend") {
+      if (!grantId) return json({ ok: false, error: "grantId zorunlu" }, 400);
+      if (confirm !== true) return json({ ok: false, error: "Onay gerekli." }, 400);
+      const { data: g } = await db.from("equity_grants").select("*").eq("id", grantId).maybeSingle();
+      if (!g || g.status !== "pending_signature" || !g.contract_template_id) return json({ ok: false, error: "Yalnızca “Onay bekliyor” sözleşme tekrar gönderilebilir." }, 409);
+      const c = await buildContract(db, g, g.contract_template_id);
+      const st = await loadSettings(db);
+      const lk = recipientLock(st, c.template, c.terms.holderEmail);
+      if (!lk.ok) return json({ ok: false, error: lk.reason, locked: true }, 403);
+      const m = contractInviteMail(c.terms);
+      const r = await sendMail([c.terms.holderEmail], m.subject, m.body);
+      if (!r.ok) return json({ ok: false, error: "Mail gönderilemedi: " + r.error }, 502);
+      await db.from("equity_grants").update({ contract_sent_at: new Date().toISOString(), contract_sent_by: actor }).eq("id", g.id).eq("status", "pending_signature");
+      await db.from("equity_events").insert({ grant_id: g.id, seat_id: g.seat_id, kind: "note", created_by: actor,
+        note: `Sözleşme tekrar gönderildi → ${c.terms.holderEmail} (hatırlatma sayacı sıfırlandı)`, payload: { mailId: r.id || null, resend: true } });
+      return json({ ok: true, resent: true });
     }
 
     if (!grantId) return json({ ok: false, error: "grantId zorunlu" }, 400);

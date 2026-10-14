@@ -5,6 +5,7 @@ import {
   contractKindFor, contractTerms, contractVars, renderContract, unknownFields,
   recipientLock, contractInviteMail, istanbulDate,
   shouldAutoSend, seatPreview, INVITE_EQUITY_LINE, forbiddenWordsIn,
+  reminderDue, contractExpired, contractReminderMail, leadMailRecipients, leadSentMail, leadAcceptedMail,
 } from './contract-render.js';
 
 let pass = 0;
@@ -116,6 +117,33 @@ t('mail metinleri: davet satırı + sözleşme mailinde "önce davet mailindeki 
   const m = contractInviteMail(contractTerms({ grant: gMem, seat: seatMem, projectName: 'TİD', weeklyHours: 8 }));
   assert.ok(m.body.includes('önce davet mailindeki bağlantıyla şifreni belirle'));
   assert.deepEqual(forbiddenWordsIn(m.body + INVITE_EQUITY_LINE), []);
+});
+
+// ── 2026-10-14: onaylanmazsa hatırlatma + Team Lead maili ──
+const D = 86400000, SENT = Date.parse('2026-10-01T10:00:00Z');
+t('hatırlatma: 3. ve 7. gün, her biri bir kez; 14+ gün mail yok (süresi doldu)', () => {
+  assert.equal(reminderDue(SENT, SENT + 2 * D, []), null);
+  assert.equal(reminderDue(SENT, SENT + 3 * D, []), 3);
+  assert.equal(reminderDue(SENT, SENT + 4 * D, [3]), null);          // aynı hatırlatma ikinci kez gitmez
+  assert.equal(reminderDue(SENT, SENT + 7 * D, [3]), 7);
+  assert.equal(reminderDue(SENT, SENT + 9 * D, []), 7);              // gecikmeli çalışma → yalnızca son hatırlatma
+  assert.equal(reminderDue(SENT, SENT + 10 * D, [3, 7]), null);
+  assert.equal(reminderDue(SENT, SENT + 14 * D, []), null);
+  assert.equal(contractExpired(SENT, SENT + 13 * D), false);
+  assert.equal(contractExpired(SENT, SENT + 14 * D), true);
+});
+t('Team Lead alıcıları: test modunda test adresleri, canlıda liderler; kişi kendisi lider ise/lider yoksa mail yok', () => {
+  assert.deepEqual(leadMailRecipients(TEST, ['lead@x.com'], 'uye@x.com'), ['starthub.community@gmail.com', 'ka2003em@gmail.com']);
+  assert.deepEqual(leadMailRecipients({ ...TEST, testMode: false }, ['Lead@x.com'], 'uye@x.com'), ['lead@x.com']);
+  assert.deepEqual(leadMailRecipients({ ...TEST, testMode: false }, ['lead@x.com'], 'lead@x.com'), []);
+  assert.deepEqual(leadMailRecipients(TEST, [], 'uye@x.com'), []);
+});
+t('hatırlatma ve lider mailleri: Payım yönlendirmesi, yasak kelime yok', () => {
+  const terms = contractTerms({ grant: gMem, seat: seatMem, projectName: 'TİD', weeklyHours: 8 });
+  const r = contractReminderMail(terms, 3); const s = leadSentMail(terms); const a = leadAcceptedMail(terms, { acceptedAtText: 'x', startDate: '2026-10-14' });
+  assert.ok(r.body.includes('Payım') && r.body.includes('3 gündür'));
+  assert.ok(s.body.includes('%10') && a.body.includes('2026-10-14'));
+  assert.deepEqual(forbiddenWordsIn([r.body, s.body, a.body, r.subject, s.subject, a.subject].join(' ')), []);
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

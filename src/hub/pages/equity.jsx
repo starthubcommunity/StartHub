@@ -13,7 +13,7 @@ import { supabase } from '../../lib/supabase';
 import { AIcon, PageHead, Modal, Field, Input, Textarea, Select } from '../../admin/admin-ui';
 import { usePerms } from '../../lib/use-perms';
 import MailSendConfirm from '../components/mail-confirm';
-import { CONTRACT_KIND_LABEL, mapAcceptanceFromDb } from '../../lib/contract-render';
+import { CONTRACT_KIND_LABEL, mapAcceptanceFromDb, daysSinceSent, contractExpired, CONTRACT_EXPIRE_DAYS } from '../../lib/contract-render';
 import {
   SEAT_KINDS, SEAT_KIND, MILESTONES, MILESTONE_LABEL, POOLS, isMemberSeat,
   computeVesting, vestedOnExit, removalNeedsReview, seatBudget, projectAllocation,
@@ -583,7 +583,7 @@ function AccelForm({ grant, onClose, onSaved }) {
 }
 
 // ── Koltuk kartı ────────────────────────────────────────────────────────
-function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant = {}, docByAcceptance = {}, onReload, canManage, orphanIds, onEditSeat, onNewGrant, onEditGrant, onExit, onEvent, onAccel, onSend, onRecall, onDiscard }) {
+function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant = {}, docByAcceptance = {}, onReload, canManage, orphanIds, onEditSeat, onNewGrant, onEditGrant, onExit, onEvent, onAccel, onSend, onRecall, onDiscard, onResend }) {
   const b = seatBudget(seat, grants);
   const k = SEAT_KIND[seat.seatKind];
   const w = (x) => (b.cap ? `${(x / b.cap) * 100}%` : '0%');
@@ -636,7 +636,8 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant =
                         <td>{pending ? <span style={{ color: 'var(--adm-text-dim)' }}>—</span> : pct(v.unvested)}</td>
                         <td style={{ fontSize: 12.5 }}>
                           {pending ? <><StatusPill g={g} /><div style={{ color: 'var(--adm-text-dim)', marginTop: 3 }}>
-                              {g.status === 'pending_signature' ? `gönderildi ${fmtDate(g.contractSentAt)}` : 'yüzdeyi teyit et'}</div></>
+                              {g.status === 'pending_signature' ? `gönderildi ${fmtDate(g.contractSentAt)} · ${daysSinceSent(g.contractSentAt)} gün` : 'yüzdeyi teyit et'}</div>
+                              {g.status === 'pending_signature' && contractExpired(g.contractSentAt) && <div style={{ color: 'var(--adm-red, #DC2626)', fontWeight: 600, marginTop: 2 }}>Süresi doldu ({CONTRACT_EXPIRE_DAYS} gün) — karar ver</div>}</>
                             : !active ? <>{STATUS_LABEL[g.status]}<div style={{ color: 'var(--adm-text-dim)' }}>{fmtDate(g.endedAt)}{v.clawedBack ? ' · geri alındı' : ''}</div></>
                             : v.accelerated ? 'Tamamı açıldı (çift şart)'
                             : !v.cliffPassed ? <>Bekleme süresinde<div style={{ color: 'var(--adm-text-dim)' }}>dolum {fmtDate(v.cliffDate)}</div></>
@@ -652,7 +653,8 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant =
                             <button className="adm-icon-btn adm-icon-btn--danger" title="Sözü kapat (gönderilmedi)" onClick={() => onDiscard(g)}><AIcon name="x" size={14} /></button>
                           </>}
                           {canManage && g.status === 'pending_signature' && (
-                            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onRecall(g)}>Geri çek</button>
+                            <><button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onResend(g)}>Tekrar gönder</button>
+                            <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={() => onRecall(g)}>Geri çek</button></>
                           )}
                           {canManage && active && <>
                             <button className="adm-icon-btn" title="Düzenle" onClick={() => onEditGrant(g)}><AIcon name="edit" size={14} /></button>
@@ -1057,6 +1059,7 @@ export default function EquityPage() {
               acceptanceByGrant={acceptanceByGrant} docByAcceptance={docByAcceptance} onReload={load}
               onSend={(g) => setModal({ type: 'send', grant: g })}
               onRecall={(g) => setModal({ type: 'recall', grant: g })}
+              onResend={(g) => setModal({ type: 'resend', grant: g })}
               onDiscard={(g) => setModal({ type: 'discard', grant: g })} />
           ))}
         </>
@@ -1071,6 +1074,13 @@ export default function EquityPage() {
       {modal?.type === 'exit' && <ExitForm grant={modal.grant} milestones={data.milestones} events={eventsByGrant[modal.grant.id] || []} onClose={() => setModal(null)} onSaved={() => done('Söz sonlandırıldı.')} />}
       {modal?.type === 'event' && <EventForm grant={modal.grant} onClose={() => setModal(null)} onSaved={() => done('Süreç kaydı eklendi.')} />}
       {modal?.type === 'send' && <SendContract grant={modal.grant} onClose={() => setModal(null)} onSent={() => done('Sözleşme gönderildi — söz “Onay bekliyor”.')} />}
+      {modal?.type === 'resend' && <SmallConfirm title="Sözleşmeyi tekrar gönder" confirmLabel="Evet, tekrar gönder" onClose={() => setModal(null)}
+        onConfirm={async () => {
+          const { data, error } = await supabase.functions.invoke('equity-contract', { body: { action: 'resend', grantId: modal.grant.id, confirm: true } });
+          if (error || !data?.ok) { let m = data?.error; if (!m && error?.context?.json) { try { m = (await error.context.json())?.error; } catch {} } throw new Error(m || error?.message || 'Gönderilemedi.'); }
+          done('Sözleşme tekrar gönderildi — hatırlatma sayacı sıfırlandı.');
+        }}
+        message={<>{modal.grant.holderName} kişisine aynı sözleşme ({pct(modal.grant.grantPct)}) yeniden mail olarak gider. 3. ve 7. gün hatırlatmaları bugünden itibaren yeniden sayılır. Test modu kilidi geçerlidir.</>} />}
       {modal?.type === 'recall' && <SmallConfirm title="Sözleşmeyi geri çek" confirmLabel="Evet, geri çek" onClose={() => setModal(null)} onConfirm={() => recall(modal.grant)}
         message={<>{modal.grant.holderName} henüz onaylamadı. Geri çekersen söz “Teyit bekliyor”a döner; şartları değiştirip yeniden gönderebilirsin. Kişiye ayrıca mail gitmez.</>} />}
       {modal?.type === 'discard' && <SmallConfirm title="Sözü kapat" confirmLabel="Evet, kapat" danger onClose={() => setModal(null)} onConfirm={() => discard(modal.grant)}

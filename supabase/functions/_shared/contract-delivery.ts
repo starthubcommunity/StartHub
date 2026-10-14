@@ -14,6 +14,8 @@ import {
 } from "./contract-render.js";
 import { loadSettings, sha256Hex } from "./contract-server.ts";
 import { sendMail } from "./resend.ts";
+import { leadEmailsForStartup } from "./team-leads.ts";
+import { leadMailRecipients, leadAcceptedMail } from "./contract-render.js";
 
 export const PDF_BUCKET = "contract-pdfs";
 // deno-lint-ignore no-explicit-any
@@ -104,6 +106,19 @@ export async function deliverAcceptance(db: Db, acceptanceId: string, opts: { no
       await logEvent(db, grant.id, grant.seat_id, r.ok ? `Cofounder “onaylandı” maili gönderildi → ${to.join(", ")}${settings.testMode ? " (test modu)" : ""}` : `Cofounder maili gönderilemedi: ${r.error}`, { acceptanceId, mailId: (r as any).id || null, testMode: settings.testMode });
       out.cofounderMail = { ...r, to };
     }
+  }
+  // 4) Team Lead'e "onayladı" bilgi maili (test modunda yalnızca test adresleri)
+  if (notifyCofounders) {
+    try {
+      const { data: seatRow } = await db.from("equity_seats").select("startup_id").eq("id", grant.seat_id).maybeSingle();
+      const leads = leadMailRecipients(settings, await leadEmailsForStartup(db, seatRow?.startup_id ?? null), acc.holder_email);
+      if (leads.length) {
+        const m = leadAcceptedMail(terms, { acceptedAtText, startDate: grant.start_date });
+        const r = await sendMail(leads, m.subject, m.body);
+        await logEvent(db, grant.id, grant.seat_id, r.ok ? `Team Lead'e “onayladı” maili → ${leads.join(", ")}${settings.testMode ? " (test modu)" : ""}` : `Team Lead maili gönderilemedi: ${r.error}`, { acceptanceId, mailId: (r as any).id || null });
+        out.leadMail = { ...r, to: leads };
+      }
+    } catch (_) { /* bilgi maili */ }
   }
   return { ok: true, ...out };
 }

@@ -376,6 +376,12 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   pencerelerinde yüzde: HR `SeatPreviewLine`, Team App teklifte `seatPct/seatTitle/seatChecked` (sunma anında,
   `hub-present-to-owner`). "Pay sözü" yalnızca Team App ekibindeki sözü olmayan kişilere (`PersonPicker`).
   Davet mailleri `INVITE_EQUITY_LINE`; sözleşme maili "önce davet mailindeki bağlantıyla şifreni belirle".
+- **2026-10-14 — onaylanmazsa + lider + bildirim:** `hub-daily` adım 6 → `_shared/contract-reminders.ts`: "Onay bekliyor"
+  sözde 3. ve 7. gün hatırlatma maili (payload.reminder ile tek sefer; kilit geçerli), 14+ gün mail yok → HR Bugün "Süresi doldu";
+  otomatik kapanma YOK. HR "Tekrar gönder" (`equity-contract` action `resend`, sayacı sıfırlar). Team Lead'e bilgi maili gönderimde
+  ve onayda (`_shared/team-leads.ts` → `hub-bridge-team-roster`; `leadMailRecipients`: lider yoksa/kişi liderse mail yok, test
+  modunda test adresleri). Team App: girişte `checkPendingContracts()` → zilde sanal "sözleşmen bekliyor" satırı + Payım'da
+  kırmızı nokta (`pendingContracts`, app_state'e yazılmaz).
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 

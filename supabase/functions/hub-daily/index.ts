@@ -19,6 +19,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { runContractReminders } from "../_shared/contract-reminders.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -136,7 +137,11 @@ serve(async (req) => {
     if (!error) kvkkPurged++;
   }
 
-  return new Response(JSON.stringify({ ok: true, ran_at: nowIso, ...report, kvkkPurged }), {
+  // ── 6: onaylanmayan pay sözü sözleşmeleri — 3. ve 7. gün hatırlatma (2026-10-14)
+  let contractReminders: unknown = null;
+  try { contractReminders = await runContractReminders(db, now); } catch (e) { contractReminders = { error: String(e) }; }
+
+  return new Response(JSON.stringify({ ok: true, ran_at: nowIso, ...report, kvkkPurged, contractReminders }), {
     headers: { ...cors, "Content-Type": "application/json" },
   });
 });
