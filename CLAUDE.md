@@ -390,6 +390,13 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   temizlenir; kaynak silinince dosya da silinir. Kurallar `_shared/resource-files.js` (test: `src/lib/resource-files.test.mjs`).
   Team App: kaynak sihirbazının ilk adımı "Bağlantı / PDF", `pdfModal`, kaynakta `fileId` (url boş), `TOOL_DEFS.PDF`.
   Not: Supabase imzalı YÜKLEME bağlantısının ömrü sabit (2 saat) — 2 dk yapılamıyor; yol tek kullanımlık (upsert yok).
+- **2026-10-14 — Team App "iki kayıt" (giriş hesabı ↔ profil):** "+ Yeni üye" sihirbazı ZATEN davet gönderiyordu (eski
+  `openMemberAdd` penceresi çağrılmıyor); bağlantı üretilemezse artık kırmızı uyarı. Profili olmayan giriş → "Hesabın doğrulandı
+  ama ekibe eklenmedin" ekranı (`noProfile`) + `hub-team-access-request` (Team App, JWT; e-posta JWT'den) → `app_state.data.accessRequests`
+  (users DIŞINDA; `_snapshot` + `_applySnapshot` ikisine de eklendi) + admin zil bildirimi (`access_request`, 24 saatte bir).
+  Admin Team sayfasında "Giriş yapıp ekibi olmayanlar" (ekip + rol → profil açar, davet yok). "Mevcut üyeyi ekle"de e-posta/ad
+  araması; talep eşleşirse tek tık ekle, kayıt yoksa "Yeni üye olarak davet et". Üyelik tetikleyicisi/admin kuralı değişmedi.
+  Test: `src/hub/hub-access-request-logic.test.mjs` (4).
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 
