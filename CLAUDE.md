@@ -382,6 +382,14 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   ve onayda (`_shared/team-leads.ts` → `hub-bridge-team-roster`; `leadMailRecipients`: lider yoksa/kişi liderse mail yok, test
   modunda test adresleri). Team App: girişte `checkPendingContracts()` → zilde sanal "sözleşmen bekliyor" satırı + Payım'da
   kırmızı nokta (`pendingContracts`, app_state'e yazılmaz).
+- **C ✅ — Kaynaklar'a PDF (`0062_team_resource_files.sql`, canlıda):** ana projede private `team-resources` bucket (PDF, 10 MB)
+  + `team_resource_files` (RLS açık, politika YOK — yalnızca servis rolü). Team App `hub-team-resource-file` (JWT; yetki sunucuda
+  app_state'ten: yükle/sil admin + o ekibin lead'i, Genel yalnızca admin; indir ekip üyesi/mentörü, admin/cto, Genel herkes) →
+  ana `hub-resource-files` (`--no-verify-jwt`, köprü anahtarı): imzalı yükleme → `finalize` dosyayı indirip boyut + `%PDF-`
+  başlığını denetler (geçmezse siler) → 5 dk imzalı indirme; ekip başına 25 (Genel 25), 1 saatten eski yarım yüklemeler
+  temizlenir; kaynak silinince dosya da silinir. Kurallar `_shared/resource-files.js` (test: `src/lib/resource-files.test.mjs`).
+  Team App: kaynak sihirbazının ilk adımı "Bağlantı / PDF", `pdfModal`, kaynakta `fileId` (url boş), `TOOL_DEFS.PDF`.
+  Not: Supabase imzalı YÜKLEME bağlantısının ömrü sabit (2 saat) — 2 dk yapılamıyor; yol tek kullanımlık (upsert yok).
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 
