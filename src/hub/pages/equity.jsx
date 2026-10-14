@@ -64,7 +64,8 @@ function AcceptancePdf({ acc, doc, canManage, onChanged }) {
       if (reason === 'tampered' || reason === 'file_missing') onChanged?.();
       return;
     }
-    window.open(data.url, '_blank', 'noopener');
+    // Sunucu bağlantısı indirme olarak işaretli — sekme açmadan indir (boş sekme kalmasın).
+    const link = document.createElement('a'); link.href = data.url; link.rel = 'noopener'; document.body.appendChild(link); link.click(); link.remove();
   };
   const deliver = async () => {
     const { data, error } = await supabase.functions.invoke('equity-contract', { body: { action: 'deliver', acceptanceId: acc.id, confirm: true } });

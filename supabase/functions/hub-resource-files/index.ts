@@ -77,7 +77,8 @@ serve(async (req) => {
     }
     if (action === "download") {
       if (row.status !== "ready") return json({ ok: false, error: "Dosya henüz hazır değil." }, 409);
-      const { data: s, error: se } = await st.createSignedUrl(row.storage_path, 300, { download: row.file_name });
+      // download seçeneği YOK: PDF tarayıcıda açılsın (Content-Disposition: attachment indirmeye zorlar, sekme boş kalırdı)
+      const { data: s, error: se } = await st.createSignedUrl(row.storage_path, 300);
       if (se || !s) return json({ ok: false, error: "Bağlantı oluşturulamadı." }, 500);
       return json({ ok: true, url: s.signedUrl, expiresIn: 300 });
     }
