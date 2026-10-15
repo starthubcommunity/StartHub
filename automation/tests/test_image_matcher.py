@@ -95,6 +95,35 @@ def test_handshake_excluded_even_with_low_score_alternative():
     assert "generic_excluded" in res["reason"]["filters_applied"]
 
 
+def test_ortaklik_images_enter_candidate_pool_for_yatirim_with_partnership_topic():
+    images = [
+        img(1, category="Ortaklık", tags=["anlasma", "ortaklik"], visual_type="el_sikisma", is_generic=True),
+        img(2, category="Ortaklık", tags=["anlasma", "ortaklik", "sozlesme"], visual_type="ofis_toplanti"),
+    ]
+    # Yatırım alias'ına Ortaklık eklendiği için bu görseller artık bir Yatırım haberinde
+    # kategori uyumu alıyor. Haberde ortaklık konusu geçtiği için el_sikisma de elenmiyor,
+    # ama daha güçlü etiket eşleşmesine sahip sözleşme masası görseli kazanıyor.
+    res = im.select_image(
+        text("İki şirket stratejik ortaklık anlaşması için sözleşme imzaladı"), "Yatırım", images, [], NOW
+    )
+    assert res["image"]["id"] == 2
+    assert "generic_excluded" not in res["reason"]["filters_applied"]
+    assert im._is_same_category("Yatırım", "Ortaklık")
+
+
+def test_yatirim_without_partnership_topic_still_excludes_ortaklik_handshake():
+    images = [
+        img(1, category="Fon", tags=[], visual_type="grafik_borsa"),
+        img(2, category="Ortaklık", tags=["anlasma", "ortaklik"], visual_type="el_sikisma", is_generic=True),
+    ]
+    # Ortaklık artık Yatırım'ın alias'ı olsa da, haberde ortaklık/anlaşma kelimesi geçmiyorsa
+    # "son çare" kuralı aynen işliyor: aynı (genişletilmiş) kategoride klişe olmayan bir aday
+    # (img 1) var olduğu için el sıkışma yine elenir.
+    res = im.select_image(text("Şirket değerleme turu açıkladı"), "Yatırım", images, [], NOW)
+    assert res["image"]["id"] == 1
+    assert "generic_excluded" in res["reason"]["filters_applied"]
+
+
 def test_generic_image_allowed_when_no_specific_match():
     images = [
         img(1, category="Teknoloji", tags=["robot"], visual_type="robot_ai"),

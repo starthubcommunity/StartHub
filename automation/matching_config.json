@@ -1,7 +1,7 @@
 {
   "CATEGORY_ALIAS": {
     "AI": ["Yapay Zeka"],
-    "Yatırım": ["Fon", "Fintech"],
+    "Yatırım": ["Fon", "Fintech", "Ortaklık"],
     "Girişim": ["Ortaklık"],
     "Teknoloji": ["Fintech", "SaaS", "E-Ticaret", "Sağlık"]
   },
