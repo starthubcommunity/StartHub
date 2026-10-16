@@ -11,7 +11,7 @@
 //   delete      { teamId, fileId } → dosya + satır silinir (kaynak silinince)
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { cleanFileName, validateUpload, isPdfHeader, MAX_PDF_BYTES, PENDING_TTL_MS } from "../_shared/resource-files.js";
+import { cleanFileName, validateUpload, isPdfHeader, MAX_PDF_BYTES, PENDING_TTL_MS, uploadBlockedByStorage, STORAGE_FULL_MSG } from "../_shared/resource-files.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -43,6 +43,11 @@ serve(async (req) => {
         await st.remove(stale.map((r: any) => r.storage_path));
         await db.from("team_resource_files").delete().in("id", stale.map((r: any) => r.id));
       }
+      // D2 — ücretsiz plan: toplam depolama 700 MB ise Kaynaklar yüklemesi durur.
+      // Sözleşme kabul PDF'leri (contract-pdfs) muaf — onları yazan kod bu kapıyı hiç çağırmaz.
+      const { data: usedBytes, error: ue0 } = await db.rpc("storage_usage_bytes");
+      if (ue0) return json({ ok: false, error: "Depolama kullanımı okunamadı — yükleme yapılmadı." }, 503);
+      if (uploadBlockedByStorage(BUCKET, usedBytes)) return json({ ok: false, error: STORAGE_FULL_MSG, storageFull: true }, 409);
       const { count } = await db.from("team_resource_files").select("id", { count: "exact", head: true }).eq("team_id", tid);
       const err = validateUpload({ fileName, size, readyCount: count || 0 });
       if (err) return json({ ok: false, error: err }, 400);

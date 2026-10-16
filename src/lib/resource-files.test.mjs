@@ -1,8 +1,10 @@
 // resource-files.test.mjs — Ekip Paneli "Kaynaklar" PDF kuralları (C, 0062).
 // Düz node. Çalıştır: node src/lib/resource-files.test.mjs
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   cleanFileName, validateUpload, isPdfHeader, canManageResFiles, canReadResFiles, GENERAL_RES, MAX_PDF_BYTES,
+  uploadBlockedByStorage, STORAGE_STOP_BYTES,
 } from '../../supabase/functions/_shared/resource-files.js';
 
 let pass = 0;
@@ -59,6 +61,23 @@ t('indirme: ekip üyesi/mentörü kendi ekibinde, admin/cto her yerde, Genel her
   assert.equal(canReadResFiles(cto, 'A'), true);
   assert.equal(canReadResFiles(other, GENERAL_RES), true);
   assert.equal(canReadResFiles(null, GENERAL_RES), false);
+});
+
+t('D2: 700 MB kapısı — 699 MB geçer, 700/701 MB Kaynaklar yüklemesini durdurur', () => {
+  const MB = 1024 * 1024;
+  assert.equal(STORAGE_STOP_BYTES, 700 * MB);
+  assert.equal(uploadBlockedByStorage('team-resources', 699 * MB), false);
+  assert.equal(uploadBlockedByStorage('team-resources', 700 * MB), true);
+  assert.equal(uploadBlockedByStorage('team-resources', 701 * MB), true);
+});
+t("D2: sözleşme kabul PDF'leri (contract-pdfs) muaf — depolama dolu olsa da yazılır", () => {
+  const MB = 1024 * 1024;
+  assert.equal(uploadBlockedByStorage('contract-pdfs', 2000 * MB), false);
+  const read = (p) => fs.readFileSync(new URL('../../supabase/functions/' + p, import.meta.url), 'utf8');
+  for (const p of ['_shared/contract-delivery.ts', '_shared/contract-pdf.js', 'hub-equity-bridge/index.ts', 'equity-contract/index.ts']) {
+    assert.ok(!/storage_usage|uploadBlockedByStorage|STORAGE_STOP/.test(read(p)), p + ' depolama kapısına bağlanmamalı');
+  }
+  assert.ok(/uploadBlockedByStorage\(BUCKET/.test(read('hub-resource-files/index.ts')), 'Kaynaklar yüklemesi kapıdan geçmeli');
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

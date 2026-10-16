@@ -49,3 +49,15 @@ export function canReadResFiles(user, teamId) {
   if (teamsOf(user).map(String).includes(String(teamId))) return true;
   return (user.mentorTeams || []).map(String).includes(String(teamId));
 }
+
+// ── D2 (2026-10-16): ücretsiz plan depolama kapısı ─────────────────────────
+// Toplam depolama 700 MB'a ulaşınca YALNIZCA Kaynaklar PDF yüklemesi durur.
+// Sözleşme kabul PDF'leri (contract-pdfs) MUAF — kanıt belgesi, depolama dolu olsa da yazılır.
+export const STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024;   // 1 GB
+export const STORAGE_STOP_BYTES = 700 * 1024 * 1024;     // 700 MB
+export const STORAGE_GATED_BUCKETS = ['team-resources'];
+export function uploadBlockedByStorage(bucket, usedBytes) {
+  if (!STORAGE_GATED_BUCKETS.includes(bucket)) return false;
+  return Number(usedBytes) >= STORAGE_STOP_BYTES;
+}
+export const STORAGE_FULL_MSG = "Depolama sınırına yaklaşıldı (700 MB) — yeni PDF yükleme durduruldu. Start-Hub'a haber ver.";

@@ -21,6 +21,7 @@ import { intervalToDays } from '../hub-metrics';
 import { EMPTY_FILTERS } from '../hub-filter';
 import { pendingGrantJoins } from '../../lib/equity-rules';
 import { recentAcceptances } from '../recent-acceptances';
+import { fetchStorageUsage, formatStorage, storageOverStop } from '../storage-usage';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -377,12 +378,14 @@ export default function TodayPage({ onGoto, setFilters }) {
   const [eqGrants, setEqGrants] = useState(null);
   const [eqSigned, setEqSigned] = useState([]);   // B — son 7 günde onaylanan sözleşmeler (zil ile aynı kaynak)
   const [seatRoleIds, setSeatRoleIds] = useState(null);   // 2026-10-13 — pay koltuğu olan rol id'leri
+  const [storageUse, setStorageUse] = useState(null);     // D2 — 700 MB uyarısı
   useEffect(() => {
     if (!canEquity) return;
     supabase.from('equity_grants').select('id, holder_name, holder_email, hub_candidate_id, status, grant_pct, created_at, contract_sent_at').then(({ data, error }) => {
       if (!error) setEqGrants((data || []).map((g) => ({ id: g.id, holderName: g.holder_name, holderEmail: g.holder_email, hubCandidateId: g.hub_candidate_id, status: g.status, grantPct: Number(g.grant_pct), createdAt: g.created_at, contractSentAt: g.contract_sent_at })));
     });
     recentAcceptances().then(setEqSigned);
+    fetchStorageUsage().then(setStorageUse);
     supabase.from('equity_seats').select('open_role_id').not('open_role_id', 'is', null).eq('active', true)
       .then(({ data, error }) => { if (!error) setSeatRoleIds(new Set((data || []).map((s) => s.open_role_id))); });
   }, [canEquity]);
@@ -467,6 +470,10 @@ export default function TodayPage({ onGoto, setFilters }) {
         id: `seat-${r.id}`, c: { id: null, fullName: r.title }, kind: 'Pay koltuğu', tone: 'amber', goto: 'roles',
         meta: `${r.requestedByEmail ? 'Team Lead talebi · ' : ''}pay koltuğu bekliyor — Açık Pozisyonlar'dan ekle`, urgency: 1,
       }));
+    if (storageOverStop(storageUse)) rows.push({
+      id: 'storage-full', c: { id: null, fullName: 'Depolama' }, kind: 'Depolama', tone: 'red', goto: 'contracts',
+      meta: `${formatStorage(storageUse)} — 700 MB geçildi, Ekip Paneli'nde PDF yükleme durdu (sözleşme PDF'leri etkilenmez)`, urgency: 0,
+    });
     eqSigned.forEach((a) => rows.push({
       id: `eqa-${a.id}`, c: { id: null, fullName: a.name }, kind: 'Onaylandı', tone: 'green', goto: 'equity',
       meta: `${a.project} · %${a.pct} · sözleşme onaylandı ${a.when}`, urgency: 3,

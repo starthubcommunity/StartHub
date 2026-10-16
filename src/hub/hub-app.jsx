@@ -25,6 +25,7 @@ import SponsorsPage from './pages/sponsors';
 import EquityPage from './pages/equity';
 import ContractsPage from './pages/contracts';
 import { recentAcceptances } from './recent-acceptances';
+import { fetchStorageUsage, formatStorage, storageOverStop } from './storage-usage';
 
 // useHubMember() geriye dönük uyumluluk için buradan da dışa aktarılır
 // (Adım 3 kabul kriteri bu isme atıf yapıyor).
@@ -399,6 +400,9 @@ function HubApp({ email, onLogout }) {
   const canEquityBell = can('equity.read');
   useEffect(() => { if (canEquityBell) recentAcceptances().then(setSignedRecent); }, [canEquityBell, bellOpen]);
   const bellCount = pendingCandidates.length + signedRecent.length;
+  // D2 — depolama kullanımı (yalnızca cofounder; ücretsiz plan 1 GB, 700 MB'ta Kaynaklar yüklemesi durur)
+  const [storage, setStorage] = useState(null);
+  useEffect(() => { if (canEquityBell) fetchStorageUsage().then(setStorage); }, [canEquityBell]);
   const initialsOf = (n) => (n || email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const goSettings = () => { setPage('settings'); setProfileOpen(false); };
 
@@ -471,6 +475,12 @@ function HubApp({ email, onLogout }) {
                 <AIcon name={(gearOpen || gearActive) ? 'chevronDown' : 'chevronRight'} size={14} style={{ marginLeft: 'auto' }} />
               </button>
               {(gearOpen || gearActive) && <div style={{ paddingLeft: 12 }}>{gearNav.map(NavLink)}</div>}
+              {(gearOpen || gearActive) && storage && !collapsed && (
+                <div title="Ana projenin toplam depolama kullanımı (ücretsiz plan 1 GB; 700 MB'ta Kaynaklar PDF yüklemesi durur)"
+                  style={{ padding: '6px 12px 0 24px', fontSize: 11.5, color: storageOverStop(storage) ? '#F87171' : 'rgba(255,255,255,0.5)' }}>
+                  Depolama: {formatStorage(storage)}{storageOverStop(storage) ? ' — PDF yükleme durdu' : ''}
+                </div>
+              )}
             </>
           )}
         </nav>
