@@ -397,6 +397,17 @@ tabanının üstüne, toplam sözü aşmaz, bekleme süresi bitene kadar bekler;
   Admin Team sayfasında "Giriş yapıp ekibi olmayanlar" (ekip + rol → profil açar, davet yok). "Mevcut üyeyi ekle"de e-posta/ad
   araması; talep eşleşirse tek tık ekle, kayıt yoksa "Yeni üye olarak davet et". Üyelik tetikleyicisi/admin kuralı değişmedi.
   Test: `src/hub/hub-access-request-logic.test.mjs` (4).
+- **2026-10-16 — ücretsiz plan korumaları (C, D1–D4):**
+  - C: Pay Sözleri formunda serbest e-posta yok (kişi salt okunur satır); elle söz düğmesi "Eski üyeye pay sözü ver".
+  - D1 (`0064`): Kaynaklar PDF 5 MB, ekip başına 15 / Genel 15 (`_shared/resource-files.js`); bucket sınırı 5 MB; mevcut dosyalar korunur.
+  - D2 (`0065`): `storage_usage_bytes()` (yalnızca servis rolü) + `hub_storage_usage()` (equity.read). Toplam ≥ 700 MB → yalnızca
+    Kaynaklar yüklemesi durur (`uploadBlockedByStorage`); contract-pdfs MUAF (test kaynak kodda da denetliyor). HR menüsünde
+    "Depolama: X MB / 1 GB" (`src/hub/storage-usage.js`), aşımda Bugün "Depolama" satırı.
+  - D3 (`0066` last_backup_at/by): Sözleşme Metinleri › "Sözleşme kayıtlarını indir" → `equity-contract` export_json + export_zip
+    (kütüphanesiz STORE zip `_shared/zip-store.js`, manifest.txt SHA-256); her indirme equity_events'e; 14 günde bir Bugün "Yedek".
+  - D4: `.github/workflows/supabase-keepalive.yml` haftalık (pazartesi 06:17 UTC) — Team App `rpc/keepalive`
+    (`supabase/team-app/0002_keepalive.sql`, app_state satır sayısı) + ana proje `startups` okuması; yalnızca herkese açık anahtarlar.
+    Herkese açık depoda 60 gün hareket olmazsa GitHub zamanlanmış işi kapatır.
 - **Not:** `0050_posts_is_indexable.sql` yukarıda "çalıştırılmadı" yazıyor ama canlıda UYGULANMIŞ
   (schema_migrations'da kayıtlı, kolon var — 2026-10-04'te doğrulandı).
 

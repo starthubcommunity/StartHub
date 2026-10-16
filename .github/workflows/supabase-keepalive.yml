@@ -1,0 +1,49 @@
+name: Supabase keepalive (haftalık)
+
+# D4 (2026-10-16) — Supabase ücretsiz planında 7 gün hareketsiz kalan proje DURAKLATILIR.
+# Bu iş haftada bir iki projeye de küçük bir OKUMA isteği atar (hiçbir şey yazmaz):
+#   • Team App  (umgdtjlgivvymngsnqtv): rpc/keepalive → app_state'ten satır sayısı
+#     (fonksiyon: supabase/team-app/0002_keepalive.sql; içerik döndürmez)
+#   • Ana proje (fdlghaafspcuagxfrofz): startups tablosundan tek bir id (zaten herkese açık okunuyor)
+# Yanıt beklenen biçimde değilse iş BAŞARISIZ olur ve GitHub depo sahibine mail atar.
+#
+# Anahtarlar: yalnızca HERKESE AÇIK anahtarlar (anon / publishable) — sitenin ve Ekip Paneli'nin
+# tarayıcıya giden kodunda zaten açıkça duruyorlar (public/team/index.html). Gizli anahtar YOK.
+#
+# ⚠️ GitHub kuralı: herkese açık bir depoda 60 gün boyunca hiç commit/hareket olmazsa GitHub
+# zamanlanmış (schedule) işleri KENDİLİĞİNDEN KAPATIR. O zaman Actions sekmesinden bu işi yeniden
+# "Enable workflow" ile açmak gerekir (ya da depoya bir commit atmak). Elle çalıştırmak için:
+# Actions › "Supabase keepalive (haftalık)" › Run workflow.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # her pazartesi 06:17 UTC (09:17 İstanbul) — tam saat başı GitHub'da yoğun
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TEAM_URL: https://umgdtjlgivvymngsnqtv.supabase.co
+      TEAM_KEY: sb_publishable_11FSDdpj-NOvua9oca86Aw_ljXRiQXg
+      MAIN_URL: https://fdlghaafspcuagxfrofz.supabase.co
+      MAIN_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkbGdoYWFmc3BjdWFneGZyb2Z6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1ODM5MjksImV4cCI6MjA5ODE1OTkyOX0.zfSXaYqQE-dDSIF_Zoj0sjDObvTxo2VaewB3jvDIdLA
+    steps:
+      - name: Team App — app_state okuması
+        run: |
+          set -euo pipefail
+          out=$(curl -fsS --retry 3 --retry-delay 10 -X POST "$TEAM_URL/rest/v1/rpc/keepalive" \
+            -H "apikey: $TEAM_KEY" -H "Content-Type: application/json" -d '{}')
+          echo "Team App: $out"
+          echo "$out" | grep -q '"ok": *true' || { echo "beklenmeyen yanıt"; exit 1; }
+          echo "$out" | grep -Eq '"rows": *[1-9]' || { echo "app_state okunamadı"; exit 1; }
+      - name: Ana proje — startups okuması
+        run: |
+          set -euo pipefail
+          out=$(curl -fsS --retry 3 --retry-delay 10 "$MAIN_URL/rest/v1/startups?select=id&limit=1" \
+            -H "apikey: $MAIN_KEY" -H "Authorization: Bearer $MAIN_KEY")
+          echo "Ana proje: $out"
+          echo "$out" | grep -q '"id"' || { echo "startups okunamadı"; exit 1; }
