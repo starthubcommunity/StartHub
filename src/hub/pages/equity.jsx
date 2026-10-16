@@ -316,10 +316,11 @@ function GrantForm({ grant, seat, seatGrants, milestones, prefill, onClose, onSa
           ? <Notice>İmzalanmış sözün şartları değiştirilemez — yalnızca geriye dönük kredi ve not düzenlenir.</Notice>
           : <Notice tone="ok">Koltukta kalan bütçe: <b>{pct(avail)}</b></Notice>}
         <fieldset disabled={signed} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <Field label="Ad Soyad" required><Input value={f.holderName} onChange={(v) => set('holderName', v)} disabled /></Field>
-        <Field label="E-posta" required hint="Ekip Paneli'nde giriş yaptığı adres — “Payım” bu adresle eşleşir.">
-          <Input type="email" value={f.holderEmail} onChange={(v) => set('holderEmail', v)} disabled />
-        </Field>
+        {/* 2026-10-16 — kişi ekip listesinden gelir; serbest ad/e-posta alanı yok (salt okunur tek satır) */}
+        <div style={{ fontSize: 13, margin: '0 0 12px', padding: '9px 12px', border: '1px solid var(--adm-border)', borderRadius: 8, background: 'var(--adm-bg)' }}>
+          <span style={{ color: 'var(--adm-text-dim)' }}>Kişi: </span><b>{f.holderName || '—'}</b>
+          {f.holderEmail && <span style={{ color: 'var(--adm-text-dim)', overflowWrap: 'anywhere' }}> · {f.holderEmail}</span>}
+        </div>
         <div className="hub-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Pay sözü (%)" required><Input type="number" step="0.25" min="0" value={f.grantPct} onChange={(v) => set('grantPct', v)} /></Field>
           {startsOnSign
@@ -602,11 +603,14 @@ function SeatCard({ seat, grants, milestones, eventsByGrant, acceptanceByGrant =
             <div style={{ display: 'flex', gap: 6 }}>
               <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={onEditSeat}><AIcon name="edit" size={14} /> Koltuk</button>
               {seat.active !== false && b.available > 0 && (
-                <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={onNewGrant}><AIcon name="plus" size={14} /> Pay sözü</button>
+                <button className="adm-btn adm-btn--ghost adm-btn--sm" onClick={onNewGrant} title="Yeni gelenlerin sözü Ekibe Al'da otomatik açılır"><AIcon name="plus" size={14} /> Eski üyeye pay sözü ver</button>
               )}
             </div>
           )}
         </div>
+        {canManage && seat.active !== false && b.available > 0 && (
+          <div style={{ fontSize: 11.5, color: 'var(--adm-text-dim)', marginTop: 4 }}>Yeni gelenlerin sözü “Ekibe Al”da otomatik açılır; elle söz yalnızca daha önce ekibe girmiş üyeler için.</div>
+        )}
         <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#F1F5F9', margin: '10px 0 4px' }}>
           <div style={{ width: w(b.consumed), background: '#94A3B8' }} title="Ayrılanlarca kullanılan" />
           <div style={{ width: w(b.committed), background: '#2563EB' }} title="Aktif ve bekleyen sözler" />
@@ -738,7 +742,7 @@ function RosterCard({ roster, missing, orphanCount, canManage, onAdd }) {
                 <span style={{ fontWeight: 600 }}>{m.name || m.email}</span>
                 <span style={{ fontSize: 12, color: 'var(--adm-text-dim)' }}> · {m.email} · {m.role === 'lead' ? 'Team Lead' : 'Üye'}</span>
               </div>
-              {canManage && <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onAdd(m)}><AIcon name="plus" size={13} /> Söz ekle</button>}
+              {canManage && <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => onAdd(m)}><AIcon name="plus" size={13} /> Eski üyeye pay sözü ver</button>}
             </div>
           ))}
         </div>
