@@ -18,13 +18,18 @@ t('dosya adı: Türkçe harfler, boşluk, tehlikeli karakter temizlenir; .pdf il
   assert.equal(cleanFileName('***.pdf'), 'belge.pdf');
   assert.ok(cleanFileName('a'.repeat(300) + '.pdf').length <= 80);
 });
-t('yükleme sınırları: yalnızca .pdf, 10 MB, ekip başına 25', () => {
+t('yükleme sınırları: yalnızca .pdf, 5 MB, ekip başına 15', () => {
   assert.equal(validateUpload({ fileName: 'a.pdf', size: 1000, readyCount: 0 }), null);
   assert.match(validateUpload({ fileName: 'a.docx', size: 1000, readyCount: 0 }), /PDF/);
-  assert.match(validateUpload({ fileName: 'a.pdf', size: MAX_PDF_BYTES + 1, readyCount: 0 }), /10 MB/);
+  assert.match(validateUpload({ fileName: 'a.pdf', size: MAX_PDF_BYTES + 1, readyCount: 0 }), /5 MB/);
   assert.match(validateUpload({ fileName: 'a.pdf', size: 0, readyCount: 0 }), /boş/);
-  assert.match(validateUpload({ fileName: 'a.pdf', size: 10, readyCount: 25 }), /25/);
-  assert.equal(validateUpload({ fileName: 'a.pdf', size: 10, readyCount: 24 }), null);
+  assert.match(validateUpload({ fileName: 'a.pdf', size: 10, readyCount: 15 }), /15/);
+  assert.equal(validateUpload({ fileName: 'a.pdf', size: 10, readyCount: 14 }), null);
+});
+t('D1: sınır tam 5 MB — 5 MB geçer, bir bayt fazlası reddedilir', () => {
+  assert.equal(MAX_PDF_BYTES, 5 * 1024 * 1024);
+  assert.equal(validateUpload({ fileName: 'a.pdf', size: 5 * 1024 * 1024, readyCount: 0 }), null);
+  assert.match(validateUpload({ fileName: 'a.pdf', size: 5 * 1024 * 1024 + 1, readyCount: 0 }), /5 MB/);
 });
 t('PDF başlığı: "%PDF-" değilse reddedilir (uzantı/MIME yalan söyleyebilir)', () => {
   assert.equal(isPdfHeader(new TextEncoder().encode('%PDF-1.7')), true);

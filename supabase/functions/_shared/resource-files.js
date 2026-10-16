@@ -1,8 +1,8 @@
 // _shared/resource-files.js — Ekip Paneli "Kaynaklar" PDF kuralları (C, 0062). Saf JS.
 // Team App fonksiyonu (yetki) + ana proje köprüsü (sınırlar, başlık) ortak kullanır.
 export const GENERAL_RES = '__GENERAL__';
-export const MAX_PDF_BYTES = 10 * 1024 * 1024;
-export const MAX_FILES_PER_TEAM = 25;          // Genel için de 25
+export const MAX_PDF_BYTES = 5 * 1024 * 1024;     // D1 (2026-10-16): 10 → 5 MB (ücretsiz plan)
+export const MAX_FILES_PER_TEAM = 15;          // D1: 25 → 15; Genel için de 15
 export const PENDING_TTL_MS = 60 * 60 * 1000;  // tamamlanmamış yükleme 1 saat sonra temizlenir
 
 // Dosya adı: Türkçe harfler ASCII'ye, güvenli karakterler, .pdf ile biter, en fazla 80 karakter.
@@ -20,7 +20,7 @@ export function validateUpload({ fileName, size, readyCount }) {
   if (!/\.pdf$/i.test(String(fileName || ''))) return 'Yalnızca PDF yüklenebilir.';
   const n = Number(size);
   if (!(n > 0)) return 'Dosya boş görünüyor.';
-  if (n > MAX_PDF_BYTES) return 'Dosya 10 MB\'tan büyük.';
+  if (n > MAX_PDF_BYTES) return 'Dosya 5 MB\'tan büyük.';
   if (Number(readyCount) >= MAX_FILES_PER_TEAM) return `Bu ekipte en fazla ${MAX_FILES_PER_TEAM} PDF olabilir — önce eskilerden birini sil.`;
   return null;
 }

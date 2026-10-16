@@ -6,7 +6,7 @@
 // C (0062) — "Kaynaklar"a PDF:
 //   sign_upload { teamId, fileName, size, actorEmail } → sınır/sayı kontrolü, satır 'pending',
 //               imzalı yükleme bağlantısı (dosya yolu tek kullanımlık: upsert yok)
-//   finalize    { teamId, fileId } → dosyayı indirir: boyut ≤ 10 MB + "%PDF-" başlığı; geçmezse siler
+//   finalize    { teamId, fileId } → dosyayı indirir: boyut ≤ 5 MB + "%PDF-" başlığı; geçmezse siler
 //   download    { teamId, fileId } → 5 dk imzalı indirme bağlantısı
 //   delete      { teamId, fileId } → dosya + satır silinir (kaynak silinince)
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -70,7 +70,7 @@ serve(async (req) => {
       };
       if (de || !blob) return await fail("Dosya yüklenmemiş görünüyor — tekrar dene.");
       const bytes = new Uint8Array(await blob.arrayBuffer());
-      if (bytes.length > MAX_PDF_BYTES) return await fail("Dosya 10 MB'tan büyük.");
+      if (bytes.length > MAX_PDF_BYTES) return await fail("Dosya 5 MB'tan büyük.");
       if (!isPdfHeader(bytes.subarray(0, 5))) return await fail("Bu dosya gerçek bir PDF değil.");
       await db.from("team_resource_files").update({ status: "ready", size_bytes: bytes.length }).eq("id", row.id);
       return json({ ok: true, fileId: row.id, fileName: row.file_name, size: bytes.length });
