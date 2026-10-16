@@ -80,6 +80,54 @@ function SendingCard({ settings, anyPlaceholder, canManage, onChanged }) {
   );
 }
 
+// ── D3: Sözleşme kayıtlarını indir (yalnızca cofounder) ───────────────────
+const saveBlob = (blob, name) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+};
+function BackupCard({ settings, onDone }) {
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  const day = new Date().toISOString().slice(0, 10);
+  const errOf = async (data, error) => { let m = data?.error; if (!m && error?.context?.json) { try { m = (await error.context.json())?.error; } catch {} } return m || error?.message || 'İndirilemedi.'; };
+  const run = async () => {
+    setErr('');
+    try {
+      setBusy('Kayıtlar hazırlanıyor…');
+      const j = await supabase.functions.invoke('equity-contract', { body: { action: 'export_json' } });
+      if (j.error || !j.data?.ok) throw new Error(await errOf(j.data, j.error));
+      saveBlob(new Blob([JSON.stringify(j.data, null, 2)], { type: 'application/json' }), `starthub-sozlesme-kayitlari-${day}.json`);
+      setBusy('PDF\'ler hazırlanıyor…');
+      const z = await supabase.functions.invoke('equity-contract', { body: { action: 'export_zip' } });
+      if (z.error || !(z.data instanceof Blob)) throw new Error(await errOf(null, z.error));
+      saveBlob(z.data, `starthub-sozlesme-pdfleri-${day}.zip`);
+      setBusy('');
+      onDone('Sözleşme kayıtları indirildi (JSON + PDF zip).');
+    } catch (e) { setBusy(''); setErr(e.message); }
+  };
+  return (
+    <div className="adm-card" style={{ marginBottom: 16 }}>
+      <div className="adm-card__body">
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontWeight: 700 }}>Yedek</div>
+            <div style={{ fontSize: 12.5, color: 'var(--adm-text-secondary)', marginTop: 2 }}>
+              Kabul kayıtları, PDF kayıtları, pay sözleri ve olay geçmişi tek bir JSON; kabul belgeleri ve her birinin SHA-256 değerini içeren manifest.txt bir zip olarak iner.
+              {' '}Son yedek: <b>{settings.lastBackupAt ? new Date(settings.lastBackupAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'hiç alınmadı'}</b>{settings.lastBackupBy ? ` · ${settings.lastBackupBy}` : ''}
+            </div>
+            <div style={{ fontSize: 12, color: '#92400E', background: '#FFFBEB', borderRadius: 8, padding: '7px 10px', marginTop: 8 }}>
+              Bu dosya kişisel veri içerir; herkese açık bir yere koyma, sadece kendi bilgisayarında ya da özel bir sürücüde sakla.
+            </div>
+            {err && <div style={{ fontSize: 12.5, color: 'var(--adm-red)', marginTop: 6 }}>{err}</div>}
+          </div>
+          <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={run} disabled={!!busy}><AIcon name="download" size={14} /> {busy || 'Sözleşme kayıtlarını indir'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Yeni sürüm formu ────────────────────────────────────────────────────
 function PublishForm({ kind, current, onClose, onPublished }) {
   const [f, setF] = useState({ title: current?.title || '', body: current?.body || '', note: '' });
@@ -178,6 +226,7 @@ export default function ContractsPage() {
       {rows.loading ? <div style={{ textAlign: 'center', padding: 32, color: 'var(--adm-text-dim)' }}>Yükleniyor…</div> : (
         <>
           <SendingCard settings={rows.settings} anyPlaceholder={anyPlaceholder} canManage={canManage} onChanged={() => { load(); flash('Gönderim ayarı güncellendi.'); }} />
+          {canManage && <BackupCard settings={rows.settings} onDone={(m) => { load(); flash(m); }} />}
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
             {CONTRACT_KINDS.map((k) => (

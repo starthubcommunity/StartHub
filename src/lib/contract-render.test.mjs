@@ -6,6 +6,7 @@ import {
   recipientLock, contractInviteMail, istanbulDate,
   shouldAutoSend, seatPreview, INVITE_EQUITY_LINE, forbiddenWordsIn,
   reminderDue, contractExpired, contractReminderMail, leadMailRecipients, leadSentMail, leadAcceptedMail,
+  backupDue,
 } from './contract-render.js';
 
 let pass = 0;
@@ -144,6 +145,15 @@ t('hatırlatma ve lider mailleri: Payım yönlendirmesi, yasak kelime yok', () =
   assert.ok(r.body.includes('Payım') && r.body.includes('3 gündür'));
   assert.ok(s.body.includes('%10') && a.body.includes('2026-10-14'));
   assert.deepEqual(forbiddenWordsIn([r.body, s.body, a.body, r.subject, s.subject, a.subject].join(' ')), []);
+});
+
+// ── D3: 14 günde bir yedek hatırlatması ──
+t('yedek hatırlatması: kabul kaydı yoksa hiç; hiç yedek yoksa ya da 14+ gün olduysa evet', () => {
+  const now = Date.parse('2026-10-16T10:00:00Z');
+  assert.equal(backupDue(null, 0, now), false);
+  assert.equal(backupDue(null, 1, now), true);
+  assert.equal(backupDue('2026-10-03T10:00:00Z', 1, now), false);   // 13 gün
+  assert.equal(backupDue('2026-10-02T10:00:00Z', 1, now), true);    // 14 gün
 });
 
 console.log(`\n${pass} senaryo geçti${process.exitCode ? ' — BAŞARISIZ var' : ''}`);

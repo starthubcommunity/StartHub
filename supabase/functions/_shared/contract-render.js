@@ -147,7 +147,15 @@ export const mapTemplateFromDb = (r) => ({
 export const mapSettingsFromDb = (r) => ({
   testMode: r ? r.test_mode !== false : true, testEmails: r?.test_emails || [],
   liveEnabledAt: r?.live_enabled_at || null, liveEnabledBy: r?.live_enabled_by || null,
+  lastBackupAt: r?.last_backup_at || null, lastBackupBy: r?.last_backup_by || null,
 });
+// D3 — yedek hatırlatması: en az bir kabul kaydı varsa ve son yedek 14 günden eskiyse (ya da hiç yoksa).
+export const BACKUP_EVERY_DAYS = 14;
+export function backupDue(lastBackupAt, acceptanceCount, now = Date.now()) {
+  if (!(Number(acceptanceCount) > 0)) return false;
+  if (!lastBackupAt) return true;
+  return now - new Date(lastBackupAt).getTime() >= BACKUP_EVERY_DAYS * 86400000;
+}
 export const mapAcceptanceFromDb = (r) => ({
   id: r.id, grantId: r.grant_id, templateId: r.template_id, templateKind: r.template_kind,
   templateVersion: r.template_version, holderEmail: r.holder_email, typedName: r.typed_name,

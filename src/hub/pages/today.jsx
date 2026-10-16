@@ -22,6 +22,7 @@ import { EMPTY_FILTERS } from '../hub-filter';
 import { pendingGrantJoins } from '../../lib/equity-rules';
 import { recentAcceptances } from '../recent-acceptances';
 import { fetchStorageUsage, formatStorage, storageOverStop } from '../storage-usage';
+import { backupDue } from '../../lib/contract-render';
 import CandidatePanel from './candidate';
 
 const startOfWeek = () => {
@@ -379,6 +380,7 @@ export default function TodayPage({ onGoto, setFilters }) {
   const [eqSigned, setEqSigned] = useState([]);   // B — son 7 günde onaylanan sözleşmeler (zil ile aynı kaynak)
   const [seatRoleIds, setSeatRoleIds] = useState(null);   // 2026-10-13 — pay koltuğu olan rol id'leri
   const [storageUse, setStorageUse] = useState(null);     // D2 — 700 MB uyarısı
+  const [backup, setBackup] = useState(null);             // D3 — { lastAt, count }
   useEffect(() => {
     if (!canEquity) return;
     supabase.from('equity_grants').select('id, holder_name, holder_email, hub_candidate_id, status, grant_pct, created_at, contract_sent_at').then(({ data, error }) => {
@@ -386,6 +388,10 @@ export default function TodayPage({ onGoto, setFilters }) {
     });
     recentAcceptances().then(setEqSigned);
     fetchStorageUsage().then(setStorageUse);
+    Promise.all([
+      supabase.from('contract_settings').select('last_backup_at').eq('id', 1).maybeSingle(),
+      supabase.from('contract_acceptances').select('id', { count: 'exact', head: true }),
+    ]).then(([s, a]) => { if (!s.error && !a.error) setBackup({ lastAt: s.data?.last_backup_at || null, count: a.count || 0 }); });
     supabase.from('equity_seats').select('open_role_id').not('open_role_id', 'is', null).eq('active', true)
       .then(({ data, error }) => { if (!error) setSeatRoleIds(new Set((data || []).map((s) => s.open_role_id))); });
   }, [canEquity]);
@@ -473,6 +479,10 @@ export default function TodayPage({ onGoto, setFilters }) {
     if (storageOverStop(storageUse)) rows.push({
       id: 'storage-full', c: { id: null, fullName: 'Depolama' }, kind: 'Depolama', tone: 'red', goto: 'contracts',
       meta: `${formatStorage(storageUse)} — 700 MB geçildi, Ekip Paneli'nde PDF yükleme durdu (sözleşme PDF'leri etkilenmez)`, urgency: 0,
+    });
+    if (backup && can('equity.manage') && backupDue(backup.lastAt, backup.count)) rows.push({
+      id: 'backup-due', c: { id: null, fullName: 'Sözleşme yedeği' }, kind: 'Yedek', tone: 'amber', goto: 'contracts',
+      meta: backup.lastAt ? `son yedek ${String(backup.lastAt).slice(0, 10)} — 14 gün geçti, Sözleşme Metinleri'nden indir` : 'hiç yedek alınmadı — Sözleşme Metinleri › Sözleşme kayıtlarını indir', urgency: 2,
     });
     eqSigned.forEach((a) => rows.push({
       id: `eqa-${a.id}`, c: { id: null, fullName: a.name }, kind: 'Onaylandı', tone: 'green', goto: 'equity',

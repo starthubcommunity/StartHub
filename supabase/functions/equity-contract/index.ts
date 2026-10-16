@@ -26,6 +26,7 @@ import { sendMail } from "../_shared/resend.ts";
 import { deliverAcceptance, bytesSha, PDF_BUCKET } from "../_shared/contract-delivery.ts";
 import { pdfDownloadDecision, forbiddenWordsIn, pdfFileName, contractTerms, contractVars, renderContract } from "../_shared/contract-render.js";
 import { buildAcceptancePdf, fontBytes } from "../_shared/contract-pdf.js";
+import { buildZip } from "../_shared/zip-store.js";
 import { PDFDocument, rgb } from "npm:pdf-lib@1.17.1";
 import fontkit from "npm:@pdf-lib/fontkit@1.1.1";
 
@@ -101,6 +102,65 @@ serve(async (req) => {
       const { data: signed, error: se } = await db.storage.from(PDF_BUCKET).createSignedUrl(doc.storage_path, 300, { download: doc.storage_path.split("/").pop() });
       if (se || !signed) return json({ ok: false, error: "Bağlantı oluşturulamadı: " + (se?.message || "") }, 500);
       return json({ ok: true, url: signed.signedUrl, expiresIn: 300, pdfSha256: doc.pdf_sha256 });
+    }
+
+    // ── D3 (2026-10-16): "Sözleşme kayıtlarını indir" — yalnızca equity.manage (cofounder) ──
+    // export_json: kayıtların tamamı tek JSON; export_zip: kabul PDF'leri + manifest.txt (SHA-256).
+    // Her indirme equity_events'e yazılır (kim, ne zaman); son yedek zamanı contract_settings'te.
+    if (action === "export_json" || action === "export_zip") {
+      const nowIso = new Date().toISOString();
+      const logExport = async (what: string, payload: Record<string, unknown>) => {
+        await db.from("equity_events").insert({ grant_id: null, seat_id: null, kind: "note", created_by: actor,
+          note: `Sözleşme kayıtları indirildi (${what}) — ${actor || "?"}`, payload: { export: what, ...payload } });
+        await db.from("contract_settings").update({ last_backup_at: nowIso, last_backup_by: actor }).eq("id", 1);
+      };
+      if (action === "export_json") {
+        const all = async (table: string, order: string) => {
+          const rows: unknown[] = []; let from = 0;
+          for (;;) {
+            const { data, error } = await db.from(table).select("*").order(order).range(from, from + 999);
+            if (error) throw new Error(table + ": " + error.message);
+            rows.push(...(data || [])); if (!data || data.length < 1000) break; from += 1000;
+          }
+          return rows;
+        };
+        const data = {
+          contract_acceptances: await all("contract_acceptances", "accepted_at"),
+          contract_documents: await all("contract_documents", "created_at"),
+          contract_templates: await all("contract_templates", "published_at"),
+          contract_settings: await all("contract_settings", "id"),
+          equity_seats: await all("equity_seats", "created_at"),
+          equity_grants: await all("equity_grants", "created_at"),
+          equity_milestones: await all("equity_milestones", "created_at"),
+          equity_events: await all("equity_events", "happened_at"),
+        };
+        const counts = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, (v as unknown[]).length]));
+        await logExport("JSON", { counts });
+        return json({ ok: true, exportedAt: nowIso, exportedBy: actor, note: "Bu dosya kişisel veri içerir; herkese açık bir yere koymayın.", counts, data });
+      }
+      // export_zip
+      const { data: docs } = await db.from("contract_documents").select("*").order("created_at");
+      const { data: accs } = await db.from("contract_acceptances").select("id, typed_name, holder_email, accepted_at, template_kind, template_version");
+      const accById = new Map((accs || []).map((a: any) => [a.id, a]));
+      const files: { name: string; data: Uint8Array }[] = [];
+      const lines = [`Start-Hub — sözleşme kabul belgeleri · ${nowIso} · ${actor || "?"}`, "Biçim: SHA-256  dosya  (kayıttaki parmak iziyle karşılaştırma)", ""];
+      let mismatch = 0;
+      for (const d of docs || []) {
+        const { data: blob } = await db.storage.from(PDF_BUCKET).download(d.storage_path);
+        const a: any = accById.get(d.acceptance_id) || {};
+        const base = `${String(a.accepted_at || d.created_at).slice(0, 10)}_${String(a.typed_name || "kabul").normalize("NFKD").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "kabul"}_${String(d.acceptance_id).slice(0, 8)}.pdf`;
+        if (!blob) { lines.push(`DOSYA YOK  ${base}  (depoda bulunamadı)`); mismatch++; continue; }
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const sha = await bytesSha(bytes);
+        const ok = sha === d.pdf_sha256; if (!ok) mismatch++;
+        files.push({ name: base, data: bytes });
+        lines.push(`${sha}  ${base}  (${ok ? "kayıtla aynı" : "UYUŞMUYOR — kayıttaki " + d.pdf_sha256}) · ${a.holder_email || ""} · ${a.template_kind || ""} v${a.template_version || ""}`);
+      }
+      lines.push("", `Toplam ${files.length} PDF${mismatch ? ` · ${mismatch} uyuşmazlık/eksik` : " · hepsi kayıtla aynı"}.`);
+      files.push({ name: "manifest.txt", data: new TextEncoder().encode(lines.join("\n") + "\n") });
+      const zip = buildZip(files, new Date());
+      await logExport("PDF zip", { files: files.length - 1, mismatch });
+      return new Response(zip, { status: 200, headers: { ...cors, "Content-Type": "application/octet-stream", "Content-Disposition": `attachment; filename="starthub-sozlesme-pdfleri-${nowIso.slice(0, 10)}.zip"` } });
     }
 
     // ── B: PDF üret ve kişiye (yeniden) gönder ──
